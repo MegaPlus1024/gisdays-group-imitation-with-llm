@@ -1,0 +1,24 @@
+{
+  "comparison_id": "two_model_runtime_comparison_v1",
+  "status": "template",
+  "first_baseline": {
+    "path": "experiments/baselines/local_runtime_baseline_v1/summary.json",
+    "model_name": null
+  },
+  "second_baseline": {
+    "path": "experiments/baselines/second_model_runtime_baseline_v1/summary.json",
+    "model_name": null
+  },
+  "metrics": {
+    "success_count": null,
+    "json_parse_success_count": null,
+    "wall_time_seconds_avg": null,
+    "cpu_percent_avg_of_avg": null,
+    "system_ram_delta_mb_avg": null,
+    "total_tokens_avg": null,
+    "predicted_tokens_per_second_avg": null
+  },
+  "notes": [
+    "Fill by running scripts/compare_runtime_baselines.py after both baselines exist."
+  ]
+}

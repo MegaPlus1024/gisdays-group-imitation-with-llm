@@ -1,0 +1,43 @@
+{
+  "models": [
+    {
+      "registry_id": "first_model",
+      "local_alias": "first_model.gguf",
+      "actual_filename": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+      "local_path": "models/gguf/first_model.gguf",
+      "format": "GGUF",
+      "size_class": "1.5B",
+      "quantization": "Q4_K_M",
+      "source_url": null,
+      "role": "first local smoke test and first runtime baseline",
+      "used_in": [
+        "experiments/smoke/local_llama_server_smoke_v1/",
+        "experiments/baselines/local_runtime_baseline_v1/"
+      ],
+      "notes": [
+        "Alias mapping: first_model.gguf -> qwen2.5-1.5b-instruct-q4_k_m.gguf.",
+        "Fill source_url manually if known."
+      ]
+    },
+    {
+      "registry_id": "qwen2_5_3b_instruct_q4_k_m",
+      "local_alias": null,
+      "actual_filename": "qwen2.5-3b-instruct-q4_k_m.gguf",
+      "local_path": "models/gguf/qwen2.5-3b-instruct-q4_k_m.gguf",
+      "format": "GGUF",
+      "size_class": "3B",
+      "quantization": "Q4_K_M",
+      "source_url": null,
+      "role": "second model smoke test and second runtime baseline",
+      "used_in": [
+        "experiments/smoke/second_model_smoke_v1/",
+        "experiments/baselines/second_model_runtime_baseline_v1/",
+        "experiments/comparisons/two_model_runtime_comparison_v1/"
+      ],
+      "reason_for_selection": "The first model proved the runtime pipeline. This 3B Q4_K_M model tests whether a larger local instruct model remains practical while potentially improving instruction-following.",
+      "notes": [
+        "Do not claim quality improvement until numeric and semantic validation data exist."
+      ]
+    }
+  ]
+}
