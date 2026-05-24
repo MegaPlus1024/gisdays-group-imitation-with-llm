@@ -1,0 +1,78 @@
+{
+  "run_index": 1,
+  "success": true,
+  "error_type": null,
+  "error_message": null,
+  "started_at": "2026-05-24T08:06:41.395203+00:00",
+  "finished_at": "2026-05-24T08:06:41.920570+00:00",
+  "wall_time_seconds": 0.525144,
+  "runtime": "llama.cpp / llama-server",
+  "base_url": "http://127.0.0.1:8080/v1",
+  "endpoint": "http://127.0.0.1:8080/v1/chat/completions",
+  "model_name": "first_model.gguf",
+  "prompt_file": "prompts\\smoke\\agent_next_action_v1.txt",
+  "output": "{\n  \"action\": \"create_file\",\n  \"parameters\": {\n    \"file_name\": \"experiment_report.md\",\n    \"content\": \"This is the first step of the experiment report.\"\n  },\n  \"reason\": \"Creating a file to start the experiment report.\",\n  \"expected_result\": \"The file 'experiment_report.md' is created.\"\n}",
+  "json_parse_success": true,
+  "json_parse_error": null,
+  "raw_response": {
+    "choices": [
+      {
+        "finish_reason": "stop",
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "{\n  \"action\": \"create_file\",\n  \"parameters\": {\n    \"file_name\": \"experiment_report.md\",\n    \"content\": \"This is the first step of the experiment report.\"\n  },\n  \"reason\": \"Creating a file to start the experiment report.\",\n  \"expected_result\": \"The file 'experiment_report.md' is created.\"\n}"
+        }
+      }
+    ],
+    "created": 1779610001,
+    "model": "first_model.gguf",
+    "system_fingerprint": "b9264-ce02093fd",
+    "object": "chat.completion",
+    "usage": {
+      "completion_tokens": 73,
+      "prompt_tokens": 196,
+      "total_tokens": 269,
+      "prompt_tokens_details": {
+        "cached_tokens": 195
+      }
+    },
+    "id": "chatcmpl-eVVR2ypjEzqNO6KT6RuIKhcTS7SKslTn",
+    "timings": {
+      "cache_n": 195,
+      "prompt_n": 1,
+      "prompt_ms": 74.194,
+      "prompt_per_token_ms": 74.194,
+      "prompt_per_second": 13.478178828476695,
+      "predicted_n": 73,
+      "predicted_ms": 338.979,
+      "predicted_per_token_ms": 4.643547945205479,
+      "predicted_per_second": 215.3525734632529
+    }
+  },
+  "usage": {
+    "prompt_tokens": 196,
+    "completion_tokens": 73,
+    "total_tokens": 269
+  },
+  "llama_timings": {
+    "prompt_n": 1,
+    "prompt_ms": 74.194,
+    "prompt_per_second": 13.478178828476695,
+    "predicted_n": 73,
+    "predicted_ms": 338.979,
+    "predicted_per_second": 215.3525734632529
+  },
+  "resource_estimate": {
+    "system_ram_used_before_mb": 21915.051,
+    "system_ram_used_after_mb": 21926.344,
+    "system_ram_delta_mb": 11.293,
+    "system_cpu_percent_avg": 2.7,
+    "system_cpu_percent_max": 3.7,
+    "server_pid": 20700,
+    "server_rss_before_mb": 1160.977,
+    "server_rss_after_mb": 1161.0,
+    "server_rss_delta_mb": 0.023,
+    "server_metric_error": null
+  }
+}

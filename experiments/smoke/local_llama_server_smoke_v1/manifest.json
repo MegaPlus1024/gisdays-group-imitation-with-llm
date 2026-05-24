@@ -1,0 +1,105 @@
+{
+  "experiment_id": "local_llama_server_smoke_v1",
+  "archived_at": "2026-05-21T18:52:18.613135+00:00",
+  "source": {
+    "smoke_log": "logs\\smoke\\20260521_214155_smoke.json",
+    "prompt_file": "logs\\smoke\\20260521_214155_prompt.txt",
+    "output_file": "logs\\smoke\\20260521_214155_output.txt"
+  },
+  "runtime": {
+    "name": "llama.cpp / llama-server",
+    "base_url": "http://127.0.0.1:8080/v1",
+    "endpoint": "http://127.0.0.1:8080/v1/chat/completions",
+    "system_fingerprint": "b9264-ce02093fd",
+    "server_pid": null
+  },
+  "model": {
+    "model_name": "first_model.gguf",
+    "model_path": "models\\gguf\\first_model.gguf",
+    "model_file_exists": true,
+    "model_file_size_bytes": 1117320736,
+    "model_sha256": "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e",
+    "source_url": null,
+    "source_note": "Do not invent source URL. Fill manually if known."
+  },
+  "prompt": {
+    "sha256": "963ae2ccb6f9c74421a9fb0447155947f555f1ff99845087e3847a37016a4d09",
+    "text": "You are simulating the decision core of a local LLM agent.\n\nRole:\n- You are a student researcher preparing a local LLM experiment report.\n\nCurrent state:\n- The project folder exists.\n- No action has been executed yet.\n\nAvailable scripts:\n- create_file\n- read_file\n- run_shell_command\n\nTask:\n- Choose exactly one next action that is most reasonable as the very first step.\n\nOutput contract:\n- Return only JSON.\n- Use exactly this shape:\n{\n  \"action\": \"string\",\n  \"parameters\": {},\n  \"reason\": \"string\",\n  \"expected_result\": \"string\"\n}\n\nHard rejection rules:\n- Reject free-form essay output.\n- Reject multiple actions.\n- Reject missing parameters.\n- Reject unknown action.\n- Reject invalid JSON.\n\nReturn only one valid JSON object and nothing else.\n"
+  },
+  "output": {
+    "sha256": "6ae35e7cce24f3c29a346ae5b74d46d9dbab7f9e3a4222bb9f8ab56548d918fb",
+    "text": "{\n  \"action\": \"create_file\",\n  \"parameters\": {\n    \"file_name\": \"experiment_report.md\",\n    \"content\": \"This is the first step of the experiment report.\"\n  },\n  \"reason\": \"Creating a file to start the experiment report.\",\n  \"expected_result\": \"The file 'experiment_report.md' has been created.\"\n}",
+    "json_parse_success": true,
+    "parsed_json": {
+      "action": "create_file",
+      "parameters": {
+        "file_name": "experiment_report.md",
+        "content": "This is the first step of the experiment report."
+      },
+      "reason": "Creating a file to start the experiment report.",
+      "expected_result": "The file 'experiment_report.md' has been created."
+    },
+    "semantic_validation_performed": false,
+    "semantic_validation_note": "Smoke test only checked model response extraction and JSON parsing, not whether action parameters match the future script registry schema."
+  },
+  "timing": {
+    "wall_time_seconds": 5.713122,
+    "llama_timings": {
+      "cache_n": 0,
+      "prompt_n": 196,
+      "prompt_ms": 5160.868,
+      "prompt_per_token_ms": 26.33095918367347,
+      "prompt_per_second": 37.97810755865098,
+      "predicted_n": 74,
+      "predicted_ms": 436.906,
+      "predicted_per_token_ms": 5.904135135135135,
+      "predicted_per_second": 169.3728170361588
+    }
+  },
+  "tokens": {
+    "prompt_tokens": 196,
+    "completion_tokens": 74,
+    "total_tokens": 270
+  },
+  "resource_estimate": {
+    "system_ram_used_before_mb": 20823.812,
+    "system_ram_used_after_mb": 20782.23,
+    "system_ram_delta_mb": -41.582,
+    "system_cpu_percent_avg": 4.51,
+    "system_cpu_percent_max": 7.4,
+    "server_pid": null,
+    "server_rss_before_mb": null,
+    "server_rss_after_mb": null,
+    "server_rss_delta_mb": null,
+    "server_metric_error": null
+  },
+  "environment": {
+    "platform": "Windows-10-10.0.19045-SP0",
+    "python_version": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "packages": {
+      "httpx": "0.28.1",
+      "psutil": "7.2.2",
+      "pydantic": "2.13.4",
+      "pytest": "9.0.3",
+      "rich": "15.0.0"
+    }
+  },
+  "reproduction": {
+    "llama_server_command_template_windows": "llama-server `\n  -m models\\gguf\\first_model.gguf `\n  --host 127.0.0.1 `\n  --port 8080 `\n  --ctx-size 4096",
+    "smoke_command_windows": "python scripts\\run_llama_smoke.py `\n  --base-url http://127.0.0.1:8080/v1 `\n  --model-name first_model.gguf `\n  --prompt-file prompts\\smoke\\agent_next_action_v1.txt `\n  --out-dir logs\\smoke",
+    "notes": [
+      "Run llama-server manually before smoke script.",
+      "Use --server-pid for future runs if per-process memory tracking is needed.",
+      "Do not copy GGUF model files into experiments."
+    ]
+  },
+  "status": {
+    "success": true,
+    "limitations": [
+      "server_pid was not provided if null in source log",
+      "resource estimate is system-level unless server_pid is available",
+      "model_name may be an alias if the GGUF file was renamed to first_model.gguf",
+      "semantic action validation is not implemented yet"
+    ]
+  }
+}

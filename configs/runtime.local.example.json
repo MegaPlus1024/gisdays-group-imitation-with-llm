@@ -1,0 +1,56 @@
+{
+  "runtime": {
+    "name": "llama.cpp",
+    "mode": "llama-server",
+    "host": "127.0.0.1",
+    "port": 8080,
+    "base_url": "http://127.0.0.1:8080/v1",
+    "api_style": "openai_compatible"
+  },
+  "python": {
+    "version": "3.11_or_3.12",
+    "packages": [
+      "httpx",
+      "pydantic",
+      "pytest",
+      "psutil",
+      "rich"
+    ]
+  },
+  "model": {
+    "format": "GGUF",
+    "path": "models/gguf/first_model.gguf",
+    "size_class": "7B-8B",
+    "quantization_target": "Q4_or_Q5",
+    "context_size": 4096
+  },
+  "hardware": {
+    "first_assumption": "CPU-first",
+    "gpu_required": false,
+    "gpu_optional_later": true
+  },
+  "logging": {
+    "log_model_filename": true,
+    "log_prompt_tokens": true,
+    "log_output_tokens": true,
+    "log_wall_time": true,
+    "log_ram_usage": true,
+    "log_cpu_usage": true,
+    "log_errors": true
+  },
+  "agent_contract": {
+    "output_format": {
+      "action": "string",
+      "parameters": "object",
+      "reason": "string",
+      "expected_result": "string"
+    },
+    "reject_if": [
+      "invalid_json",
+      "unknown_action",
+      "missing_parameters",
+      "multiple_actions",
+      "free_form_text_only"
+    ]
+  }
+}
