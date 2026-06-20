@@ -1,0 +1,78 @@
+Этап: cme295
+- CME295 project synthesis (flex): Convert one completed lecture into implementation decisions (state format, action selection, evaluation, experiment design). Only if lecture notes exist.
+- CME295 lecture X part A (dynamic): Watch first focused block, capture project implications.
+- CME295 lecture X part B (dynamic): Finish lecture, write 8-12 project notes that change agent prototype, experiment plan, or report.
+- CME295 lecture X extraction audit (dynamic): Rewrite lecture notes into concrete project consequences: state fields, action-selection constraints, evaluation metrics, report claims. No vague summaries.
+
+Этап: localRuntime
+- Runtime choice and install notes: Choose local runtime path, write install assumptions (OS, Python version, model format, CPU/GPU, model location).
+- Local model smoke test: Run one small local model end-to-end, save prompt, output, wall time, RAM estimate, CPU load, exact model name.
+- Model adapter stub: Create stable interface for local generation (input messages/state, output text/JSON, timeout, error type, model name, elapsed time). Independent from agent.
+- Resource baseline measurement: Measure one fixed prompt three times, record latency, RAM, CPU load, context length, failure cases.
+- Local runtime wrapper CLI: One command/script that calls local runtime through adapter. Inputs: prompt file, model name. Outputs: response text, elapsed time, structured error.
+- Runtime reproducibility checklist: Exact reproduction steps (install command, model download path, run command, adapter command, expected sample output, first known failure mode).
+- Second model smoke test (flex): Run same prompt on second model/quantization. Record comparable numbers. No subjective impressions without baseline.
+
+Этап: architecture
+- Agent state schema v1: Exact JSON/YAML state (role, resources, constraints, available scripts, recent actions, failures, next-action contract). Include one concrete user role.
+- Next-action contract: Exact JSON the local LLM must return (action name, parameters, reason, expected result, fallback). Include one valid and two invalid examples.
+- Orchestrator-agent boundary: Specify orchestrator vs agent ownership (initialization, role context, script registry, execution, history truncation, stopping conditions).
+- Failure recovery policy: Define behavior after invalid JSON, missing parameters, script error, timeout, repeated action, role constraint contradiction. Every failure observable.
+- History window and memory policy: What part of action history is visible to next decision (last actions, failures, summaries, role constraints, state deltas). Truncation rules.
+- Role template and constraint format: Role format (user role, allowed resources, forbidden actions, daily rhythm, app preferences, normal behavior distribution). Two simulated-user examples.
+- Action validation test cases: Eight validation cases (valid action, unknown action, missing parameter, wrong type, unsafe path, repeated action, timeout, role constraint contradiction).
+- Architecture README and data-flow diagram: Implementation-facing README (orchestrator -> agent state -> local model -> validator -> script runner -> history log -> evaluator).
+- Prompt contract hardening (flex): Tighten next-action JSON contract (required fields, allowed actions, valid/invalid examples, repair policy after malformed output).
+
+Этап: scripts
+- Script registry JSON v1: Define parameterized actions (browser, file ops, office-document stub, shell command, optional git/mail). Each: name, parameters, validation, result shape, safety boundary.
+- File activity script: Implement create/read/edit file actions with sandbox path validation, deterministic result objects, logged failures.
+- Browser action script: Implement one bounded browser-like action, callable from agent runner, produces structured logs.
+- Office document stub: Document activity interface mock (open/create/edit/export metadata), matches registry format.
+- Shell command action: Restricted shell command action (allowlisted commands, timeout, cwd policy, captured stdout/stderr, exit code, logged denials).
+- Script registry loader and validator: Load registry from JSON/YAML, validate every action, reject duplicates, reject missing parameter schemas, readable startup error.
+- Script runner error normalization: Normalize all failures into one shape (errorType, message, retryable, visibleStateChange, elapsedMs, safe summary).
+- Registry fixture pack: Fixture set for browser, file, office, shell, optional git/mail (valid parameters, invalid parameters, expected result shape).
+- Script result schema audit (flex): Force all script outputs into one result shape (success, summary, artifacts, error type, elapsed time, observable world-state change).
+
+Этап: prototype
+- Agent runner skeleton: Loop (load initial state, render prompt/context, call local model adapter, parse response, validate next action, stop safely on failure).
+- Action selector prototype: Local LLM chooses exactly one valid action from state and registry. Validate JSON, reject invalid actions, produce recoverable error.
+- Execution history and error log: Persist selected action, parameters, result summary, error type, timestamp, model name, elapsed time, short history for next decision.
+- History-aware second action: Run two consecutive decisions, second prompt includes first result. Verify model does not repeat same action blindly.
+- Role-constrained trajectory run: One 5-step trajectory for one user role. Log every action, invalid output, repeated behavior, role coherence.
+- Script execution bridge: Connect validated model output to actual script runner. Execute one real script, capture result, append to history.
+- Recovery loop test: Force one malformed response and one script failure. Prototype records failure, requests repaired action, avoids repeating invalid command.
+- Multi-agent orchestrator smoke test: Initialize two agents with different roles, same registry. Run each three decisions. Verify histories stay separate.
+- Autonomous session stop criteria: Implement stop rules (max steps, repeated action loop, too many failures, time budget, explicit completion). Log stop reason.
+- Prototype bug isolation (flex): Reproduce one observed failure (parsing, validation, script execution, history injection) with minimal fixture. Write fix note.
+
+Этап: behaviorEval
+- Reframe objective around normal user activity: Update README/docs to state main objective is normal user activity simulation. Safety validation is technical layer. Include role fit, coherence, diversity, repetition. Note evaluation upcoming.
+- Normal activity profile schema v1: Create activity_profile.py and configs for office_worker, developer, student_researcher (typical_actions, atypical_actions, expected_sequences, max_repetition, min_diversity, role_notes). Loader/validation tests.
+- Normal activity trajectory evaluator v1: Create activity_evaluator.py. Score trajectory against activity profile. Metrics: valid_action_rate, role_compliance_rate, typical_action_rate, atypical_action_count, unique_action_count, diversity_score, repeated_action_count, repetition_score, sequence_coherence_score, history_usage_score, normal_activity_score. No LLM calls.
+- Behavioral validation fixtures: Positive/negative cases (normal office worker, abnormal shell-heavy worker, normal developer, repetitive same-path, incoherent unrelated). Expected scores/flags.
+- Evaluation scenario pack v1: Scenarios for office_worker_basic_session, developer_project_maintenance, student_researcher_experiment_report, mixed_roles_multi_agent. Each: role_template_path, activity_profile_path, initial_agent_state, allowed scripts, expected normal action families, evaluation metrics, max_steps, stop criteria. Unit tests load offline.
+- Model behavior evaluation harness skeleton: Create model_behavior_evaluation.py, docs, tests. Define model_id, scenario_id, run_id, selected_actions, validation results, activity evaluation result, latency metadata, resource metadata placeholders. Works with synthetic data.
+- Experiment readiness audit: Verify runtime baseline, model registry, action selector, script bridge, history logger, stop criteria, activity profiles, trajectory evaluator, evaluation scenarios. Must state next stage is real experiments.
+- Behavioral metric sanity check (flex): Take existing trajectory, manually score for role fit, coherence, diversity, repetition, history usage. Refine activity profile thresholds.
+
+Этап: experiments
+- Select model comparison set: Create evaluation_models.json with at least two local models (current 1.5B and 3B). Record model_id, GGUF path, quantization, runtime, CPU-only mode.
+- Single-model scenario dry run: Run one evaluation scenario on one local model. Save selected actions, validation results, history, latency, activity evaluation result.
+- Two-model behavior comparison: Run same scenario on two models. Compare JSON validity, NextAction parse success, registry acceptance, role compliance, normal_activity_score, diversity_score, repetition_score, average latency.
+- Role compliance evaluation: Evaluate role constraint respect (office_worker avoids shell, developer may run pytest, student_researcher uses docs/experiments). Save violations and examples.
+- Coherence and history usage evaluation: Check trajectories use previous actions (avoid unjustified repetition, logical continuations, reason mentions previous step, avoid unrelated jumps). Save examples and scores.
+- Diversity and template behavior evaluation: Measure unique_action_count, repeated_action_count, repeated_same_parameters_count, action-family diversity. Assess whether behavior is normal but varied.
+- Resource and latency evaluation: Measure average action-selection latency, CPU average/max, RAM estimate, tokens/sec. Determine if CPU-only is practical per model.
+- Multi-agent capacity estimate: Write capacity formula doc. Inputs: available_ram_mb, per_agent_model_ram_mb, per_agent_runtime_overhead_mb, average_cpu_load_per_agent, target_cpu_utilization_limit. Output: estimated_concurrent_agents = min(ram_bound, cpu_bound). Numeric example for current machine.
+- Final evaluation report: Compile report (chosen tools and why, tested models, resource use, behavior normality, limitations, recommended configuration).
+- Scenario failure audit (flex): Classify cause of failed/low-scoring scenario (bad profile, role template, script set, model weakness, parsing, behavioral failure).
+
+Этап: report
+- Report skeleton: Create sections (chosen stack, local models, implementation design, experiment protocol, resources, limits, observed behavior, recommended configuration).
+- Implementation section draft: Write architecture and prototype sections from implemented facts (orchestrator, agent state, script registry, action selector, execution log, limitations).
+- Experiment results table: Model comparison table (latency, resource use, valid-action rate, role adherence, repetition, qualitative notes tied to logs).
+- Recommended configuration: Final recommendation (runtime, model/quantization, CPU/RAM limits, max agents formula, known failure modes).
+- Limitations and future-work section: Limitations from actual evidence (local model weakness, CPU latency, repetitive behavior, script brittleness, evaluation limits, what to improve next).
+- Limitations section hardening (flex): List real limitations without euphemisms (CPU speed, local model quality, repetitive behavior, brittle scripts, missing apps, evaluation weakness).
