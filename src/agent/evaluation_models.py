@@ -15,8 +15,10 @@ PreflightSeverity = Literal["warning", "error"]
 
 class EvaluationModelSpec(BaseModel):
     model_id: str
+    aliases: list[str] = Field(default_factory=list)
     display_name: str
     model_name: str
+    upstream_model_name: str | None = None
     gguf_path: str
     quantization: str
     parameter_size: str
@@ -47,6 +49,23 @@ class EvaluationModelSpec(BaseModel):
         if not value.strip():
             raise ValueError("Evaluation model string fields must be non-empty.")
         return value
+
+    @field_validator("upstream_model_name")
+    @classmethod
+    def validate_optional_non_empty(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("upstream_model_name must be non-empty when provided.")
+        return value
+
+    @field_validator("aliases")
+    @classmethod
+    def validate_aliases(cls, value: list[str]) -> list[str]:
+        cleaned = [item.strip() for item in value]
+        if any(not item for item in cleaned):
+            raise ValueError("aliases must not contain empty values.")
+        if len(cleaned) != len(set(cleaned)):
+            raise ValueError("aliases must be unique per model.")
+        return cleaned
 
     @field_validator("ctx_size", "max_tokens")
     @classmethod
@@ -94,6 +113,14 @@ class EvaluationModelsConfig(BaseModel):
         ids = [model.model_id for model in self.models]
         if len(ids) != len(set(ids)):
             raise ValueError("model_id values must be unique.")
+        aliases: dict[str, str] = {}
+        for model in self.models:
+            for alias in model.aliases:
+                if alias in ids:
+                    raise ValueError("model aliases must not conflict with model_id values.")
+                if alias in aliases:
+                    raise ValueError("model aliases must be unique across models.")
+                aliases[alias] = model.model_id
         return self
 
 
@@ -119,12 +146,20 @@ class EvaluationModelRegistry:
     def __init__(self, config: EvaluationModelsConfig) -> None:
         self.config = config
         self._models = {model.model_id: model for model in config.models}
+        self._aliases = {
+            alias: model.model_id
+            for model in config.models
+            for alias in model.aliases
+        }
 
     def model_ids(self) -> list[str]:
         return sorted(self._models)
 
+    def resolve_model_id(self, model_id: str) -> str:
+        return self._aliases.get(model_id, model_id)
+
     def get(self, model_id: str) -> EvaluationModelSpec | None:
-        return self._models.get(model_id)
+        return self._models.get(self.resolve_model_id(model_id))
 
     def require(self, model_id: str) -> EvaluationModelSpec:
         model = self.get(model_id)

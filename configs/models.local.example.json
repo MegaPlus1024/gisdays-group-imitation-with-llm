@@ -20,9 +20,13 @@
       ]
     },
     {
-      "registry_id": "qwen2_5_3b_instruct_q4_k_m",
+      "registry_id": "second_model",
+      "aliases": [
+        "qwen2_5_3b_instruct_q4_k_m"
+      ],
       "local_alias": "second_model.gguf",
-      "actual_filename": "qwen2.5-3b-instruct-q4_k_m.gguf",
+      "actual_filename": "second_model.gguf",
+      "upstream_model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
       "local_path": "models/gguf/second_model.gguf",
       "format": "GGUF",
       "size_class": "3B",
@@ -36,7 +40,9 @@
       ],
       "reason_for_selection": "The first model proved the runtime pipeline. This 3B Q4_K_M model tests whether a larger local instruct model remains practical while potentially improving instruction-following.",
       "notes": [
-        "Alias mapping: second_model.gguf -> qwen2.5-3b-instruct-q4_k_m.gguf.",
+        "Current user-facing model id is second_model.",
+        "Historical artifacts may still use the alias qwen2_5_3b_instruct_q4_k_m.",
+        "Upstream/source filename may be qwen2.5-3b-instruct-q4_k_m.gguf.",
         "Source of truth for experiment runtime paths is configs/evaluation_models.json.",
         "Do not claim quality improvement until numeric and semantic validation data exist."
       ]

@@ -1,5 +1,7 @@
 # Cross-Scenario Behavioral Analysis v1
 
+Publication note: historical tables in this document retain `qwen2_5_3b_instruct_q4_k_m`, the id recorded in generated artifacts. Current setup exposes the same second model as `second_model`.
+
 ## 1. Purpose
 
 This document summarizes the cross-scenario behavioral evidence for two local LLM models. It addresses the TZ requirement to compare local models by action selection quality, role fit, coherence, diversity, repetitive/template behavior, execution failures, and latency/resource observations across more than one role/scenario.

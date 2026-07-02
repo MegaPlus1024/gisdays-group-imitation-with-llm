@@ -1,5 +1,7 @@
 # Multi-Agent Capacity Formula
 
+Publication note: if this document references `qwen2_5_3b_instruct_q4_k_m` in an example, that is the historical artifact id for the current `second_model`.
+
 ## 1. Purpose
 
 This formula estimates how many local LLM agents can run concurrently on the current machine. It is required by the TZ resource block, but it must be treated as a planning estimate, not a measured production capacity result.

@@ -130,6 +130,7 @@ def main(argv: list[str] | None = None) -> int:
         resolve_evaluation_model,
     )
 
+    requested_model_id = args.model_id
     model_id = args.model_id or DEFAULT_FAKE_MODEL_ID
     model_name = args.model_name
     base_url = args.base_url
@@ -158,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         model_registry_spec = model_spec.model_dump(mode="json")
         model_preflight_result = preflight.model_dump(mode="json")
+        model_id = model_spec.model_id
         timeout_seconds = model_spec.timeout_seconds
         temperature = model_spec.temperature
         max_tokens = model_spec.max_tokens
@@ -200,6 +202,7 @@ def main(argv: list[str] | None = None) -> int:
         out_dir=args.out_dir,
         run_id=args.run_id,
         model_id=model_id,
+        requested_model_id=requested_model_id,
         model_name=model_name,
         base_url=base_url,
         models_config_path=args.models_config if args.model_id else None,

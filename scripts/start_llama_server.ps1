@@ -31,7 +31,7 @@ Defaults:
 Examples:
   .\scripts\$scriptName
   .\scripts\$scriptName -ModelId first_model
-  .\scripts\$scriptName -ModelId qwen2_5_3b_instruct_q4_k_m
+  .\scripts\$scriptName -ModelId second_model
   .\scripts\$scriptName -Port 8081
   .\scripts\$scriptName -ModelPath "C:\path\to\model.gguf"
   .\scripts\$scriptName -ServerPath "C:\path\to\llama-server.exe"
@@ -74,7 +74,9 @@ function Load-EvaluationModel {
   }
 
   $payload = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
-  $matches = @($payload.models | Where-Object { $_.model_id -eq $ModelIdValue })
+  $matches = @($payload.models | Where-Object {
+      $_.model_id -eq $ModelIdValue -or @($_.aliases) -contains $ModelIdValue
+    })
   if ($matches.Count -eq 0) {
     throw "ModelId '$ModelIdValue' not found in $ConfigPath"
   }
@@ -217,6 +219,9 @@ Write-Host "Project root:  $ProjectRoot"
 Write-Host "Models config: $ResolvedModelsConfig"
 if ($ModelId) {
   Write-Host "Model id:      $ModelId"
+  if ($SelectedModel.model_id -ne $ModelId) {
+    Write-Host "Resolved id:   $($SelectedModel.model_id)"
+  }
   Write-Host "Model name:    $($SelectedModel.model_name)"
 }
 Write-Host "Model path:    $ResolvedModelPath"

@@ -292,14 +292,18 @@ def build_resource_capacity_evaluation(
 ) -> ResourceCapacityEvaluationResult:
     warnings: list[str] = []
     observations: list[ResourceObservation] = []
+    registry = EvaluationModelRegistry(load_evaluation_models_config(models_config_path))
     for scenario_id, root in scenario_roots.items():
         try:
             observations.extend(load_resource_summaries_from_repeated_trials(root, scenario_id=scenario_id))
         except Exception as exc:
             warnings.append(f"scenario_resource_load_failed: {scenario_id}: {exc}")
+    for observation in observations:
+        canonical_model_id = registry.resolve_model_id(observation.model_id)
+        if canonical_model_id != observation.model_id:
+            observation.model_id = canonical_model_id
     per_model_summary, per_scenario_summary = aggregate_resource_observations(observations)
     system_snapshot = collect_current_system_resources()
-    registry = EvaluationModelRegistry(load_evaluation_models_config(models_config_path))
     available_ram_mb = float(system_snapshot.get("available_ram_mb") or 0.0)
     effective_available_ram_mb = max(0.0, available_ram_mb - reserved_system_ram_mb)
     capacity_estimates: dict[str, ModelCapacityEstimate] = {}
@@ -624,7 +628,7 @@ def _evaluation_markdown(result: ResourceCapacityEvaluationResult) -> str:
         "",
         "- Lower latency does not imply better agent usefulness when execution success is zero.",
         "- `first_model` has some execution usefulness but lower contract validity and higher latency.",
-        "- `qwen2_5_3b_instruct_q4_k_m` has lower latency and stronger contract validity but poor execution usefulness in current scenarios.",
+        "- `second_model` has lower latency and stronger contract validity but poor execution usefulness in current scenarios.",
         "",
         "## 9. Limitations",
         "",

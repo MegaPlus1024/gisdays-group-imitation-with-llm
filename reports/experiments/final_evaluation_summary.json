@@ -12,6 +12,13 @@
     "first_model",
     "qwen2_5_3b_instruct_q4_k_m"
   ],
+  "current_model_ids": [
+    "first_model",
+    "second_model"
+  ],
+  "model_id_aliases": {
+    "qwen2_5_3b_instruct_q4_k_m": "second_model"
+  },
   "scenarios": [
     "office_worker_basic_session",
     "developer_project_maintenance"

@@ -138,12 +138,14 @@ configs\evaluation_models.json
 
 Current canonical mapping:
 
-| model_id | logical/model_name | required local path |
+| model_id | model_name | required local path |
 |---|---|---|
 | `first_model` | `first_model.gguf` | `models\gguf\first_model.gguf` |
-| `qwen2_5_3b_instruct_q4_k_m` | `qwen2.5-3b-instruct-q4_k_m.gguf` | `models\gguf\second_model.gguf` |
+| `second_model` | `second_model.gguf` | `models\gguf\second_model.gguf` |
 
-See `docs/ai/model_file_mapping.md` for the publication-safe mapping notes.
+See `docs/ai/model_file_mapping.md` for the publication-safe mapping notes. See `docs/ai/adding_new_models.md` for adding third or test models.
+
+The earlier internal experiment id `qwen2_5_3b_instruct_q4_k_m` may appear in historical artifacts. Current user-facing commands should use `second_model`; the old id is kept as a compatibility alias.
 
 Preflight checks:
 
@@ -157,7 +159,7 @@ Preflight checks:
 ```powershell
 .\.venv\Scripts\python.exe scripts\check_evaluation_model.py `
   --models-config configs\evaluation_models.json `
-  --model-id qwen2_5_3b_instruct_q4_k_m `
+  --model-id second_model `
   --json
 ```
 
@@ -173,6 +175,12 @@ Start the server:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\start_llama_server.ps1 -ModelId first_model
+```
+
+For the second model:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start_llama_server.ps1 -ModelId second_model
 ```
 
 Run the server in one terminal and experiments in another.
@@ -222,7 +230,7 @@ Expected artifacts include `manifest.json`, `steps.jsonl`, `attempts.jsonl`, `ra
 .\.venv\Scripts\python.exe scripts\run_repeated_model_trials.py `
   --mode local `
   --models-config configs\evaluation_models.json `
-  --model-ids first_model,qwen2_5_3b_instruct_q4_k_m `
+  --model-ids first_model,second_model `
   --scenario configs\evaluation_scenarios\office_worker_basic_session.json `
   --out-root experiments\model_behavior\repeated_trials\readme_office_worker_n3 `
   --label readme_office_worker_n3 `
@@ -270,7 +278,7 @@ Capacity is formula-based unless a runtime/concurrent probe is explicitly run.
 ```powershell
 .\.venv\Scripts\python.exe scripts\evaluate_resource_capacity.py `
   --models-config configs\evaluation_models.json `
-  --model-ids first_model,qwen2_5_3b_instruct_q4_k_m `
+  --model-ids first_model,second_model `
   --repeated-trials-root office_worker=experiments\model_behavior\repeated_trials\office_worker_two_model_repair_n3_v1 `
   --repeated-trials-root developer_project_maintenance=experiments\model_behavior\repeated_trials\developer_project_maintenance_two_model_repair_n3_v1 `
   --cross-scenario-analysis experiments\model_behavior\cross_scenario\office_worker_developer_two_model_cross_scenario_v1 `
@@ -294,7 +302,7 @@ Report files:
 Final summary:
 
 - total trajectories: 12;
-- `qwen2_5_3b_instruct_q4_k_m` has better contract validity and latency;
+- `second_model` has better contract validity and latency in the current evidence base;
 - `first_model` had some useful execution but is repair-dependent;
 - both models show weak coherence and template-like behavior;
 - final model recommendation is not ready;

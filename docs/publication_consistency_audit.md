@@ -53,6 +53,14 @@ Full repository consistency audit before GitHub publication. The audit checks wh
 - `docs/ai/model_file_mapping.md` was added as the canonical human-readable mapping document.
 - `README.md` now includes a model mapping table and points to `docs/ai/model_file_mapping.md`.
 - `docs/ai/second_model_smoke_test.md` now explains that `second_model.gguf` is the mapped local alias.
+
+## Model Naming Simplification Follow-Up
+
+- Current user-facing model ids are `first_model` and `second_model`.
+- The previous long id `qwen2_5_3b_instruct_q4_k_m` was replaced in current config and setup docs by `second_model`.
+- `configs/evaluation_models.json` is the source of truth and keeps `qwen2_5_3b_instruct_q4_k_m` as a legacy alias for backward compatibility.
+- Historical reports and generated artifacts may still contain `qwen2_5_3b_instruct_q4_k_m` because that was the id recorded when those experiments ran.
+- Normal current commands should use `--model-id second_model` and `--model-ids first_model,second_model`.
 - `docs/ai/developer_walkthrough_for_newcomer.md` now reflects the current scenario-runner/repeated-trials/cross-scenario/resource state.
 - `docs/ai/project_structure_audit_for_report.md` now has a clear historical snapshot notice.
 

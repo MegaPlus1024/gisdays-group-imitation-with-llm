@@ -190,6 +190,7 @@ class ExperimentScenarioRunnerConfig(BaseModel):
     out_dir: str = "experiments/scenario_runs/default"
     run_id: str = "scenario_run"
     model_id: str = "fake_model"
+    requested_model_id: str | None = None
     model_name: str = "fake-scripted-provider"
     base_url: str | None = None
     models_config_path: str | None = None
@@ -1129,6 +1130,8 @@ class ExperimentScenarioRunner:
                 quantization=(self.config.model_registry_spec or {}).get("quantization"),
                 cpu_only=scenario.resource_plan.cpu_only,
                 metadata={
+                    "requested_model_id": self.config.requested_model_id or self.config.model_id,
+                    "resolved_model_id": self.config.model_id,
                     "registry_spec": self.config.model_registry_spec,
                     "preflight": self.config.model_preflight_result,
                     "cli_overrides": self.config.model_cli_overrides,
@@ -1300,6 +1303,8 @@ class ExperimentScenarioRunner:
                 "agent_id": agent_spec.agent_id,
                 "mode": self.config.mode,
                 "model_id": self.config.model_id,
+                "requested_model_id": self.config.requested_model_id or self.config.model_id,
+                "resolved_model_id": self.config.model_id,
                 "model_name": self.config.model_name,
                 "base_url": self.config.base_url,
                 "model": self._manifest_model_section(),
@@ -1339,7 +1344,7 @@ class ExperimentScenarioRunner:
             f"--mode {self.config.mode} "
             f"--out-dir {self.config.out_dir} "
             f"--run-id {self.config.run_id} "
-            f"--model-id {self.config.model_id} "
+            f"--model-id {self.config.requested_model_id or self.config.model_id} "
             f"--max-steps {self.config.max_steps or 1} "
             "--force"
         )
@@ -1389,6 +1394,8 @@ Local mode is available for future dry runs but was not used to create this arti
         preflight = self.config.model_preflight_result or {}
         return {
             "model_id": self.config.model_id,
+            "requested_model_id": self.config.requested_model_id or self.config.model_id,
+            "resolved_model_id": self.config.model_id,
             "model_name": self.config.model_name,
             "gguf_path": spec.get("gguf_path"),
             "resolved_model_path": preflight.get("resolved_model_path"),

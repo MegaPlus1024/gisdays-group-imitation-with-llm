@@ -21,9 +21,11 @@ Canonical mapping:
 | model_id | logical/model_name | required local file |
 |---|---|---|
 | `first_model` | `first_model.gguf` | `models/gguf/first_model.gguf` |
-| `qwen2_5_3b_instruct_q4_k_m` | `qwen2.5-3b-instruct-q4_k_m.gguf` | `models/gguf/second_model.gguf` |
+| `second_model` | `second_model.gguf` | `models/gguf/second_model.gguf` |
 
-`qwen2.5-3b-instruct-q4_k_m.gguf` is the logical/upstream model name used by the runtime metadata. In this repository's current configuration, the local file expected by `configs/evaluation_models.json` is `models/gguf/second_model.gguf`.
+`qwen2.5-3b-instruct-q4_k_m.gguf` is the upstream/source model name recorded as metadata for the second model. In this repository's current configuration, the user-facing `model_id` is `second_model`, and the required local file is `models/gguf/second_model.gguf`.
+
+Older experiment artifacts may still contain the historical id `qwen2_5_3b_instruct_q4_k_m`; current commands should use `second_model`.
 
 If a local alias is used, record the alias mapping in the registry. Current known alias mappings:
 

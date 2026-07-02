@@ -8,7 +8,9 @@ The prototype infrastructure is implemented and tested: agent state, prompt cons
 
 Local CPU-oriented single-agent runs were demonstrated through `llama.cpp / llama-server` style local model execution and persisted scenario artifacts. Two local models were compared across two scenarios with N=3 repeated trials per model per scenario, for 12 real local-model trajectories total.
 
-The experiments show measurable behavioral differences, but neither model is strong enough for a final production recommendation. `qwen2_5_3b_instruct_q4_k_m` has better JSON/action-contract validity and lower latency. `first_model` showed more useful execution in one office-worker scenario, but it is repair-dependent and scenario-sensitive. Both models show template-like/repetitive behavior and weak coherence.
+The experiments show measurable behavioral differences, but neither model is strong enough for a final production recommendation. `second_model` has better JSON/action-contract validity and lower latency in the current evidence base. `first_model` showed more useful execution in one office-worker scenario, but it is repair-dependent and scenario-sensitive. Both models show template-like/repetitive behavior and weak coherence.
+
+Publication note: current repository setup exposes the second model as `second_model`. Some historical artifacts and tables retain the earlier recorded id `qwen2_5_3b_instruct_q4_k_m`.
 
 Multi-agent capacity is estimated by formula, not measured by stress test. The current planning estimate is 11 concurrent agents for both tested models on the current machine, CPU-bound, with low confidence.
 
@@ -23,7 +25,7 @@ Recommended next development: keep the artifact-based evaluation pipeline, keep 
 | Local model action selection | `src/agent/llm_client.py`, `src/agent/action_selector.py`, local dry-run artifacts | evaluated | Local mode was executed for both models. |
 | Parameterized script execution | `src/agent/script_registry.py`, `src/agent/script_execution_bridge.py`, `execution_results.jsonl` in trial folders | evaluated | Actions are validated and executed or rejected by safety policy. |
 | History and errors | `src/agent/execution_history.py`, `history.jsonl`, `errors.jsonl`, `attempts.jsonl` | implemented/evaluated | Initial failures, repairs, validation, execution and errors are preserved. |
-| Multiple local models | `configs/evaluation_models.json`, `docs/ai/evaluation_models_v1.md` | evaluated | `first_model` and `qwen2_5_3b_instruct_q4_k_m` were tested. |
+| Multiple local models | `configs/evaluation_models.json`, `docs/ai/evaluation_models_v1.md` | evaluated | `first_model` and `second_model` were tested; historical artifacts record the second model as `qwen2_5_3b_instruct_q4_k_m`. |
 | Role compliance | `experiments/model_behavior/analysis/*`, `docs/ai/consolidated_behavioral_analysis_v1.md` | evaluated | Role-compatible action choice was observed, but useful progress remained weak. |
 | Coherence, diversity, repetition | `experiments/model_behavior/cross_scenario/office_worker_developer_two_model_cross_scenario_v1` | evaluated | Both models are weak on coherence and show template-like behavior. |
 | CPU/RAM/latency | `experiments/model_behavior/resources/resource_capacity_v1` | limited/evaluated | Lightweight latency/RSS/CPU observations exist; no full benchmark. |
@@ -225,7 +227,7 @@ No final production model should be selected yet.
 Provisional recommendation for further development:
 
 - keep both models in the evaluation set;
-- prefer `qwen2_5_3b_instruct_q4_k_m` when strict JSON/action-contract validity and lower latency matter;
+- prefer `second_model` when strict JSON/action-contract validity and lower latency matter;
 - use `first_model` only with repair policy and safety guardrails, because it showed some execution usefulness but is brittle;
 - keep local `llama-server` runtime and model registry workflow;
 - keep `repair_attempts=1` for fair future model comparisons;

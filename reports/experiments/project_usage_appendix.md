@@ -20,7 +20,7 @@ The Python venv installs project dependencies. It does not add `llama-server.exe
 ```powershell
 .\.venv\Scripts\python.exe scripts\check_evaluation_model.py `
   --models-config configs\evaluation_models.json `
-  --model-id qwen2_5_3b_instruct_q4_k_m `
+  --model-id second_model `
   --json
 ```
 
@@ -33,7 +33,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start_llama_server.ps1 -Model
 For the second model:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\start_llama_server.ps1 -ModelId qwen2_5_3b_instruct_q4_k_m
+powershell -ExecutionPolicy Bypass -File .\scripts\start_llama_server.ps1 -ModelId second_model
 ```
 
 Dry-run only:
@@ -64,7 +64,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start_llama_server.ps1 -Model
 .\.venv\Scripts\python.exe scripts\run_repeated_model_trials.py `
   --mode local `
   --models-config configs\evaluation_models.json `
-  --model-ids first_model,qwen2_5_3b_instruct_q4_k_m `
+  --model-ids first_model,second_model `
   --scenario configs\evaluation_scenarios\office_worker_basic_session.json `
   --out-root experiments\model_behavior\repeated_trials\manual_office_worker_n3 `
   --label manual_office_worker_n3 `
@@ -103,7 +103,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start_llama_server.ps1 -Model
 ```powershell
 .\.venv\Scripts\python.exe scripts\evaluate_resource_capacity.py `
   --models-config configs\evaluation_models.json `
-  --model-ids first_model,qwen2_5_3b_instruct_q4_k_m `
+  --model-ids first_model,second_model `
   --repeated-trials-root office_worker=experiments\model_behavior\repeated_trials\office_worker_two_model_repair_n3_v1 `
   --repeated-trials-root developer_project_maintenance=experiments\model_behavior\repeated_trials\developer_project_maintenance_two_model_repair_n3_v1 `
   --cross-scenario-analysis experiments\model_behavior\cross_scenario\office_worker_developer_two_model_cross_scenario_v1 `

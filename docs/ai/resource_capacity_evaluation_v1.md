@@ -20,7 +20,9 @@ Primary artifact folder:
 Models:
 
 - `first_model`
-- `qwen2_5_3b_instruct_q4_k_m`
+- `second_model`
+
+Publication note: generated historical resource artifacts may still use `qwen2_5_3b_instruct_q4_k_m`; current commands and registry entries use `second_model`.
 
 Runtime probe status: `not_run`. The generated report uses existing repeated-trials resource summaries and current system snapshot only.
 
@@ -29,7 +31,7 @@ Runtime probe status: `not_run`. The generated report uses existing repeated-tri
 ```powershell
 .\.venv\Scripts\python.exe scripts\evaluate_resource_capacity.py `
   --models-config configs\evaluation_models.json `
-  --model-ids first_model,qwen2_5_3b_instruct_q4_k_m `
+  --model-ids first_model,second_model `
   --repeated-trials-root office_worker=experiments\model_behavior\repeated_trials\office_worker_two_model_repair_n3_v1 `
   --repeated-trials-root developer_project_maintenance=experiments\model_behavior\repeated_trials\developer_project_maintenance_two_model_repair_n3_v1 `
   --cross-scenario-analysis experiments\model_behavior\cross_scenario\office_worker_developer_two_model_cross_scenario_v1 `
@@ -62,6 +64,8 @@ Platform: `Windows-10-10.0.19045-SP0`.
 |---|---:|---:|---:|---:|---:|---:|
 | `first_model` | 6 | 753.7495 | 755.302667 | 1484.923667 | 6.099833 | 5.95 |
 | `qwen2_5_3b_instruct_q4_k_m` | 6 | 489.095667 | 489.742417 | 761.277167 | 5.205167 | 6.15 |
+
+The second row is historical evidence now mapped to `second_model` by `configs/evaluation_models.json`.
 
 These observations come from scenario-run resource summaries, not a dedicated benchmark monitor.
 
@@ -110,7 +114,7 @@ Interpretation:
 
 ## 9. Behavior/Resource Interpretation
 
-- `qwen2_5_3b_instruct_q4_k_m` is faster and contract-valid, but current behavioral artifacts show zero execution success.
+- `second_model` is faster and contract-valid in the current evidence base, but current behavioral artifacts show zero execution success.
 - `first_model` has some execution usefulness in one scenario, but weaker validity and higher latency.
 - Resource numbers alone are not enough to choose a final model.
 - Capacity should be considered together with behavioral quality.

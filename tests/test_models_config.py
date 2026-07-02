@@ -11,4 +11,8 @@ def test_models_local_example_json_is_valid_and_contains_second_model() -> None:
     assert isinstance(models, list)
 
     registry_ids = {item.get("registry_id") for item in models if isinstance(item, dict)}
-    assert "qwen2_5_3b_instruct_q4_k_m" in registry_ids
+    assert "second_model" in registry_ids
+
+    second_model = next(item for item in models if item.get("registry_id") == "second_model")
+    assert "qwen2_5_3b_instruct_q4_k_m" in second_model.get("aliases", [])
+    assert second_model["local_path"] == "models/gguf/second_model.gguf"

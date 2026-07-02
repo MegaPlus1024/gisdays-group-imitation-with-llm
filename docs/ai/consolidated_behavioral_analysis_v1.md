@@ -1,5 +1,7 @@
 # Consolidated Behavioral Analysis v1
 
+Publication note: historical artifact ids are preserved. Current user-facing setup uses `second_model` for the second local model.
+
 ## Purpose
 
 This report-facing analysis converts repeated-trials artifacts into behavioral conclusions required by the TZ: action quality, role compliance, coherence, diversity, repetition/template behavior, execution failures, model limitations, and latency/resource observations.

@@ -1,5 +1,7 @@
 # Single Model Dry Run: qwen2_5_3b_instruct_q4_k_m
 
+Publication note: this is a historical run document. Current repository setup exposes this second model as `second_model`; the earlier id remains here because it was recorded in the original run artifacts.
+
 ## 1. Purpose
 
 This document records the second real local-model scenario dry run required for later model comparison under the TZ. The run uses `qwen2_5_3b_instruct_q4_k_m` through local `llama-server`, captures raw model outputs, parse/validation/execution records, history/errors, resource metadata, and behavioral evaluation.

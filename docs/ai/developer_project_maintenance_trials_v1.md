@@ -25,7 +25,7 @@ One scenario limitation was observed: the scenario lists `append_file` and `list
 
 | Field | Value |
 |---|---|
-| models | `first_model`, `qwen2_5_3b_instruct_q4_k_m` |
+| models | `first_model`, `second_model` |
 | trials per model | 3 |
 | mode | `local` |
 | max_steps | 5 |
@@ -42,7 +42,7 @@ Preflight:
 ```powershell
 .\.venv\Scripts\python.exe --version
 .\.venv\Scripts\python.exe scripts\check_evaluation_model.py --models-config configs\evaluation_models.json --model-id first_model --json
-.\.venv\Scripts\python.exe scripts\check_evaluation_model.py --models-config configs\evaluation_models.json --model-id qwen2_5_3b_instruct_q4_k_m --json
+.\.venv\Scripts\python.exe scripts\check_evaluation_model.py --models-config configs\evaluation_models.json --model-id second_model --json
 ```
 
 Fake smoke:
@@ -51,7 +51,7 @@ Fake smoke:
 .\.venv\Scripts\python.exe scripts\run_repeated_model_trials.py `
   --mode fake `
   --models-config configs\evaluation_models.json `
-  --model-ids first_model,qwen2_5_3b_instruct_q4_k_m `
+  --model-ids first_model,second_model `
   --scenario configs\evaluation_scenarios\developer_project_maintenance.json `
   --out-root experiments\scenario_runs\fake_developer_repeated_trials_smoke `
   --label fake_developer_repeated_trials_smoke `
@@ -68,7 +68,7 @@ Real repeated trials:
 .\.venv\Scripts\python.exe scripts\run_repeated_model_trials.py `
   --mode local `
   --models-config configs\evaluation_models.json `
-  --model-ids first_model,qwen2_5_3b_instruct_q4_k_m `
+  --model-ids first_model,second_model `
   --scenario configs\evaluation_scenarios\developer_project_maintenance.json `
   --out-root experiments\model_behavior\repeated_trials\developer_project_maintenance_two_model_repair_n3_v1 `
   --label developer_project_maintenance_two_model_repair_n3_v1 `
@@ -107,6 +107,8 @@ Tests:
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
 | `first_model` | 3 | 3 | 0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.416667 | 1.0 | 0.5 | 792.611333 | `validation_failed_after_repair: 3` |
 | `qwen2_5_3b_instruct_q4_k_m` | 3 | 3 | 0 | 1.0 | 1.0 | 0.0 | 0.0 | 0.416667 | 1.0 | 0.5 | 459.744667 | `unsafe_path: 3` |
+
+Publication note: current setup exposes the second model as `second_model`. The result table retains the historical id recorded in the generated experiment artifacts.
 
 ## 6. Behavioral Interpretation
 

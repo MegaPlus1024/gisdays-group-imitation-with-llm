@@ -9,7 +9,7 @@ Repeated trials are required for TZ-level model comparison because a single shor
 | Field | Value |
 |---|---|
 | scenario | `configs\evaluation_scenarios\office_worker_basic_session.json` |
-| models | `first_model`, `qwen2_5_3b_instruct_q4_k_m` |
+| models | `first_model`, `second_model` |
 | mode | `local` for real trials, `fake` for offline smoke |
 | execute actions | true |
 | max_steps | 5 |
@@ -38,7 +38,7 @@ Fake smoke:
 .\.venv\Scripts\python.exe scripts\run_repeated_model_trials.py `
   --mode fake `
   --models-config configs\evaluation_models.json `
-  --model-ids first_model,qwen2_5_3b_instruct_q4_k_m `
+  --model-ids first_model,second_model `
   --scenario configs\evaluation_scenarios\office_worker_basic_session.json `
   --out-root experiments\scenario_runs\fake_repeated_trials_smoke `
   --label fake_repeated_trials_smoke `
@@ -55,7 +55,7 @@ Real repeated trials:
 .\.venv\Scripts\python.exe scripts\run_repeated_model_trials.py `
   --mode local `
   --models-config configs\evaluation_models.json `
-  --model-ids first_model,qwen2_5_3b_instruct_q4_k_m `
+  --model-ids first_model,second_model `
   --scenario configs\evaluation_scenarios\office_worker_basic_session.json `
   --out-root experiments\model_behavior\repeated_trials\office_worker_two_model_repair_n3_v1 `
   --label office_worker_two_model_repair_n3_v1 `

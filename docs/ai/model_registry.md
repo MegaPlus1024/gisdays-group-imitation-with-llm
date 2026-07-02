@@ -33,11 +33,13 @@ Track reproducible metadata for every local GGUF model used by smoke tests, base
 - `successfully completed first smoke test`
 - `completed first runtime baseline`
 
-### Record B: qwen2.5-3b-instruct-q4_k_m.gguf
+### Record B: second_model.gguf
 
-- registry_id: `qwen2_5_3b_instruct_q4_k_m`
+- registry_id: `second_model`
+- legacy_alias: `qwen2_5_3b_instruct_q4_k_m`
 - local_alias: `second_model.gguf`
-- actual_filename: `qwen2.5-3b-instruct-q4_k_m.gguf`
+- actual_filename: `second_model.gguf`
+- upstream_model_name: `qwen2.5-3b-instruct-q4_k_m.gguf`
 - local_path: `models/gguf/second_model.gguf`
 - format: `GGUF`
 - size_class: `3B`
@@ -52,7 +54,8 @@ Track reproducible metadata for every local GGUF model used by smoke tests, base
 - reason_for_selection:
 - `The first model proved the runtime pipeline. This 3B Q4_K_M model tests whether a larger local instruct model remains practical while potentially improving instruction-following.`
 - notes:
-- `second_model.gguf is the local alias used by configs/evaluation_models.json`
+- `second_model is the current user-facing model_id used by configs/evaluation_models.json`
+- `qwen2_5_3b_instruct_q4_k_m may still appear in historical artifacts and is supported as an alias`
 - `Do not claim quality improvement until numeric and semantic validation data exist.`
 
 ## How to add a new model

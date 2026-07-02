@@ -19,12 +19,8 @@ ENV/
 # Logs
 *.log
 logs/**
-!logs/
-!logs/**/
-!logs/**/README.md
 logs/smoke/*.json
 logs/smoke/*.txt
-!logs/smoke/README.md
 
 # Local temp/runtime files
 .env

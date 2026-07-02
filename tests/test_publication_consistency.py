@@ -14,15 +14,19 @@ def test_evaluation_models_use_canonical_gguf_paths() -> None:
     models = {item["model_id"]: item for item in data["models"]}
 
     assert models["first_model"]["gguf_path"] == "models/gguf/first_model.gguf"
-    assert models["qwen2_5_3b_instruct_q4_k_m"]["model_name"] == "qwen2.5-3b-instruct-q4_k_m.gguf"
-    assert models["qwen2_5_3b_instruct_q4_k_m"]["gguf_path"] == "models/gguf/second_model.gguf"
+    assert models["second_model"]["model_name"] == "second_model.gguf"
+    assert models["second_model"]["gguf_path"] == "models/gguf/second_model.gguf"
+    assert "qwen2_5_3b_instruct_q4_k_m" in models["second_model"].get("aliases", [])
 
 
 def test_readme_mentions_second_model_local_path() -> None:
     text = _read("README.md").replace("\\", "/")
 
     assert "models/gguf/second_model.gguf" in text
-    assert "qwen2.5-3b-instruct-q4_k_m.gguf" in text
+    assert "--model-id second_model" in text
+    assert "--model-ids first_model,second_model" in text
+    assert "--model-id qwen2_5_3b_instruct_q4_k_m" not in text
+    assert "--model-ids first_model,qwen2_5_3b_instruct_q4_k_m" not in text
 
 
 def test_models_md_mentions_second_model_alias() -> None:
@@ -38,7 +42,7 @@ def test_model_file_mapping_exists_and_mentions_canonical_mapping() -> None:
     text = path.read_text(encoding="utf-8")
 
     assert "configs/evaluation_models.json" in text
-    assert "qwen2_5_3b_instruct_q4_k_m" in text
+    assert "second_model" in text
     assert "models/gguf/second_model.gguf" in text
 
 

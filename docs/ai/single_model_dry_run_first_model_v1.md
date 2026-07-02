@@ -195,7 +195,7 @@ This run does not prove:
 Repeat the same scenario with the second model after this first-model result is reviewed:
 
 ```powershell
-.\scripts\start_llama_server.ps1 -ModelId qwen2_5_3b_instruct_q4_k_m
+.\scripts\start_llama_server.ps1 -ModelId second_model
 ```
 
 Then run the same local scenario with a sibling artifact folder for two-model behavior comparison.

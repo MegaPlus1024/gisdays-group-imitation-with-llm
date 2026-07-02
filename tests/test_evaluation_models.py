@@ -49,7 +49,8 @@ def test_evaluation_models_config_loads() -> None:
     ids = EvaluationModelRegistry(config).model_ids()
 
     assert "first_model" in ids
-    assert "qwen2_5_3b_instruct_q4_k_m" in ids
+    assert "second_model" in ids
+    assert "qwen2_5_3b_instruct_q4_k_m" not in ids
 
 
 def test_duplicate_model_id_rejected() -> None:
@@ -65,9 +66,33 @@ def test_resolve_known_model_id() -> None:
     assert model.model_name == "first_model.gguf"
 
 
+def test_resolve_second_model_and_legacy_alias() -> None:
+    canonical = resolve_evaluation_model("second_model", MODELS_CONFIG)
+    legacy = resolve_evaluation_model("qwen2_5_3b_instruct_q4_k_m", MODELS_CONFIG)
+
+    assert canonical.model_id == "second_model"
+    assert canonical.model_name == "second_model.gguf"
+    assert canonical.gguf_path == "models/gguf/second_model.gguf"
+    assert legacy.model_id == "second_model"
+
+
 def test_unknown_model_id_fails() -> None:
     with pytest.raises(KeyError, match="Unknown evaluation model_id"):
         resolve_evaluation_model("does_not_exist", MODELS_CONFIG)
+
+
+def test_duplicate_alias_rejected() -> None:
+    first = _first_model_payload(model_id="one", aliases=["legacy"])
+    second = _first_model_payload(model_id="two", aliases=["legacy"])
+    with pytest.raises(ValueError, match="model aliases must be unique"):
+        EvaluationModelsConfig.model_validate({"models": [first, second]})
+
+
+def test_alias_conflicting_with_model_id_rejected() -> None:
+    first = _first_model_payload(model_id="one", aliases=["two"])
+    second = _first_model_payload(model_id="two")
+    with pytest.raises(ValueError, match="model aliases must not conflict"):
+        EvaluationModelsConfig.model_validate({"models": [first, second]})
 
 
 def test_disabled_model_preflight_warns_without_override() -> None:
@@ -123,6 +148,38 @@ def test_fake_run_agent_scenario_uses_model_id_metadata_in_manifest(tmp_path: Pa
     assert manifest["model"]["model_name"] == "first_model.gguf"
     assert manifest["model"]["gguf_path"] == "models/gguf/first_model.gguf"
     assert manifest["model"]["preflight_status"] == "pass"
+
+
+def test_fake_run_agent_scenario_records_legacy_alias_resolution(tmp_path: Path) -> None:
+    out_dir = tmp_path / "fake_model_alias_run"
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/run_agent_scenario.py",
+            "--mode",
+            "fake",
+            "--model-id",
+            "qwen2_5_3b_instruct_q4_k_m",
+            "--models-config",
+            "configs/evaluation_models.json",
+            "--out-dir",
+            str(out_dir),
+            "--max-steps",
+            "1",
+            "--force",
+        ],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    manifest = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["requested_model_id"] == "qwen2_5_3b_instruct_q4_k_m"
+    assert manifest["resolved_model_id"] == "second_model"
+    assert manifest["model"]["model_id"] == "second_model"
+    assert manifest["model"]["model_name"] == "second_model.gguf"
 
 
 def test_local_mode_missing_model_file_fails_before_http_call(tmp_path: Path) -> None:

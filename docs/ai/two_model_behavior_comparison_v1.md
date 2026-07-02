@@ -1,5 +1,7 @@
 # Two-Model Behavior Comparison v1
 
+Publication note: this comparison references historical artifact ids. Current user-facing commands use `second_model` for the second local model.
+
 ## 1. Purpose
 
 This report compares two real local-model scenario artifacts under the TZ requirement to evaluate multiple local LLMs of different sizes by action quality, JSON/NextAction validity, registry acceptance, role compliance, coherence, diversity, repetition, history usage, latency/resource metadata, and observed failure modes.

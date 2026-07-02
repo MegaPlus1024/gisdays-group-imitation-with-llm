@@ -15,7 +15,7 @@ Implementation:
 
 The TZ requires experiments with several local models, behavior-quality comparison, repeatability, resource usage, latency, CPU/RAM, and a reproducible final report. That is not reliable if every run passes `--model-name` and `--base-url` manually.
 
-The registry provides stable IDs such as `first_model` and `qwen2_5_3b_instruct_q4_k_m`, so scenario artifacts can later be grouped and compared by a controlled model identity.
+The registry provides stable IDs such as `first_model` and `second_model`, so scenario artifacts can later be grouped and compared by a controlled model identity. The earlier id `qwen2_5_3b_instruct_q4_k_m` is retained only as a compatibility alias for historical commands and artifacts.
 
 ## Config Schema
 
@@ -24,8 +24,10 @@ Each model entry has:
 | Field | Meaning |
 |---|---|
 | `model_id` | Stable internal experiment id. |
+| `aliases` | Optional legacy ids accepted by the resolver. |
 | `display_name` | Human-readable model label. |
 | `model_name` | Name sent to the OpenAI-compatible API. |
+| `upstream_model_name` | Optional source/upstream model filename for notes. |
 | `gguf_path` | Relative or absolute path to local GGUF file. |
 | `quantization` | Quantization label, for example `Q4_K_M`. |
 | `parameter_size` | Approximate model size, for example `1.5B` or `3B`. |
@@ -115,10 +117,20 @@ JSON output:
 .\.venv\Scripts\python.exe scripts\check_evaluation_model.py --models-config configs\evaluation_models.json --model-id first_model --json
 ```
 
+Check the second model:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\check_evaluation_model.py --models-config configs\evaluation_models.json --model-id second_model --json
+```
+
 Start `llama-server` by model id:
 
 ```powershell
 .\scripts\start_llama_server.ps1 -ModelId first_model
+```
+
+```powershell
+.\scripts\start_llama_server.ps1 -ModelId second_model
 ```
 
 Dry-run server path and model path resolution without starting:
@@ -151,4 +163,4 @@ Check that the registry `base_url` matches the server host and port, normally `h
 
 ## Next Step
 
-The next stage is a real single-model local dry run using `--model-id first_model`. No real dry run or benchmark is performed by this registry/preflight task.
+The normal current model ids are `first_model` and `second_model`. No real dry run or benchmark is performed by this registry/preflight task.

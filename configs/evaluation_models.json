@@ -23,9 +23,13 @@
       ]
     },
     {
-      "model_id": "qwen2_5_3b_instruct_q4_k_m",
-      "display_name": "Qwen2.5 3B Instruct Q4_K_M",
-      "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
+      "model_id": "second_model",
+      "aliases": [
+        "qwen2_5_3b_instruct_q4_k_m"
+      ],
+      "display_name": "Second Model",
+      "model_name": "second_model.gguf",
+      "upstream_model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
       "gguf_path": "models/gguf/second_model.gguf",
       "quantization": "Q4_K_M",
       "parameter_size": "3B",
@@ -39,8 +43,9 @@
       "max_tokens": 512,
       "enabled": true,
       "notes": [
-        "Stable experiment id already used by second-model baseline artifacts.",
-        "The local file currently present in models/gguf is second_model.gguf; this config maps the stable model id to that local alias path.",
+        "Current user-facing project slot for the second evaluated local GGUF model.",
+        "Historical experiment artifacts may use the alias qwen2_5_3b_instruct_q4_k_m.",
+        "Upstream/logical model name: qwen2.5-3b-instruct-q4_k_m.gguf.",
         "Do not claim behavior quality improvement until real scenario trajectories are evaluated."
       ]
     }

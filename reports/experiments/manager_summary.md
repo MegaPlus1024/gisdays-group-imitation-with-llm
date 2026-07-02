@@ -15,14 +15,14 @@ The prototype and experimental evidence base are ready for reporting as a resear
 
 ## What was tested
 
-- Two local GGUF models: `first_model` and `qwen2_5_3b_instruct_q4_k_m`.
+- Two local GGUF models: `first_model` and `second_model` (recorded as `qwen2_5_3b_instruct_q4_k_m` in historical experiment artifacts).
 - Two scenarios: office-worker activity and developer project maintenance.
 - N=3 trials per model per scenario.
 - 12 real local-model trajectories total.
 
 ## Main findings
 
-- `qwen2_5_3b_instruct_q4_k_m` is stronger on JSON/action-contract validity and latency.
+- `second_model` is stronger on JSON/action-contract validity and latency in the current evidence base.
 - `first_model` achieved useful execution in one office-worker scenario but is repair-dependent.
 - Both models show weak coherence and repeated/template-like behavior.
 - Neither model is sufficient for a final production recommendation.
@@ -43,7 +43,7 @@ This is not a measured multi-agent stress test.
 
 ## Recommendation
 
-Continue development with the current evaluation infrastructure. Keep both models in the evaluation set, use `repair_attempts=1`, and treat `qwen2_5_3b_instruct_q4_k_m` as the stronger candidate for contract validity/latency, not as a final deployment choice.
+Continue development with the current evaluation infrastructure. Keep both models in the evaluation set, use `repair_attempts=1`, and treat `second_model` as the stronger candidate for contract validity/latency, not as a final deployment choice.
 
 ## Next steps
 
