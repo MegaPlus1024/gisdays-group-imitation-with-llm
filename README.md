@@ -143,7 +143,7 @@ Current canonical mapping:
 | `first_model` | `first_model.gguf` | `models\gguf\first_model.gguf` |
 | `second_model` | `second_model.gguf` | `models\gguf\second_model.gguf` |
 
-See `docs/ai/model_file_mapping.md` for the publication-safe mapping notes. See `docs/ai/adding_new_models.md` for adding third or test models.
+See `docs/ai/model_file_mapping.md` and `docs/ai/model_research_metadata.md` for publication-safe mapping and research metadata. See `docs/ai/adding_new_models.md` for adding third or test models.
 
 The earlier internal experiment id `qwen2_5_3b_instruct_q4_k_m` may appear in historical artifacts. Current user-facing commands should use `second_model`; the old id is kept as a compatibility alias.
 

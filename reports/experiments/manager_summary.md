@@ -16,6 +16,7 @@ The prototype and experimental evidence base are ready for reporting as a resear
 ## What was tested
 
 - Two local GGUF models: `first_model` and `second_model` (recorded as `qwen2_5_3b_instruct_q4_k_m` in historical experiment artifacts).
+- Research metadata: `first_model` maps to upstream filename `qwen2.5-1.5b-instruct-q4_k_m.gguf`; `second_model` maps to upstream filename `qwen2.5-3b-instruct-q4_k_m.gguf`.
 - Two scenarios: office-worker activity and developer project maintenance.
 - N=3 trials per model per scenario.
 - 12 real local-model trajectories total.

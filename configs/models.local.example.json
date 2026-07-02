@@ -4,11 +4,12 @@
       "registry_id": "first_model",
       "local_alias": "first_model.gguf",
       "actual_filename": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+      "upstream_model_name": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
       "local_path": "models/gguf/first_model.gguf",
       "format": "GGUF",
       "size_class": "1.5B",
       "quantization": "Q4_K_M",
-      "source_url": null,
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF",
       "role": "first local smoke test and first runtime baseline",
       "used_in": [
         "experiments/smoke/local_llama_server_smoke_v1/",
@@ -31,7 +32,7 @@
       "format": "GGUF",
       "size_class": "3B",
       "quantization": "Q4_K_M",
-      "source_url": null,
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF",
       "role": "second model smoke test and second runtime baseline",
       "used_in": [
         "experiments/smoke/second_model_smoke_v1/",

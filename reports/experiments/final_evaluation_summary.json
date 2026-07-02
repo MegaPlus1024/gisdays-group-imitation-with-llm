@@ -19,6 +19,26 @@
   "model_id_aliases": {
     "qwen2_5_3b_instruct_q4_k_m": "second_model"
   },
+  "model_research_metadata": {
+    "first_model": {
+      "local_gguf_file": "models/gguf/first_model.gguf",
+      "llama_server_model_name": "first_model.gguf",
+      "upstream_full_model_name": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+      "parameter_size": "1.5B",
+      "quantization": "Q4_K_M",
+      "source_origin": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF recorded in docs/ai/model_registry.md"
+    },
+    "second_model": {
+      "local_gguf_file": "models/gguf/second_model.gguf",
+      "llama_server_model_name": "second_model.gguf",
+      "upstream_full_model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
+      "parameter_size": "3B",
+      "quantization": "Q4_K_M",
+      "source_origin": "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF recorded in docs/ai/model_registry.md",
+      "legacy_id": "qwen2_5_3b_instruct_q4_k_m",
+      "alias_status": "supported compatibility alias"
+    }
+  },
   "scenarios": [
     "office_worker_basic_session",
     "developer_project_maintenance"

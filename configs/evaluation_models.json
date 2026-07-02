@@ -5,6 +5,7 @@
       "model_id": "first_model",
       "display_name": "Qwen2.5 1.5B Instruct Q4_K_M local alias",
       "model_name": "first_model.gguf",
+      "upstream_model_name": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
       "gguf_path": "models/gguf/first_model.gguf",
       "quantization": "Q4_K_M",
       "parameter_size": "1.5B",

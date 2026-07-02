@@ -68,12 +68,12 @@ Key components:
 
 ## 5. Models tested
 
-| model_id | model_name | GGUF path | size / quantization | runtime | CPU-only assumption | scenarios | total trials |
-|---|---|---|---|---|---|---|---:|
-| `first_model` | `first_model.gguf` | `models/gguf/first_model.gguf` | 1.5B / Q4_K_M | `llama.cpp / llama-server` | true | office-worker, developer maintenance | 6 |
-| `qwen2_5_3b_instruct_q4_k_m` | `qwen2.5-3b-instruct-q4_k_m.gguf` | `models/gguf/second_model.gguf` | 3B / Q4_K_M | `llama.cpp / llama-server` | true | office-worker, developer maintenance | 6 |
+| current model_id | historical artifact id | llama-server model_name | upstream/full model name | GGUF path | size / quantization | runtime | CPU-only assumption | scenarios | total trials |
+|---|---|---|---|---|---|---|---|---|---:|
+| `first_model` | `first_model` | `first_model.gguf` | `qwen2.5-1.5b-instruct-q4_k_m.gguf` | `models/gguf/first_model.gguf` | 1.5B / Q4_K_M | `llama.cpp / llama-server` | true | office-worker, developer maintenance | 6 |
+| `second_model` | `qwen2_5_3b_instruct_q4_k_m` | `second_model.gguf` | `qwen2.5-3b-instruct-q4_k_m.gguf` | `models/gguf/second_model.gguf` | 3B / Q4_K_M | `llama.cpp / llama-server` | true | office-worker, developer maintenance | 6 |
 
-Source: `configs/evaluation_models.json`, `experiments/model_behavior/cross_scenario/office_worker_developer_two_model_cross_scenario_v1/cross_scenario_analysis.json`.
+Source: `configs/evaluation_models.json`, `docs/ai/model_research_metadata.md`, `experiments/model_behavior/cross_scenario/office_worker_developer_two_model_cross_scenario_v1/cross_scenario_analysis.json`.
 
 ## 6. Experiment protocol
 

@@ -8,6 +8,10 @@ The source of truth for actual experiment runtime paths is:
 
 `configs/evaluation_models.json`
 
+Research-facing upstream names, parameter sizes, quantization, and source/origin notes are consolidated in:
+
+`docs/ai/model_research_metadata.md`
+
 ## Canonical Mapping
 
 | model_id | logical/model_name | local gguf_path used by project | notes |
