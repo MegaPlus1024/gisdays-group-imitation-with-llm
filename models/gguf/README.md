@@ -10,4 +10,10 @@ Placeholder expected model path:
 
 ```text
 models/gguf/first_model.gguf
+models/gguf/second_model.gguf
 ```
+
+Canonical model mapping is documented in:
+
+- `configs/evaluation_models.json`
+- `docs/ai/model_file_mapping.md`

@@ -30,7 +30,7 @@ Changing the prompt invalidates direct comparison with the first baseline.
 
 Use the same fixed prompt as the first baseline.
 Model metadata must be recorded in `docs/ai/model_registry.md`.
-Do not use `second_model.gguf` alias unless it is mapped in the registry.
+The current publication mapping uses `second_model.gguf` as the local alias for `qwen2.5-3b-instruct-q4_k_m.gguf`; see `configs/evaluation_models.json` and `docs/ai/model_file_mapping.md`.
 
 ## Why this is not full model comparison
 

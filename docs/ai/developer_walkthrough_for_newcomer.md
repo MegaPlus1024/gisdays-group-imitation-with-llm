@@ -588,26 +588,33 @@ Related files:
 
 ## 10. What cannot be demonstrated yet
 
-These are not found as completed/full capabilities in the repository:
+Current publication status:
 
-- No full autonomous execution CLI.
-- `AgentRunner` is selection-only; `AgentRunnerConfig` rejects `execute_actions=True`.
-- No real model behavior trajectories from role/scenario runs were found.
-- No real scenario runner CLI was found.
-- No multi-agent capacity measurement was found.
-- No production multi-agent scheduler was found.
-- No git/mail action implementation was found.
+- End-to-end scenario execution exists in `src/agent/experiment_scenario_runner.py` and `scripts/run_agent_scenario.py`.
+- Real local model trajectories exist under `experiments/model_behavior/`.
+- Repeated trials, cross-scenario behavioral analysis, and resource/capacity formula artifacts exist.
+
+These are still not completed/full production capabilities:
+
+- `src/agent/runner.py::AgentRunner` remains selection-only for backward compatibility; use `ExperimentScenarioRunner` for end-to-end scenario runs.
+- No production multi-agent scheduler is implemented.
+- No measured multi-agent stress/capacity test has been run.
+- Resource capacity is formula-estimated in `experiments/model_behavior/resources/resource_capacity_v1`, not stress-tested.
+- No git/mail action implementation is included.
 - Browser activity is simulated-only.
 - Office document activity is stub/file-based, not real office application automation.
+- No final production model recommendation is made.
 
 Evidence:
 
 | Item | Evidence |
 |---|---|
-| Selection-only runner | `src/agent/runner.py::AgentRunnerConfig.validate_execute_actions_disabled` |
+| End-to-end runner | `src/agent/experiment_scenario_runner.py`, `scripts/run_agent_scenario.py` |
+| Selection-only legacy runner | `src/agent/runner.py::AgentRunnerConfig.validate_execute_actions_disabled` |
 | Multi-agent smoke only | `src/agent/multi_agent_orchestrator.py::MultiAgentOrchestratorSmoke` and tests with fake runner |
-| Runtime artifacts are not behavioral proof | `experiments/comparisons/two_model_runtime_comparison_v1/comparison.json` has interpretation guardrails |
-| Readiness audit is not experiments | `docs/ai/experiment_readiness_audit.md` says it does not run local models or prove model quality |
+| Real behavioral artifacts | `experiments/model_behavior/repeated_trials/office_worker_two_model_repair_n3_v1` and `experiments/model_behavior/repeated_trials/developer_project_maintenance_two_model_repair_n3_v1` |
+| Cross-scenario analysis | `experiments/model_behavior/cross_scenario/office_worker_developer_two_model_cross_scenario_v1` |
+| Resource/capacity estimate | `experiments/model_behavior/resources/resource_capacity_v1` |
 
 ## 11. Reading order
 
@@ -666,9 +673,14 @@ Run all tests:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Observed in the prior audit:
+Observed in the prior audit example:
 
 ```text
 567 passed in 0.58s
 ```
 
+Current publication check:
+
+```text
+636 passed
+```

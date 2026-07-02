@@ -5,6 +5,8 @@ Project path: `C:\Users\m\Documents\local-llm-test-gisdays\local-llm-agent-lab`
 Scope: strict technical audit against the curator/TZ requirements for a prototype that simulates normal user activity with a group of local LLM agents.  
 Important boundary: this audit did not run `llama-server`, local models, browsers, network calls, or state-changing runtime benchmark commands.
 
+Publication note: this is a historical audit snapshot from 2026-06-22. It intentionally preserves the project status, test count, and limitations observed at that time. For current publication status, use `README.md`, `reports/experiments/final_evaluation_report.md`, and `docs/publication_consistency_audit.md`.
+
 ## 1. Executive summary
 
 По факту проект является Python-прототипом/лабораторией для локальных LLM-агентов: есть схемы состояния агента, роли, prompt/NextAction контракт, адаптер к OpenAI-compatible `llama-server`, реестр параметризуемых действий, validation/safety слой, отдельный execution bridge, история/ошибки, stop criteria, recovery loop, role-constrained trajectory runner, multi-agent smoke orchestrator, activity profiles и evaluator.
@@ -627,4 +629,3 @@ experiments/comparisons/two_model_runtime_comparison_v1/comparison.json
 | `python scripts\archive_smoke_run.py ... --force` | Would modify experiment archive |
 | Browser/office external application runs | No such real app commands found; browser/office helpers are simulated/stub |
 | Network operations/downloads | Disallowed by audit constraints and project role constraints |
-

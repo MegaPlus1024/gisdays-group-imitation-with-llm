@@ -119,7 +119,7 @@ Run the test suite:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final report, the full suite passed with 636 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests.
 
 ## 7. Model setup
 
@@ -135,6 +135,15 @@ Or edit:
 ```text
 configs\evaluation_models.json
 ```
+
+Current canonical mapping:
+
+| model_id | logical/model_name | required local path |
+|---|---|---|
+| `first_model` | `first_model.gguf` | `models\gguf\first_model.gguf` |
+| `qwen2_5_3b_instruct_q4_k_m` | `qwen2.5-3b-instruct-q4_k_m.gguf` | `models\gguf\second_model.gguf` |
+
+See `docs/ai/model_file_mapping.md` for the publication-safe mapping notes.
 
 Preflight checks:
 
@@ -297,7 +306,7 @@ Final summary:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final report, the full suite passed with 636 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests.
 
 ## 17. Publishing to GitHub
 

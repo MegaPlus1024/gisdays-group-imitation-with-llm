@@ -36,9 +36,9 @@ Track reproducible metadata for every local GGUF model used by smoke tests, base
 ### Record B: qwen2.5-3b-instruct-q4_k_m.gguf
 
 - registry_id: `qwen2_5_3b_instruct_q4_k_m`
-- local_alias: `second_model.gguf` or `null`
+- local_alias: `second_model.gguf`
 - actual_filename: `qwen2.5-3b-instruct-q4_k_m.gguf`
-- local_path: `models/gguf/qwen2.5-3b-instruct-q4_k_m.gguf`
+- local_path: `models/gguf/second_model.gguf`
 - format: `GGUF`
 - size_class: `3B`
 - quantization: `Q4_K_M`
@@ -52,6 +52,7 @@ Track reproducible metadata for every local GGUF model used by smoke tests, base
 - reason_for_selection:
 - `The first model proved the runtime pipeline. This 3B Q4_K_M model tests whether a larger local instruct model remains practical while potentially improving instruction-following.`
 - notes:
+- `second_model.gguf is the local alias used by configs/evaluation_models.json`
 - `Do not claim quality improvement until numeric and semantic validation data exist.`
 
 ## How to add a new model
@@ -72,3 +73,9 @@ Track reproducible metadata for every local GGUF model used by smoke tests, base
 - Unknown source details must be filled manually.
 - Alias-based local workflows can hide true model identity unless mapping is maintained.
 - Runtime metrics alone do not prove semantic action correctness.
+
+## Source of truth
+
+For current experiment runs, `configs/evaluation_models.json` is the source of truth for `model_id`, `model_name`, `gguf_path`, `base_url`, timeout and runtime metadata.
+
+Detailed publication mapping is also documented in `docs/ai/model_file_mapping.md`.
