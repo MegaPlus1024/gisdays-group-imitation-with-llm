@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-07-02T05:47:36.886501+00:00",
+  "platform": "Windows-10-10.0.19045-SP0",
+  "python_version": "3.12.10",
+  "processor": "Intel64 Family 6 Model 198 Stepping 2, GenuineIntel",
+  "cpu_count_logical": 24,
+  "cpu_count_physical": 24,
+  "total_ram_mb": 130436.711,
+  "available_ram_mb": 82560.059,
+  "used_ram_mb": 47876.652,
+  "psutil_available": true,
+  "system_cpu_percent": 0.0
+}

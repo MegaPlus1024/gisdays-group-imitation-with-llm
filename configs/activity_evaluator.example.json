@@ -1,0 +1,16 @@
+{
+  "evaluator_id": "normal_activity_trajectory_evaluator_v1",
+  "suspicious_score_threshold": 0.6,
+  "normal_score_threshold": 0.8,
+  "min_steps_for_full_score": 2,
+  "penalize_failed_steps": true,
+  "penalize_atypical_actions": true,
+  "penalize_forbidden_for_normality": true,
+  "penalize_repetition": true,
+  "reward_expected_sequences": true,
+  "reward_history_usage": true,
+  "metadata": {
+    "schema_version": "normal_activity_trajectory_evaluator_v1",
+    "note": "Heuristic offline evaluator for normal user activity trajectories. Does not execute actions."
+  }
+}

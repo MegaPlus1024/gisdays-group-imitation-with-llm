@@ -1,0 +1,25 @@
+# Diversity Template Behavior Report
+
+## `first_model`
+
+- `unique_action_count`: `{'mean': 1.0, 'std': 0.0, 'min': 1.0, 'max': 1.0, 'count': 3}`
+- `unique_action_parameter_count`: `{'mean': 1.0, 'std': 0.0, 'min': 1.0, 'max': 1.0, 'count': 3}`
+- `repeated_action_count`: `3`
+- `repeated_same_parameters_count`: `3`
+- `action_family_diversity`: `{'file': 6}`
+- `dominant_action_share`: `1.0`
+- `dominant_action_parameter_share`: `1.0`
+- `template_behavior_flags`: `['repeated_same_action', 'repeated_same_parameters', 'low_action_family_diversity', 'template_repetition']`
+- `verdict`: `template_like`
+
+## `qwen2_5_3b_instruct_q4_k_m`
+
+- `unique_action_count`: `{'mean': 1.0, 'std': 0.0, 'min': 1.0, 'max': 1.0, 'count': 3}`
+- `unique_action_parameter_count`: `{'mean': 1.0, 'std': 0.0, 'min': 1.0, 'max': 1.0, 'count': 3}`
+- `repeated_action_count`: `3`
+- `repeated_same_parameters_count`: `3`
+- `action_family_diversity`: `{'file': 6}`
+- `dominant_action_share`: `1.0`
+- `dominant_action_parameter_share`: `1.0`
+- `template_behavior_flags`: `['repeated_same_action', 'repeated_same_parameters', 'low_action_family_diversity', 'repeated_failure_pattern']`
+- `verdict`: `failure_loop`

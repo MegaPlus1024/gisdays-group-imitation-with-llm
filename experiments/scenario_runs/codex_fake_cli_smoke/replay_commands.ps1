@@ -1,0 +1,1 @@
+python scripts\run_agent_scenario.py --scenario configs\evaluation_scenarios\office_worker_basic_session.json --mode fake --out-dir experiments\scenario_runs\codex_fake_cli_smoke --run-id codex_fake_cli_smoke --model-id fake_model --model-name fake-scripted-provider --max-steps 1 --force

@@ -1,0 +1,46 @@
+[
+  {
+    "event": "ready",
+    "model_id": "first_model",
+    "wrapper_pid": 36508,
+    "llama_pids": [
+      4412
+    ],
+    "started_by_cli": true,
+    "already_running": false,
+    "logs_dir": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\repeated_trials\\office_worker_two_model_repair_n3_v1\\server_logs\\first_model"
+  },
+  {
+    "event": "stopped",
+    "model_id": "first_model",
+    "wrapper_pid": 36508,
+    "llama_pids": [
+      4412
+    ],
+    "started_by_cli": true,
+    "already_running": false,
+    "logs_dir": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\repeated_trials\\office_worker_two_model_repair_n3_v1\\server_logs\\first_model"
+  },
+  {
+    "event": "ready",
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "wrapper_pid": 58600,
+    "llama_pids": [
+      35780
+    ],
+    "started_by_cli": true,
+    "already_running": false,
+    "logs_dir": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\repeated_trials\\office_worker_two_model_repair_n3_v1\\server_logs\\qwen2_5_3b_instruct_q4_k_m"
+  },
+  {
+    "event": "stopped",
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "wrapper_pid": 58600,
+    "llama_pids": [
+      35780
+    ],
+    "started_by_cli": true,
+    "already_running": false,
+    "logs_dir": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\repeated_trials\\office_worker_two_model_repair_n3_v1\\server_logs\\qwen2_5_3b_instruct_q4_k_m"
+  }
+]

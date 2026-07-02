@@ -1,0 +1,73 @@
+{
+  "scenario_id": "developer_project_maintenance_v1",
+  "schema_version": "evaluation_scenario_v1",
+  "name": "Developer project maintenance",
+  "description": "Evaluate whether a local model can imitate normal developer maintenance activity.",
+  "mode": "single_agent",
+  "agents": [
+    {
+      "agent_id": "developer_agent_1",
+      "role_id": "developer",
+      "role_template_path": "configs/roles/developer.example.json",
+      "activity_profile_path": "configs/activity_profiles/developer.json",
+      "initial_state_path": "configs/agent_state.example.json",
+      "available_actions": [
+        "read_file",
+        "create_file",
+        "append_file",
+        "list_directory",
+        "run_shell_command"
+      ],
+      "expected_action_families": [
+        "file",
+        "shell"
+      ],
+      "expected_behavior_notes": [
+        "Inspect-edit-test maintenance loop."
+      ]
+    }
+  ],
+  "stop_policy": {
+    "max_steps": 5,
+    "stop_on_validation_failure": true,
+    "stop_on_unsafe_action": true,
+    "stop_on_repeated_action": true,
+    "stop_on_forbidden_for_normality": true,
+    "stop_on_excessive_atypical_actions": true,
+    "stop_on_no_progress": false,
+    "stop_criteria_config_path": "configs/autonomous_stop_criteria.example.json"
+  },
+  "metrics": [
+    "normal_activity_score",
+    "diversity_score",
+    "repetition_score",
+    "role_compliance_rate",
+    "registry_acceptance_rate",
+    "average_selection_latency_seconds",
+    "cpu_percent_avg",
+    "ram_delta_mb_avg"
+  ],
+  "expected_behavior": {
+    "min_normal_activity_score": 0.65,
+    "min_diversity_score": 0.4,
+    "max_repeated_same_parameters": 2,
+    "max_forbidden_for_normality_count": 0,
+    "max_atypical_action_count": 2,
+    "required_sequence_patterns": [
+      "inspect_update_test"
+    ],
+    "forbidden_actions": []
+  },
+  "resource_plan": {
+    "cpu_only": true,
+    "collect_latency": true,
+    "collect_cpu": true,
+    "collect_ram": true,
+    "collect_tokens_per_second": true,
+    "estimate_multi_agent_capacity": false
+  },
+  "behavioral_fixture_refs": [
+    "tests/fixtures/behavioral_trajectories/trajectories/developer_normal.json",
+    "tests/fixtures/behavioral_trajectories/trajectories/developer_repetitive_pytest.json"
+  ]
+}

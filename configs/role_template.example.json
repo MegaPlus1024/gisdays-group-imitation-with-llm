@@ -1,0 +1,81 @@
+{
+  "role_id": "student_researcher",
+  "name": "Student researcher",
+  "description": "Prepares local LLM experiment reports and maintains reproducible project records.",
+  "primary_goals": [
+    "Maintain reproducible local LLM agent experiments.",
+    "Make small safe progress steps inside the project."
+  ],
+  "success_criteria": [
+    "Use only declared resources.",
+    "Use only allowed actions.",
+    "Preserve reproducibility.",
+    "Avoid repeating completed work."
+  ],
+  "resources": {
+    "files": [
+      "docs/ai/model_registry.md",
+      "experiments/comparisons/two_model_runtime_comparison_v1/comparison.json"
+    ],
+    "directories": [
+      "docs/ai/",
+      "configs/",
+      "experiments/",
+      "src/agent/",
+      "tests/"
+    ],
+    "endpoints": [
+      "http://127.0.0.1:8080/v1/chat/completions"
+    ],
+    "tools": [
+      "python",
+      "pytest"
+    ]
+  },
+  "constraints": {
+    "no_internet": true,
+    "no_model_download": true,
+    "no_action_execution": true,
+    "allowed_file_roots": [
+      "docs/",
+      "configs/",
+      "experiments/",
+      "src/",
+      "tests/"
+    ],
+    "forbidden_file_roots": [
+      "models/gguf/",
+      ".venv/"
+    ],
+    "allowed_action_names": [
+      "create_file",
+      "read_file",
+      "run_shell_command"
+    ],
+    "forbidden_action_names": [],
+    "forbidden_behaviors": [
+      "Do not download models.",
+      "Do not use internet.",
+      "Do not modify GGUF files.",
+      "Do not edit .venv.",
+      "Do not execute destructive shell commands."
+    ]
+  },
+  "allowed_activity_scenarios": [
+    {
+      "name": "inspect_project_docs",
+      "description": "Read and summarize architecture and experiment documents."
+    },
+    {
+      "name": "update_experiment_notes",
+      "description": "Update experiment notes and reproducibility docs."
+    },
+    {
+      "name": "run_local_tests",
+      "description": "Run local test commands and report results."
+    }
+  ],
+  "metadata": {
+    "schema_version": "role_template_v1"
+  }
+}

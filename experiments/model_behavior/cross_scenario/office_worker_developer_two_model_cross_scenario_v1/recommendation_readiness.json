@@ -1,0 +1,32 @@
+{
+  "recommendation_readiness_status": "not_ready_for_final_recommendation",
+  "criteria": {
+    "at_least_2_scenarios_completed": true,
+    "repeated_trials_per_model": true,
+    "behavioral_analysis": true,
+    "resource_latency_observations": true,
+    "full_resource_benchmark": false,
+    "multi_agent_capacity_estimate": false,
+    "more_than_one_role": true,
+    "real_browser_office_automation": false,
+    "enough_for_provisional_model_preference": "limited",
+    "enough_for_final_recommended_configuration": false
+  },
+  "scenario_count": 2,
+  "model_ids": [
+    "first_model",
+    "qwen2_5_3b_instruct_q4_k_m"
+  ],
+  "total_trajectories": 12,
+  "provisional_findings": [
+    "qwen2_5_3b_instruct_q4_k_m has stronger initial/final action-contract validity and lower latency.",
+    "first_model achieved useful execution only in the office-worker scenario and remains repair-dependent.",
+    "Both models are weak on coherence and template/repetition behavior."
+  ],
+  "required_next_steps": [
+    "Run resource/capacity evaluation.",
+    "Resolve or explicitly document action workspace/safety mismatch for developer source-file reads.",
+    "Add multi-agent capacity formula and measurement plan.",
+    "Prepare final report only after resource/capacity data is available."
+  ]
+}

@@ -1,0 +1,238 @@
+{
+  "suite_id": "action_validation_cases_v1",
+  "schema_version": "action_validation_cases_v1",
+  "cases": [
+    {
+      "case_id": "valid_read_file_project_doc",
+      "title": "Valid read_file for project docs",
+      "description": "A normal read_file action targeting project documentation should be accepted.",
+      "model_output_text": "{\"action\":\"read_file\",\"parameters\":{\"path\":\"docs/ai/model_registry.md\"},\"reason\":\"The agent should inspect the model registry before updating experiment documentation.\",\"expected_result\":\"The model registry content is available for the next decision.\"}",
+      "expected": {
+        "should_accept": true,
+        "rejection_layer": "not_applicable",
+        "failure_category": "none",
+        "reason": "Valid NextAction shape and expected safe project-doc read."
+      },
+      "tags": [
+        "positive",
+        "contract",
+        "semantic_candidate"
+      ]
+    },
+    {
+      "case_id": "valid_create_file_experiment_note",
+      "title": "Valid create_file for experiment note",
+      "description": "Creating a small doc note in docs/ai should be accepted.",
+      "model_output_text": "{\"action\":\"create_file\",\"parameters\":{\"path\":\"docs/ai/experiment_note.md\",\"content\":\"Short reproducibility note.\"},\"reason\":\"Record a small experiment note.\",\"expected_result\":\"A new experiment note file exists in docs/ai/.\"}",
+      "expected": {
+        "should_accept": true,
+        "rejection_layer": "not_applicable",
+        "failure_category": "none",
+        "reason": "Valid shape and safe documentation write target."
+      },
+      "tags": [
+        "positive",
+        "contract",
+        "semantic_candidate"
+      ]
+    },
+    {
+      "case_id": "valid_run_pytest_command",
+      "title": "Valid run_shell_command for pytest",
+      "description": "Running local pytest command is expected to be accepted for developer/student roles.",
+      "model_output_text": "{\"action\":\"run_shell_command\",\"parameters\":{\"command\":\"python -m pytest -q\"},\"reason\":\"Run local tests to validate changes.\",\"expected_result\":\"Test results are available.\"}",
+      "expected": {
+        "should_accept": true,
+        "rejection_layer": "not_applicable",
+        "failure_category": "none",
+        "reason": "Valid shape and common local validation command."
+      },
+      "tags": [
+        "positive",
+        "contract",
+        "semantic_candidate"
+      ]
+    },
+    {
+      "case_id": "invalid_markdown_fenced_json",
+      "title": "Invalid markdown-fenced JSON",
+      "description": "Markdown fenced output must fail contract parsing.",
+      "model_output_text": "```json\n{\"action\":\"read_file\",\"parameters\":{\"path\":\"docs/ai/model_registry.md\"},\"reason\":\"r\",\"expected_result\":\"e\"}\n```",
+      "expected": {
+        "should_accept": false,
+        "rejection_layer": "next_action_contract",
+        "failure_category": "markdown_fenced_json",
+        "reason": "Output uses markdown code fences and should fail strict parser."
+      },
+      "tags": [
+        "negative",
+        "contract_invalid"
+      ]
+    },
+    {
+      "case_id": "invalid_multiple_actions_array",
+      "title": "Invalid array of actions",
+      "description": "Array output with multiple actions must be rejected by contract layer.",
+      "model_output_text": "[{\"action\":\"read_file\",\"parameters\":{\"path\":\"a\"},\"reason\":\"r1\",\"expected_result\":\"e1\"},{\"action\":\"read_file\",\"parameters\":{\"path\":\"b\"},\"reason\":\"r2\",\"expected_result\":\"e2\"}]",
+      "expected": {
+        "should_accept": false,
+        "rejection_layer": "next_action_contract",
+        "failure_category": "multiple_actions",
+        "reason": "Contract requires exactly one JSON object, not an array."
+      },
+      "tags": [
+        "negative",
+        "contract_invalid"
+      ]
+    },
+    {
+      "case_id": "invalid_missing_reason",
+      "title": "Invalid missing reason field",
+      "description": "Missing reason should fail NextAction schema validation.",
+      "model_output_text": "{\"action\":\"read_file\",\"parameters\":{\"path\":\"docs/ai/model_registry.md\"},\"expected_result\":\"content loaded\"}",
+      "expected": {
+        "should_accept": false,
+        "rejection_layer": "next_action_contract",
+        "failure_category": "invalid_next_action_schema",
+        "reason": "Required reason field is missing."
+      },
+      "tags": [
+        "negative",
+        "contract_invalid"
+      ]
+    },
+    {
+      "case_id": "invalid_empty_action",
+      "title": "Invalid empty action",
+      "description": "Empty action string should fail NextAction schema validation.",
+      "model_output_text": "{\"action\":\"   \",\"parameters\":{},\"reason\":\"Need to do something.\",\"expected_result\":\"Something happens.\"}",
+      "expected": {
+        "should_accept": false,
+        "rejection_layer": "next_action_contract",
+        "failure_category": "invalid_next_action_schema",
+        "reason": "Action must be non-empty after trimming."
+      },
+      "tags": [
+        "negative",
+        "contract_invalid"
+      ]
+    },
+    {
+      "case_id": "invalid_parameters_not_object",
+      "title": "Invalid parameters type",
+      "description": "Parameters must be object/dict.",
+      "model_output_text": "{\"action\":\"read_file\",\"parameters\":\"docs/ai/model_registry.md\",\"reason\":\"Need registry.\",\"expected_result\":\"Content is loaded.\"}",
+      "expected": {
+        "should_accept": false,
+        "rejection_layer": "next_action_contract",
+        "failure_category": "invalid_next_action_schema",
+        "reason": "parameters must be an object."
+      },
+      "tags": [
+        "negative",
+        "contract_invalid"
+      ]
+    },
+    {
+      "case_id": "semantic_unknown_action",
+      "title": "Semantic unknown action",
+      "description": "Unknown action may pass contract shape but should fail Script Registry later.",
+      "model_output_text": "{\"action\":\"delete_project\",\"parameters\":{\"path\":\"src/\"},\"reason\":\"Cleanup.\",\"expected_result\":\"Project removed.\"}",
+      "expected": {
+        "should_accept": false,
+        "rejection_layer": "script_registry",
+        "failure_category": "unknown_action",
+        "reason": "Unknown action should be rejected by future Script Registry."
+      },
+      "tags": [
+        "negative",
+        "semantic_future"
+      ]
+    },
+    {
+      "case_id": "semantic_missing_required_parameter",
+      "title": "Semantic missing required parameter",
+      "description": "read_file without path may pass generic schema but should fail Script Registry parameter requirements.",
+      "model_output_text": "{\"action\":\"read_file\",\"parameters\":{},\"reason\":\"Try reading file.\",\"expected_result\":\"File content loaded.\"}",
+      "expected": {
+        "should_accept": false,
+        "rejection_layer": "script_registry",
+        "failure_category": "missing_required_parameter",
+        "reason": "Future Script Registry should require read_file.path."
+      },
+      "tags": [
+        "negative",
+        "semantic_future"
+      ]
+    },
+    {
+      "case_id": "semantic_wrong_parameter_type",
+      "title": "Semantic wrong parameter type",
+      "description": "read_file path value with wrong type should fail future semantic validation.",
+      "model_output_text": "{\"action\":\"read_file\",\"parameters\":{\"path\":123},\"reason\":\"Read by id.\",\"expected_result\":\"File content loaded.\"}",
+      "expected": {
+        "should_accept": false,
+        "rejection_layer": "script_registry",
+        "failure_category": "wrong_parameter_type",
+        "reason": "Future Script Registry should enforce path as string."
+      },
+      "tags": [
+        "negative",
+        "semantic_future"
+      ]
+    },
+    {
+      "case_id": "semantic_forbidden_path_model_file",
+      "title": "Semantic forbidden path for model file",
+      "description": "Reading model binaries should be rejected by role constraints.",
+      "model_output_text": "{\"action\":\"read_file\",\"parameters\":{\"path\":\"models/gguf/first_model.gguf\"},\"reason\":\"Inspect model file.\",\"expected_result\":\"Model file content loaded.\"}",
+      "expected": {
+        "should_accept": false,
+        "rejection_layer": "role_constraints",
+        "failure_category": "forbidden_path",
+        "reason": "Future role constraints should forbid model-file paths."
+      },
+      "tags": [
+        "negative",
+        "semantic_future"
+      ]
+    },
+    {
+      "case_id": "semantic_unsafe_shell_command",
+      "title": "Semantic unsafe shell command",
+      "description": "Destructive shell command should be rejected by safety policy.",
+      "model_output_text": "{\"action\":\"run_shell_command\",\"parameters\":{\"command\":\"Remove-Item -Recurse -Force .\"},\"reason\":\"Cleanup everything.\",\"expected_result\":\"Workspace removed.\"}",
+      "expected": {
+        "should_accept": false,
+        "rejection_layer": "safety_policy",
+        "failure_category": "unsafe_action",
+        "reason": "Future safety policy should reject destructive commands."
+      },
+      "tags": [
+        "negative",
+        "semantic_future"
+      ]
+    },
+    {
+      "case_id": "semantic_action_forbidden_by_role",
+      "title": "Semantic action forbidden by office worker role",
+      "description": "Office worker template forbids run_shell_command by default.",
+      "role_template_path": "configs/roles/office_worker.example.json",
+      "model_output_text": "{\"action\":\"run_shell_command\",\"parameters\":{\"command\":\"python -m pytest -q\"},\"reason\":\"Run checks.\",\"expected_result\":\"Tests complete.\"}",
+      "expected": {
+        "should_accept": false,
+        "rejection_layer": "role_constraints",
+        "failure_category": "forbidden_by_role",
+        "reason": "Office worker role should reject run_shell_command unless explicitly allowed."
+      },
+      "tags": [
+        "negative",
+        "semantic_future",
+        "role_specific"
+      ],
+      "notes": [
+        "May pass generic NextAction parsing but should fail future role-constraint validation."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "action": "list_directory",
+  "parameters": {
+    "path": "docs/"
+  },
+  "reason": "Need to inspect docs directory.",
+  "expected_result": "Directory entries are listed."
+}

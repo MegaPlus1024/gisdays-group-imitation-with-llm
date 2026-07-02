@@ -1,0 +1,203 @@
+{
+  "registry_id": "fixture_valid_full_registry",
+  "schema_version": "script_registry_v1",
+  "scripts": [
+    {
+      "name": "read_file",
+      "description": "Read text file.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "description": "Relative file path."
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "docs/",
+          "configs/",
+          "experiments/",
+          "src/",
+          "tests/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/"
+        ],
+        "read_only": true
+      },
+      "tags": [
+        "file"
+      ]
+    },
+    {
+      "name": "create_file",
+      "description": "Create a text file.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "content",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "docs/",
+          "experiments/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/"
+        ]
+      },
+      "tags": [
+        "file"
+      ]
+    },
+    {
+      "name": "append_file",
+      "description": "Append text to file.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "content",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "docs/",
+          "experiments/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/"
+        ]
+      },
+      "tags": [
+        "file"
+      ]
+    },
+    {
+      "name": "list_directory",
+      "description": "List files in directory.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "docs/",
+          "configs/",
+          "experiments/",
+          "src/",
+          "tests/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/"
+        ],
+        "read_only": true
+      },
+      "tags": [
+        "file"
+      ]
+    },
+    {
+      "name": "browser_open_url",
+      "description": "Open URL in browser.",
+      "parameters": [
+        {
+          "name": "url",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "tags": [
+        "browser"
+      ]
+    },
+    {
+      "name": "office_create_document_stub",
+      "description": "Create office document stub.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "docs/",
+          "experiments/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/"
+        ]
+      },
+      "tags": [
+        "office"
+      ]
+    },
+    {
+      "name": "run_shell_command",
+      "description": "Run one allowlisted shell command.",
+      "parameters": [
+        {
+          "name": "command",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "safety": {
+        "forbidden_substrings": [
+          "&&",
+          ";",
+          "|",
+          "Remove-Item",
+          "rm -rf"
+        ],
+        "forbidden_shell_commands": [
+          "Remove-Item"
+        ],
+        "allowed_shell_commands": [
+          "python -m pytest -q"
+        ]
+      },
+      "tags": [
+        "shell"
+      ]
+    }
+  ]
+}

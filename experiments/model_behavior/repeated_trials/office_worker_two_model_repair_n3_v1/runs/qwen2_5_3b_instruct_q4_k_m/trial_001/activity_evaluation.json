@@ -1,0 +1,42 @@
+{
+  "evaluator_id": "normal_activity_trajectory_evaluator_v1",
+  "profile_id": "office_worker_normal_activity_v1",
+  "role_id": "office_worker",
+  "verdict": "failed",
+  "score": 0.0,
+  "metrics": {
+    "total_steps": 2,
+    "successful_steps": 0,
+    "failed_steps": 2,
+    "typical_action_count": 2,
+    "atypical_action_count": 0,
+    "forbidden_for_normality_count": 0,
+    "unique_action_count": 1,
+    "action_family_count": 1,
+    "repeated_action_count": 1,
+    "repeated_same_parameters_count": 1,
+    "expected_sequence_matches": 0,
+    "history_usage_count": 1,
+    "role_fit_score": 1.0,
+    "diversity_score": 0.5,
+    "repetition_score": 0.7250000000000001,
+    "sequence_coherence_score": 0.0,
+    "history_usage_score": 1.0,
+    "normal_activity_score": 0.0,
+    "flags": [
+      "repeated_same_parameters",
+      "low_sequence_coherence",
+      "failed_steps_present"
+    ],
+    "metadata": {
+      "sequence_matches": []
+    }
+  },
+  "explanations": [
+    "Verdict: failed.",
+    "Normal activity score: 0.000.",
+    "Repeated action+parameter patterns were detected.",
+    "Failed steps reduced the final score."
+  ],
+  "metadata": {}
+}

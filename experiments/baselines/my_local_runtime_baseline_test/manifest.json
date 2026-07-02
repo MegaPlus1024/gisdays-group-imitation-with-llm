@@ -1,0 +1,59 @@
+{
+  "experiment_id": "my_local_runtime_baseline_test",
+  "created_at": "2026-07-01T14:47:36.670536+00:00",
+  "purpose": "First local runtime baseline for one fixed prompt across repeated calls.",
+  "runtime": {
+    "name": "llama.cpp / llama-server",
+    "base_url": "http://127.0.0.1:8080/v1",
+    "endpoint": "http://127.0.0.1:8080/v1/chat/completions"
+  },
+  "model": {
+    "model_name": "first_model.gguf",
+    "note": "One model only in this baseline."
+  },
+  "prompt": {
+    "prompt_file": "prompts\\smoke\\agent_next_action_v1.txt",
+    "note": "One fixed prompt only."
+  },
+  "command_templates": {
+    "llama_server_windows": "llama-server `\n  -m models\\gguf\\first_model.gguf `\n  --host 127.0.0.1 `\n  --port 8080 `\n  --ctx-size 4096",
+    "baseline_windows": "python scripts\\run_runtime_baseline.py `\n  --base-url http://127.0.0.1:8080/v1 `\n  --model-name first_model.gguf `\n  --prompt-file prompts\\smoke\\agent_next_action_v1.txt `\n  --out-dir experiments\\baselines\\local_runtime_baseline_v1 `\n  --runs 3 `\n  --force"
+  },
+  "environment": {
+    "platform": "Windows-10-10.0.19045-SP0",
+    "python_version": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "packages": {
+      "httpx": "0.28.1",
+      "psutil": "7.2.2",
+      "pydantic": "2.13.4",
+      "pytest": "9.0.3",
+      "rich": "15.0.0"
+    }
+  },
+  "output_files": {
+    "root_dir": "experiments\\baselines\\my_local_runtime_baseline_test",
+    "files": [
+      "README.md",
+      "manifest.json",
+      "runs.jsonl",
+      "summary.json",
+      "prompt.txt",
+      "replay_commands.md",
+      "raw/run_1.json ... raw/run_N.json"
+    ]
+  },
+  "limitations": [
+    "one model only",
+    "one prompt only",
+    "no model comparison",
+    "no semantic action validation",
+    "no agent loop",
+    "resource estimates are approximate",
+    "server RSS only available if server_pid is passed",
+    "results depend on current machine load"
+  ],
+  "status": {
+    "runs_requested": 3,
+    "baseline_type": "resource-only, repeated fixed-prompt calls"
+  }
+}

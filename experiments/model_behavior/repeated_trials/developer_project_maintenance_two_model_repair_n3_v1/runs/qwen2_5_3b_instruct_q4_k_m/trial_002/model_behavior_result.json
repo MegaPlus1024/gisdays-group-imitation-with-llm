@@ -1,0 +1,176 @@
+{
+  "evaluation_id": "experiment_scenario_runner_v1",
+  "run_id": "developer_project_maintenance_two_model_repair_n3_v1_qwen2_5_3b_instruct_q4_k_m_trial_002",
+  "scenario_id": "developer_project_maintenance_v1",
+  "model": {
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
+    "model_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\models\\gguf\\second_model.gguf",
+    "model_family": "Qwen2.5 3B Instruct Q4_K_M",
+    "size_class": "3B",
+    "quantization": "Q4_K_M",
+    "runtime": "llama.cpp / llama-server",
+    "cpu_only": true,
+    "metadata": {
+      "registry_spec": {
+        "model_id": "qwen2_5_3b_instruct_q4_k_m",
+        "display_name": "Qwen2.5 3B Instruct Q4_K_M",
+        "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
+        "gguf_path": "models/gguf/second_model.gguf",
+        "quantization": "Q4_K_M",
+        "parameter_size": "3B",
+        "runtime": "llama.cpp / llama-server",
+        "base_url": "http://127.0.0.1:8080/v1",
+        "api_style": "openai_compatible",
+        "expected_cpu_only": true,
+        "ctx_size": 4096,
+        "timeout_seconds": 120.0,
+        "temperature": 0.0,
+        "max_tokens": 512,
+        "enabled": true,
+        "notes": [
+          "Stable experiment id already used by second-model baseline artifacts.",
+          "The local file currently present in models/gguf is second_model.gguf; this config maps the stable model id to that local alias path.",
+          "Do not claim behavior quality improvement until real scenario trajectories are evaluated."
+        ]
+      },
+      "preflight": {
+        "model_id": "qwen2_5_3b_instruct_q4_k_m",
+        "status": "pass",
+        "issues": [],
+        "warnings": [],
+        "resolved_model_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\models\\gguf\\second_model.gguf",
+        "resolved_base_url": "http://127.0.0.1:8080/v1",
+        "can_attempt_local_run": true,
+        "metadata": {
+          "model_file_exists": true,
+          "enabled": true,
+          "runtime": "llama.cpp / llama-server",
+          "api_style": "openai_compatible",
+          "require_model_file": true,
+          "allow_disabled": false
+        }
+      },
+      "cli_overrides": {}
+    }
+  },
+  "run_mode": "local_model",
+  "verdict": "fail",
+  "selected_actions": [
+    {
+      "step_index": 1,
+      "action": "read_file",
+      "parameters": {
+        "path": "src/main.py"
+      },
+      "reason": "Read the main Python file to understand its current state.",
+      "expected_result": "The content of the main.py file.",
+      "registry_accepted": true,
+      "role_compliant": true,
+      "executed": true,
+      "success": false,
+      "issue_codes": [],
+      "metadata": {
+        "final_attempt_index": 0,
+        "repaired": false,
+        "initial_failure_preserved": false
+      }
+    }
+  ],
+  "validation_metrics": {
+    "total_steps": 1,
+    "json_valid_count": 1,
+    "next_action_parse_success_count": 1,
+    "registry_accepted_count": 1,
+    "role_compliant_count": 1,
+    "validation_failure_count": 0,
+    "unsafe_action_count": 0,
+    "execution_success_count": 0,
+    "execution_failure_count": 1,
+    "recovery_count": 0,
+    "metadata": {
+      "repair_summary": {
+        "initial_parse_success_count": 1,
+        "initial_validation_accept_count": 1,
+        "repair_attempt_count": 0,
+        "repair_parse_success_count": 0,
+        "repair_validation_accept_count": 0,
+        "repaired_step_count": 0,
+        "unrecovered_failure_count": 1,
+        "final_validation_accept_count": 1,
+        "execution_success_count": 0
+      }
+    }
+  },
+  "behavioral_evaluation": {
+    "evaluator_id": "normal_activity_trajectory_evaluator_v1",
+    "profile_id": "developer_normal_activity_v1",
+    "role_id": "developer",
+    "verdict": "failed",
+    "score": 0.0,
+    "metrics": {
+      "total_steps": 1,
+      "successful_steps": 0,
+      "failed_steps": 1,
+      "typical_action_count": 1,
+      "atypical_action_count": 0,
+      "forbidden_for_normality_count": 0,
+      "unique_action_count": 1,
+      "action_family_count": 1,
+      "repeated_action_count": 0,
+      "repeated_same_parameters_count": 0,
+      "expected_sequence_matches": 0,
+      "history_usage_count": 0,
+      "role_fit_score": 1.0,
+      "diversity_score": 0.41666666666666663,
+      "repetition_score": 1.0,
+      "sequence_coherence_score": 0.0,
+      "history_usage_score": 0.5,
+      "normal_activity_score": 0.0,
+      "flags": [
+        "low_diversity",
+        "low_sequence_coherence",
+        "failed_steps_present"
+      ],
+      "metadata": {
+        "sequence_matches": []
+      }
+    },
+    "explanations": [
+      "Verdict: failed.",
+      "Normal activity score: 0.000.",
+      "Failed steps reduced the final score."
+    ],
+    "metadata": {}
+  },
+  "resource_metrics": {
+    "wall_time_seconds_avg": 0.4289313005283475,
+    "wall_time_seconds_min": null,
+    "wall_time_seconds_max": null,
+    "average_selection_latency_seconds": null,
+    "average_total_step_latency_seconds": null,
+    "cpu_percent_avg": null,
+    "cpu_percent_max": null,
+    "ram_delta_mb_avg": null,
+    "tokens_per_second_avg": null,
+    "prompt_tokens_avg": null,
+    "completion_tokens_avg": null,
+    "metadata": {}
+  },
+  "started_at": "2026-07-01T21:14:17.920927+00:00",
+  "completed_at": "2026-07-01T21:14:18.350014+00:00",
+  "notes": [],
+  "metadata": {
+    "repair_summary": {
+      "initial_parse_success_count": 1,
+      "initial_validation_accept_count": 1,
+      "repair_attempt_count": 0,
+      "repair_parse_success_count": 0,
+      "repair_validation_accept_count": 0,
+      "repaired_step_count": 0,
+      "unrecovered_failure_count": 1,
+      "final_validation_accept_count": 1,
+      "execution_success_count": 0
+    }
+  }
+}

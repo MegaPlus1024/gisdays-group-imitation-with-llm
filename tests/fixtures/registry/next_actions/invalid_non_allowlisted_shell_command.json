@@ -1,0 +1,8 @@
+{
+  "action": "run_shell_command",
+  "parameters": {
+    "command": "python unknown.py"
+  },
+  "reason": "Non-allowlisted command case.",
+  "expected_result": "Should fail unsafe action allowlist check."
+}

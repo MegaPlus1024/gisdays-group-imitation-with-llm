@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class NextAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     action: str
     parameters: dict[str, Any] = Field(default_factory=dict)
     reason: str

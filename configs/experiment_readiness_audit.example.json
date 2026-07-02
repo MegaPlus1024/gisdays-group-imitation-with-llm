@@ -1,0 +1,14 @@
+{
+  "audit_id": "experiment_readiness_audit_v1",
+  "project_root": ".",
+  "require_behavioral_readiness": true,
+  "require_evaluation_scenarios": true,
+  "require_model_behavior_harness": true,
+  "require_runtime_scripts": true,
+  "require_tests_present": true,
+  "treat_missing_optional_artifacts_as_warning": true,
+  "metadata": {
+    "schema_version": "experiment_readiness_audit_v1",
+    "note": "Checks whether the project is ready to start real Experiments and Evaluation. Does not run models."
+  }
+}

@@ -1,0 +1,13 @@
+model_id,trial_id,step,action,parameters
+first_model,trial_001,1,read_file,"{""path"": ""docs/ai/model_registry.md""}"
+first_model,trial_001,2,read_file,"{""path"": ""docs/ai/model_registry.md""}"
+first_model,trial_002,1,read_file,"{""path"": ""docs/ai/model_registry.md""}"
+first_model,trial_002,2,read_file,"{""path"": ""docs/ai/model_registry.md""}"
+first_model,trial_003,1,read_file,"{""path"": ""docs/ai/model_registry.md""}"
+first_model,trial_003,2,read_file,"{""path"": ""docs/ai/model_registry.md""}"
+qwen2_5_3b_instruct_q4_k_m,trial_001,1,read_file,"{""path"": ""docs/notes.txt""}"
+qwen2_5_3b_instruct_q4_k_m,trial_001,2,read_file,"{""path"": ""docs/notes.txt""}"
+qwen2_5_3b_instruct_q4_k_m,trial_002,1,read_file,"{""path"": ""docs/notes.txt""}"
+qwen2_5_3b_instruct_q4_k_m,trial_002,2,read_file,"{""path"": ""docs/notes.txt""}"
+qwen2_5_3b_instruct_q4_k_m,trial_003,1,read_file,"{""path"": ""docs/notes.txt""}"
+qwen2_5_3b_instruct_q4_k_m,trial_003,2,read_file,"{""path"": ""docs/notes.txt""}"

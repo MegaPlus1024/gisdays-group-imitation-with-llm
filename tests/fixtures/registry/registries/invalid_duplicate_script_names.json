@@ -1,0 +1,16 @@
+{
+  "registry_id": "fixture_invalid_duplicate_script_names",
+  "schema_version": "script_registry_v1",
+  "scripts": [
+    {
+      "name": "read_file",
+      "description": "Read file.",
+      "parameters": []
+    },
+    {
+      "name": "read_file",
+      "description": "Duplicate name.",
+      "parameters": []
+    }
+  ]
+}

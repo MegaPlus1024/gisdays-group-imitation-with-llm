@@ -1,0 +1,527 @@
+{
+  "analysis_id": "office_worker_developer_two_model_cross_scenario_v1",
+  "generated_at": "2026-07-01T21:38:40.143151+00:00",
+  "inputs": [
+    {
+      "scenario_id": "office_worker",
+      "analysis_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\analysis\\office_worker_two_model_behavioral_analysis_v1",
+      "repeated_trials_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\repeated_trials\\office_worker_two_model_repair_n3_v1"
+    },
+    {
+      "scenario_id": "developer_project_maintenance",
+      "analysis_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\analysis\\developer_project_maintenance_two_model_behavioral_analysis_v1",
+      "repeated_trials_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\repeated_trials\\developer_project_maintenance_two_model_repair_n3_v1"
+    }
+  ],
+  "scenario_model_summaries": [
+    {
+      "scenario_id": "office_worker",
+      "model_id": "first_model",
+      "trial_count": 3,
+      "completed_trial_count": 3,
+      "failed_trial_count": 0,
+      "mean_initial_validation_accept_rate": 0.0,
+      "mean_final_validation_accept_rate": 0.666667,
+      "mean_execution_success_rate": 1.0,
+      "mean_normal_activity_score": 0.43,
+      "mean_diversity_score": 0.75,
+      "mean_repetition_score": 0.725,
+      "mean_history_usage_score": 0.0,
+      "mean_sequence_coherence_score": 0.0,
+      "mean_avg_selection_latency_ms": 714.887333,
+      "mean_avg_total_step_latency_ms": 716.347,
+      "common_failure_modes": {
+        "validation_failed_after_repair": 3
+      },
+      "most_repeated_action_parameters": [
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/model_registry.md\"}}",
+          "count": 6
+        }
+      ],
+      "role_verdict": "acceptable",
+      "coherence_verdict": "failed",
+      "diversity_template_verdict": "template_like"
+    },
+    {
+      "scenario_id": "office_worker",
+      "model_id": "qwen2_5_3b_instruct_q4_k_m",
+      "trial_count": 3,
+      "completed_trial_count": 3,
+      "failed_trial_count": 0,
+      "mean_initial_validation_accept_rate": 1.0,
+      "mean_final_validation_accept_rate": 1.0,
+      "mean_execution_success_rate": 0.0,
+      "mean_normal_activity_score": 0.0,
+      "mean_diversity_score": 0.5,
+      "mean_repetition_score": 0.725,
+      "mean_history_usage_score": 1.0,
+      "mean_sequence_coherence_score": 0.0,
+      "mean_avg_selection_latency_ms": 518.446667,
+      "mean_avg_total_step_latency_ms": 519.139667,
+      "common_failure_modes": {
+        "file_not_found": 6
+      },
+      "most_repeated_action_parameters": [
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/notes.txt\"}}",
+          "count": 6
+        }
+      ],
+      "role_verdict": "strong",
+      "coherence_verdict": "failed",
+      "diversity_template_verdict": "failure_loop"
+    },
+    {
+      "scenario_id": "developer_project_maintenance",
+      "model_id": "first_model",
+      "trial_count": 3,
+      "completed_trial_count": 3,
+      "failed_trial_count": 0,
+      "mean_initial_validation_accept_rate": 0.0,
+      "mean_final_validation_accept_rate": 0.0,
+      "mean_execution_success_rate": 0.0,
+      "mean_normal_activity_score": 0.0,
+      "mean_diversity_score": 0.416667,
+      "mean_repetition_score": 1.0,
+      "mean_history_usage_score": 0.5,
+      "mean_sequence_coherence_score": 0.0,
+      "mean_avg_selection_latency_ms": 792.611333,
+      "mean_avg_total_step_latency_ms": 794.258667,
+      "common_failure_modes": {
+        "validation_failed_after_repair": 3
+      },
+      "most_repeated_action_parameters": [],
+      "role_verdict": "acceptable",
+      "coherence_verdict": "failed",
+      "diversity_template_verdict": "narrow"
+    },
+    {
+      "scenario_id": "developer_project_maintenance",
+      "model_id": "qwen2_5_3b_instruct_q4_k_m",
+      "trial_count": 3,
+      "completed_trial_count": 3,
+      "failed_trial_count": 0,
+      "mean_initial_validation_accept_rate": 1.0,
+      "mean_final_validation_accept_rate": 1.0,
+      "mean_execution_success_rate": 0.0,
+      "mean_normal_activity_score": 0.0,
+      "mean_diversity_score": 0.416667,
+      "mean_repetition_score": 1.0,
+      "mean_history_usage_score": 0.5,
+      "mean_sequence_coherence_score": 0.0,
+      "mean_avg_selection_latency_ms": 459.744667,
+      "mean_avg_total_step_latency_ms": 460.345333,
+      "common_failure_modes": {
+        "unsafe_path": 3
+      },
+      "most_repeated_action_parameters": [
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"src/main.py\"}}",
+          "count": 3
+        }
+      ],
+      "role_verdict": "strong",
+      "coherence_verdict": "weak",
+      "diversity_template_verdict": "template_like"
+    }
+  ],
+  "model_aggregates": {
+    "first_model": {
+      "model_id": "first_model",
+      "scenario_count": 2,
+      "total_trials": 6,
+      "completed_trials": 6,
+      "failed_trials": 0,
+      "mean_initial_validation_accept_rate_across_scenarios": 0.0,
+      "mean_final_validation_accept_rate_across_scenarios": 0.333334,
+      "mean_execution_success_rate_across_scenarios": 0.5,
+      "mean_normal_activity_score_across_scenarios": 0.215,
+      "mean_diversity_score_across_scenarios": 0.583333,
+      "mean_repetition_score_across_scenarios": 0.8625,
+      "mean_history_usage_score_across_scenarios": 0.25,
+      "mean_sequence_coherence_score_across_scenarios": 0.0,
+      "mean_avg_selection_latency_ms_across_scenarios": 753.749333,
+      "metric_ranges": {
+        "final_validation": {
+          "min": 0.0,
+          "max": 0.666667,
+          "range": 0.666667
+        },
+        "execution_success": {
+          "min": 0.0,
+          "max": 1.0,
+          "range": 1.0
+        },
+        "normal_activity": {
+          "min": 0.0,
+          "max": 0.43,
+          "range": 0.43
+        },
+        "diversity": {
+          "min": 0.416667,
+          "max": 0.75,
+          "range": 0.333333
+        },
+        "latency": {
+          "min": 714.887333,
+          "max": 792.611333,
+          "range": 77.724
+        }
+      },
+      "stable_failure_patterns": {
+        "validation_failed_after_repair": 6
+      },
+      "scenario_specific_failure_patterns": {},
+      "dominant_action_patterns": [
+        {
+          "scenario_id": "office_worker",
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/model_registry.md\"}}",
+          "count": 6
+        }
+      ],
+      "template_behavior_consistency": {
+        "scenario_verdicts": [
+          {
+            "scenario_id": "office_worker",
+            "verdict": "template_like"
+          },
+          {
+            "scenario_id": "developer_project_maintenance",
+            "verdict": "narrow"
+          }
+        ],
+        "flag_counts": {
+          "repeated_same_action": 1,
+          "repeated_same_parameters": 1,
+          "low_action_family_diversity": 2,
+          "template_repetition": 1
+        }
+      },
+      "scenario_sensitivity": "high",
+      "overall_behavioral_profile": [
+        "repair_dependent",
+        "template_like",
+        "scenario_sensitive"
+      ]
+    },
+    "qwen2_5_3b_instruct_q4_k_m": {
+      "model_id": "qwen2_5_3b_instruct_q4_k_m",
+      "scenario_count": 2,
+      "total_trials": 6,
+      "completed_trials": 6,
+      "failed_trials": 0,
+      "mean_initial_validation_accept_rate_across_scenarios": 1.0,
+      "mean_final_validation_accept_rate_across_scenarios": 1.0,
+      "mean_execution_success_rate_across_scenarios": 0.0,
+      "mean_normal_activity_score_across_scenarios": 0.0,
+      "mean_diversity_score_across_scenarios": 0.458334,
+      "mean_repetition_score_across_scenarios": 0.8625,
+      "mean_history_usage_score_across_scenarios": 0.75,
+      "mean_sequence_coherence_score_across_scenarios": 0.0,
+      "mean_avg_selection_latency_ms_across_scenarios": 489.095667,
+      "metric_ranges": {
+        "final_validation": {
+          "min": 1.0,
+          "max": 1.0,
+          "range": 0.0
+        },
+        "execution_success": {
+          "min": 0.0,
+          "max": 0.0,
+          "range": 0.0
+        },
+        "normal_activity": {
+          "min": 0.0,
+          "max": 0.0,
+          "range": 0.0
+        },
+        "diversity": {
+          "min": 0.416667,
+          "max": 0.5,
+          "range": 0.083333
+        },
+        "latency": {
+          "min": 459.744667,
+          "max": 518.446667,
+          "range": 58.702
+        }
+      },
+      "stable_failure_patterns": {},
+      "scenario_specific_failure_patterns": {
+        "office_worker": {
+          "file_not_found": 6
+        },
+        "developer_project_maintenance": {
+          "unsafe_path": 3
+        }
+      },
+      "dominant_action_patterns": [
+        {
+          "scenario_id": "office_worker",
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/notes.txt\"}}",
+          "count": 6
+        },
+        {
+          "scenario_id": "developer_project_maintenance",
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"src/main.py\"}}",
+          "count": 3
+        }
+      ],
+      "template_behavior_consistency": {
+        "scenario_verdicts": [
+          {
+            "scenario_id": "office_worker",
+            "verdict": "failure_loop"
+          },
+          {
+            "scenario_id": "developer_project_maintenance",
+            "verdict": "template_like"
+          }
+        ],
+        "flag_counts": {
+          "repeated_same_action": 2,
+          "repeated_same_parameters": 2,
+          "low_action_family_diversity": 2,
+          "repeated_failure_pattern": 1
+        }
+      },
+      "scenario_sensitivity": "medium",
+      "overall_behavioral_profile": [
+        "contract_valid_but_execution_weak",
+        "template_like",
+        "scenario_sensitive"
+      ]
+    }
+  },
+  "metric_winners": [
+    {
+      "metric": "contract_validity",
+      "first_model_value": 0.0,
+      "qwen2_5_3b_value": 1.0,
+      "winner": "qwen2_5_3b_instruct_q4_k_m",
+      "rationale": null
+    },
+    {
+      "metric": "final_validity",
+      "first_model_value": 0.333334,
+      "qwen2_5_3b_value": 1.0,
+      "winner": "qwen2_5_3b_instruct_q4_k_m",
+      "rationale": null
+    },
+    {
+      "metric": "execution_success",
+      "first_model_value": 0.5,
+      "qwen2_5_3b_value": 0.0,
+      "winner": "first_model",
+      "rationale": null
+    },
+    {
+      "metric": "normal_activity",
+      "first_model_value": 0.215,
+      "qwen2_5_3b_value": 0.0,
+      "winner": "first_model",
+      "rationale": null
+    },
+    {
+      "metric": "diversity",
+      "first_model_value": 0.583333,
+      "qwen2_5_3b_value": 0.458334,
+      "winner": "first_model",
+      "rationale": null
+    },
+    {
+      "metric": "lower_template_repetition",
+      "first_model_value": 5,
+      "qwen2_5_3b_value": 7,
+      "winner": "first_model",
+      "rationale": null
+    },
+    {
+      "metric": "history_usage",
+      "first_model_value": 0.25,
+      "qwen2_5_3b_value": 0.75,
+      "winner": "qwen2_5_3b_instruct_q4_k_m",
+      "rationale": null
+    },
+    {
+      "metric": "latency",
+      "first_model_value": 753.749333,
+      "qwen2_5_3b_value": 489.095667,
+      "winner": "qwen2_5_3b_instruct_q4_k_m",
+      "rationale": null
+    },
+    {
+      "metric": "failure_stability",
+      "first_model_value": 1,
+      "qwen2_5_3b_value": 0,
+      "winner": "qwen2_5_3b_instruct_q4_k_m",
+      "rationale": null
+    },
+    {
+      "metric": "overall_evidence_leader",
+      "first_model_value": "execution success only in office-worker; repair-dependent",
+      "qwen2_5_3b_value": "stronger contract validity and latency; execution weak",
+      "winner": "not_available",
+      "rationale": "Evidence is mixed across two scenarios and not enough for a final model recommendation."
+    }
+  ],
+  "failure_patterns": {
+    "first_model": {
+      "model_id": "first_model",
+      "stable_failure_patterns": {
+        "validation_failed_after_repair": 6
+      },
+      "scenario_specific_failure_patterns": {},
+      "total_counts": {
+        "validation_failed_after_repair": 6,
+        "validation_failed_after_repair_count": 6,
+        "missing_required_parameter_count": 6,
+        "unsafe_path_count": 18,
+        "write_path_outside_workspace_count": 12,
+        "file_not_found_count": 0,
+        "max_consecutive_failures_count": 0,
+        "execution_error_count": 0,
+        "repair_attempt_count": 12,
+        "repair_success_count": 6,
+        "unrecovered_failure_count": 6
+      }
+    },
+    "qwen2_5_3b_instruct_q4_k_m": {
+      "model_id": "qwen2_5_3b_instruct_q4_k_m",
+      "stable_failure_patterns": {},
+      "scenario_specific_failure_patterns": {
+        "office_worker": {
+          "file_not_found": 6
+        },
+        "developer_project_maintenance": {
+          "unsafe_path": 3
+        }
+      },
+      "total_counts": {
+        "file_not_found": 6,
+        "unsafe_path": 3,
+        "validation_failed_after_repair_count": 0,
+        "missing_required_parameter_count": 0,
+        "unsafe_path_count": 0,
+        "write_path_outside_workspace_count": 0,
+        "file_not_found_count": 6,
+        "max_consecutive_failures_count": 3,
+        "execution_error_count": 9,
+        "repair_attempt_count": 0,
+        "repair_success_count": 0,
+        "unrecovered_failure_count": 9
+      }
+    }
+  },
+  "scenario_sensitivity_report": {
+    "first_model": {
+      "verdict": "high",
+      "scenario_order": [
+        "office_worker",
+        "developer_project_maintenance"
+      ],
+      "deltas": {
+        "initial_validity": 0.0,
+        "final_validity": -0.666667,
+        "execution_success": -1.0,
+        "normal_activity": -0.43,
+        "diversity": -0.333333,
+        "repetition": 0.275,
+        "history_usage": 0.5,
+        "latency_ms": 77.724
+      },
+      "failure_modes_changed": false,
+      "dominant_action_patterns": [
+        [
+          {
+            "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/model_registry.md\"}}",
+            "count": 6
+          }
+        ],
+        []
+      ],
+      "failure_modes": {
+        "office_worker": {
+          "validation_failed_after_repair": 3
+        },
+        "developer_project_maintenance": {
+          "validation_failed_after_repair": 3
+        }
+      }
+    },
+    "qwen2_5_3b_instruct_q4_k_m": {
+      "verdict": "medium",
+      "scenario_order": [
+        "office_worker",
+        "developer_project_maintenance"
+      ],
+      "deltas": {
+        "initial_validity": 0.0,
+        "final_validity": 0.0,
+        "execution_success": 0.0,
+        "normal_activity": 0.0,
+        "diversity": -0.083333,
+        "repetition": 0.275,
+        "history_usage": -0.5,
+        "latency_ms": -58.702
+      },
+      "failure_modes_changed": true,
+      "dominant_action_patterns": [
+        [
+          {
+            "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/notes.txt\"}}",
+            "count": 6
+          }
+        ],
+        [
+          {
+            "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"src/main.py\"}}",
+            "count": 3
+          }
+        ]
+      ],
+      "failure_modes": {
+        "office_worker": {
+          "file_not_found": 6
+        },
+        "developer_project_maintenance": {
+          "unsafe_path": 3
+        }
+      }
+    }
+  },
+  "recommendation_readiness": {
+    "recommendation_readiness_status": "not_ready_for_final_recommendation",
+    "criteria": {
+      "at_least_2_scenarios_completed": true,
+      "repeated_trials_per_model": true,
+      "behavioral_analysis": true,
+      "resource_latency_observations": true,
+      "full_resource_benchmark": false,
+      "multi_agent_capacity_estimate": false,
+      "more_than_one_role": true,
+      "real_browser_office_automation": false,
+      "enough_for_provisional_model_preference": "limited",
+      "enough_for_final_recommended_configuration": false
+    },
+    "scenario_count": 2,
+    "model_ids": [
+      "first_model",
+      "qwen2_5_3b_instruct_q4_k_m"
+    ],
+    "total_trajectories": 12,
+    "provisional_findings": [
+      "qwen2_5_3b_instruct_q4_k_m has stronger initial/final action-contract validity and lower latency.",
+      "first_model achieved useful execution only in the office-worker scenario and remains repair-dependent.",
+      "Both models are weak on coherence and template/repetition behavior."
+    ],
+    "required_next_steps": [
+      "Run resource/capacity evaluation.",
+      "Resolve or explicitly document action workspace/safety mismatch for developer source-file reads.",
+      "Add multi-agent capacity formula and measurement plan.",
+      "Prepare final report only after resource/capacity data is available."
+    ]
+  },
+  "warnings": []
+}

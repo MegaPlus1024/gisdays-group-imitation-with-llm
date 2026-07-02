@@ -1,0 +1,29 @@
+[
+  {
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "trial_id": "trial_001",
+    "step": 1,
+    "action": "read_file",
+    "parameters": {
+      "path": "src/main.py"
+    }
+  },
+  {
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "trial_id": "trial_002",
+    "step": 1,
+    "action": "read_file",
+    "parameters": {
+      "path": "src/main.py"
+    }
+  },
+  {
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "trial_id": "trial_003",
+    "step": 1,
+    "action": "read_file",
+    "parameters": {
+      "path": "src/main.py"
+    }
+  }
+]

@@ -1,9 +1,14 @@
 # Python cache
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Virtual environments
 .venv/
@@ -12,6 +17,7 @@ env/
 ENV/
 
 # Logs
+*.log
 logs/**
 !logs/
 !logs/**/
@@ -20,13 +26,37 @@ logs/smoke/*.json
 logs/smoke/*.txt
 !logs/smoke/README.md
 
+# Local temp/runtime files
+.env
+.env.*
+.tmp/
+tmp/
+temp/
+
 # Local models
 models/gguf/*.gguf
+models/**/*.gguf
 models/gguf/*.bin
 models/gguf/*.safetensors
+*.gguf
+*.bin
+*.safetensors
+
+# Large/local runtime
+llama-server.exe
+llama.cpp/
+build/
+dist/
 
 # Local config
 configs/runtime.local.json
+
+# Local credentials
+*.key
+*.pem
+token*
+secrets*
+credentials*
 
 # OS / editor noise
 .DS_Store

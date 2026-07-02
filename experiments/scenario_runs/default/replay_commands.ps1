@@ -1,0 +1,1 @@
+python scripts\run_agent_scenario.py --scenario configs/evaluation_scenarios/office_worker_basic_session.json --mode fake --out-dir experiments/scenario_runs/default --run-id scenario_run --model-id first_model --max-steps 1 --force --models-config configs\evaluation_models.json --base-url http://127.0.0.1:8080/v1

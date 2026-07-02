@@ -1,0 +1,136 @@
+{
+  "generated_at": "2026-07-02T00:00:00+03:00",
+  "evidence_roots": {
+    "office_worker_repeated_trials": "experiments/model_behavior/repeated_trials/office_worker_two_model_repair_n3_v1",
+    "developer_project_maintenance_repeated_trials": "experiments/model_behavior/repeated_trials/developer_project_maintenance_two_model_repair_n3_v1",
+    "office_worker_behavioral_analysis": "experiments/model_behavior/analysis/office_worker_two_model_behavioral_analysis_v1",
+    "developer_project_maintenance_behavioral_analysis": "experiments/model_behavior/analysis/developer_project_maintenance_two_model_behavioral_analysis_v1",
+    "cross_scenario_analysis": "experiments/model_behavior/cross_scenario/office_worker_developer_two_model_cross_scenario_v1",
+    "resource_capacity": "experiments/model_behavior/resources/resource_capacity_v1"
+  },
+  "model_ids": [
+    "first_model",
+    "qwen2_5_3b_instruct_q4_k_m"
+  ],
+  "scenarios": [
+    "office_worker_basic_session",
+    "developer_project_maintenance"
+  ],
+  "total_trajectories": 12,
+  "key_metrics_by_model": {
+    "first_model": {
+      "scenario_count": 2,
+      "total_trials": 6,
+      "mean_initial_validation_accept_rate": 0.0,
+      "mean_final_validation_accept_rate": 0.333334,
+      "mean_execution_success_rate": 0.5,
+      "mean_normal_activity_score": 0.215,
+      "mean_diversity_score": 0.583333,
+      "mean_repetition_score": 0.8625,
+      "mean_history_usage_score": 0.25,
+      "mean_sequence_coherence_score": 0.0,
+      "mean_selection_latency_ms": 753.749333,
+      "stable_failure_patterns": {
+        "validation_failed_after_repair": 6
+      },
+      "scenario_sensitivity": "high",
+      "profile": [
+        "repair_dependent",
+        "template_like",
+        "scenario_sensitive"
+      ]
+    },
+    "qwen2_5_3b_instruct_q4_k_m": {
+      "scenario_count": 2,
+      "total_trials": 6,
+      "mean_initial_validation_accept_rate": 1.0,
+      "mean_final_validation_accept_rate": 1.0,
+      "mean_execution_success_rate": 0.0,
+      "mean_normal_activity_score": 0.0,
+      "mean_diversity_score": 0.458334,
+      "mean_repetition_score": 0.8625,
+      "mean_history_usage_score": 0.75,
+      "mean_sequence_coherence_score": 0.0,
+      "mean_selection_latency_ms": 489.095667,
+      "scenario_specific_failure_patterns": {
+        "office_worker": {
+          "file_not_found": 6
+        },
+        "developer_project_maintenance": {
+          "unsafe_path": 3
+        }
+      },
+      "scenario_sensitivity": "medium",
+      "profile": [
+        "contract_valid_but_execution_weak",
+        "template_like",
+        "scenario_sensitive"
+      ]
+    }
+  },
+  "capacity_estimates": {
+    "system_snapshot": {
+      "physical_cpu_count": 24,
+      "logical_cpu_count": 24,
+      "total_ram_mb": 130436.711,
+      "available_ram_mb": 82560.059,
+      "reserved_system_ram_mb": 4096.0,
+      "effective_available_ram_mb": 78464.059
+    },
+    "first_model": {
+      "mean_selection_latency_ms": 753.7495,
+      "mean_total_step_latency_ms": 755.302667,
+      "mean_wall_time_ms": 1484.923667,
+      "rss_delta_mb": 6.099833,
+      "cpu_observation_percent": 5.95,
+      "model_ram_estimate_mb": 1065.56,
+      "ram_bound": 65,
+      "cpu_bound": 11,
+      "estimated_concurrent_agents": 11,
+      "bottleneck": "cpu",
+      "confidence": "low"
+    },
+    "qwen2_5_3b_instruct_q4_k_m": {
+      "mean_selection_latency_ms": 489.095667,
+      "mean_total_step_latency_ms": 489.742417,
+      "mean_wall_time_ms": 761.277167,
+      "rss_delta_mb": 5.205167,
+      "cpu_observation_percent": 6.15,
+      "model_ram_estimate_mb": 1840.499,
+      "ram_bound": 39,
+      "cpu_bound": 11,
+      "estimated_concurrent_agents": 11,
+      "bottleneck": "cpu",
+      "confidence": "low"
+    }
+  },
+  "recommendation_readiness": {
+    "status": "not_ready_for_final_recommendation",
+    "provisional_findings": [
+      "qwen2_5_3b_instruct_q4_k_m has stronger contract validity and lower latency.",
+      "first_model showed useful execution in one scenario but is repair-dependent.",
+      "Both models are weak on coherence and template-like behavior.",
+      "Capacity estimate is formula-based and low-confidence, not measured by multi-agent stress test."
+    ]
+  },
+  "limitations": [
+    "Only two scenarios.",
+    "N=3 per model per scenario.",
+    "No multi-agent stress test.",
+    "No measured concurrent capacity.",
+    "Runtime probe was not run in the resource step.",
+    "Browser simulated-only.",
+    "Office stub/file-based.",
+    "No git/mail actions.",
+    "Safety policy rejected some developer-relevant paths.",
+    "No final production recommendation."
+  ],
+  "next_steps": [
+    "Align developer scenario workspace/safety policy.",
+    "Add a third scenario or rerun developer trials after path-policy tuning.",
+    "Run controlled multi-agent stress/capacity smoke.",
+    "Add measured llama-server RSS runtime probe.",
+    "Improve prompt/action schemas to reduce missing parameters and repeated invalid paths.",
+    "Produce final model recommendation only after stronger behavioral and capacity evidence."
+  ]
+}

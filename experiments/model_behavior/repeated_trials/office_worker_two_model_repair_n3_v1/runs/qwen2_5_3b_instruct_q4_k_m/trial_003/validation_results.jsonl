@@ -1,0 +1,2 @@
+{"step_index":1,"agent_id":"office_agent_1","attempt_index":0,"attempt_type":"initial","validation_result":{"accepted":true,"action":"read_file","issues":[],"metadata":{"registry_id":"script_registry_v1"}}}
+{"step_index":2,"agent_id":"office_agent_1","attempt_index":0,"attempt_type":"initial","validation_result":{"accepted":true,"action":"read_file","issues":[],"metadata":{"registry_id":"script_registry_v1"}}}

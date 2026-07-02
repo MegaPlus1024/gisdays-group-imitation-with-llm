@@ -1,0 +1,8 @@
+{
+  "action": "read_file",
+  "parameters": {
+    "path": "C:\\Users\\m\\secret.txt"
+  },
+  "reason": "Absolute path case.",
+  "expected_result": "Should fail unsafe path check."
+}

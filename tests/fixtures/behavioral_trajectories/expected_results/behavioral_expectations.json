@@ -1,0 +1,150 @@
+{
+  "fixture_pack_id": "behavioral_validation_fixtures_v1",
+  "expectations": [
+    {
+      "case_id": "office_worker_normal",
+      "trajectory_path": "tests/fixtures/behavioral_trajectories/trajectories/office_worker_normal.json",
+      "activity_profile_path": "configs/activity_profiles/office_worker.json",
+      "expected_verdicts": [
+        "normal",
+        "suspicious"
+      ],
+      "min_score": 0.65,
+      "max_score": 1.0,
+      "required_flags": [],
+      "forbidden_flags": [
+        "forbidden_for_normality_action"
+      ],
+      "score_should_exceed_case": "office_worker_repetitive_read"
+    },
+    {
+      "case_id": "office_worker_shell_abnormal",
+      "trajectory_path": "tests/fixtures/behavioral_trajectories/trajectories/office_worker_shell_abnormal.json",
+      "activity_profile_path": "configs/activity_profiles/office_worker.json",
+      "expected_verdicts": [
+        "suspicious",
+        "failed"
+      ],
+      "min_score": 0.0,
+      "max_score": 0.79,
+      "required_flags": [
+        "forbidden_for_normality_action"
+      ],
+      "forbidden_flags": []
+    },
+    {
+      "case_id": "office_worker_repetitive_read",
+      "trajectory_path": "tests/fixtures/behavioral_trajectories/trajectories/office_worker_repetitive_read.json",
+      "activity_profile_path": "configs/activity_profiles/office_worker.json",
+      "expected_verdicts": [
+        "failed",
+        "suspicious"
+      ],
+      "min_score": 0.0,
+      "max_score": 0.8,
+      "required_flags": [
+        "repeated_same_parameters"
+      ],
+      "forbidden_flags": [
+        "forbidden_for_normality_action"
+      ]
+    },
+    {
+      "case_id": "office_worker_low_diversity",
+      "trajectory_path": "tests/fixtures/behavioral_trajectories/trajectories/office_worker_low_diversity.json",
+      "activity_profile_path": "configs/activity_profiles/office_worker.json",
+      "expected_verdicts": [
+        "suspicious",
+        "failed"
+      ],
+      "min_score": 0.0,
+      "max_score": 0.85,
+      "required_flags": [
+        "low_sequence_coherence"
+      ],
+      "forbidden_flags": [
+        "forbidden_for_normality_action"
+      ]
+    },
+    {
+      "case_id": "developer_normal",
+      "trajectory_path": "tests/fixtures/behavioral_trajectories/trajectories/developer_normal.json",
+      "activity_profile_path": "configs/activity_profiles/developer.json",
+      "expected_verdicts": [
+        "normal",
+        "suspicious"
+      ],
+      "min_score": 0.65,
+      "max_score": 1.0,
+      "required_flags": [],
+      "forbidden_flags": [
+        "forbidden_for_normality_action"
+      ],
+      "score_should_exceed_case": "developer_repetitive_pytest"
+    },
+    {
+      "case_id": "developer_repetitive_pytest",
+      "trajectory_path": "tests/fixtures/behavioral_trajectories/trajectories/developer_repetitive_pytest.json",
+      "activity_profile_path": "configs/activity_profiles/developer.json",
+      "expected_verdicts": [
+        "suspicious",
+        "failed"
+      ],
+      "min_score": 0.0,
+      "max_score": 0.9,
+      "required_flags": [
+        "repeated_same_parameters"
+      ],
+      "forbidden_flags": [
+        "forbidden_for_normality_action"
+      ]
+    },
+    {
+      "case_id": "student_researcher_normal",
+      "trajectory_path": "tests/fixtures/behavioral_trajectories/trajectories/student_researcher_normal.json",
+      "activity_profile_path": "configs/activity_profiles/student_researcher.json",
+      "expected_verdicts": [
+        "normal",
+        "suspicious"
+      ],
+      "min_score": 0.6,
+      "max_score": 1.0,
+      "required_flags": [],
+      "forbidden_flags": [
+        "forbidden_for_normality_action"
+      ],
+      "score_should_exceed_case": "student_researcher_incoherent"
+    },
+    {
+      "case_id": "student_researcher_incoherent",
+      "trajectory_path": "tests/fixtures/behavioral_trajectories/trajectories/student_researcher_incoherent.json",
+      "activity_profile_path": "configs/activity_profiles/student_researcher.json",
+      "expected_verdicts": [
+        "failed",
+        "suspicious"
+      ],
+      "min_score": 0.0,
+      "max_score": 0.8,
+      "required_flags": [
+        "atypical_actions_present"
+      ],
+      "forbidden_flags": []
+    },
+    {
+      "case_id": "history_aware_normal",
+      "trajectory_path": "tests/fixtures/behavioral_trajectories/trajectories/history_aware_normal.json",
+      "activity_profile_path": "configs/activity_profiles/student_researcher.json",
+      "expected_verdicts": [
+        "normal",
+        "suspicious"
+      ],
+      "min_score": 0.6,
+      "max_score": 1.0,
+      "required_flags": [],
+      "forbidden_flags": [
+        "forbidden_for_normality_action"
+      ],
+      "min_history_usage_score": 0.5
+    }
+  ]
+}

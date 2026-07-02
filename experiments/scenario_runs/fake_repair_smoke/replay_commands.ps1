@@ -1,0 +1,1 @@
+python scripts\run_agent_scenario.py --scenario configs\evaluation_scenarios\office_worker_basic_session.json --mode fake --out-dir experiments\scenario_runs\fake_repair_smoke --run-id fake_repair_smoke --model-id first_model --max-steps 2 --force --repair-attempts 1 --models-config configs\evaluation_models.json --base-url http://127.0.0.1:8080/v1

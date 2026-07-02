@@ -1,0 +1,8 @@
+{
+  "action": "read_file",
+  "parameters": {
+    "path": "docs/ai/model_registry.md"
+  },
+  "reason": "Need model metadata context.",
+  "expected_result": "Model registry content is loaded."
+}

@@ -1,0 +1,206 @@
+{
+  "evaluation_id": "resource_capacity_v1",
+  "generated_at": "2026-07-02T05:47:37.024740+00:00",
+  "inputs": {
+    "models_config_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\configs\\evaluation_models.json",
+    "target_cpu_utilization_percent": 70.0,
+    "reserved_system_ram_mb": 4096.0,
+    "probe_runtime": false,
+    "probe_steps": 1
+  },
+  "model_ids": [
+    "first_model",
+    "qwen2_5_3b_instruct_q4_k_m"
+  ],
+  "scenario_roots": {
+    "office_worker": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\repeated_trials\\office_worker_two_model_repair_n3_v1",
+    "developer_project_maintenance": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\repeated_trials\\developer_project_maintenance_two_model_repair_n3_v1"
+  },
+  "cross_scenario_analysis_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\cross_scenario\\office_worker_developer_two_model_cross_scenario_v1",
+  "system_snapshot": {
+    "timestamp": "2026-07-02T05:47:36.886501+00:00",
+    "platform": "Windows-10-10.0.19045-SP0",
+    "python_version": "3.12.10",
+    "processor": "Intel64 Family 6 Model 198 Stepping 2, GenuineIntel",
+    "cpu_count_logical": 24,
+    "cpu_count_physical": 24,
+    "total_ram_mb": 130436.711,
+    "available_ram_mb": 82560.059,
+    "used_ram_mb": 47876.652,
+    "psutil_available": true,
+    "system_cpu_percent": 0.0
+  },
+  "per_model_resource_summary": {
+    "first_model": {
+      "model_id": "first_model",
+      "observation_count": 6,
+      "mean_selection_latency_ms": 753.7495,
+      "mean_total_step_latency_ms": 755.302667,
+      "mean_wall_time_ms": 1484.923667,
+      "min_selection_latency_ms": 620.83,
+      "max_selection_latency_ms": 836.973,
+      "mean_process_rss_start_mb": 38.305,
+      "mean_process_rss_end_mb": 44.404833,
+      "mean_process_rss_delta_mb": 6.099833,
+      "mean_system_cpu_end_percent": 5.95,
+      "observed_process_memory_available": true,
+      "observed_cpu_available": true,
+      "warnings": []
+    },
+    "qwen2_5_3b_instruct_q4_k_m": {
+      "model_id": "qwen2_5_3b_instruct_q4_k_m",
+      "observation_count": 6,
+      "mean_selection_latency_ms": 489.095667,
+      "mean_total_step_latency_ms": 489.742417,
+      "mean_wall_time_ms": 761.277167,
+      "min_selection_latency_ms": 404.583,
+      "max_selection_latency_ms": 639.87,
+      "mean_process_rss_start_mb": 38.319667,
+      "mean_process_rss_end_mb": 43.524833,
+      "mean_process_rss_delta_mb": 5.205167,
+      "mean_system_cpu_end_percent": 6.15,
+      "observed_process_memory_available": true,
+      "observed_cpu_available": true,
+      "warnings": []
+    }
+  },
+  "per_scenario_resource_summary": [
+    {
+      "scenario_id": "developer_project_maintenance",
+      "model_id": "first_model",
+      "observation_count": 3,
+      "mean_selection_latency_ms": 792.611333,
+      "mean_total_step_latency_ms": 794.258667,
+      "mean_wall_time_ms": 806.623,
+      "mean_process_rss_delta_mb": 5.521,
+      "warnings": []
+    },
+    {
+      "scenario_id": "developer_project_maintenance",
+      "model_id": "qwen2_5_3b_instruct_q4_k_m",
+      "observation_count": 3,
+      "mean_selection_latency_ms": 459.744667,
+      "mean_total_step_latency_ms": 460.345333,
+      "mean_wall_time_ms": 472.004333,
+      "mean_process_rss_delta_mb": 4.802,
+      "warnings": []
+    },
+    {
+      "scenario_id": "office_worker",
+      "model_id": "first_model",
+      "observation_count": 3,
+      "mean_selection_latency_ms": 714.887666,
+      "mean_total_step_latency_ms": 716.346667,
+      "mean_wall_time_ms": 2163.224333,
+      "mean_process_rss_delta_mb": 6.678667,
+      "warnings": []
+    },
+    {
+      "scenario_id": "office_worker",
+      "model_id": "qwen2_5_3b_instruct_q4_k_m",
+      "observation_count": 3,
+      "mean_selection_latency_ms": 518.446667,
+      "mean_total_step_latency_ms": 519.1395,
+      "mean_wall_time_ms": 1050.55,
+      "mean_process_rss_delta_mb": 5.608333,
+      "warnings": []
+    }
+  ],
+  "capacity_estimates": {
+    "first_model": {
+      "model_id": "first_model",
+      "inputs": {
+        "model_id": "first_model",
+        "available_ram_mb": 82560.059,
+        "reserved_system_ram_mb": 4096.0,
+        "effective_available_ram_mb": 78464.059,
+        "per_agent_model_ram_mb": 1065.56,
+        "shared_model_ram_mb": 1065.56,
+        "per_agent_runtime_overhead_mb": 128.0,
+        "average_cpu_load_percent_per_agent": 5.95,
+        "target_cpu_utilization_limit_percent": 70.0
+      },
+      "estimate": {
+        "ram_bound": 65,
+        "cpu_bound": 11,
+        "estimated_concurrent_agents": 11,
+        "shared_runtime_ram_bound": 604,
+        "bottleneck": "cpu",
+        "confidence": "low",
+        "assumptions": [
+          "Conservative estimate treats model RAM as per runtime/agent.",
+          "Shared-runtime estimate assumes one llama-server/model process shared by multiple agents.",
+          "CPU estimate uses lightweight system CPU snapshots and a fixed target utilization limit."
+        ],
+        "warnings": [
+          "capacity_is_formula_estimate_not_concurrent_load_test",
+          "model_ram_uses_file_size_or_lightweight_observations_not_full_runtime_profile",
+          "model_ram_estimated_from_gguf_file_size_not_runtime_rss",
+          "cpu_load_uses_system_snapshot_not_isolated_model_process"
+        ]
+      },
+      "model_ram_source": "gguf_file_size_lower_bound"
+    },
+    "qwen2_5_3b_instruct_q4_k_m": {
+      "model_id": "qwen2_5_3b_instruct_q4_k_m",
+      "inputs": {
+        "model_id": "qwen2_5_3b_instruct_q4_k_m",
+        "available_ram_mb": 82560.059,
+        "reserved_system_ram_mb": 4096.0,
+        "effective_available_ram_mb": 78464.059,
+        "per_agent_model_ram_mb": 1840.499,
+        "shared_model_ram_mb": 1840.499,
+        "per_agent_runtime_overhead_mb": 128.0,
+        "average_cpu_load_percent_per_agent": 6.15,
+        "target_cpu_utilization_limit_percent": 70.0
+      },
+      "estimate": {
+        "ram_bound": 39,
+        "cpu_bound": 11,
+        "estimated_concurrent_agents": 11,
+        "shared_runtime_ram_bound": 598,
+        "bottleneck": "cpu",
+        "confidence": "low",
+        "assumptions": [
+          "Conservative estimate treats model RAM as per runtime/agent.",
+          "Shared-runtime estimate assumes one llama-server/model process shared by multiple agents.",
+          "CPU estimate uses lightweight system CPU snapshots and a fixed target utilization limit."
+        ],
+        "warnings": [
+          "capacity_is_formula_estimate_not_concurrent_load_test",
+          "model_ram_uses_file_size_or_lightweight_observations_not_full_runtime_profile",
+          "model_ram_estimated_from_gguf_file_size_not_runtime_rss",
+          "cpu_load_uses_system_snapshot_not_isolated_model_process"
+        ]
+      },
+      "model_ram_source": "gguf_file_size_lower_bound"
+    }
+  },
+  "runtime_probe_results": {
+    "status": "not_run",
+    "probe_runtime_requested": false,
+    "probe_steps": 1,
+    "results": [],
+    "warnings": [
+      "runtime_probe_not_run_by_request"
+    ]
+  },
+  "formula": {
+    "conservative": "ram_bound=floor(effective_available_ram_mb/(per_agent_model_ram_mb+per_agent_runtime_overhead_mb)); cpu_bound=floor(target_cpu_utilization_limit_percent/average_cpu_load_percent_per_agent); estimated=min(ram_bound,cpu_bound)",
+    "shared_runtime": "shared_runtime_ram_bound=floor(max(0,effective_available_ram_mb-shared_model_ram_mb)/per_agent_runtime_overhead_mb)",
+    "effective_available_ram_mb": "max(0, available_ram_mb - reserved_system_ram_mb)"
+  },
+  "assumptions": [
+    "Existing repeated-trials resource summaries are lightweight observations from scenario runs.",
+    "CPU-only single-agent operation is inferred from completed local runs and expected_cpu_only model registry metadata.",
+    "Concurrent-agent capacity is a planning bound, not a measured throughput guarantee."
+  ],
+  "warnings": [],
+  "recommendation_readiness_resource_component": {
+    "resource_component_status": "limited_estimate_available",
+    "cpu_only_short_single_agent_demonstrated": true,
+    "true_concurrent_multi_agent_load_test": false,
+    "full_resource_benchmark": false,
+    "final_capacity_recommendation_ready": false
+  }
+}

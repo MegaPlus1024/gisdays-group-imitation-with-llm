@@ -3,9 +3,9 @@
   "success": true,
   "error_type": null,
   "error_message": null,
-  "started_at": "2026-05-24T08:06:41.395203+00:00",
-  "finished_at": "2026-05-24T08:06:41.920570+00:00",
-  "wall_time_seconds": 0.525144,
+  "started_at": "2026-07-01T14:46:33.486579+00:00",
+  "finished_at": "2026-07-01T14:46:33.935447+00:00",
+  "wall_time_seconds": 0.448621,
   "runtime": "llama.cpp / llama-server",
   "base_url": "http://127.0.0.1:8080/v1",
   "endpoint": "http://127.0.0.1:8080/v1/chat/completions",
@@ -25,7 +25,7 @@
         }
       }
     ],
-    "created": 1779610001,
+    "created": 1782917193,
     "model": "first_model.gguf",
     "system_fingerprint": "b9264-ce02093fd",
     "object": "chat.completion",
@@ -34,20 +34,20 @@
       "prompt_tokens": 196,
       "total_tokens": 269,
       "prompt_tokens_details": {
-        "cached_tokens": 195
+        "cached_tokens": 0
       }
     },
-    "id": "chatcmpl-eVVR2ypjEzqNO6KT6RuIKhcTS7SKslTn",
+    "id": "chatcmpl-u3KzCJl4ednfi73uxiAvzLEAGS06p9MT",
     "timings": {
-      "cache_n": 195,
-      "prompt_n": 1,
-      "prompt_ms": 74.194,
-      "prompt_per_token_ms": 74.194,
-      "prompt_per_second": 13.478178828476695,
+      "cache_n": 0,
+      "prompt_n": 196,
+      "prompt_ms": 37.875,
+      "prompt_per_token_ms": 0.19323979591836735,
+      "prompt_per_second": 5174.917491749175,
       "predicted_n": 73,
-      "predicted_ms": 338.979,
-      "predicted_per_token_ms": 4.643547945205479,
-      "predicted_per_second": 215.3525734632529
+      "predicted_ms": 277.558,
+      "predicted_per_token_ms": 3.8021643835616437,
+      "predicted_per_second": 263.0080920023923
     }
   },
   "usage": {
@@ -56,23 +56,23 @@
     "total_tokens": 269
   },
   "llama_timings": {
-    "prompt_n": 1,
-    "prompt_ms": 74.194,
-    "prompt_per_second": 13.478178828476695,
+    "prompt_n": 196,
+    "prompt_ms": 37.875,
+    "prompt_per_second": 5174.917491749175,
     "predicted_n": 73,
-    "predicted_ms": 338.979,
-    "predicted_per_second": 215.3525734632529
+    "predicted_ms": 277.558,
+    "predicted_per_second": 263.0080920023923
   },
   "resource_estimate": {
-    "system_ram_used_before_mb": 21915.051,
-    "system_ram_used_after_mb": 21926.344,
-    "system_ram_delta_mb": 11.293,
-    "system_cpu_percent_avg": 2.7,
-    "system_cpu_percent_max": 3.7,
-    "server_pid": 20700,
-    "server_rss_before_mb": 1160.977,
-    "server_rss_after_mb": 1161.0,
-    "server_rss_delta_mb": 0.023,
+    "system_ram_used_before_mb": 48378.434,
+    "system_ram_used_after_mb": 48396.305,
+    "system_ram_delta_mb": 17.871,
+    "system_cpu_percent_avg": 4.167,
+    "system_cpu_percent_max": 5.8,
+    "server_pid": null,
+    "server_rss_before_mb": null,
+    "server_rss_after_mb": null,
+    "server_rss_delta_mb": null,
     "server_metric_error": null
   }
 }

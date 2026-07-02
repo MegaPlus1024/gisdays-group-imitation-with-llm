@@ -1,0 +1,7 @@
+{
+  "project_root": ".",
+  "registry_path": "configs/script_registry.example.json",
+  "validate_with_registry": true,
+  "normalize_result": true,
+  "write_history": false
+}

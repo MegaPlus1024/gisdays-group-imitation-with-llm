@@ -1,0 +1,19 @@
+metric,first,second
+model_id,first_model,qwen2_5_3b_instruct_q4_k_m
+model_name,first_model.gguf,qwen2.5-3b-instruct-q4_k_m.gguf
+run_id,office_worker_first_model_run_002_repair_v1,office_worker_qwen2_5_3b_run_001_repair_v1
+step_count,3,2
+initial_parse_success_rate,1.0,1.0
+initial_validation_accept_rate,0.0,1.0
+final_validation_accept_rate,0.666667,1.0
+execution_success_rate,1.0,0.0
+normal_activity_score,0.43,0.0
+diversity_score,0.75,0.5
+repetition_score,0.7250000000000001,0.7250000000000001
+sequence_coherence_score,0.0,0.0
+history_usage_score,0.0,1.0
+role_fit_score,1.0,1.0
+average_selection_latency_ms,728.402,566.875
+average_total_step_latency_ms,729.737,567.583
+wall_time_ms,2201.756,1147.515
+stop_reason,validation_failed_after_repair,Reached max_consecutive_failures limit.

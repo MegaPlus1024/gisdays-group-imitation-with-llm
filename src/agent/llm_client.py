@@ -1,11 +1,14 @@
 from __future__ import annotations
-
-import json
 from typing import Any
 
 import httpx
-from pydantic import ValidationError
 
+from .action_contract import (
+    NextActionJSONError,
+    NextActionValidationError,
+    parse_next_action_text as parse_next_action_contract_text,
+)
+from .prompt_contract import PromptBuilder
 from .schemas import NextAction
 
 
@@ -39,6 +42,7 @@ class LocalLLMClient:
         timeout_seconds: float = 120.0,
         temperature: float = 0.0,
         max_tokens: int = 512,
+        prompt_builder: PromptBuilder | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model_name = model_name
@@ -46,24 +50,10 @@ class LocalLLMClient:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.endpoint = f"{self.base_url}/chat/completions"
+        self.prompt_builder = prompt_builder or PromptBuilder()
 
     def _build_messages(self, agent_state: dict[str, Any]) -> list[dict[str, str]]:
-        compact_state = json.dumps(agent_state, ensure_ascii=False, separators=(",", ":"))
-        system_message = (
-            "You are a local LLM used by an agent. Return only valid JSON "
-            "matching the requested action schema."
-        )
-        user_message = (
-            "Agent state JSON:\n"
-            f"{compact_state}\n\n"
-            "Return exactly one next action as JSON with this shape:\n"
-            '{\n  "action": "string",\n  "parameters": {},\n  "reason": "string",\n'
-            '  "expected_result": "string"\n}'
-        )
-        return [
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": user_message},
-        ]
+        return self.prompt_builder.build_messages(agent_state)
 
     def _build_payload(self, agent_state: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -89,13 +79,10 @@ class LocalLLMClient:
     @staticmethod
     def parse_next_action_text(text: str) -> NextAction:
         try:
-            payload = json.loads(text)
-        except json.JSONDecodeError as exc:
-            raise LocalLLMJSONError(f"Invalid JSON output: {exc}") from exc
-
-        try:
-            return NextAction.model_validate(payload)
-        except ValidationError as exc:
+            return parse_next_action_contract_text(text)
+        except NextActionJSONError as exc:
+            raise LocalLLMJSONError(str(exc)) from exc
+        except NextActionValidationError as exc:
             raise LocalLLMValidationError(
                 f"Output JSON failed NextAction validation: {exc}"
             ) from exc

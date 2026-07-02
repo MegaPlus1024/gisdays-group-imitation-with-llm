@@ -1,0 +1,128 @@
+{
+  "first_model": {
+    "model_id": "first_model",
+    "selection_latency_ms": {
+      "mean": 714.887333,
+      "std": 23.556791,
+      "min": 695.176,
+      "max": 748.002,
+      "count": 3
+    },
+    "total_step_latency_ms": {
+      "mean": 716.347,
+      "std": 23.626511,
+      "min": 696.565,
+      "max": 749.558,
+      "count": 3
+    },
+    "wall_time_ms": {
+      "mean": 2163.224333,
+      "std": 71.826949,
+      "min": 2104.05,
+      "max": 2264.313,
+      "count": 3
+    },
+    "rss_start_mb": {
+      "mean": 38.317333,
+      "std": 0.091725,
+      "min": 38.191,
+      "max": 38.406,
+      "count": 3
+    },
+    "rss_end_mb": {
+      "mean": 44.996,
+      "std": 0.027725,
+      "min": 44.973,
+      "max": 45.035,
+      "count": 3
+    },
+    "rss_delta_mb": {
+      "mean": 6.678667,
+      "std": 0.073086,
+      "min": 6.625,
+      "max": 6.7819999999999965,
+      "count": 3
+    },
+    "cpu_start_percent": {
+      "mean": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "count": 3
+    },
+    "cpu_end_percent": {
+      "mean": 6.433333,
+      "std": 0.339935,
+      "min": 6.1,
+      "max": 6.9,
+      "count": 3
+    },
+    "verdict": "slower",
+    "notes": [
+      "Per-run latency/resource observations only; not a benchmark or capacity estimate."
+    ]
+  },
+  "qwen2_5_3b_instruct_q4_k_m": {
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "selection_latency_ms": {
+      "mean": 518.446667,
+      "std": 32.627824,
+      "min": 492.395,
+      "max": 564.455,
+      "count": 3
+    },
+    "total_step_latency_ms": {
+      "mean": 519.139667,
+      "std": 32.633039,
+      "min": 493.08,
+      "max": 565.155,
+      "count": 3
+    },
+    "wall_time_ms": {
+      "mean": 1050.55,
+      "std": 64.859248,
+      "min": 998.502,
+      "max": 1141.983,
+      "count": 3
+    },
+    "rss_start_mb": {
+      "mean": 38.298,
+      "std": 0.015642,
+      "min": 38.285,
+      "max": 38.32,
+      "count": 3
+    },
+    "rss_end_mb": {
+      "mean": 43.906333,
+      "std": 0.061299,
+      "min": 43.852,
+      "max": 43.992,
+      "count": 3
+    },
+    "rss_delta_mb": {
+      "mean": 5.608333,
+      "std": 0.073168,
+      "min": 5.5319999999999965,
+      "max": 5.707000000000001,
+      "count": 3
+    },
+    "cpu_start_percent": {
+      "mean": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "count": 3
+    },
+    "cpu_end_percent": {
+      "mean": 5.833333,
+      "std": 1.815367,
+      "min": 4.5,
+      "max": 8.4,
+      "count": 3
+    },
+    "verdict": "faster",
+    "notes": [
+      "Per-run latency/resource observations only; not a benchmark or capacity estimate."
+    ]
+  }
+}

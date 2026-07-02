@@ -1,0 +1,23 @@
+{
+  "criteria_id": "autonomous_stop_criteria_v1",
+  "max_steps": 10,
+  "max_consecutive_failures": 2,
+  "max_total_failures": 3,
+  "max_repeated_action_count": 2,
+  "max_atypical_action_count": 2,
+  "stop_on_success": true,
+  "stop_on_validation_failure": true,
+  "stop_on_unsafe_action": true,
+  "stop_on_recovery_abort_run": true,
+  "stop_on_recovery_skip_agent": true,
+  "stop_on_mark_for_review": true,
+  "stop_on_forbidden_for_normality": true,
+  "stop_on_excessive_atypical_actions": true,
+  "stop_on_repeated_action": true,
+  "require_progress_signal": false,
+  "activity_profile_path": "configs/activity_profiles/office_worker.json",
+  "metadata": {
+    "schema_version": "autonomous_session_stop_criteria_v1",
+    "note": "Evaluates whether a future autonomous session should continue or stop. Does not execute actions."
+  }
+}

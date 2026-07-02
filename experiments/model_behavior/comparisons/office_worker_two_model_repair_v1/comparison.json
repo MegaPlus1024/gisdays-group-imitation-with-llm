@@ -1,0 +1,356 @@
+{
+  "comparison_id": "office_worker_two_model_repair_v1",
+  "generated_at": "2026-07-01T19:31:24.787940+00:00",
+  "input_artifact_paths": {
+    "first": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\results\\office_worker_first_model_run_002_repair_v1",
+    "second": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\results\\office_worker_qwen2_5_3b_run_001_repair_v1"
+  },
+  "status": "complete",
+  "protocol_compatible": true,
+  "protocol_checks": [
+    {
+      "name": "scenario_path",
+      "first": "configs\\evaluation_scenarios\\office_worker_basic_session.json",
+      "second": "configs\\evaluation_scenarios\\office_worker_basic_session.json",
+      "compatible": true,
+      "checked": true
+    },
+    {
+      "name": "max_steps",
+      "first": 5,
+      "second": 5,
+      "compatible": true,
+      "checked": true
+    },
+    {
+      "name": "repair_enabled",
+      "first": true,
+      "second": true,
+      "compatible": true,
+      "checked": true
+    },
+    {
+      "name": "repair_attempts_per_step",
+      "first": 1,
+      "second": 1,
+      "compatible": true,
+      "checked": true
+    },
+    {
+      "name": "execute_actions",
+      "first": true,
+      "second": true,
+      "compatible": true,
+      "checked": true
+    },
+    {
+      "name": "activity_profile",
+      "first": "office_worker_normal_activity_v1",
+      "second": "office_worker_normal_activity_v1",
+      "compatible": true,
+      "checked": true
+    },
+    {
+      "name": "evaluator",
+      "first": "normal_activity_trajectory_evaluator_v1",
+      "second": "normal_activity_trajectory_evaluator_v1",
+      "compatible": true,
+      "checked": true
+    }
+  ],
+  "per_model": {
+    "first": {
+      "model_id": "first_model",
+      "model_name": "first_model.gguf",
+      "run_id": "office_worker_first_model_run_002_repair_v1",
+      "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\results\\office_worker_first_model_run_002_repair_v1",
+      "scenario_path": "configs\\evaluation_scenarios\\office_worker_basic_session.json",
+      "scenario_id": "office_worker_basic_session_v1",
+      "repair_enabled": true,
+      "repair_attempts_per_step": 1,
+      "execute_actions": true,
+      "max_steps": 5,
+      "status": "stopped",
+      "success": false,
+      "stop_reason": "validation_failed_after_repair",
+      "step_count": 3,
+      "initial_parse_success_count": 3,
+      "initial_parse_success_rate": 1.0,
+      "initial_validation_accept_count": 0,
+      "initial_validation_accept_rate": 0.0,
+      "repair_attempt_count": 3,
+      "repair_validation_accept_count": 2,
+      "repair_validation_accept_rate": 0.666667,
+      "final_validation_accept_count": 2,
+      "final_validation_accept_rate": 0.666667,
+      "unrecovered_failure_count": 1,
+      "execution_attempted_count": 2,
+      "execution_success_count": 2,
+      "execution_success_rate": 1.0,
+      "execution_error_count": 0,
+      "execution_error_types": {
+        "validation_failed_after_repair": 1
+      },
+      "file_not_found_count": 0,
+      "unsafe_path_count": 3,
+      "validation_failure_count": 1,
+      "selected_action_sequence": [
+        "read_file",
+        "read_file"
+      ],
+      "final_action_sequence": [
+        "read_file",
+        "read_file"
+      ],
+      "unique_action_count": 1,
+      "unique_action_parameter_count": 1,
+      "repeated_action_count": 1,
+      "repeated_same_parameters_count": 1,
+      "normal_activity_score": 0.43,
+      "diversity_score": 0.75,
+      "repetition_score": 0.7250000000000001,
+      "sequence_coherence_score": 0.0,
+      "history_usage_score": 0.0,
+      "role_fit_score": 1.0,
+      "wall_time_ms": 2201.756,
+      "average_selection_latency_ms": 728.402,
+      "average_total_step_latency_ms": 729.737,
+      "min_selection_latency_ms": 636.216,
+      "max_selection_latency_ms": 786.269,
+      "rss_start_mb": 38.426,
+      "rss_end_mb": 45.094,
+      "cpu_start_percent": 0.0,
+      "cpu_end_percent": 7.8,
+      "warnings": []
+    },
+    "second": {
+      "model_id": "qwen2_5_3b_instruct_q4_k_m",
+      "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
+      "run_id": "office_worker_qwen2_5_3b_run_001_repair_v1",
+      "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\results\\office_worker_qwen2_5_3b_run_001_repair_v1",
+      "scenario_path": "configs\\evaluation_scenarios\\office_worker_basic_session.json",
+      "scenario_id": "office_worker_basic_session_v1",
+      "repair_enabled": true,
+      "repair_attempts_per_step": 1,
+      "execute_actions": true,
+      "max_steps": 5,
+      "status": "stopped",
+      "success": false,
+      "stop_reason": "Reached max_consecutive_failures limit.",
+      "step_count": 2,
+      "initial_parse_success_count": 2,
+      "initial_parse_success_rate": 1.0,
+      "initial_validation_accept_count": 2,
+      "initial_validation_accept_rate": 1.0,
+      "repair_attempt_count": 0,
+      "repair_validation_accept_count": 0,
+      "repair_validation_accept_rate": 0.0,
+      "final_validation_accept_count": 2,
+      "final_validation_accept_rate": 1.0,
+      "unrecovered_failure_count": 2,
+      "execution_attempted_count": 2,
+      "execution_success_count": 0,
+      "execution_success_rate": 0.0,
+      "execution_error_count": 2,
+      "execution_error_types": {
+        "file_not_found": 2
+      },
+      "file_not_found_count": 2,
+      "unsafe_path_count": 0,
+      "validation_failure_count": 0,
+      "selected_action_sequence": [
+        "read_file",
+        "read_file"
+      ],
+      "final_action_sequence": [
+        "read_file",
+        "read_file"
+      ],
+      "unique_action_count": 1,
+      "unique_action_parameter_count": 1,
+      "repeated_action_count": 1,
+      "repeated_same_parameters_count": 1,
+      "normal_activity_score": 0.0,
+      "diversity_score": 0.5,
+      "repetition_score": 0.7250000000000001,
+      "sequence_coherence_score": 0.0,
+      "history_usage_score": 1.0,
+      "role_fit_score": 1.0,
+      "wall_time_ms": 1147.515,
+      "average_selection_latency_ms": 566.875,
+      "average_total_step_latency_ms": 567.583,
+      "min_selection_latency_ms": 474.102,
+      "max_selection_latency_ms": 659.648,
+      "rss_start_mb": 38.398,
+      "rss_end_mb": 43.883,
+      "cpu_start_percent": 0.0,
+      "cpu_end_percent": 5.2,
+      "warnings": []
+    }
+  },
+  "metric_winners": [
+    {
+      "name": "first_attempt_validation",
+      "first_value": 0.0,
+      "second_value": 1.0,
+      "winner": "second",
+      "higher_is_better": true,
+      "comment": "Higher first-attempt validation is better."
+    },
+    {
+      "name": "final_validation_after_repair",
+      "first_value": 0.666667,
+      "second_value": 1.0,
+      "winner": "second",
+      "higher_is_better": true,
+      "comment": "Higher final validation is better."
+    },
+    {
+      "name": "successful_executions",
+      "first_value": 2,
+      "second_value": 0,
+      "winner": "first",
+      "higher_is_better": true,
+      "comment": "More successful executions is better."
+    },
+    {
+      "name": "fewer_unrecovered_failures",
+      "first_value": 1,
+      "second_value": 2,
+      "winner": "first",
+      "higher_is_better": false,
+      "comment": "Fewer unrecovered failures is better."
+    },
+    {
+      "name": "normal_activity_score",
+      "first_value": 0.43,
+      "second_value": 0.0,
+      "winner": "first",
+      "higher_is_better": true,
+      "comment": "Higher normal activity score is better."
+    },
+    {
+      "name": "diversity_score",
+      "first_value": 0.75,
+      "second_value": 0.5,
+      "winner": "first",
+      "higher_is_better": true,
+      "comment": "Higher diversity score is better."
+    },
+    {
+      "name": "repetition_score",
+      "first_value": 0.7250000000000001,
+      "second_value": 0.7250000000000001,
+      "winner": "tie",
+      "higher_is_better": true,
+      "comment": "Higher repetition score means less problematic repetition in this evaluator."
+    },
+    {
+      "name": "history_usage_score",
+      "first_value": 0.0,
+      "second_value": 1.0,
+      "winner": "second",
+      "higher_is_better": true,
+      "comment": "Higher history usage score is better."
+    },
+    {
+      "name": "average_selection_latency_ms",
+      "first_value": 728.402,
+      "second_value": 566.875,
+      "winner": "second",
+      "higher_is_better": false,
+      "comment": "Lower selection latency is faster."
+    },
+    {
+      "name": "average_total_step_latency_ms",
+      "first_value": 729.737,
+      "second_value": 567.583,
+      "winner": "second",
+      "higher_is_better": false,
+      "comment": "Lower total step latency is faster."
+    },
+    {
+      "name": "execution_stability",
+      "first_value": 1.0,
+      "second_value": 0.0,
+      "winner": "first",
+      "higher_is_better": true,
+      "comment": "Higher execution success rate is more stable under execution."
+    }
+  ],
+  "failure_analysis": {
+    "first": {
+      "model_id": "first_model",
+      "parse_failure_count": 0,
+      "validation_failure_count": 4,
+      "repair_failure_count": 1,
+      "execution_failure_count": 0,
+      "unsafe_path_failure_count": 3,
+      "file_not_found_failure_count": 0,
+      "repeated_action_count": 1,
+      "repeated_same_parameters_count": 1,
+      "history_usage_score": 0.0,
+      "sequence_coherence_score": 0.0,
+      "error_types": {
+        "validation_failed_after_repair": 1
+      },
+      "validation_issue_codes": {
+        "write_path_outside_workspace": 3,
+        "missing_required_parameter": 2
+      },
+      "selected_action_sequence": [
+        "read_file",
+        "read_file"
+      ],
+      "failure_summary": "Validation/safety failure: write action targeted a path outside the experiment workspace."
+    },
+    "second": {
+      "model_id": "qwen2_5_3b_instruct_q4_k_m",
+      "parse_failure_count": 0,
+      "validation_failure_count": 0,
+      "repair_failure_count": 0,
+      "execution_failure_count": 2,
+      "unsafe_path_failure_count": 0,
+      "file_not_found_failure_count": 2,
+      "repeated_action_count": 1,
+      "repeated_same_parameters_count": 1,
+      "history_usage_score": 1.0,
+      "sequence_coherence_score": 0.0,
+      "error_types": {
+        "file_not_found": 2
+      },
+      "validation_issue_codes": {},
+      "selected_action_sequence": [
+        "read_file",
+        "read_file"
+      ],
+      "failure_summary": "Execution failure: model repeatedly targeted a missing file."
+    },
+    "comparison": {
+      "first_model_pattern": "Needed repair for initial action validity, recovered two read_file actions, then stopped on an unrecovered write_path_outside_workspace validation failure.",
+      "second_model_pattern": "Produced first-attempt valid read_file actions, but both execution attempts failed because docs/notes.txt was missing and the model repeated the same failed action.",
+      "shared_weaknesses": [
+        "Both runs have low sequence coherence.",
+        "Neither run completed the full five-step trajectory.",
+        "Both runs show repeated same-parameter behavior."
+      ]
+    }
+  },
+  "interpretation": {
+    "confidence": "low",
+    "overall_interpretation": "The artifacts are protocol-compatible and support a cautious first comparison. first_model showed weaker first-attempt action validity but recovered through repair and executed two actions. qwen2_5_3b_instruct_q4_k_m showed stronger first-attempt validity and lower latency, but repeated a missing-file read and achieved zero successful executions. No overall winner should be declared from one short scenario.",
+    "limitations": [
+      "One scenario and one run per model are insufficient for final recommendation.",
+      "Observed behavior may be sensitive to prompt wording and available fixture files."
+    ]
+  },
+  "limitations": [
+    "Only one short scenario was compared.",
+    "Only one run per model is available.",
+    "No repeated trials or statistical confidence interval were computed.",
+    "No benchmark or multi-agent capacity measurement was run.",
+    "Browser behavior remains simulated-only and office behavior remains stub/file-based.",
+    "Resource summaries are lightweight process snapshots, not a benchmark monitor."
+  ],
+  "warnings": []
+}

@@ -1,0 +1,55 @@
+{
+  "trajectory_id": "office_worker_low_diversity",
+  "role_id": "office_worker",
+  "activity_profile_path": "configs/activity_profiles/office_worker.json",
+  "description": "Office worker low-diversity trajectory with only file reads.",
+  "expected_verdict_hint": "suspicious",
+  "steps": [
+    {
+      "step_index": 1,
+      "action": "read_file",
+      "parameters": {
+        "path": "docs/ai/project_objective_normal_activity_v1.md"
+      },
+      "success": true,
+      "status": "selected",
+      "issue_codes": [],
+      "reason": "Read objective.",
+      "expected_result": "Objective context.",
+      "used_history": false,
+      "progress_signal": true,
+      "metadata": {}
+    },
+    {
+      "step_index": 2,
+      "action": "read_file",
+      "parameters": {
+        "path": "docs/ai/normal_activity_profile_schema_v1.md"
+      },
+      "success": true,
+      "status": "selected",
+      "issue_codes": [],
+      "reason": "Read schema.",
+      "expected_result": "Schema context.",
+      "used_history": false,
+      "progress_signal": true,
+      "metadata": {}
+    },
+    {
+      "step_index": 3,
+      "action": "read_file",
+      "parameters": {
+        "path": "docs/ai/normal_activity_trajectory_evaluator_v1.md"
+      },
+      "success": true,
+      "status": "selected",
+      "issue_codes": [],
+      "reason": "Read evaluator docs.",
+      "expected_result": "Evaluator context.",
+      "used_history": false,
+      "progress_signal": true,
+      "metadata": {}
+    }
+  ],
+  "metadata": {}
+}

@@ -33,8 +33,8 @@ This does not validate action parameters semantically.
 - success_count: 3
 - failure_count: 0
 - json_parse_success_count: 3
-- wall_time_seconds(avg/min/max): 0.413826 / 0.298796 / 0.63466
-- cpu_percent(avg_of_avg/max): 2.533333 / 3.6
+- wall_time_seconds(avg/min/max): 0.387236 / 0.300198 / 0.558507
+- cpu_percent(avg_of_avg/max): 2.622333 / 3.3
 
 ## Failure cases
 

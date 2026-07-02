@@ -1,0 +1,32 @@
+{
+  "python_version": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+  "platform": "Windows-10-10.0.19045-SP0",
+  "process_id": 17020,
+  "start_time": "2026-07-01T21:14:17.118529+00:00",
+  "end_time": "2026-07-01T21:14:17.722492+00:00",
+  "wall_time_ms": 569.001,
+  "resource_start": {
+    "timestamp": "2026-07-01T21:14:17.119526+00:00",
+    "process_id": 17020,
+    "process_rss_mb": 38.227,
+    "system_cpu_percent": 0.0,
+    "system_ram_used_mb": 50893.84,
+    "psutil_available": true
+  },
+  "resource_end": {
+    "timestamp": "2026-07-01T21:14:17.686889+00:00",
+    "process_id": 17020,
+    "process_rss_mb": 43.227,
+    "system_cpu_percent": 5.0,
+    "system_ram_used_mb": 50919.828,
+    "psutil_available": true
+  },
+  "per_step_latency_ms": [
+    {
+      "step_index": 1,
+      "selection_latency_ms": 557.488,
+      "execution_latency_ms": 0.244,
+      "total_step_latency_ms": 558.038
+    }
+  ]
+}

@@ -11,23 +11,23 @@
   "failure_count": 0,
   "json_parse_success_count": 3,
   "wall_time_seconds": {
-    "avg": 0.413826,
-    "min": 0.298796,
-    "max": 0.63466
+    "avg": 0.387236,
+    "min": 0.300198,
+    "max": 0.558507
   },
   "cpu_percent": {
-    "avg_of_avg": 2.533333,
-    "max": 3.6
+    "avg_of_avg": 2.622333,
+    "max": 3.3
   },
   "system_ram_delta_mb": {
-    "avg": -81.454333,
-    "min": -235.871,
-    "max": -2.761
+    "avg": -4.348667,
+    "min": -18.543,
+    "max": 4.004
   },
   "server_rss_delta_mb": {
-    "avg": null,
-    "min": null,
-    "max": null
+    "avg": 0.023333,
+    "min": 0.023,
+    "max": 0.024
   },
   "tokens": {
     "prompt_tokens_avg": 196.0,
@@ -35,9 +35,9 @@
     "total_tokens_avg": 270.0
   },
   "llama_tokens_per_second": {
-    "prompt_per_second_avg": 198.976908,
-    "predicted_per_second_avg": 299.145454
+    "prompt_per_second_avg": 203.825408,
+    "predicted_per_second_avg": 307.8993
   },
   "failure_cases": [],
-  "created_at": "2026-05-24T10:20:07.904232+00:00"
+  "created_at": "2026-05-24T11:32:04.283958+00:00"
 }

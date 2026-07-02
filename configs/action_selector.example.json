@@ -1,0 +1,11 @@
+{
+  "selector_id": "action_selector_v1",
+  "validate_actions": true,
+  "registry_path": "configs/script_registry.example.json",
+  "role_template_path": null,
+  "require_validation_for_success": true,
+  "metadata": {
+    "schema_version": "action_selector_prototype_v1",
+    "note": "Selects one NextAction from AgentState and optionally validates it; does not execute actions."
+  }
+}

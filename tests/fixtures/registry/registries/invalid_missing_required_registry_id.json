@@ -1,0 +1,10 @@
+{
+  "schema_version": "script_registry_v1",
+  "scripts": [
+    {
+      "name": "read_file",
+      "description": "Read file.",
+      "parameters": []
+    }
+  ]
+}

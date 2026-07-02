@@ -1,0 +1,11 @@
+{
+  "contract_id": "prompt_contract_v1",
+  "require_raw_json": true,
+  "reject_markdown": true,
+  "reject_multiple_actions": true,
+  "include_history_limit": 5,
+  "include_available_actions": true,
+  "include_constraints": true,
+  "include_resources": true,
+  "injection_warning_enabled": true
+}

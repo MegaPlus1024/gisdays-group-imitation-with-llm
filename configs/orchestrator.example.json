@@ -1,0 +1,16 @@
+{
+  "run_id": "local_agent_boundary_demo_v1",
+  "mode": "single_step",
+  "max_steps_per_agent": 1,
+  "parallel": false,
+  "agents": [
+    {
+      "agent_state_path": "configs/agent_state.example.json"
+    }
+  ],
+  "notes": [
+    "This config defines orchestration boundaries only.",
+    "It does not execute actions.",
+    "It does not run multi-agent scheduling yet."
+  ]
+}

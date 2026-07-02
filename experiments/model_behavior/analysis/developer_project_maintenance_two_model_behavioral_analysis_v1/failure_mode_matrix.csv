@@ -1,0 +1,3 @@
+model_id,parse_error_count,validation_error_count,missing_required_parameter_count,write_path_outside_workspace_count,execution_error_count,file_not_found_count,repair_attempt_count,repair_success_count,unrecovered_failure_count
+first_model,0,6,0,6,0,0,3,0,3
+qwen2_5_3b_instruct_q4_k_m,0,0,0,0,3,0,0,0,3

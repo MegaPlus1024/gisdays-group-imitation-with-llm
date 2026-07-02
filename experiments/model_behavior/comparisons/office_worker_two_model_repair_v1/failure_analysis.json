@@ -1,0 +1,58 @@
+{
+  "first": {
+    "model_id": "first_model",
+    "parse_failure_count": 0,
+    "validation_failure_count": 4,
+    "repair_failure_count": 1,
+    "execution_failure_count": 0,
+    "unsafe_path_failure_count": 3,
+    "file_not_found_failure_count": 0,
+    "repeated_action_count": 1,
+    "repeated_same_parameters_count": 1,
+    "history_usage_score": 0.0,
+    "sequence_coherence_score": 0.0,
+    "error_types": {
+      "validation_failed_after_repair": 1
+    },
+    "validation_issue_codes": {
+      "write_path_outside_workspace": 3,
+      "missing_required_parameter": 2
+    },
+    "selected_action_sequence": [
+      "read_file",
+      "read_file"
+    ],
+    "failure_summary": "Validation/safety failure: write action targeted a path outside the experiment workspace."
+  },
+  "second": {
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "parse_failure_count": 0,
+    "validation_failure_count": 0,
+    "repair_failure_count": 0,
+    "execution_failure_count": 2,
+    "unsafe_path_failure_count": 0,
+    "file_not_found_failure_count": 2,
+    "repeated_action_count": 1,
+    "repeated_same_parameters_count": 1,
+    "history_usage_score": 1.0,
+    "sequence_coherence_score": 0.0,
+    "error_types": {
+      "file_not_found": 2
+    },
+    "validation_issue_codes": {},
+    "selected_action_sequence": [
+      "read_file",
+      "read_file"
+    ],
+    "failure_summary": "Execution failure: model repeatedly targeted a missing file."
+  },
+  "comparison": {
+    "first_model_pattern": "Needed repair for initial action validity, recovered two read_file actions, then stopped on an unrecovered write_path_outside_workspace validation failure.",
+    "second_model_pattern": "Produced first-attempt valid read_file actions, but both execution attempts failed because docs/notes.txt was missing and the model repeated the same failed action.",
+    "shared_weaknesses": [
+      "Both runs have low sequence coherence.",
+      "Neither run completed the full five-step trajectory.",
+      "Both runs show repeated same-parameter behavior."
+    ]
+  }
+}

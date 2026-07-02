@@ -1,0 +1,14 @@
+{
+  "runner_id": "agent_runner_v1",
+  "max_steps": 1,
+  "validate_actions": true,
+  "execute_actions": false,
+  "stop_on_agent_failure": true,
+  "stop_on_validation_failure": true,
+  "registry_path": "configs/script_registry.example.json",
+  "role_template_path": null,
+  "metadata": {
+    "schema_version": "agent_runner_skeleton_v1",
+    "note": "This runner validates model-proposed actions but does not execute them."
+  }
+}

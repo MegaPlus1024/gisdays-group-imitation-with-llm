@@ -1,0 +1,5 @@
+scenario_id,model_id,observation_count,mean_selection_latency_ms,mean_total_step_latency_ms,mean_wall_time_ms,mean_process_rss_delta_mb
+developer_project_maintenance,first_model,3,792.611333,794.258667,806.623,5.521
+developer_project_maintenance,qwen2_5_3b_instruct_q4_k_m,3,459.744667,460.345333,472.004333,4.802
+office_worker,first_model,3,714.887666,716.346667,2163.224333,6.678667
+office_worker,qwen2_5_3b_instruct_q4_k_m,3,518.446667,519.1395,1050.55,5.608333

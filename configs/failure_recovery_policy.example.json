@@ -1,0 +1,151 @@
+{
+  "policy_id": "failure_recovery_policy_v1",
+  "default_action": "fail_step",
+  "default_log_level": "error",
+  "rules": [
+    {
+      "category": "invalid_json",
+      "action": "retry_with_repair_prompt",
+      "reason": "The model output was not valid JSON. Retry once later with stricter output-format instruction.",
+      "max_retries": 1,
+      "log_level": "warning",
+      "stop_agent": false,
+      "stop_run": false
+    },
+    {
+      "category": "invalid_next_action_schema",
+      "action": "fail_step",
+      "reason": "The model returned JSON but it did not satisfy the NextAction contract.",
+      "max_retries": 0,
+      "log_level": "warning",
+      "stop_agent": false,
+      "stop_run": false
+    },
+    {
+      "category": "malformed_model_response",
+      "action": "fail_step",
+      "reason": "Model response shape was malformed and output content could not be extracted.",
+      "max_retries": 0,
+      "log_level": "error",
+      "stop_agent": false,
+      "stop_run": false
+    },
+    {
+      "category": "model_request_error",
+      "action": "retry",
+      "reason": "Model request failed due to runtime/transport issue.",
+      "max_retries": 1,
+      "log_level": "error",
+      "stop_agent": false,
+      "stop_run": false
+    },
+    {
+      "category": "model_timeout",
+      "action": "retry",
+      "reason": "Model call timed out.",
+      "max_retries": 1,
+      "log_level": "error",
+      "stop_agent": false,
+      "stop_run": false
+    },
+    {
+      "category": "llama_server_unreachable",
+      "action": "abort_run",
+      "reason": "Local llama-server is unreachable; run cannot continue reliably.",
+      "max_retries": 0,
+      "log_level": "critical",
+      "stop_agent": false,
+      "stop_run": true
+    },
+    {
+      "category": "empty_model_output",
+      "action": "retry_with_repair_prompt",
+      "reason": "Model returned empty output.",
+      "max_retries": 1,
+      "log_level": "warning",
+      "stop_agent": false,
+      "stop_run": false
+    },
+    {
+      "category": "unknown_action",
+      "action": "fail_step",
+      "reason": "Action name is not recognized by higher-level policy/registry.",
+      "max_retries": 0,
+      "log_level": "warning",
+      "stop_agent": false,
+      "stop_run": false
+    },
+    {
+      "category": "invalid_action_parameters",
+      "action": "fail_step",
+      "reason": "Action parameters do not satisfy future semantic requirements.",
+      "max_retries": 0,
+      "log_level": "warning",
+      "stop_agent": false,
+      "stop_run": false
+    },
+    {
+      "category": "unsafe_action",
+      "action": "fail_step",
+      "reason": "Action was classified as unsafe.",
+      "max_retries": 0,
+      "log_level": "error",
+      "stop_agent": false,
+      "stop_run": false
+    },
+    {
+      "category": "execution_error",
+      "action": "continue_run",
+      "reason": "Execution error occurred; record failure and continue run.",
+      "max_retries": 0,
+      "log_level": "error",
+      "stop_agent": false,
+      "stop_run": false
+    },
+    {
+      "category": "file_not_found",
+      "action": "fail_step",
+      "reason": "Referenced file was not found.",
+      "max_retries": 0,
+      "log_level": "warning",
+      "stop_agent": false,
+      "stop_run": false
+    },
+    {
+      "category": "permission_denied",
+      "action": "skip_agent",
+      "reason": "Permission denied; skip agent for this run.",
+      "max_retries": 0,
+      "log_level": "error",
+      "stop_agent": true,
+      "stop_run": false
+    },
+    {
+      "category": "repeated_action_loop",
+      "action": "skip_agent",
+      "reason": "Repeated action loop detected.",
+      "max_retries": 0,
+      "log_level": "warning",
+      "stop_agent": true,
+      "stop_run": false
+    },
+    {
+      "category": "max_steps_exceeded",
+      "action": "skip_agent",
+      "reason": "Maximum allowed steps exceeded for this agent.",
+      "max_retries": 0,
+      "log_level": "info",
+      "stop_agent": true,
+      "stop_run": false
+    },
+    {
+      "category": "unknown_error",
+      "action": "mark_for_review",
+      "reason": "Unknown error type requires manual review.",
+      "max_retries": 0,
+      "log_level": "error",
+      "stop_agent": false,
+      "stop_run": false
+    }
+  ]
+}

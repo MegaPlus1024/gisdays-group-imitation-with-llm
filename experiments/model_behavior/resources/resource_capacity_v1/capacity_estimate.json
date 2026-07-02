@@ -1,0 +1,70 @@
+{
+  "first_model": {
+    "model_id": "first_model",
+    "inputs": {
+      "model_id": "first_model",
+      "available_ram_mb": 82560.059,
+      "reserved_system_ram_mb": 4096.0,
+      "effective_available_ram_mb": 78464.059,
+      "per_agent_model_ram_mb": 1065.56,
+      "shared_model_ram_mb": 1065.56,
+      "per_agent_runtime_overhead_mb": 128.0,
+      "average_cpu_load_percent_per_agent": 5.95,
+      "target_cpu_utilization_limit_percent": 70.0
+    },
+    "estimate": {
+      "ram_bound": 65,
+      "cpu_bound": 11,
+      "estimated_concurrent_agents": 11,
+      "shared_runtime_ram_bound": 604,
+      "bottleneck": "cpu",
+      "confidence": "low",
+      "assumptions": [
+        "Conservative estimate treats model RAM as per runtime/agent.",
+        "Shared-runtime estimate assumes one llama-server/model process shared by multiple agents.",
+        "CPU estimate uses lightweight system CPU snapshots and a fixed target utilization limit."
+      ],
+      "warnings": [
+        "capacity_is_formula_estimate_not_concurrent_load_test",
+        "model_ram_uses_file_size_or_lightweight_observations_not_full_runtime_profile",
+        "model_ram_estimated_from_gguf_file_size_not_runtime_rss",
+        "cpu_load_uses_system_snapshot_not_isolated_model_process"
+      ]
+    },
+    "model_ram_source": "gguf_file_size_lower_bound"
+  },
+  "qwen2_5_3b_instruct_q4_k_m": {
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "inputs": {
+      "model_id": "qwen2_5_3b_instruct_q4_k_m",
+      "available_ram_mb": 82560.059,
+      "reserved_system_ram_mb": 4096.0,
+      "effective_available_ram_mb": 78464.059,
+      "per_agent_model_ram_mb": 1840.499,
+      "shared_model_ram_mb": 1840.499,
+      "per_agent_runtime_overhead_mb": 128.0,
+      "average_cpu_load_percent_per_agent": 6.15,
+      "target_cpu_utilization_limit_percent": 70.0
+    },
+    "estimate": {
+      "ram_bound": 39,
+      "cpu_bound": 11,
+      "estimated_concurrent_agents": 11,
+      "shared_runtime_ram_bound": 598,
+      "bottleneck": "cpu",
+      "confidence": "low",
+      "assumptions": [
+        "Conservative estimate treats model RAM as per runtime/agent.",
+        "Shared-runtime estimate assumes one llama-server/model process shared by multiple agents.",
+        "CPU estimate uses lightweight system CPU snapshots and a fixed target utilization limit."
+      ],
+      "warnings": [
+        "capacity_is_formula_estimate_not_concurrent_load_test",
+        "model_ram_uses_file_size_or_lightweight_observations_not_full_runtime_profile",
+        "model_ram_estimated_from_gguf_file_size_not_runtime_rss",
+        "cpu_load_uses_system_snapshot_not_isolated_model_process"
+      ]
+    },
+    "model_ram_source": "gguf_file_size_lower_bound"
+  }
+}

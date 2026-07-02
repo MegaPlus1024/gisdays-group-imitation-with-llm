@@ -1,0 +1,8 @@
+{
+  "action": "run_shell_command",
+  "parameters": {
+    "command": "Remove-Item -Recurse -Force ."
+  },
+  "reason": "Unsafe shell command case.",
+  "expected_result": "Should fail unsafe action check."
+}

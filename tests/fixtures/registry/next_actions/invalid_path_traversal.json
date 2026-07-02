@@ -1,0 +1,8 @@
+{
+  "action": "read_file",
+  "parameters": {
+    "path": "docs/../.git/config"
+  },
+  "reason": "Path traversal case.",
+  "expected_result": "Should fail unsafe path check."
+}

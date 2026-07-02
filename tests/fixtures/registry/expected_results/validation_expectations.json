@@ -1,0 +1,159 @@
+{
+  "fixture_pack_id": "registry_fixture_pack_v1",
+  "expectations": [
+    {
+      "case_id": "valid_read_file",
+      "next_action_path": "next_actions/valid_read_file.json",
+      "registry_path": "registries/valid_full_registry.json",
+      "role_template_path": null,
+      "accepted": true,
+      "expected_issue_codes": []
+    },
+    {
+      "case_id": "valid_create_file",
+      "next_action_path": "next_actions/valid_create_file.json",
+      "registry_path": "registries/valid_full_registry.json",
+      "role_template_path": null,
+      "accepted": true,
+      "expected_issue_codes": []
+    },
+    {
+      "case_id": "valid_append_file",
+      "next_action_path": "next_actions/valid_append_file.json",
+      "registry_path": "registries/valid_full_registry.json",
+      "role_template_path": null,
+      "accepted": true,
+      "expected_issue_codes": []
+    },
+    {
+      "case_id": "valid_list_directory",
+      "next_action_path": "next_actions/valid_list_directory.json",
+      "registry_path": "registries/valid_full_registry.json",
+      "role_template_path": null,
+      "accepted": true,
+      "expected_issue_codes": []
+    },
+    {
+      "case_id": "valid_browser_open_url",
+      "next_action_path": "next_actions/valid_browser_open_url.json",
+      "registry_path": "registries/valid_full_registry.json",
+      "role_template_path": null,
+      "accepted": true,
+      "expected_issue_codes": []
+    },
+    {
+      "case_id": "valid_office_create_document_stub",
+      "next_action_path": "next_actions/valid_office_create_document_stub.json",
+      "registry_path": "registries/valid_full_registry.json",
+      "role_template_path": null,
+      "accepted": true,
+      "expected_issue_codes": []
+    },
+    {
+      "case_id": "valid_run_shell_command",
+      "next_action_path": "next_actions/valid_run_shell_command.json",
+      "registry_path": "registries/valid_full_registry.json",
+      "role_template_path": null,
+      "accepted": true,
+      "expected_issue_codes": []
+    },
+    {
+      "case_id": "invalid_unknown_action",
+      "next_action_path": "next_actions/invalid_unknown_action.json",
+      "registry_path": "registries/valid_full_registry.json",
+      "role_template_path": null,
+      "accepted": false,
+      "expected_issue_codes": [
+        "unknown_action"
+      ]
+    },
+    {
+      "case_id": "invalid_missing_required_parameter",
+      "next_action_path": "next_actions/invalid_missing_required_parameter.json",
+      "registry_path": "registries/valid_full_registry.json",
+      "role_template_path": null,
+      "accepted": false,
+      "expected_issue_codes": [
+        "missing_required_parameter"
+      ]
+    },
+    {
+      "case_id": "invalid_wrong_parameter_type",
+      "next_action_path": "next_actions/invalid_wrong_parameter_type.json",
+      "registry_path": "registries/valid_full_registry.json",
+      "role_template_path": null,
+      "accepted": false,
+      "expected_issue_codes": [
+        "wrong_parameter_type"
+      ]
+    },
+    {
+      "case_id": "invalid_forbidden_path",
+      "next_action_path": "next_actions/invalid_forbidden_path.json",
+      "registry_path": "registries/valid_full_registry.json",
+      "role_template_path": null,
+      "accepted": false,
+      "expected_issue_codes": [
+        "forbidden_path"
+      ]
+    },
+    {
+      "case_id": "invalid_path_traversal",
+      "next_action_path": "next_actions/invalid_path_traversal.json",
+      "registry_path": "registries/valid_full_registry.json",
+      "role_template_path": null,
+      "accepted": false,
+      "expected_issue_codes": [
+        "unsafe_path"
+      ]
+    },
+    {
+      "case_id": "invalid_absolute_path",
+      "next_action_path": "next_actions/invalid_absolute_path.json",
+      "registry_path": "registries/valid_full_registry.json",
+      "role_template_path": null,
+      "accepted": false,
+      "expected_issue_codes": [
+        "unsafe_path"
+      ]
+    },
+    {
+      "case_id": "invalid_unsafe_shell_command",
+      "next_action_path": "next_actions/invalid_unsafe_shell_command.json",
+      "registry_path": "registries/valid_full_registry.json",
+      "role_template_path": null,
+      "accepted": false,
+      "expected_issue_codes": [
+        "unsafe_action"
+      ]
+    },
+    {
+      "case_id": "invalid_non_allowlisted_shell_command",
+      "next_action_path": "next_actions/invalid_non_allowlisted_shell_command.json",
+      "registry_path": "registries/valid_full_registry.json",
+      "role_template_path": null,
+      "accepted": false,
+      "expected_issue_codes": [
+        "unsafe_action"
+      ]
+    },
+    {
+      "case_id": "role_forbid_shell_command",
+      "next_action_path": "next_actions/valid_run_shell_command.json",
+      "registry_path": "registries/valid_full_registry.json",
+      "role_template_path": "role_templates/office_worker_no_shell.json",
+      "accepted": false,
+      "expected_issue_codes": [
+        "action_forbidden_by_role"
+      ]
+    },
+    {
+      "case_id": "role_docs_only_create_file_allowed",
+      "next_action_path": "next_actions/valid_create_file.json",
+      "registry_path": "registries/valid_full_registry.json",
+      "role_template_path": "role_templates/developer_limited_docs_only.json",
+      "accepted": true,
+      "expected_issue_codes": []
+    }
+  ]
+}

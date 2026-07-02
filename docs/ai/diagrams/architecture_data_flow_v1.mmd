@@ -1,0 +1,35 @@
+flowchart TD
+    CF[Config Files]
+    RT[Role Templates]
+    O[Orchestrator]
+    ASR[AgentStepRequest]
+    A[Agent]
+    AS[AgentState]
+    PC[PromptContract]
+    LLC[LocalLLMClient]
+    LS[llama-server]
+    GM[GGUF Model]
+    RMO[Raw Model Output]
+    NAC[NextAction Contract]
+    ASRes[AgentStepResult]
+    FSR[Future Script Registry]
+    FEX[Future Executor / Script Runner]
+    FHL[Future History Log]
+    FEV[Future Evaluation]
+
+    CF --> O
+    RT --> AS
+    O --> ASR
+    ASR --> A
+    AS --> PC
+    A --> PC
+    PC --> LLC
+    LLC --> LS
+    LS --> GM
+    GM --> RMO
+    RMO --> NAC
+    NAC --> ASRes
+    ASRes --> FSR
+    FSR --> FEX
+    FEX --> FHL
+    FHL --> FEV

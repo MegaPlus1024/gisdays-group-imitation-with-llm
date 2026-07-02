@@ -1,0 +1,4 @@
+model_id,trial_id,step,action,parameters
+qwen2_5_3b_instruct_q4_k_m,trial_001,1,read_file,"{""path"": ""src/main.py""}"
+qwen2_5_3b_instruct_q4_k_m,trial_002,1,read_file,"{""path"": ""src/main.py""}"
+qwen2_5_3b_instruct_q4_k_m,trial_003,1,read_file,"{""path"": ""src/main.py""}"

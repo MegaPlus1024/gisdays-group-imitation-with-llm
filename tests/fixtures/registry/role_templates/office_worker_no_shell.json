@@ -1,0 +1,36 @@
+{
+  "role_id": "office_worker_no_shell",
+  "name": "Office worker (No shell)",
+  "description": "Office workflow role without shell command permission.",
+  "primary_goals": [
+    "Create and maintain office-related project documents safely."
+  ],
+  "success_criteria": [
+    "Avoid shell commands.",
+    "Stay inside allowed roots."
+  ],
+  "constraints": {
+    "no_internet": true,
+    "no_model_download": true,
+    "no_action_execution": false,
+    "allowed_file_roots": [
+      "docs/",
+      "experiments/"
+    ],
+    "forbidden_file_roots": [
+      "models/gguf/",
+      ".venv/",
+      ".git/"
+    ],
+    "allowed_action_names": [
+      "read_file",
+      "create_file",
+      "append_file",
+      "list_directory",
+      "office_create_document_stub"
+    ],
+    "forbidden_action_names": [
+      "run_shell_command"
+    ]
+  }
+}

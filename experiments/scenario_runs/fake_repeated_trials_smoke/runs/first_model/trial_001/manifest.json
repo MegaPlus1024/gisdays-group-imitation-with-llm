@@ -1,0 +1,73 @@
+{
+  "runner_id": "experiment_scenario_runner_v1",
+  "run_id": "fake_repeated_trials_smoke_first_model_trial_001",
+  "scenario_id": "office_worker_basic_session_v1",
+  "scenario_path": "configs\\evaluation_scenarios\\office_worker_basic_session.json",
+  "agent_id": "office_agent_1",
+  "mode": "fake",
+  "model_id": "first_model",
+  "model_name": "first_model.gguf",
+  "base_url": "http://127.0.0.1:8080/v1",
+  "model": {
+    "model_id": "first_model",
+    "model_name": "first_model.gguf",
+    "gguf_path": "models/gguf/first_model.gguf",
+    "resolved_model_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\models\\gguf\\first_model.gguf",
+    "runtime": "llama.cpp / llama-server",
+    "base_url": "http://127.0.0.1:8080/v1",
+    "quantization": "Q4_K_M",
+    "parameter_size": "1.5B",
+    "expected_cpu_only": true,
+    "preflight_status": "pass",
+    "preflight_issues": [],
+    "preflight_warnings": [],
+    "can_attempt_local_run": true,
+    "cli_overrides": {},
+    "models_config_path": "configs\\evaluation_models.json"
+  },
+  "execute_actions": true,
+  "repair": {
+    "repair_enabled": true,
+    "repair_attempts_per_step": 1,
+    "repair_on_parse_failure": true,
+    "repair_on_validation_failure": true,
+    "repair_prompt_include_allowed_actions": true,
+    "repair_prompt_include_role_constraints": true,
+    "repair_prompt_include_previous_raw_output": true
+  },
+  "safety_workspace": {
+    "enforce_write_workspace": true,
+    "write_workspace_path": "experiments/scenario_runs/fake_repeated_trials_smoke/runs/first_model/trial_001/workspace/",
+    "policy": "write actions are rejected unless their path is inside write_workspace_path",
+    "write_actions": [
+      "append_file",
+      "create_file",
+      "office_create_document_stub"
+    ]
+  },
+  "started_at": "2026-07-01T20:09:56.672925+00:00",
+  "completed_at": "2026-07-01T20:09:56.722811+00:00",
+  "step_count": 2,
+  "stopped_reason": "Reached max_steps limit.",
+  "artifacts": [
+    "manifest.json",
+    "attempts.jsonl",
+    "steps.jsonl",
+    "raw_model_outputs.jsonl",
+    "selected_actions.jsonl",
+    "validation_results.jsonl",
+    "execution_results.jsonl",
+    "history.jsonl",
+    "errors.jsonl",
+    "activity_evaluation.json",
+    "model_behavior_result.json",
+    "resource_summary.json",
+    "replay_commands.ps1",
+    "README.md"
+  ],
+  "limitations": [
+    "Runner v1 supports one agent per run.",
+    "Fake mode does not call a local model.",
+    "Local mode is implemented structurally but was not exercised by offline tests."
+  ]
+}

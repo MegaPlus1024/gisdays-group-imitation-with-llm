@@ -1,0 +1,27 @@
+# Coherence History Usage Report
+
+## `first_model`
+
+- `history_usage_score`: `{'mean': 0.0, 'std': 0.0, 'min': 0.0, 'max': 0.0, 'count': 3}`
+- `sequence_coherence_score`: `{'mean': 0.0, 'std': 0.0, 'min': 0.0, 'max': 0.0, 'count': 3}`
+- `repeated_same_parameters_count`: `3`
+- `repeated_failed_action_count`: `0`
+- `repeated_failure_without_adaptation_count`: `3`
+- `follows_previous_success_count`: `3`
+- `repeats_previous_failed_path_count`: `0`
+- `observed_history_references`: `0`
+- `verdict`: `failed`
+- `notes`: `['History usage score and useful adaptation are separated; mentioning prior failure is not enough if the same failed action repeats.']`
+
+## `qwen2_5_3b_instruct_q4_k_m`
+
+- `history_usage_score`: `{'mean': 1.0, 'std': 0.0, 'min': 1.0, 'max': 1.0, 'count': 3}`
+- `sequence_coherence_score`: `{'mean': 0.0, 'std': 0.0, 'min': 0.0, 'max': 0.0, 'count': 3}`
+- `repeated_same_parameters_count`: `3`
+- `repeated_failed_action_count`: `3`
+- `repeated_failure_without_adaptation_count`: `3`
+- `follows_previous_success_count`: `0`
+- `repeats_previous_failed_path_count`: `3`
+- `observed_history_references`: `3`
+- `verdict`: `failed`
+- `notes`: `['History usage score and useful adaptation are separated; mentioning prior failure is not enough if the same failed action repeats.']`

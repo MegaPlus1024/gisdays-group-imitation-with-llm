@@ -1,0 +1,470 @@
+{
+  "comparison_id": "fake_developer_repeated_trials_smoke",
+  "generated_at": "2026-07-01T21:11:03.383004+00:00",
+  "status": "complete",
+  "protocol_compatible": true,
+  "protocol_checks": [
+    {
+      "name": "scenario_path",
+      "values": [
+        "configs\\evaluation_scenarios\\developer_project_maintenance.json",
+        "configs\\evaluation_scenarios\\developer_project_maintenance.json",
+        "configs\\evaluation_scenarios\\developer_project_maintenance.json",
+        "configs\\evaluation_scenarios\\developer_project_maintenance.json"
+      ],
+      "compatible": true,
+      "checked": true
+    },
+    {
+      "name": "max_steps",
+      "values": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "compatible": true,
+      "checked": true
+    },
+    {
+      "name": "repair_enabled",
+      "values": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "compatible": true,
+      "checked": true
+    },
+    {
+      "name": "repair_attempts_per_step",
+      "values": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "compatible": true,
+      "checked": true
+    },
+    {
+      "name": "execute_actions",
+      "values": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "compatible": true,
+      "checked": true
+    }
+  ],
+  "trial_index": [
+    {
+      "model_id": "first_model",
+      "trial_id": "trial_001",
+      "run_id": "fake_developer_repeated_trials_smoke_first_model_trial_001",
+      "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\scenario_runs\\fake_developer_repeated_trials_smoke\\runs\\first_model\\trial_001",
+      "status": "completed",
+      "return_code": 0,
+      "error_message": null,
+      "step_count": 2,
+      "initial_validation_accept_rate": 1.0,
+      "final_validation_accept_rate": 1.0,
+      "execution_success_rate": 1.0,
+      "normal_activity_score": 0.5813333333333333,
+      "average_selection_latency_ms": 0.116,
+      "stop_reason": "Reached max_steps limit."
+    },
+    {
+      "model_id": "first_model",
+      "trial_id": "trial_002",
+      "run_id": "fake_developer_repeated_trials_smoke_first_model_trial_002",
+      "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\scenario_runs\\fake_developer_repeated_trials_smoke\\runs\\first_model\\trial_002",
+      "status": "completed",
+      "return_code": 0,
+      "error_message": null,
+      "step_count": 2,
+      "initial_validation_accept_rate": 1.0,
+      "final_validation_accept_rate": 1.0,
+      "execution_success_rate": 1.0,
+      "normal_activity_score": 0.5813333333333333,
+      "average_selection_latency_ms": 0.079,
+      "stop_reason": "Reached max_steps limit."
+    },
+    {
+      "model_id": "qwen2_5_3b_instruct_q4_k_m",
+      "trial_id": "trial_001",
+      "run_id": "fake_developer_repeated_trials_smoke_qwen2_5_3b_instruct_q4_k_m_trial_001",
+      "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\scenario_runs\\fake_developer_repeated_trials_smoke\\runs\\qwen2_5_3b_instruct_q4_k_m\\trial_001",
+      "status": "completed",
+      "return_code": 0,
+      "error_message": null,
+      "step_count": 2,
+      "initial_validation_accept_rate": 1.0,
+      "final_validation_accept_rate": 1.0,
+      "execution_success_rate": 1.0,
+      "normal_activity_score": 0.5813333333333333,
+      "average_selection_latency_ms": 0.093,
+      "stop_reason": "Reached max_steps limit."
+    },
+    {
+      "model_id": "qwen2_5_3b_instruct_q4_k_m",
+      "trial_id": "trial_002",
+      "run_id": "fake_developer_repeated_trials_smoke_qwen2_5_3b_instruct_q4_k_m_trial_002",
+      "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\scenario_runs\\fake_developer_repeated_trials_smoke\\runs\\qwen2_5_3b_instruct_q4_k_m\\trial_002",
+      "status": "completed",
+      "return_code": 0,
+      "error_message": null,
+      "step_count": 2,
+      "initial_validation_accept_rate": 1.0,
+      "final_validation_accept_rate": 1.0,
+      "execution_success_rate": 1.0,
+      "normal_activity_score": 0.5813333333333333,
+      "average_selection_latency_ms": 0.092,
+      "stop_reason": "Reached max_steps limit."
+    }
+  ],
+  "aggregates": {
+    "first_model": {
+      "model_id": "first_model",
+      "trial_count": 2,
+      "completed_trial_count": 2,
+      "failed_trial_count": 0,
+      "metrics": {
+        "step_count": {
+          "mean": 2.0,
+          "std": 0.0,
+          "min": 2.0,
+          "max": 2.0,
+          "count": 2
+        },
+        "initial_validation_accept_rate": {
+          "mean": 1.0,
+          "std": 0.0,
+          "min": 1.0,
+          "max": 1.0,
+          "count": 2
+        },
+        "final_validation_accept_rate": {
+          "mean": 1.0,
+          "std": 0.0,
+          "min": 1.0,
+          "max": 1.0,
+          "count": 2
+        },
+        "execution_success_rate": {
+          "mean": 1.0,
+          "std": 0.0,
+          "min": 1.0,
+          "max": 1.0,
+          "count": 2
+        },
+        "normal_activity_score": {
+          "mean": 0.581333,
+          "std": 0.0,
+          "min": 0.5813333333333333,
+          "max": 0.5813333333333333,
+          "count": 2
+        },
+        "diversity_score": {
+          "mean": 0.416667,
+          "std": 0.0,
+          "min": 0.41666666666666663,
+          "max": 0.41666666666666663,
+          "count": 2
+        },
+        "repetition_score": {
+          "mean": 0.74,
+          "std": 0.0,
+          "min": 0.74,
+          "max": 0.74,
+          "count": 2
+        },
+        "sequence_coherence_score": {
+          "mean": 0.0,
+          "std": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "count": 2
+        },
+        "history_usage_score": {
+          "mean": 0.0,
+          "std": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "count": 2
+        },
+        "average_selection_latency_ms": {
+          "mean": 0.0975,
+          "std": 0.0185,
+          "min": 0.079,
+          "max": 0.116,
+          "count": 2
+        },
+        "average_total_step_latency_ms": {
+          "mean": 0.807,
+          "std": 0.15,
+          "min": 0.657,
+          "max": 0.957,
+          "count": 2
+        },
+        "total_file_not_found_count": 0,
+        "total_unsafe_path_count": 0,
+        "total_validation_failure_count": 0,
+        "total_repair_attempt_count": 0,
+        "total_successful_execution_count": 4
+      },
+      "common_failure_modes": {},
+      "most_common_actions": [
+        {
+          "action": "read_file",
+          "count": 4
+        }
+      ],
+      "most_common_action_parameters": [
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/model_registry.md\"}}",
+          "count": 4
+        }
+      ]
+    },
+    "qwen2_5_3b_instruct_q4_k_m": {
+      "model_id": "qwen2_5_3b_instruct_q4_k_m",
+      "trial_count": 2,
+      "completed_trial_count": 2,
+      "failed_trial_count": 0,
+      "metrics": {
+        "step_count": {
+          "mean": 2.0,
+          "std": 0.0,
+          "min": 2.0,
+          "max": 2.0,
+          "count": 2
+        },
+        "initial_validation_accept_rate": {
+          "mean": 1.0,
+          "std": 0.0,
+          "min": 1.0,
+          "max": 1.0,
+          "count": 2
+        },
+        "final_validation_accept_rate": {
+          "mean": 1.0,
+          "std": 0.0,
+          "min": 1.0,
+          "max": 1.0,
+          "count": 2
+        },
+        "execution_success_rate": {
+          "mean": 1.0,
+          "std": 0.0,
+          "min": 1.0,
+          "max": 1.0,
+          "count": 2
+        },
+        "normal_activity_score": {
+          "mean": 0.581333,
+          "std": 0.0,
+          "min": 0.5813333333333333,
+          "max": 0.5813333333333333,
+          "count": 2
+        },
+        "diversity_score": {
+          "mean": 0.416667,
+          "std": 0.0,
+          "min": 0.41666666666666663,
+          "max": 0.41666666666666663,
+          "count": 2
+        },
+        "repetition_score": {
+          "mean": 0.74,
+          "std": 0.0,
+          "min": 0.74,
+          "max": 0.74,
+          "count": 2
+        },
+        "sequence_coherence_score": {
+          "mean": 0.0,
+          "std": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "count": 2
+        },
+        "history_usage_score": {
+          "mean": 0.0,
+          "std": 0.0,
+          "min": 0.0,
+          "max": 0.0,
+          "count": 2
+        },
+        "average_selection_latency_ms": {
+          "mean": 0.0925,
+          "std": 0.0005,
+          "min": 0.092,
+          "max": 0.093,
+          "count": 2
+        },
+        "average_total_step_latency_ms": {
+          "mean": 0.765,
+          "std": 0.013,
+          "min": 0.752,
+          "max": 0.778,
+          "count": 2
+        },
+        "total_file_not_found_count": 0,
+        "total_unsafe_path_count": 0,
+        "total_validation_failure_count": 0,
+        "total_repair_attempt_count": 0,
+        "total_successful_execution_count": 4
+      },
+      "common_failure_modes": {},
+      "most_common_actions": [
+        {
+          "action": "read_file",
+          "count": 4
+        }
+      ],
+      "most_common_action_parameters": [
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/model_registry.md\"}}",
+          "count": 4
+        }
+      ]
+    }
+  },
+  "metric_winners": [
+    {
+      "name": "mean_first_attempt_validity",
+      "first_value": 1.0,
+      "second_value": 1.0,
+      "winner": "tie",
+      "higher_is_better": true,
+      "comment": null
+    },
+    {
+      "name": "mean_final_validity",
+      "first_value": 1.0,
+      "second_value": 1.0,
+      "winner": "tie",
+      "higher_is_better": true,
+      "comment": null
+    },
+    {
+      "name": "mean_execution_success",
+      "first_value": 1.0,
+      "second_value": 1.0,
+      "winner": "tie",
+      "higher_is_better": true,
+      "comment": null
+    },
+    {
+      "name": "mean_normal_activity",
+      "first_value": 0.581333,
+      "second_value": 0.581333,
+      "winner": "tie",
+      "higher_is_better": true,
+      "comment": null
+    },
+    {
+      "name": "mean_diversity",
+      "first_value": 0.416667,
+      "second_value": 0.416667,
+      "winner": "tie",
+      "higher_is_better": true,
+      "comment": null
+    },
+    {
+      "name": "mean_repetition",
+      "first_value": 0.74,
+      "second_value": 0.74,
+      "winner": "tie",
+      "higher_is_better": true,
+      "comment": null
+    },
+    {
+      "name": "mean_history_usage",
+      "first_value": 0.0,
+      "second_value": 0.0,
+      "winner": "tie",
+      "higher_is_better": true,
+      "comment": null
+    },
+    {
+      "name": "mean_selection_latency",
+      "first_value": 0.0975,
+      "second_value": 0.0925,
+      "winner": "second",
+      "higher_is_better": false,
+      "comment": null
+    },
+    {
+      "name": "mean_total_step_latency",
+      "first_value": 0.807,
+      "second_value": 0.765,
+      "winner": "second",
+      "higher_is_better": false,
+      "comment": null
+    },
+    {
+      "name": "stability_execution_success_std",
+      "first_value": 0.0,
+      "second_value": 0.0,
+      "winner": "tie",
+      "higher_is_better": false,
+      "comment": null
+    },
+    {
+      "name": "fewer_recurring_execution_failures",
+      "first_value": 0,
+      "second_value": 0,
+      "winner": "tie",
+      "higher_is_better": false,
+      "comment": null
+    }
+  ],
+  "failure_modes": {
+    "first_model": {
+      "common_failure_modes": {},
+      "most_common_actions": [
+        {
+          "action": "read_file",
+          "count": 4
+        }
+      ],
+      "most_common_action_parameters": [
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/model_registry.md\"}}",
+          "count": 4
+        }
+      ]
+    },
+    "qwen2_5_3b_instruct_q4_k_m": {
+      "common_failure_modes": {},
+      "most_common_actions": [
+        {
+          "action": "read_file",
+          "count": 4
+        }
+      ],
+      "most_common_action_parameters": [
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/model_registry.md\"}}",
+          "count": 4
+        }
+      ]
+    }
+  },
+  "interpretation": {
+    "confidence": "low",
+    "summary": "Repeated trials provide a stronger signal than single-run comparison, but this is still one short scenario and should not be treated as a final model recommendation."
+  },
+  "limitations": [
+    "Only one scenario is repeated.",
+    "Three trials per model is a small sample.",
+    "No multi-agent run is included.",
+    "Browser behavior remains simulated-only and office behavior remains stub/file-based.",
+    "Resource metrics are lightweight scenario-run metadata, not a benchmark monitor."
+  ]
+}

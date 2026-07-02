@@ -1,0 +1,40 @@
+{
+  "trajectory_id": "office_worker_shell_abnormal",
+  "role_id": "office_worker",
+  "activity_profile_path": "configs/activity_profiles/office_worker.json",
+  "description": "Office worker trajectory with role-inappropriate shell usage.",
+  "expected_verdict_hint": "failed",
+  "steps": [
+    {
+      "step_index": 1,
+      "action": "read_file",
+      "parameters": {
+        "path": "docs/ai/project_objective_normal_activity_v1.md"
+      },
+      "success": true,
+      "status": "selected",
+      "issue_codes": [],
+      "reason": "Read objective context.",
+      "expected_result": "Context loaded.",
+      "used_history": false,
+      "progress_signal": true,
+      "metadata": {}
+    },
+    {
+      "step_index": 2,
+      "action": "run_shell_command",
+      "parameters": {
+        "command": "python -m pytest -q"
+      },
+      "success": true,
+      "status": "selected",
+      "issue_codes": [],
+      "reason": "Run tests despite office role.",
+      "expected_result": "Command output returned.",
+      "used_history": false,
+      "progress_signal": true,
+      "metadata": {}
+    }
+  ],
+  "metadata": {}
+}

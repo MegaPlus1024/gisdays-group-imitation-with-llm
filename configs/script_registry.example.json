@@ -1,0 +1,311 @@
+{
+  "registry_id": "script_registry_v1",
+  "schema_version": "script_registry_v1",
+  "scripts": [
+    {
+      "name": "read_file",
+      "description": "Read a UTF-8 text file from an allowed project path.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "description": "Relative project path to read.",
+          "min_length": 1
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "docs/",
+          "configs/",
+          "experiments/",
+          "src/",
+          "tests/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/"
+        ],
+        "read_only": true
+      },
+      "result_shape": {
+        "content": "string",
+        "path": "string"
+      },
+      "tags": [
+        "file"
+      ],
+      "examples": [
+        {
+          "path": "docs/ai/model_registry.md"
+        }
+      ]
+    },
+    {
+      "name": "create_file",
+      "description": "Create or overwrite a UTF-8 text file in allowed write roots.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "min_length": 1
+        },
+        {
+          "name": "content",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "docs/",
+          "configs/",
+          "experiments/",
+          "tests/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/",
+          "src/"
+        ],
+        "read_only": false
+      },
+      "result_shape": {
+        "path": "string",
+        "written_bytes": "integer"
+      },
+      "tags": [
+        "file"
+      ],
+      "examples": [
+        {
+          "path": "docs/ai/example_note.md",
+          "content": "Example note."
+        }
+      ]
+    },
+    {
+      "name": "append_file",
+      "description": "Append UTF-8 text content to an existing file in allowed write roots.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "min_length": 1
+        },
+        {
+          "name": "content",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "docs/",
+          "configs/",
+          "experiments/",
+          "tests/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/",
+          "src/"
+        ],
+        "read_only": false
+      },
+      "result_shape": {
+        "path": "string",
+        "appended_bytes": "integer"
+      },
+      "tags": [
+        "file"
+      ],
+      "examples": [
+        {
+          "path": "docs/ai/example_note.md",
+          "content": "More lines."
+        }
+      ]
+    },
+    {
+      "name": "list_directory",
+      "description": "List directory entries for an allowed project path.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "min_length": 1
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "docs/",
+          "configs/",
+          "experiments/",
+          "src/",
+          "tests/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/"
+        ],
+        "read_only": true
+      },
+      "result_shape": {
+        "entries": "array",
+        "path": "string"
+      },
+      "tags": [
+        "file"
+      ],
+      "examples": [
+        {
+          "path": "docs/ai/"
+        }
+      ]
+    },
+    {
+      "name": "browser_open_url",
+      "description": "Open a URL in browser stub mode (simulation/offline in v1).",
+      "parameters": [
+        {
+          "name": "url",
+          "type": "string",
+          "required": true,
+          "min_length": 1
+        }
+      ],
+      "safety": {
+        "read_only": true
+      },
+      "result_shape": {
+        "url": "string",
+        "status": "string"
+      },
+      "tags": [
+        "browser"
+      ],
+      "examples": [
+        {
+          "url": "https://example.com"
+        }
+      ]
+    },
+    {
+      "name": "office_create_document_stub",
+      "description": "Create an office-document stub record in allowed output roots.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "min_length": 1
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "min_length": 1
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "docs/",
+          "experiments/",
+          "tests/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/"
+        ],
+        "read_only": false
+      },
+      "result_shape": {
+        "path": "string",
+        "title": "string"
+      },
+      "tags": [
+        "office"
+      ],
+      "examples": [
+        {
+          "path": "docs/reports/stub_doc.txt",
+          "title": "Experiment summary",
+          "body": "Summary body"
+        }
+      ]
+    },
+    {
+      "name": "run_shell_command",
+      "description": "Run a constrained local shell command from project root.",
+      "parameters": [
+        {
+          "name": "command",
+          "type": "string",
+          "required": true,
+          "min_length": 1
+        }
+      ],
+      "safety": {
+        "allowed_shell_commands": [
+          "python -m pytest -q",
+          "python scripts\\run_llama_smoke.py --help",
+          "python scripts\\run_runtime_baseline.py --help",
+          "python scripts\\compare_runtime_baselines.py --help"
+        ],
+        "forbidden_substrings": [
+          "Remove-Item",
+          "rm -rf",
+          "del /s",
+          "format",
+          "shutdown",
+          "winget install",
+          "curl",
+          "wget",
+          "Invoke-WebRequest",
+          "Start-Process",
+          "powershell",
+          "cmd /c",
+          "&&",
+          "||",
+          ";",
+          ">",
+          "<",
+          "|"
+        ],
+        "forbidden_shell_commands": [
+          "git clean",
+          "git reset --hard"
+        ],
+        "read_only": false
+      },
+      "result_shape": {
+        "command": "string",
+        "exit_code": "integer",
+        "stdout": "string",
+        "stderr": "string"
+      },
+      "tags": [
+        "shell"
+      ],
+      "examples": [
+        {
+          "command": "python -m pytest -q"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "registry_id": "fixture_valid_minimal_registry",
+  "schema_version": "script_registry_v1",
+  "scripts": [
+    {
+      "name": "read_file",
+      "description": "Read file content from docs.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "description": "Path to read."
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "docs/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/"
+        ],
+        "read_only": true
+      },
+      "tags": [
+        "file"
+      ]
+    }
+  ]
+}

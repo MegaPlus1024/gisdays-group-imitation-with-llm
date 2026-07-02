@@ -1,0 +1,48 @@
+{
+  "schema_version": "evaluation_models_v1",
+  "models": [
+    {
+      "model_id": "first_model",
+      "display_name": "Qwen2.5 1.5B Instruct Q4_K_M local alias",
+      "model_name": "first_model.gguf",
+      "gguf_path": "models/gguf/first_model.gguf",
+      "quantization": "Q4_K_M",
+      "parameter_size": "1.5B",
+      "runtime": "llama.cpp / llama-server",
+      "base_url": "http://127.0.0.1:8080/v1",
+      "api_style": "openai_compatible",
+      "expected_cpu_only": true,
+      "ctx_size": 4096,
+      "timeout_seconds": 120.0,
+      "temperature": 0.0,
+      "max_tokens": 512,
+      "enabled": true,
+      "notes": [
+        "Stable experiment id for the first local smoke/baseline model.",
+        "Local alias mapping documented in docs/ai/model_registry.md: first_model.gguf -> qwen2.5-1.5b-instruct-q4_k_m.gguf."
+      ]
+    },
+    {
+      "model_id": "qwen2_5_3b_instruct_q4_k_m",
+      "display_name": "Qwen2.5 3B Instruct Q4_K_M",
+      "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
+      "gguf_path": "models/gguf/second_model.gguf",
+      "quantization": "Q4_K_M",
+      "parameter_size": "3B",
+      "runtime": "llama.cpp / llama-server",
+      "base_url": "http://127.0.0.1:8080/v1",
+      "api_style": "openai_compatible",
+      "expected_cpu_only": true,
+      "ctx_size": 4096,
+      "timeout_seconds": 120.0,
+      "temperature": 0.0,
+      "max_tokens": 512,
+      "enabled": true,
+      "notes": [
+        "Stable experiment id already used by second-model baseline artifacts.",
+        "The local file currently present in models/gguf is second_model.gguf; this config maps the stable model id to that local alias path.",
+        "Do not claim behavior quality improvement until real scenario trajectories are evaluated."
+      ]
+    }
+  ]
+}

@@ -3,9 +3,9 @@
   "success": true,
   "error_type": null,
   "error_message": null,
-  "started_at": "2026-05-24T10:20:07.497782+00:00",
-  "finished_at": "2026-05-24T10:20:07.797177+00:00",
-  "wall_time_seconds": 0.298796,
+  "started_at": "2026-05-24T11:32:03.876643+00:00",
+  "finished_at": "2026-05-24T11:32:04.176505+00:00",
+  "wall_time_seconds": 0.300198,
   "runtime": "llama.cpp / llama-server",
   "base_url": "http://127.0.0.1:8080/v1",
   "endpoint": "http://127.0.0.1:8080/v1/chat/completions",
@@ -25,7 +25,7 @@
         }
       }
     ],
-    "created": 1779618007,
+    "created": 1779622324,
     "model": "first_model.gguf",
     "system_fingerprint": "b9264-ce02093fd",
     "object": "chat.completion",
@@ -37,17 +37,17 @@
         "cached_tokens": 195
       }
     },
-    "id": "chatcmpl-6sXKFlAkeMLjJKcUDwfZx9VknSJeVbhv",
+    "id": "chatcmpl-wg0kUahOdi1KrdDt4shEEsAY2bDQeSih",
     "timings": {
       "cache_n": 195,
       "prompt_n": 1,
-      "prompt_ms": 3.371,
-      "prompt_per_token_ms": 3.371,
-      "prompt_per_second": 296.6478789676654,
+      "prompt_ms": 3.324,
+      "prompt_per_token_ms": 3.324,
+      "prompt_per_second": 300.8423586040915,
       "predicted_n": 74,
-      "predicted_ms": 204.521,
-      "predicted_per_token_ms": 2.7637972972972973,
-      "predicted_per_second": 361.8210354926878
+      "predicted_ms": 202.765,
+      "predicted_per_token_ms": 2.7400675675675674,
+      "predicted_per_second": 364.95450398244276
     }
   },
   "usage": {
@@ -57,22 +57,22 @@
   },
   "llama_timings": {
     "prompt_n": 1,
-    "prompt_ms": 3.371,
-    "prompt_per_second": 296.6478789676654,
+    "prompt_ms": 3.324,
+    "prompt_per_second": 300.8423586040915,
     "predicted_n": 74,
-    "predicted_ms": 204.521,
-    "predicted_per_second": 361.8210354926878
+    "predicted_ms": 202.765,
+    "predicted_per_second": 364.95450398244276
   },
   "resource_estimate": {
-    "system_ram_used_before_mb": 22870.848,
-    "system_ram_used_after_mb": 22865.117,
-    "system_ram_delta_mb": -5.731,
-    "system_cpu_percent_avg": 2.55,
-    "system_cpu_percent_max": 3.1,
-    "server_pid": null,
-    "server_rss_before_mb": null,
-    "server_rss_after_mb": null,
-    "server_rss_delta_mb": null,
+    "system_ram_used_before_mb": 22863.902,
+    "system_ram_used_after_mb": 22865.395,
+    "system_ram_delta_mb": 1.493,
+    "system_cpu_percent_avg": 2.15,
+    "system_cpu_percent_max": 3.3,
+    "server_pid": 20700,
+    "server_rss_before_mb": 1165.809,
+    "server_rss_after_mb": 1165.832,
+    "server_rss_delta_mb": 0.023,
     "server_metric_error": null
   }
 }

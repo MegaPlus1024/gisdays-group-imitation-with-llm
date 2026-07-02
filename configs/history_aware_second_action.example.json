@@ -1,0 +1,11 @@
+{
+  "config_id": "history_aware_second_action_v1",
+  "require_first_action_success": true,
+  "second_step_index": 2,
+  "prevent_exact_action_repeat": true,
+  "include_first_action_summary": true,
+  "metadata": {
+    "schema_version": "history_aware_second_action_v1",
+    "note": "Builds a second AgentState with first action in history; does not execute actions."
+  }
+}

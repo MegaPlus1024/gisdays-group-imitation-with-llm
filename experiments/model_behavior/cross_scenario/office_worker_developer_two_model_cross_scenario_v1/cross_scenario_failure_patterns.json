@@ -1,0 +1,48 @@
+{
+  "first_model": {
+    "model_id": "first_model",
+    "stable_failure_patterns": {
+      "validation_failed_after_repair": 6
+    },
+    "scenario_specific_failure_patterns": {},
+    "total_counts": {
+      "validation_failed_after_repair": 6,
+      "validation_failed_after_repair_count": 6,
+      "missing_required_parameter_count": 6,
+      "unsafe_path_count": 18,
+      "write_path_outside_workspace_count": 12,
+      "file_not_found_count": 0,
+      "max_consecutive_failures_count": 0,
+      "execution_error_count": 0,
+      "repair_attempt_count": 12,
+      "repair_success_count": 6,
+      "unrecovered_failure_count": 6
+    }
+  },
+  "qwen2_5_3b_instruct_q4_k_m": {
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "stable_failure_patterns": {},
+    "scenario_specific_failure_patterns": {
+      "office_worker": {
+        "file_not_found": 6
+      },
+      "developer_project_maintenance": {
+        "unsafe_path": 3
+      }
+    },
+    "total_counts": {
+      "file_not_found": 6,
+      "unsafe_path": 3,
+      "validation_failed_after_repair_count": 0,
+      "missing_required_parameter_count": 0,
+      "unsafe_path_count": 0,
+      "write_path_outside_workspace_count": 0,
+      "file_not_found_count": 6,
+      "max_consecutive_failures_count": 3,
+      "execution_error_count": 9,
+      "repair_attempt_count": 0,
+      "repair_success_count": 0,
+      "unrecovered_failure_count": 9
+    }
+  }
+}

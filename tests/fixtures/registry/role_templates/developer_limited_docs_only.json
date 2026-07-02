@@ -1,0 +1,33 @@
+{
+  "role_id": "developer_limited_docs_only",
+  "name": "Developer (Docs-only)",
+  "description": "Developer constrained to documentation-only workspace actions.",
+  "primary_goals": [
+    "Maintain documentation artifacts safely."
+  ],
+  "success_criteria": [
+    "Use only allowed actions and roots."
+  ],
+  "constraints": {
+    "no_internet": true,
+    "no_model_download": true,
+    "no_action_execution": false,
+    "allowed_file_roots": [
+      "docs/"
+    ],
+    "forbidden_file_roots": [
+      "models/gguf/",
+      ".venv/",
+      ".git/"
+    ],
+    "allowed_action_names": [
+      "read_file",
+      "create_file",
+      "append_file",
+      "list_directory"
+    ],
+    "forbidden_action_names": [
+      "run_shell_command"
+    ]
+  }
+}

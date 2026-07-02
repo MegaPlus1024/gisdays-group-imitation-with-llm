@@ -1,0 +1,36 @@
+{
+  "runner_id": "experiment_scenario_runner_v1",
+  "run_id": "codex_fake_cli_smoke",
+  "scenario_id": "office_worker_basic_session_v1",
+  "scenario_path": "configs\\evaluation_scenarios\\office_worker_basic_session.json",
+  "agent_id": "office_agent_1",
+  "mode": "fake",
+  "model_id": "fake_model",
+  "model_name": "fake-scripted-provider",
+  "base_url": null,
+  "execute_actions": true,
+  "started_at": "2026-07-01T16:03:54.698586+00:00",
+  "completed_at": "2026-07-01T16:03:54.745693+00:00",
+  "step_count": 1,
+  "stopped_reason": "Reached max_steps limit.",
+  "artifacts": [
+    "manifest.json",
+    "steps.jsonl",
+    "raw_model_outputs.jsonl",
+    "selected_actions.jsonl",
+    "validation_results.jsonl",
+    "execution_results.jsonl",
+    "history.jsonl",
+    "errors.jsonl",
+    "activity_evaluation.json",
+    "model_behavior_result.json",
+    "resource_summary.json",
+    "replay_commands.ps1",
+    "README.md"
+  ],
+  "limitations": [
+    "Runner v1 supports one agent per run.",
+    "Fake mode does not call a local model.",
+    "Local mode is implemented structurally but was not exercised by offline tests."
+  ]
+}

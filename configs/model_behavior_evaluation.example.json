@@ -1,0 +1,13 @@
+{
+  "harness_id": "model_behavior_evaluation_v1",
+  "default_run_mode": "synthetic",
+  "require_behavioral_evaluation": true,
+  "pass_normal_activity_score_threshold": 0.8,
+  "warning_normal_activity_score_threshold": 0.6,
+  "pass_registry_acceptance_rate_threshold": 0.9,
+  "pass_role_compliance_rate_threshold": 0.9,
+  "metadata": {
+    "schema_version": "model_behavior_evaluation_v1",
+    "note": "Skeleton for future model behavior evaluation. Does not run local models."
+  }
+}

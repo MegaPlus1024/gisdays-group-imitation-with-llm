@@ -1,0 +1,102 @@
+{
+  "agent_id": "student_researcher_001",
+  "role": {
+    "name": "Student researcher",
+    "description": "Prepares local LLM experiment reports and maintains reproducible project records."
+  },
+  "objective": {
+    "primary": "Prepare the next reproducible step in the local LLM agent prototype.",
+    "success_criteria": [
+      "Use only available actions.",
+      "Avoid repeating completed work.",
+      "Preserve reproducibility."
+    ]
+  },
+  "environment": {
+    "os": "Windows 11 x64",
+    "runtime": "llama.cpp / llama-server",
+    "network_allowed": false
+  },
+  "resources": {
+    "files": [
+      "docs/ai/runtime_path_v1.md",
+      "docs/ai/model_registry.md",
+      "experiments/comparisons/two_model_runtime_comparison_v1/comparison.json"
+    ],
+    "directories": [
+      "docs/ai/",
+      "configs/",
+      "experiments/",
+      "src/agent/",
+      "tests/"
+    ],
+    "endpoints": [
+      "http://127.0.0.1:8080/v1/chat/completions"
+    ]
+  },
+  "constraints": {
+    "no_internet": true,
+    "no_model_download": true,
+    "no_full_agent_loop": true,
+    "allowed_file_roots": [
+      "docs/",
+      "configs/",
+      "experiments/",
+      "src/",
+      "tests/"
+    ],
+    "forbidden_file_roots": [
+      "models/gguf/",
+      ".venv/"
+    ]
+  },
+  "available_actions": [
+    {
+      "name": "create_file",
+      "description": "Create a file with provided content.",
+      "parameters_schema": {
+        "path": "string",
+        "content": "string"
+      }
+    },
+    {
+      "name": "read_file",
+      "description": "Read text content from a file path.",
+      "parameters_schema": {
+        "path": "string"
+      }
+    },
+    {
+      "name": "run_shell_command",
+      "description": "Run one shell command and collect output.",
+      "parameters_schema": {
+        "command": "string"
+      }
+    }
+  ],
+  "history": [
+    {
+      "step": 1,
+      "action": "create_file",
+      "parameters": {
+        "path": "docs/ai/runtime_path_v1.md",
+        "content": "Initial runtime-path document."
+      },
+      "status": "success",
+      "summary": "Created the initial runtime path document."
+    },
+    {
+      "step": 2,
+      "action": "run_shell_command",
+      "parameters": {
+        "command": "python -m pytest -q"
+      },
+      "status": "success",
+      "summary": "Executed baseline unit test command."
+    }
+  ],
+  "current_step": 3,
+  "metadata": {
+    "schema_version": "agent_state_v1"
+  }
+}

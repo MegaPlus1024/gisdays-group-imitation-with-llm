@@ -1,0 +1,43 @@
+{
+  "experiment_id": "my_local_runtime_baseline_test",
+  "runtime": "llama.cpp / llama-server",
+  "base_url": "http://127.0.0.1:8080/v1",
+  "endpoint": "http://127.0.0.1:8080/v1/chat/completions",
+  "model_name": "first_model.gguf",
+  "prompt_file": "prompts\\smoke\\agent_next_action_v1.txt",
+  "runs_requested": 3,
+  "run_count": 3,
+  "success_count": 3,
+  "failure_count": 0,
+  "json_parse_success_count": 3,
+  "wall_time_seconds": {
+    "avg": 0.369764,
+    "min": 0.327947,
+    "max": 0.4442
+  },
+  "cpu_percent": {
+    "avg_of_avg": 8.977667,
+    "max": 15.4
+  },
+  "system_ram_delta_mb": {
+    "avg": 4.795667,
+    "min": -4.25,
+    "max": 10.762
+  },
+  "server_rss_delta_mb": {
+    "avg": null,
+    "min": null,
+    "max": null
+  },
+  "tokens": {
+    "prompt_tokens_avg": 196.0,
+    "completion_tokens_avg": 73.0,
+    "total_tokens_avg": 269.0
+  },
+  "llama_tokens_per_second": {
+    "prompt_per_second_avg": 213.788767,
+    "predicted_per_second_avg": 290.604169
+  },
+  "failure_cases": [],
+  "created_at": "2026-07-01T14:47:36.670536+00:00"
+}

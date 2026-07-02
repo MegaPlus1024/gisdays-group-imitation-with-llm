@@ -1,0 +1,42 @@
+[
+  {
+    "scenario_id": "developer_project_maintenance",
+    "model_id": "first_model",
+    "observation_count": 3,
+    "mean_selection_latency_ms": 792.611333,
+    "mean_total_step_latency_ms": 794.258667,
+    "mean_wall_time_ms": 806.623,
+    "mean_process_rss_delta_mb": 5.521,
+    "warnings": []
+  },
+  {
+    "scenario_id": "developer_project_maintenance",
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "observation_count": 3,
+    "mean_selection_latency_ms": 459.744667,
+    "mean_total_step_latency_ms": 460.345333,
+    "mean_wall_time_ms": 472.004333,
+    "mean_process_rss_delta_mb": 4.802,
+    "warnings": []
+  },
+  {
+    "scenario_id": "office_worker",
+    "model_id": "first_model",
+    "observation_count": 3,
+    "mean_selection_latency_ms": 714.887666,
+    "mean_total_step_latency_ms": 716.346667,
+    "mean_wall_time_ms": 2163.224333,
+    "mean_process_rss_delta_mb": 6.678667,
+    "warnings": []
+  },
+  {
+    "scenario_id": "office_worker",
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "observation_count": 3,
+    "mean_selection_latency_ms": 518.446667,
+    "mean_total_step_latency_ms": 519.1395,
+    "mean_wall_time_ms": 1050.55,
+    "mean_process_rss_delta_mb": 5.608333,
+    "warnings": []
+  }
+]

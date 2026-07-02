@@ -1,0 +1,13 @@
+{
+  "orchestrator_id": "multi_agent_orchestrator_smoke_v1",
+  "max_agents": 3,
+  "max_steps_per_agent": 1,
+  "execution_mode": "sequential",
+  "isolate_agent_failures": true,
+  "stop_on_first_agent_failure": false,
+  "write_history_logs": false,
+  "metadata": {
+    "schema_version": "multi_agent_orchestrator_smoke_test_v1",
+    "note": "Sequential smoke-test orchestrator for multiple agents. Does not execute actions."
+  }
+}

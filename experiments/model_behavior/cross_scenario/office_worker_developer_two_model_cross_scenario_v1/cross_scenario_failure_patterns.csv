@@ -1,0 +1,4 @@
+model_id,pattern,stable,count
+first_model,validation_failed_after_repair,True,6
+qwen2_5_3b_instruct_q4_k_m,office_worker:file_not_found,False,6
+qwen2_5_3b_instruct_q4_k_m,developer_project_maintenance:unsafe_path,False,3

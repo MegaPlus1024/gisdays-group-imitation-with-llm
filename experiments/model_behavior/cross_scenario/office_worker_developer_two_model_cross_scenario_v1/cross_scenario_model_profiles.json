@@ -1,0 +1,168 @@
+{
+  "first_model": {
+    "model_id": "first_model",
+    "scenario_count": 2,
+    "total_trials": 6,
+    "completed_trials": 6,
+    "failed_trials": 0,
+    "mean_initial_validation_accept_rate_across_scenarios": 0.0,
+    "mean_final_validation_accept_rate_across_scenarios": 0.333334,
+    "mean_execution_success_rate_across_scenarios": 0.5,
+    "mean_normal_activity_score_across_scenarios": 0.215,
+    "mean_diversity_score_across_scenarios": 0.583333,
+    "mean_repetition_score_across_scenarios": 0.8625,
+    "mean_history_usage_score_across_scenarios": 0.25,
+    "mean_sequence_coherence_score_across_scenarios": 0.0,
+    "mean_avg_selection_latency_ms_across_scenarios": 753.749333,
+    "metric_ranges": {
+      "final_validation": {
+        "min": 0.0,
+        "max": 0.666667,
+        "range": 0.666667
+      },
+      "execution_success": {
+        "min": 0.0,
+        "max": 1.0,
+        "range": 1.0
+      },
+      "normal_activity": {
+        "min": 0.0,
+        "max": 0.43,
+        "range": 0.43
+      },
+      "diversity": {
+        "min": 0.416667,
+        "max": 0.75,
+        "range": 0.333333
+      },
+      "latency": {
+        "min": 714.887333,
+        "max": 792.611333,
+        "range": 77.724
+      }
+    },
+    "stable_failure_patterns": {
+      "validation_failed_after_repair": 6
+    },
+    "scenario_specific_failure_patterns": {},
+    "dominant_action_patterns": [
+      {
+        "scenario_id": "office_worker",
+        "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/model_registry.md\"}}",
+        "count": 6
+      }
+    ],
+    "template_behavior_consistency": {
+      "scenario_verdicts": [
+        {
+          "scenario_id": "office_worker",
+          "verdict": "template_like"
+        },
+        {
+          "scenario_id": "developer_project_maintenance",
+          "verdict": "narrow"
+        }
+      ],
+      "flag_counts": {
+        "repeated_same_action": 1,
+        "repeated_same_parameters": 1,
+        "low_action_family_diversity": 2,
+        "template_repetition": 1
+      }
+    },
+    "scenario_sensitivity": "high",
+    "overall_behavioral_profile": [
+      "repair_dependent",
+      "template_like",
+      "scenario_sensitive"
+    ]
+  },
+  "qwen2_5_3b_instruct_q4_k_m": {
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "scenario_count": 2,
+    "total_trials": 6,
+    "completed_trials": 6,
+    "failed_trials": 0,
+    "mean_initial_validation_accept_rate_across_scenarios": 1.0,
+    "mean_final_validation_accept_rate_across_scenarios": 1.0,
+    "mean_execution_success_rate_across_scenarios": 0.0,
+    "mean_normal_activity_score_across_scenarios": 0.0,
+    "mean_diversity_score_across_scenarios": 0.458334,
+    "mean_repetition_score_across_scenarios": 0.8625,
+    "mean_history_usage_score_across_scenarios": 0.75,
+    "mean_sequence_coherence_score_across_scenarios": 0.0,
+    "mean_avg_selection_latency_ms_across_scenarios": 489.095667,
+    "metric_ranges": {
+      "final_validation": {
+        "min": 1.0,
+        "max": 1.0,
+        "range": 0.0
+      },
+      "execution_success": {
+        "min": 0.0,
+        "max": 0.0,
+        "range": 0.0
+      },
+      "normal_activity": {
+        "min": 0.0,
+        "max": 0.0,
+        "range": 0.0
+      },
+      "diversity": {
+        "min": 0.416667,
+        "max": 0.5,
+        "range": 0.083333
+      },
+      "latency": {
+        "min": 459.744667,
+        "max": 518.446667,
+        "range": 58.702
+      }
+    },
+    "stable_failure_patterns": {},
+    "scenario_specific_failure_patterns": {
+      "office_worker": {
+        "file_not_found": 6
+      },
+      "developer_project_maintenance": {
+        "unsafe_path": 3
+      }
+    },
+    "dominant_action_patterns": [
+      {
+        "scenario_id": "office_worker",
+        "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/notes.txt\"}}",
+        "count": 6
+      },
+      {
+        "scenario_id": "developer_project_maintenance",
+        "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"src/main.py\"}}",
+        "count": 3
+      }
+    ],
+    "template_behavior_consistency": {
+      "scenario_verdicts": [
+        {
+          "scenario_id": "office_worker",
+          "verdict": "failure_loop"
+        },
+        {
+          "scenario_id": "developer_project_maintenance",
+          "verdict": "template_like"
+        }
+      ],
+      "flag_counts": {
+        "repeated_same_action": 2,
+        "repeated_same_parameters": 2,
+        "low_action_family_diversity": 2,
+        "repeated_failure_pattern": 1
+      }
+    },
+    "scenario_sensitivity": "medium",
+    "overall_behavioral_profile": [
+      "contract_valid_but_execution_weak",
+      "template_like",
+      "scenario_sensitive"
+    ]
+  }
+}

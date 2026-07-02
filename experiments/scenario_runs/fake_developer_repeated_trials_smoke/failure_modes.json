@@ -1,0 +1,32 @@
+{
+  "first_model": {
+    "common_failure_modes": {},
+    "most_common_actions": [
+      {
+        "action": "read_file",
+        "count": 4
+      }
+    ],
+    "most_common_action_parameters": [
+      {
+        "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/model_registry.md\"}}",
+        "count": 4
+      }
+    ]
+  },
+  "qwen2_5_3b_instruct_q4_k_m": {
+    "common_failure_modes": {},
+    "most_common_actions": [
+      {
+        "action": "read_file",
+        "count": 4
+      }
+    ],
+    "most_common_action_parameters": [
+      {
+        "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/model_registry.md\"}}",
+        "count": 4
+      }
+    ]
+  }
+}

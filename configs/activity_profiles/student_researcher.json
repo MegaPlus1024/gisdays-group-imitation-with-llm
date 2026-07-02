@@ -1,0 +1,61 @@
+{
+  "profile_id": "student_researcher_normal_activity_v1",
+  "role_id": "student_researcher",
+  "name": "Student researcher normal activity profile v1",
+  "description": "Normal student researcher activity means reading experiment documentation, comparing notes/results, writing summaries, and preparing reproducible reports.",
+  "typical_actions": [
+    "read_file",
+    "create_file",
+    "append_file",
+    "list_directory",
+    "office_create_document_stub"
+  ],
+  "atypical_actions": [
+    "browser_open_url",
+    "run_shell_command"
+  ],
+  "forbidden_for_normality": [],
+  "expected_sequences": [
+    {
+      "pattern_id": "inspect_experiment_then_summarize",
+      "description": "Read sources twice for context, then draft a summary artifact.",
+      "action_sequence": [
+        "read_file",
+        "read_file",
+        "create_file"
+      ]
+    },
+    {
+      "pattern_id": "review_results_then_append_report",
+      "description": "Inspect outputs and append structured report notes.",
+      "action_sequence": [
+        "list_directory",
+        "read_file",
+        "append_file"
+      ]
+    }
+  ],
+  "repetition_policy": {
+    "max_same_action_consecutive": 2,
+    "max_same_action_total": 5,
+    "max_same_action_same_parameters": 2,
+    "repeated_action_warning_threshold": 2
+  },
+  "diversity_policy": {
+    "min_unique_actions": 2,
+    "min_action_families": 2,
+    "preferred_action_families": [
+      "file",
+      "office"
+    ]
+  },
+  "role_notes": [
+    "Student researcher profile prioritizes reading and reporting behavior."
+  ],
+  "normality_notes": [
+    "Some shell usage can occur but is atypical for normal role behavior."
+  ],
+  "evaluation_hints": [
+    "Assess coherence between inspected artifacts and written summaries."
+  ]
+}

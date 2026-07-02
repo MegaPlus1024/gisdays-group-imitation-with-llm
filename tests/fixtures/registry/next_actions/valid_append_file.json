@@ -1,0 +1,9 @@
+{
+  "action": "append_file",
+  "parameters": {
+    "path": "docs/ai/fixture_note.md",
+    "content": "Another line."
+  },
+  "reason": "Need to append to existing note.",
+  "expected_result": "Text is appended."
+}

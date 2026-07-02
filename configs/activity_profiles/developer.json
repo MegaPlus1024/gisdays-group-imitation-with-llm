@@ -1,0 +1,61 @@
+{
+  "profile_id": "developer_normal_activity_v1",
+  "role_id": "developer",
+  "name": "Developer normal activity profile v1",
+  "description": "Normal developer activity means inspecting source/tests/docs, making small safe edits, and running allowlisted local tests.",
+  "typical_actions": [
+    "read_file",
+    "create_file",
+    "append_file",
+    "list_directory",
+    "run_shell_command"
+  ],
+  "atypical_actions": [
+    "browser_open_url",
+    "office_create_document_stub"
+  ],
+  "forbidden_for_normality": [],
+  "expected_sequences": [
+    {
+      "pattern_id": "inspect_update_test",
+      "description": "Read context, update file, then run a local allowlisted test command.",
+      "action_sequence": [
+        "read_file",
+        "create_file",
+        "run_shell_command"
+      ]
+    },
+    {
+      "pattern_id": "inspect_project_docs",
+      "description": "Inspect directory/docs and append refinements.",
+      "action_sequence": [
+        "list_directory",
+        "read_file",
+        "append_file"
+      ]
+    }
+  ],
+  "repetition_policy": {
+    "max_same_action_consecutive": 2,
+    "max_same_action_total": 5,
+    "max_same_action_same_parameters": 2,
+    "repeated_action_warning_threshold": 2
+  },
+  "diversity_policy": {
+    "min_unique_actions": 3,
+    "min_action_families": 2,
+    "preferred_action_families": [
+      "file",
+      "shell"
+    ]
+  },
+  "role_notes": [
+    "Developer profile allows constrained shell usage as normal."
+  ],
+  "normality_notes": [
+    "Trajectory should combine inspection and small edits."
+  ],
+  "evaluation_hints": [
+    "Check for balanced read/edit/test flow."
+  ]
+}

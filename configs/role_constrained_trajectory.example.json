@@ -1,0 +1,15 @@
+{
+  "trajectory_id": "role_constrained_trajectory_v1",
+  "max_steps": 3,
+  "stop_on_validation_failure": true,
+  "stop_on_selection_failure": true,
+  "stop_on_repeated_action": true,
+  "prevent_exact_action_repeat": true,
+  "write_history_logs": false,
+  "registry_path": "configs/script_registry.example.json",
+  "role_template_path": "configs/roles/office_worker.example.json",
+  "metadata": {
+    "schema_version": "role_constrained_trajectory_run_v1",
+    "note": "Runs a short role-constrained action-selection trajectory without executing actions."
+  }
+}

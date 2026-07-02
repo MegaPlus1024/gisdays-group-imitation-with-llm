@@ -1,0 +1,1 @@
+python scripts\run_agent_scenario.py --scenario configs\evaluation_scenarios\office_worker_basic_session.json --mode local --out-dir experiments\model_behavior\results\office_worker_first_model_run_001 --run-id office_worker_first_model_run_001 --model-id first_model --max-steps 5 --force --models-config configs\evaluation_models.json --base-url http://127.0.0.1:8080/v1

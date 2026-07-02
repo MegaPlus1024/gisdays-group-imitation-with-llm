@@ -1,0 +1,217 @@
+{
+  "evaluation_id": "experiment_scenario_runner_v1",
+  "run_id": "office_worker_two_model_repair_n3_v1_first_model_trial_001",
+  "scenario_id": "office_worker_basic_session_v1",
+  "model": {
+    "model_id": "first_model",
+    "model_name": "first_model.gguf",
+    "model_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\models\\gguf\\first_model.gguf",
+    "model_family": "Qwen2.5 1.5B Instruct Q4_K_M local alias",
+    "size_class": "1.5B",
+    "quantization": "Q4_K_M",
+    "runtime": "llama.cpp / llama-server",
+    "cpu_only": true,
+    "metadata": {
+      "registry_spec": {
+        "model_id": "first_model",
+        "display_name": "Qwen2.5 1.5B Instruct Q4_K_M local alias",
+        "model_name": "first_model.gguf",
+        "gguf_path": "models/gguf/first_model.gguf",
+        "quantization": "Q4_K_M",
+        "parameter_size": "1.5B",
+        "runtime": "llama.cpp / llama-server",
+        "base_url": "http://127.0.0.1:8080/v1",
+        "api_style": "openai_compatible",
+        "expected_cpu_only": true,
+        "ctx_size": 4096,
+        "timeout_seconds": 120.0,
+        "temperature": 0.0,
+        "max_tokens": 512,
+        "enabled": true,
+        "notes": [
+          "Stable experiment id for the first local smoke/baseline model.",
+          "Local alias mapping documented in docs/ai/model_registry.md: first_model.gguf -> qwen2.5-1.5b-instruct-q4_k_m.gguf."
+        ]
+      },
+      "preflight": {
+        "model_id": "first_model",
+        "status": "pass",
+        "issues": [],
+        "warnings": [],
+        "resolved_model_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\models\\gguf\\first_model.gguf",
+        "resolved_base_url": "http://127.0.0.1:8080/v1",
+        "can_attempt_local_run": true,
+        "metadata": {
+          "model_file_exists": true,
+          "enabled": true,
+          "runtime": "llama.cpp / llama-server",
+          "api_style": "openai_compatible",
+          "require_model_file": true,
+          "allow_disabled": false
+        }
+      },
+      "cli_overrides": {}
+    }
+  },
+  "run_mode": "local_model",
+  "verdict": "fail",
+  "selected_actions": [
+    {
+      "step_index": 1,
+      "action": "read_file",
+      "parameters": {
+        "path": "docs/ai/model_registry.md"
+      },
+      "reason": "Read a UTF-8 text file from an allowed project path.",
+      "expected_result": "The content of the file is read and returned.",
+      "registry_accepted": true,
+      "role_compliant": true,
+      "executed": true,
+      "success": true,
+      "issue_codes": [],
+      "metadata": {
+        "final_attempt_index": 1,
+        "repaired": true,
+        "initial_failure_preserved": true
+      }
+    },
+    {
+      "step_index": 2,
+      "action": "read_file",
+      "parameters": {
+        "path": "docs/ai/model_registry.md"
+      },
+      "reason": "Continue reading the file to maintain clear document notes.",
+      "expected_result": "Successfully read the file.",
+      "registry_accepted": true,
+      "role_compliant": true,
+      "executed": true,
+      "success": true,
+      "issue_codes": [],
+      "metadata": {
+        "final_attempt_index": 1,
+        "repaired": true,
+        "initial_failure_preserved": true
+      }
+    },
+    {
+      "step_index": 3,
+      "action": "create_file",
+      "parameters": {
+        "content": "This is a test file content.",
+        "path": "docs/ai/model_registry.md"
+      },
+      "reason": "Create a new file with test content for the specified path.",
+      "expected_result": "File created successfully at the specified path.",
+      "registry_accepted": false,
+      "role_compliant": true,
+      "executed": false,
+      "success": false,
+      "issue_codes": [
+        "write_path_outside_workspace"
+      ],
+      "metadata": {
+        "final_attempt_index": 1,
+        "repaired": false,
+        "initial_failure_preserved": true
+      }
+    }
+  ],
+  "validation_metrics": {
+    "total_steps": 3,
+    "json_valid_count": 3,
+    "next_action_parse_success_count": 3,
+    "registry_accepted_count": 2,
+    "role_compliant_count": 3,
+    "validation_failure_count": 1,
+    "unsafe_action_count": 0,
+    "execution_success_count": 2,
+    "execution_failure_count": 0,
+    "recovery_count": 0,
+    "metadata": {
+      "repair_summary": {
+        "initial_parse_success_count": 3,
+        "initial_validation_accept_count": 0,
+        "repair_attempt_count": 3,
+        "repair_parse_success_count": 3,
+        "repair_validation_accept_count": 2,
+        "repaired_step_count": 2,
+        "unrecovered_failure_count": 1,
+        "final_validation_accept_count": 2,
+        "execution_success_count": 2
+      }
+    }
+  },
+  "behavioral_evaluation": {
+    "evaluator_id": "normal_activity_trajectory_evaluator_v1",
+    "profile_id": "office_worker_normal_activity_v1",
+    "role_id": "office_worker",
+    "verdict": "failed",
+    "score": 0.43,
+    "metrics": {
+      "total_steps": 3,
+      "successful_steps": 2,
+      "failed_steps": 1,
+      "typical_action_count": 3,
+      "atypical_action_count": 0,
+      "forbidden_for_normality_count": 0,
+      "unique_action_count": 2,
+      "action_family_count": 1,
+      "repeated_action_count": 1,
+      "repeated_same_parameters_count": 1,
+      "expected_sequence_matches": 0,
+      "history_usage_count": 0,
+      "role_fit_score": 1.0,
+      "diversity_score": 0.75,
+      "repetition_score": 0.7250000000000001,
+      "sequence_coherence_score": 0.0,
+      "history_usage_score": 0.0,
+      "normal_activity_score": 0.43,
+      "flags": [
+        "repeated_same_parameters",
+        "low_sequence_coherence",
+        "failed_steps_present"
+      ],
+      "metadata": {
+        "sequence_matches": []
+      }
+    },
+    "explanations": [
+      "Verdict: failed.",
+      "Normal activity score: 0.430.",
+      "Repeated action+parameter patterns were detected.",
+      "Failed steps reduced the final score."
+    ],
+    "metadata": {}
+  },
+  "resource_metrics": {
+    "wall_time_seconds_avg": 2.2642558999359608,
+    "wall_time_seconds_min": null,
+    "wall_time_seconds_max": null,
+    "average_selection_latency_seconds": null,
+    "average_total_step_latency_seconds": null,
+    "cpu_percent_avg": null,
+    "cpu_percent_max": null,
+    "ram_delta_mb_avg": null,
+    "tokens_per_second_avg": null,
+    "prompt_tokens_avg": null,
+    "completion_tokens_avg": null,
+    "metadata": {}
+  },
+  "started_at": "2026-07-01T20:11:03.610238+00:00",
+  "completed_at": "2026-07-01T20:11:05.874044+00:00",
+  "notes": [],
+  "metadata": {
+    "repair_summary": {
+      "initial_parse_success_count": 3,
+      "initial_validation_accept_count": 0,
+      "repair_attempt_count": 3,
+      "repair_parse_success_count": 3,
+      "repair_validation_accept_count": 2,
+      "repaired_step_count": 2,
+      "unrecovered_failure_count": 1,
+      "final_validation_accept_count": 2,
+      "execution_success_count": 2
+    }
+  }
+}

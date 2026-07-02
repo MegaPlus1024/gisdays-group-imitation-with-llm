@@ -1,0 +1,12 @@
+{
+  "loop_id": "recovery_loop_v1",
+  "max_attempts": 2,
+  "enable_retry": true,
+  "stop_on_abort_run": true,
+  "stop_on_skip_agent": true,
+  "write_history_logs": false,
+  "metadata": {
+    "schema_version": "recovery_loop_test_v1",
+    "note": "Deterministic recovery-loop harness for tests; does not execute real actions."
+  }
+}

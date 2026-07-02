@@ -1,0 +1,208 @@
+{
+  "first_model": {
+    "model_id": "first_model",
+    "trial_count": 2,
+    "completed_trial_count": 2,
+    "failed_trial_count": 0,
+    "metrics": {
+      "step_count": {
+        "mean": 2.0,
+        "std": 0.0,
+        "min": 2.0,
+        "max": 2.0,
+        "count": 2
+      },
+      "initial_validation_accept_rate": {
+        "mean": 1.0,
+        "std": 0.0,
+        "min": 1.0,
+        "max": 1.0,
+        "count": 2
+      },
+      "final_validation_accept_rate": {
+        "mean": 1.0,
+        "std": 0.0,
+        "min": 1.0,
+        "max": 1.0,
+        "count": 2
+      },
+      "execution_success_rate": {
+        "mean": 1.0,
+        "std": 0.0,
+        "min": 1.0,
+        "max": 1.0,
+        "count": 2
+      },
+      "normal_activity_score": {
+        "mean": 0.581333,
+        "std": 0.0,
+        "min": 0.5813333333333333,
+        "max": 0.5813333333333333,
+        "count": 2
+      },
+      "diversity_score": {
+        "mean": 0.416667,
+        "std": 0.0,
+        "min": 0.41666666666666663,
+        "max": 0.41666666666666663,
+        "count": 2
+      },
+      "repetition_score": {
+        "mean": 0.74,
+        "std": 0.0,
+        "min": 0.74,
+        "max": 0.74,
+        "count": 2
+      },
+      "sequence_coherence_score": {
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "count": 2
+      },
+      "history_usage_score": {
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "count": 2
+      },
+      "average_selection_latency_ms": {
+        "mean": 0.0975,
+        "std": 0.0185,
+        "min": 0.079,
+        "max": 0.116,
+        "count": 2
+      },
+      "average_total_step_latency_ms": {
+        "mean": 0.807,
+        "std": 0.15,
+        "min": 0.657,
+        "max": 0.957,
+        "count": 2
+      },
+      "total_file_not_found_count": 0,
+      "total_unsafe_path_count": 0,
+      "total_validation_failure_count": 0,
+      "total_repair_attempt_count": 0,
+      "total_successful_execution_count": 4
+    },
+    "common_failure_modes": {},
+    "most_common_actions": [
+      {
+        "action": "read_file",
+        "count": 4
+      }
+    ],
+    "most_common_action_parameters": [
+      {
+        "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/model_registry.md\"}}",
+        "count": 4
+      }
+    ]
+  },
+  "qwen2_5_3b_instruct_q4_k_m": {
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "trial_count": 2,
+    "completed_trial_count": 2,
+    "failed_trial_count": 0,
+    "metrics": {
+      "step_count": {
+        "mean": 2.0,
+        "std": 0.0,
+        "min": 2.0,
+        "max": 2.0,
+        "count": 2
+      },
+      "initial_validation_accept_rate": {
+        "mean": 1.0,
+        "std": 0.0,
+        "min": 1.0,
+        "max": 1.0,
+        "count": 2
+      },
+      "final_validation_accept_rate": {
+        "mean": 1.0,
+        "std": 0.0,
+        "min": 1.0,
+        "max": 1.0,
+        "count": 2
+      },
+      "execution_success_rate": {
+        "mean": 1.0,
+        "std": 0.0,
+        "min": 1.0,
+        "max": 1.0,
+        "count": 2
+      },
+      "normal_activity_score": {
+        "mean": 0.581333,
+        "std": 0.0,
+        "min": 0.5813333333333333,
+        "max": 0.5813333333333333,
+        "count": 2
+      },
+      "diversity_score": {
+        "mean": 0.416667,
+        "std": 0.0,
+        "min": 0.41666666666666663,
+        "max": 0.41666666666666663,
+        "count": 2
+      },
+      "repetition_score": {
+        "mean": 0.74,
+        "std": 0.0,
+        "min": 0.74,
+        "max": 0.74,
+        "count": 2
+      },
+      "sequence_coherence_score": {
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "count": 2
+      },
+      "history_usage_score": {
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "count": 2
+      },
+      "average_selection_latency_ms": {
+        "mean": 0.0925,
+        "std": 0.0005,
+        "min": 0.092,
+        "max": 0.093,
+        "count": 2
+      },
+      "average_total_step_latency_ms": {
+        "mean": 0.765,
+        "std": 0.013,
+        "min": 0.752,
+        "max": 0.778,
+        "count": 2
+      },
+      "total_file_not_found_count": 0,
+      "total_unsafe_path_count": 0,
+      "total_validation_failure_count": 0,
+      "total_repair_attempt_count": 0,
+      "total_successful_execution_count": 4
+    },
+    "common_failure_modes": {},
+    "most_common_actions": [
+      {
+        "action": "read_file",
+        "count": 4
+      }
+    ],
+    "most_common_action_parameters": [
+      {
+        "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/model_registry.md\"}}",
+        "count": 4
+      }
+    ]
+  }
+}

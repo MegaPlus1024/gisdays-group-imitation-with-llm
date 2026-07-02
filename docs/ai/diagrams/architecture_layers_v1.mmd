@@ -1,0 +1,15 @@
+flowchart TD
+    EL[Experiment layer]
+    MCL[Metadata/config layer]
+    ACL[Agent contract layer]
+    MRL[Model runtime layer]
+    CBL[Control boundary layer]
+    FEL[Future execution layer]
+    FEVL[Future evaluation layer]
+
+    EL --> MCL
+    MCL --> ACL
+    ACL --> MRL
+    MRL --> CBL
+    CBL --> FEL
+    FEL --> FEVL

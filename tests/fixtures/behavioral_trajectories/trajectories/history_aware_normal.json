@@ -1,0 +1,57 @@
+{
+  "trajectory_id": "history_aware_normal",
+  "role_id": "student_researcher",
+  "activity_profile_path": "configs/activity_profiles/student_researcher.json",
+  "description": "History-aware normal trajectory.",
+  "expected_verdict_hint": "normal",
+  "steps": [
+    {
+      "step_index": 1,
+      "action": "read_file",
+      "parameters": {
+        "path": "docs/ai/project_objective_normal_activity_v1.md"
+      },
+      "success": true,
+      "status": "selected",
+      "issue_codes": [],
+      "reason": "Read objective before writing notes.",
+      "expected_result": "Context is available.",
+      "used_history": false,
+      "progress_signal": true,
+      "metadata": {}
+    },
+    {
+      "step_index": 2,
+      "action": "create_file",
+      "parameters": {
+        "path": "docs/ai/history_based_note.md",
+        "content": "# History Note\n\nUsing previous step findings."
+      },
+      "success": true,
+      "status": "selected",
+      "issue_codes": [],
+      "reason": "Based on previous step, create a structured note.",
+      "expected_result": "Note file created.",
+      "used_history": true,
+      "progress_signal": true,
+      "metadata": {}
+    },
+    {
+      "step_index": 3,
+      "action": "append_file",
+      "parameters": {
+        "path": "docs/ai/history_based_note.md",
+        "content": "\nMore details derived from history context."
+      },
+      "success": true,
+      "status": "selected",
+      "issue_codes": [],
+      "reason": "Use history to append refinements.",
+      "expected_result": "Note is expanded.",
+      "used_history": true,
+      "progress_signal": true,
+      "metadata": {}
+    }
+  ],
+  "metadata": {}
+}

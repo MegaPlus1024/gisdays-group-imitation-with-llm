@@ -1,0 +1,13 @@
+{
+  "history_id": "execution_history_v1",
+  "log_root": "logs/execution",
+  "history_filename": "history.jsonl",
+  "error_filename": "errors.jsonl",
+  "create_parent_dirs": true,
+  "include_raw_metadata": true,
+  "max_message_length": 10000,
+  "metadata": {
+    "schema_version": "execution_history_error_log_v1",
+    "note": "Stores structured history and error records. Does not execute actions."
+  }
+}

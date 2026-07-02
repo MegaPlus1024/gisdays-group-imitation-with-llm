@@ -1,0 +1,31 @@
+{
+  "first_model": {
+    "common_failure_modes": {
+      "validation_failed_after_repair": 3
+    },
+    "most_common_actions": [
+      {
+        "action": "create_file",
+        "count": 3
+      }
+    ],
+    "most_common_action_parameters": []
+  },
+  "qwen2_5_3b_instruct_q4_k_m": {
+    "common_failure_modes": {
+      "unsafe_path": 3
+    },
+    "most_common_actions": [
+      {
+        "action": "read_file",
+        "count": 3
+      }
+    ],
+    "most_common_action_parameters": [
+      {
+        "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"src/main.py\"}}",
+        "count": 3
+      }
+    ]
+  }
+}

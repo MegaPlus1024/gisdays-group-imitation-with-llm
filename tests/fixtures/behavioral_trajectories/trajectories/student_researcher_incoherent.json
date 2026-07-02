@@ -1,0 +1,57 @@
+{
+  "trajectory_id": "student_researcher_incoherent",
+  "role_id": "student_researcher",
+  "activity_profile_path": "configs/activity_profiles/student_researcher.json",
+  "description": "Incoherent student researcher trajectory with atypical action mix.",
+  "expected_verdict_hint": "failed",
+  "steps": [
+    {
+      "step_index": 1,
+      "action": "browser_open_url",
+      "parameters": {
+        "url": "http://localhost:8080"
+      },
+      "success": true,
+      "status": "selected",
+      "issue_codes": [],
+      "reason": "Open local URL without clear research need.",
+      "expected_result": "Local page opened.",
+      "used_history": false,
+      "progress_signal": false,
+      "metadata": {}
+    },
+    {
+      "step_index": 2,
+      "action": "run_shell_command",
+      "parameters": {
+        "command": "python -m pytest -q"
+      },
+      "success": true,
+      "status": "selected",
+      "issue_codes": [],
+      "reason": "Run tests without prior coding context.",
+      "expected_result": "Test output.",
+      "used_history": false,
+      "progress_signal": false,
+      "metadata": {}
+    },
+    {
+      "step_index": 3,
+      "action": "office_create_document_stub",
+      "parameters": {
+        "path": "docs/ai/random_office_note.md",
+        "title": "Random Note",
+        "body": "Unrelated office note."
+      },
+      "success": true,
+      "status": "selected",
+      "issue_codes": [],
+      "reason": "Create unrelated office note.",
+      "expected_result": "Note created.",
+      "used_history": false,
+      "progress_signal": false,
+      "metadata": {}
+    }
+  ],
+  "metadata": {}
+}

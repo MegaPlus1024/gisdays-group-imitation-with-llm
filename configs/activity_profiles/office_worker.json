@@ -1,0 +1,62 @@
+{
+  "profile_id": "office_worker_normal_activity_v1",
+  "role_id": "office_worker",
+  "name": "Office worker normal activity profile v1",
+  "description": "Normal office worker activity in this project means reading or creating safe local documents, adding notes, organizing simple files, and using office-document stubs. Shell commands are generally abnormal for this role.",
+  "typical_actions": [
+    "read_file",
+    "create_file",
+    "append_file",
+    "list_directory",
+    "office_create_document_stub"
+  ],
+  "atypical_actions": [
+    "browser_open_url"
+  ],
+  "forbidden_for_normality": [
+    "run_shell_command"
+  ],
+  "expected_sequences": [
+    {
+      "pattern_id": "inspect_then_write_note",
+      "description": "Inspect source material, create a document stub, then append details.",
+      "action_sequence": [
+        "read_file",
+        "office_create_document_stub",
+        "append_file"
+      ]
+    },
+    {
+      "pattern_id": "organize_documents",
+      "description": "List files, inspect one, then create an organized note.",
+      "action_sequence": [
+        "list_directory",
+        "read_file",
+        "create_file"
+      ]
+    }
+  ],
+  "repetition_policy": {
+    "max_same_action_consecutive": 2,
+    "max_same_action_total": 4,
+    "max_same_action_same_parameters": 2,
+    "repeated_action_warning_threshold": 2
+  },
+  "diversity_policy": {
+    "min_unique_actions": 2,
+    "min_action_families": 2,
+    "preferred_action_families": [
+      "file",
+      "office"
+    ]
+  },
+  "role_notes": [
+    "Office worker profile prioritizes documentation workflows."
+  ],
+  "normality_notes": [
+    "High shell-command usage is considered abnormal for this role."
+  ],
+  "evaluation_hints": [
+    "Look for coherent file-to-document progression."
+  ]
+}

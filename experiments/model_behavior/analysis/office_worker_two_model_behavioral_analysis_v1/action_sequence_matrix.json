@@ -1,0 +1,110 @@
+[
+  {
+    "model_id": "first_model",
+    "trial_id": "trial_001",
+    "step": 1,
+    "action": "read_file",
+    "parameters": {
+      "path": "docs/ai/model_registry.md"
+    }
+  },
+  {
+    "model_id": "first_model",
+    "trial_id": "trial_001",
+    "step": 2,
+    "action": "read_file",
+    "parameters": {
+      "path": "docs/ai/model_registry.md"
+    }
+  },
+  {
+    "model_id": "first_model",
+    "trial_id": "trial_002",
+    "step": 1,
+    "action": "read_file",
+    "parameters": {
+      "path": "docs/ai/model_registry.md"
+    }
+  },
+  {
+    "model_id": "first_model",
+    "trial_id": "trial_002",
+    "step": 2,
+    "action": "read_file",
+    "parameters": {
+      "path": "docs/ai/model_registry.md"
+    }
+  },
+  {
+    "model_id": "first_model",
+    "trial_id": "trial_003",
+    "step": 1,
+    "action": "read_file",
+    "parameters": {
+      "path": "docs/ai/model_registry.md"
+    }
+  },
+  {
+    "model_id": "first_model",
+    "trial_id": "trial_003",
+    "step": 2,
+    "action": "read_file",
+    "parameters": {
+      "path": "docs/ai/model_registry.md"
+    }
+  },
+  {
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "trial_id": "trial_001",
+    "step": 1,
+    "action": "read_file",
+    "parameters": {
+      "path": "docs/notes.txt"
+    }
+  },
+  {
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "trial_id": "trial_001",
+    "step": 2,
+    "action": "read_file",
+    "parameters": {
+      "path": "docs/notes.txt"
+    }
+  },
+  {
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "trial_id": "trial_002",
+    "step": 1,
+    "action": "read_file",
+    "parameters": {
+      "path": "docs/notes.txt"
+    }
+  },
+  {
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "trial_id": "trial_002",
+    "step": 2,
+    "action": "read_file",
+    "parameters": {
+      "path": "docs/notes.txt"
+    }
+  },
+  {
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "trial_id": "trial_003",
+    "step": 1,
+    "action": "read_file",
+    "parameters": {
+      "path": "docs/notes.txt"
+    }
+  },
+  {
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "trial_id": "trial_003",
+    "step": 2,
+    "action": "read_file",
+    "parameters": {
+      "path": "docs/notes.txt"
+    }
+  }
+]

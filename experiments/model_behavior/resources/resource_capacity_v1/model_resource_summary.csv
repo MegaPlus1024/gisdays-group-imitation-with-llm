@@ -1,0 +1,3 @@
+model_id,observation_count,mean_selection_latency_ms,mean_total_step_latency_ms,mean_wall_time_ms,mean_process_rss_delta_mb,mean_system_cpu_end_percent
+first_model,6,753.7495,755.302667,1484.923667,6.099833,5.95
+qwen2_5_3b_instruct_q4_k_m,6,489.095667,489.742417,761.277167,5.205167,6.15

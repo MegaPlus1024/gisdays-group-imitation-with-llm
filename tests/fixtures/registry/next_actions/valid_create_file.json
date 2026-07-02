@@ -1,0 +1,9 @@
+{
+  "action": "create_file",
+  "parameters": {
+    "path": "docs/ai/fixture_note.md",
+    "content": "Fixture note content."
+  },
+  "reason": "Need a note artifact.",
+  "expected_result": "A new note file is created."
+}

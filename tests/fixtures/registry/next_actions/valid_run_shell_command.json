@@ -1,0 +1,8 @@
+{
+  "action": "run_shell_command",
+  "parameters": {
+    "command": "python -m pytest -q"
+  },
+  "reason": "Need to run tests.",
+  "expected_result": "Pytest command completes."
+}

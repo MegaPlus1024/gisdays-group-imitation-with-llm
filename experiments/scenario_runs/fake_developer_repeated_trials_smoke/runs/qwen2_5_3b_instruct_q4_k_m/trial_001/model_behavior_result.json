@@ -1,0 +1,197 @@
+{
+  "evaluation_id": "experiment_scenario_runner_v1",
+  "run_id": "fake_developer_repeated_trials_smoke_qwen2_5_3b_instruct_q4_k_m_trial_001",
+  "scenario_id": "developer_project_maintenance_v1",
+  "model": {
+    "model_id": "qwen2_5_3b_instruct_q4_k_m",
+    "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
+    "model_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\models\\gguf\\second_model.gguf",
+    "model_family": "Qwen2.5 3B Instruct Q4_K_M",
+    "size_class": "3B",
+    "quantization": "Q4_K_M",
+    "runtime": "llama.cpp / llama-server",
+    "cpu_only": true,
+    "metadata": {
+      "registry_spec": {
+        "model_id": "qwen2_5_3b_instruct_q4_k_m",
+        "display_name": "Qwen2.5 3B Instruct Q4_K_M",
+        "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
+        "gguf_path": "models/gguf/second_model.gguf",
+        "quantization": "Q4_K_M",
+        "parameter_size": "3B",
+        "runtime": "llama.cpp / llama-server",
+        "base_url": "http://127.0.0.1:8080/v1",
+        "api_style": "openai_compatible",
+        "expected_cpu_only": true,
+        "ctx_size": 4096,
+        "timeout_seconds": 120.0,
+        "temperature": 0.0,
+        "max_tokens": 512,
+        "enabled": true,
+        "notes": [
+          "Stable experiment id already used by second-model baseline artifacts.",
+          "The local file currently present in models/gguf is second_model.gguf; this config maps the stable model id to that local alias path.",
+          "Do not claim behavior quality improvement until real scenario trajectories are evaluated."
+        ]
+      },
+      "preflight": {
+        "model_id": "qwen2_5_3b_instruct_q4_k_m",
+        "status": "pass",
+        "issues": [],
+        "warnings": [],
+        "resolved_model_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\models\\gguf\\second_model.gguf",
+        "resolved_base_url": "http://127.0.0.1:8080/v1",
+        "can_attempt_local_run": true,
+        "metadata": {
+          "model_file_exists": true,
+          "enabled": true,
+          "runtime": "llama.cpp / llama-server",
+          "api_style": "openai_compatible",
+          "require_model_file": false,
+          "allow_disabled": false
+        }
+      },
+      "cli_overrides": {}
+    }
+  },
+  "run_mode": "dry_run",
+  "verdict": "fail",
+  "selected_actions": [
+    {
+      "step_index": 1,
+      "action": "read_file",
+      "parameters": {
+        "path": "docs/ai/model_registry.md"
+      },
+      "reason": "Inspect existing model registry documentation.",
+      "expected_result": "The registry document is available for the next step.",
+      "registry_accepted": true,
+      "role_compliant": true,
+      "executed": true,
+      "success": true,
+      "issue_codes": [],
+      "metadata": {
+        "final_attempt_index": 0,
+        "repaired": false,
+        "initial_failure_preserved": false
+      }
+    },
+    {
+      "step_index": 2,
+      "action": "read_file",
+      "parameters": {
+        "path": "docs/ai/model_registry.md"
+      },
+      "reason": "Inspect existing model registry documentation.",
+      "expected_result": "The registry document is available for the next step.",
+      "registry_accepted": true,
+      "role_compliant": true,
+      "executed": true,
+      "success": true,
+      "issue_codes": [],
+      "metadata": {
+        "final_attempt_index": 0,
+        "repaired": false,
+        "initial_failure_preserved": false
+      }
+    }
+  ],
+  "validation_metrics": {
+    "total_steps": 2,
+    "json_valid_count": 2,
+    "next_action_parse_success_count": 2,
+    "registry_accepted_count": 2,
+    "role_compliant_count": 2,
+    "validation_failure_count": 0,
+    "unsafe_action_count": 0,
+    "execution_success_count": 2,
+    "execution_failure_count": 0,
+    "recovery_count": 0,
+    "metadata": {
+      "repair_summary": {
+        "initial_parse_success_count": 2,
+        "initial_validation_accept_count": 2,
+        "repair_attempt_count": 0,
+        "repair_parse_success_count": 0,
+        "repair_validation_accept_count": 0,
+        "repaired_step_count": 0,
+        "unrecovered_failure_count": 0,
+        "final_validation_accept_count": 2,
+        "execution_success_count": 2
+      }
+    }
+  },
+  "behavioral_evaluation": {
+    "evaluator_id": "normal_activity_trajectory_evaluator_v1",
+    "profile_id": "developer_normal_activity_v1",
+    "role_id": "developer",
+    "verdict": "failed",
+    "score": 0.5813333333333333,
+    "metrics": {
+      "total_steps": 2,
+      "successful_steps": 2,
+      "failed_steps": 0,
+      "typical_action_count": 2,
+      "atypical_action_count": 0,
+      "forbidden_for_normality_count": 0,
+      "unique_action_count": 1,
+      "action_family_count": 1,
+      "repeated_action_count": 1,
+      "repeated_same_parameters_count": 1,
+      "expected_sequence_matches": 0,
+      "history_usage_count": 0,
+      "role_fit_score": 1.0,
+      "diversity_score": 0.41666666666666663,
+      "repetition_score": 0.74,
+      "sequence_coherence_score": 0.0,
+      "history_usage_score": 0.0,
+      "normal_activity_score": 0.5813333333333333,
+      "flags": [
+        "repeated_same_parameters",
+        "low_diversity",
+        "low_sequence_coherence"
+      ],
+      "metadata": {
+        "sequence_matches": []
+      }
+    },
+    "explanations": [
+      "Verdict: failed.",
+      "Normal activity score: 0.581.",
+      "Repeated action+parameter patterns were detected."
+    ],
+    "metadata": {}
+  },
+  "resource_metrics": {
+    "wall_time_seconds_avg": 0.013713600113987923,
+    "wall_time_seconds_min": null,
+    "wall_time_seconds_max": null,
+    "average_selection_latency_seconds": null,
+    "average_total_step_latency_seconds": null,
+    "cpu_percent_avg": null,
+    "cpu_percent_max": null,
+    "ram_delta_mb_avg": null,
+    "tokens_per_second_avg": null,
+    "prompt_tokens_avg": null,
+    "completion_tokens_avg": null,
+    "metadata": {}
+  },
+  "started_at": "2026-07-01T21:11:03.062774+00:00",
+  "completed_at": "2026-07-01T21:11:03.076818+00:00",
+  "notes": [
+    "Fake/scripted mode: no local model was called."
+  ],
+  "metadata": {
+    "repair_summary": {
+      "initial_parse_success_count": 2,
+      "initial_validation_accept_count": 2,
+      "repair_attempt_count": 0,
+      "repair_parse_success_count": 0,
+      "repair_validation_accept_count": 0,
+      "repaired_step_count": 0,
+      "unrecovered_failure_count": 0,
+      "final_validation_accept_count": 2,
+      "execution_success_count": 2
+    }
+  }
+}
