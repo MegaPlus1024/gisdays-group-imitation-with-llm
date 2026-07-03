@@ -2,21 +2,27 @@
 
 ## 1. Executive summary
 
-The project now has a working research prototype in which local software agents simulate normal user activity in a controlled virtual computer/activity environment.
+The project has reached the level of a validated research prototype for the stated TZ objective: a group of local software agents can imitate role-based user activity inside a controlled local virtual/activity environment.
 
-The local orchestrator/executor multi-agent pipeline works in fake mode and in local two-endpoint runs. It was tested with Qwen2.5 1.5B and 3B Q4_K_M local GGUF models through the project ids `first_model` and `second_model`.
+The implemented multi-agent path uses an orchestrator/executor pattern. The orchestrator prepares a group plan and assigns tasks; executor agents use local LLM calls to select parameterized actions from the allowed script registry. The pipeline was validated in fake mode, local two-endpoint proof-of-concept runs, repeated group trials, pair matrices, runtime measurement, GPU smoke, and corrected bounded stress evidence.
+
+The local model evidence uses Qwen2.5 1.5B and 3B Q4_K_M GGUF models through the project ids `first_model` and `second_model`. The report treats the environment as a controlled local virtual/activity environment rather than a real network with host topology or external traffic.
 
 Current preliminary interpretation:
 
-- best observed quality candidate: `second_model -> second_model`;
-- resource-balanced and simple-scenario candidate: `second_model -> first_model`;
+- quality-focused preliminary candidate: `second_model -> second_model`;
+- resource-balanced/simple-scenario preliminary candidate: `second_model -> first_model`;
 - `first_model as orchestrator not recommended` because it repeatedly failed at orchestrator plan parsing;
 - bounded stress supports only preliminary concurrency evidence;
 - production recommendation not made.
 
+The result is therefore positive for the research-prototype objective, but deliberately limited: it is not a production platform, not a production capacity study, and not a final deployment recommendation.
+
 ## 2. Research objective and TZ mapping
 
 Target: develop and verify a prototype in which a group of software agents imitates normal user activity in a virtual computer network.
+
+In the current implementation, the "virtual computer network" part of the TZ is represented by a controlled local activity environment: isolated artifacts, fixtures, bounded script execution, simulated browser actions, office stubs, local files, and role/resource constraints. This is sufficient for a research prototype of group-agent activity selection and evaluation. It is not evidence of real network behavior, external traffic generation, host-topology emulation, or production-grade workstation automation.
 
 | TZ item | Evidence | Status |
 |---|---|---|
@@ -48,7 +54,7 @@ Target: develop and verify a prototype in which a group of software agents imita
 
 ## 4. Architecture
 
-The multi-agent prototype extends the single-agent pipeline with explicit orchestration and group artifacts.
+The multi-agent prototype extends the single-agent pipeline with explicit orchestration, per-agent execution, and group-level artifacts. It keeps the main safety boundary simple: the local model chooses from declared actions, while the registry and execution bridge decide whether those actions are valid and bounded.
 
 Main pieces:
 
@@ -65,9 +71,11 @@ Main pieces:
 - pair quality metrics summarize plan validity, execution, role fit, history use, diversity, errors, and resource/latency tradeoffs;
 - artifacts are written under `experiments/multi_agent/orchestrator_executor/`.
 
+This architecture demonstrates the intended research loop: initialize role/context, let local LLM agents choose actions autonomously within allowed scripts, execute or reject those actions, preserve history, and evaluate whether the resulting activity is plausible for the role.
+
 ## 5. Evaluation methodology
 
-The evidence base progressed through these stages:
+The evidence base was built incrementally. Later stages did not overwrite earlier single-agent evidence; they extended it with group-agent and runtime artifacts.
 
 1. Single-agent local trials: `reports/experiments/final_evaluation_report.md`.
 2. Fake group MVP: `experiments/multi_agent/orchestrator_executor/fake_office_developer_group_v1`.
@@ -79,7 +87,7 @@ The evidence base progressed through these stages:
 8. GPU smoke: `gpu_smoke_second_to_second_heavy_v1`.
 9. Bounded stress v2: `bounded_stress_candidate_pairs_v2`.
 
-No new experimental run was performed for this report. This is a consolidation of existing artifacts.
+No new experimental run was performed for this report. This document is a synthesis of existing artifacts, so its conclusions are constrained by the original protocols, scenario count, sample size, and runtime conditions.
 
 ## 6. Quality metric
 
@@ -161,9 +169,9 @@ Runtime/capacity probe artifact: `experiments/multi_agent/orchestrator_executor/
 | `second_model -> second_model` | simple | `0.887296` | `1.0` | 0 | `2552.921333` | `4442.996094` | `57.1` | 22 pairs / 88 agents |
 | `second_model -> second_model` | heavy | `0.875509` | `1.0` | 6 | `8699.126667` | `5675.605469` | `51.5` | 22 pairs / 88 agents |
 
-Capacity estimates are RAM-based from short sequential telemetry. They are not stress capacity. Bottleneck is unknown and confidence is medium.
+Capacity estimates are RAM-based projections from short sequential telemetry. They are useful for research planning, but they are not measured production capacity and do not prove that the estimated number of pairs or agents can run concurrently with acceptable latency or quality. Bottleneck is unknown and confidence is medium.
 
-Quality-cost interpretation from the runtime probe: `second_model -> second_model` was the preliminary quality-cost winner with score `0.687916`, mainly because it held up better in the heavy scenario.
+Quality-cost interpretation from the runtime probe: `second_model -> second_model` was the preliminary quality-cost candidate with score `0.687916`, mainly because it held up better in the heavy scenario. `second_model -> first_model` remains the resource-balanced/simple-scenario candidate because it used less RAM and was faster in the short runtime probe.
 
 ## 11. GPU smoke
 
@@ -187,13 +195,13 @@ GPU smoke artifact: `experiments/multi_agent/orchestrator_executor/gpu_smoke_sec
 | peak_vram_mb | `6282.0` | `6282.0` |
 | peak_gpu_utilization_percent | `99.0` | `98.0` |
 
-Wrapper GPU support works and telemetry works. Speedup wall-time ratio was `1.006842`, so there is no meaningful speedup claim. The CPU baseline was not strict CPU-only.
+Wrapper GPU support works and GPU telemetry works: the configured run completed and produced comparable artifacts. However, the smoke does not support a meaningful speedup claim. The wall-time ratio was `1.006842`, and the baseline was not strict CPU-only, so the result should be read as readiness evidence for the wrapper and telemetry rather than as an acceleration or sizing result.
 
 ## 12. Bounded stress v2
 
 v1 bounded stress failed due to a harness/workspace artifact path bug, not model, GGUF, or scenario behavior. It should be treated as invalid capacity evidence.
 
-v2 fixed workspace isolation with short artifact paths, workspace provisioning, fixture preflight, and richer diagnostics.
+v2 fixed workspace isolation with short artifact paths, workspace provisioning, fixture preflight, and richer diagnostics. This makes the v2 artifacts usable as preliminary bounded stress evidence, but not as production sizing.
 
 CPU profile caveat: `cpu_requested_device_none` is not strict verified CPU.
 
@@ -213,14 +221,14 @@ Compact stress result:
 Stress interpretation:
 
 - v2 artifacts are usable for a preliminary report;
-- concurrency 1 is viable for `second_model -> second_model`, especially under `gpu_full_offload`;
+- concurrency 1 is viable for `second_model -> second_model` within this bounded protocol, especially under `gpu_full_offload`;
 - concurrency 2 unstable;
 - no concurrency 4 was run;
 - no long soak was run.
 
-## 13. Preliminary recommendation
+## 13. Preliminary guidance
 
-Recommended preliminary default for a quality-focused local group prototype:
+Preliminary guidance for a quality-focused local group prototype:
 
 - `second_model -> second_model`.
 
@@ -249,7 +257,7 @@ Rationale:
 
 - plan parse failures in pair matrix runs.
 
-This is not a production recommendation and not a final capacity claim. Production recommendation not made.
+This is preliminary guidance for continuing research work. It is not a production recommendation and not a final capacity claim. Production recommendation not made.
 
 ## 14. Limitations
 
@@ -266,6 +274,7 @@ This is not a production recommendation and not a final capacity claim. Producti
 - No external network behavior.
 - No production scheduler.
 - Metrics are prototype metrics.
+- Runtime/capacity estimates are preliminary planning signals, not production sizing.
 
 ## 15. Reproducibility
 
@@ -391,7 +400,7 @@ Bounded stress v2:
 
 The project satisfies the core prototype objective at research-prototype level:
 
-- local multi-agent orchestrator/executor simulation exists and was validated;
+- local multi-agent orchestrator/executor simulation exists and was validated on controlled scenarios;
 - group-agent activity can be planned, assigned, executed through bounded actions, logged, and evaluated;
 - preliminary orchestrator/executor pair selection evidence exists.
 
@@ -402,4 +411,4 @@ The project does not yet satisfy:
 - final hardware sizing;
 - robust real-world browser/office/network emulation.
 
-The correct current conclusion is a validated research prototype with preliminary pair guidance, not a production-ready agent platform.
+The correct current conclusion is a validated research prototype with preliminary pair guidance. The project demonstrates the feasibility of the approach under controlled local conditions, while leaving production deployment, stable concurrent capacity, strict CPU/GPU sizing, and real-world automation as future work.
