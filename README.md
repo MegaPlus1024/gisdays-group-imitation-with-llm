@@ -128,7 +128,7 @@ Run the test suite:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests.
 
 ## 7. Model setup
 
@@ -412,9 +412,15 @@ Final summary:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests.
 
 ## 17. Publishing to GitHub
+
+Security check:
+
+- review `docs/security/publication_security_check.md`;
+- rotate/revoke any token that was visible in IDE/editor context, even if it was outside the repository;
+- never push before staged files and history pass the publication security check.
 
 Before publishing:
 
