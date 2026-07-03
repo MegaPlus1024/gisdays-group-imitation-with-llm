@@ -1,0 +1,36 @@
+[
+  {
+    "pair": "second_model->first_model",
+    "pair_id": "second_model__first_model",
+    "status": "completed",
+    "source": "generated",
+    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\fake_pair_matrix_smoke\\pairs\\second_model__first_model",
+    "original_artifact_path": null,
+    "completed_trials": 2,
+    "failed_trials": 0,
+    "mean_pair_quality_score": 0.895833,
+    "std_pair_quality_score": 0.0,
+    "mean_execution_success_rate": 1.0,
+    "total_errors": 0,
+    "common_failure_modes": {},
+    "prototype_pair_rank_score": 0.963448,
+    "error_message": null
+  },
+  {
+    "pair": "first_model->first_model",
+    "pair_id": "first_model__first_model",
+    "status": "completed",
+    "source": "generated",
+    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\fake_pair_matrix_smoke\\pairs\\first_model__first_model",
+    "original_artifact_path": null,
+    "completed_trials": 2,
+    "failed_trials": 0,
+    "mean_pair_quality_score": 0.895833,
+    "std_pair_quality_score": 0.0,
+    "mean_execution_success_rate": 1.0,
+    "total_errors": 0,
+    "common_failure_modes": {},
+    "prototype_pair_rank_score": 0.96353,
+    "error_message": null
+  }
+]

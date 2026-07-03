@@ -1,0 +1,5 @@
+rank,pair,pair_id,status,completed_trials,failed_trials,mean_pair_quality_score,std_pair_quality_score,mean_execution_success_rate,mean_final_validation_success_rate,total_errors,common_failure_modes,prototype_pair_rank_score
+1,second_model->first_model,second_model__first_model,reused,3,0,0.890528,8.8e-05,1.0,1.0,0,{},0.952618
+2,second_model->second_model,second_model__second_model,completed,3,0,0.88774,0.00011,1.0,1.0,0,{},0.948958
+3,first_model->first_model,first_model__first_model,failed,0,3,0.0,0.0,0.0,0.0,6,"{""orchestrator_plan_parse_failed"": 6}",0.0
+4,first_model->second_model,first_model__second_model,failed,0,3,0.0,0.0,0.0,0.0,6,"{""orchestrator_plan_parse_failed"": 6}",0.0

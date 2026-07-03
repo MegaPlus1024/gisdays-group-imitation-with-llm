@@ -105,3 +105,7 @@ After the run, both `/v1/models` endpoints stopped responding.
 ## 8. Next step
 
 If the next objective is model-pair selection, compare additional orchestrator/executor pairs with the same repeated protocol. If the next objective is deployment readiness, run a measured capacity smoke separately.
+
+Follow-up pair matrix: `docs/ai/orchestrator_executor_pair_matrix_v1.md`.
+
+The follow-up reused this `second_model -> first_model` N=3 artifact after protocol validation and compared it against `second_model -> second_model`, `first_model -> first_model`, and `first_model -> second_model` for the same group scenario.

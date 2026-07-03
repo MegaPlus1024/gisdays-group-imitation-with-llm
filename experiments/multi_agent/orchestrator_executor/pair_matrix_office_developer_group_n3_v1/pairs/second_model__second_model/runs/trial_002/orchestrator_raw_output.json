@@ -1,0 +1,9 @@
+{
+  "raw_model_output": "{\"tasks\":[{\"task_id\":\"t1\",\"agent_id\":\"office_agent\",\"goal\":\"Review model metadata and prepare a concise local office summary.\",\"allowed_action_focus\":[\"read_file\"],\"success_criteria\":\"File read action for metadata review.\"},{\"task_id\":\"t2\",\"agent_id\":\"developer_agent\",\"goal\":\"Inspect readiness and quality-spec documentation.\",\"allowed_action_focus\":[\"read_file\"],\"success_criteria\":\"File read action for documentation inspection.\"}],\"coordination_notes\":\"Agents avoid external network and unsafe writes.\",\"expected_group_outcome\":\"Review and inspect specified documentation.\"}",
+  "metadata": {
+    "provider": "local_orchestrator",
+    "base_url": "http://127.0.0.1:8081/v1",
+    "max_tokens": 768,
+    "temperature": 0.0
+  }
+}

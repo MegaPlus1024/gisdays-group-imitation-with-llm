@@ -22,6 +22,7 @@ def test_research_readiness_docs_exist() -> None:
         "docs/ai/local_orchestrator_executor_executor_failure_analysis.md",
         "docs/ai/local_orchestrator_executor_poc_v3_executor_repair.md",
         "docs/ai/repeated_local_orchestrator_executor_trials_v1.md",
+        "docs/ai/orchestrator_executor_pair_matrix_v1.md",
         "docs/ai/orchestrator_executor_pipeline_v1.md",
         "docs/ai/orchestrator_executor_quality_spec.md",
         "docs/ai/gpu_runtime_readiness_audit.md",
@@ -112,10 +113,12 @@ def test_orchestrator_executor_pipeline_doc_names_default_pair_and_artifacts() -
         "Plan repair",
         "Executor prompt and repair",
         "Repeated local group trials",
+        "Pair matrix comparison",
         "local_orchestrator_executor_poc_blocker.md",
         "local_orchestrator_executor_poc_v2_repair.md",
         "local_orchestrator_executor_poc_v3_executor_repair.md",
         "repeated_local_orchestrator_executor_trials_v1.md",
+        "orchestrator_executor_pair_matrix_v1.md",
     ]:
         assert required in text
 
@@ -179,5 +182,25 @@ def test_repeated_local_orchestrator_executor_trials_doc_records_n3_result() -> 
         "0.000088",
         "read_file: 6",
         "No final model recommendation",
+        "orchestrator_executor_pair_matrix_v1.md",
+    ]:
+        assert required in text
+
+
+def test_orchestrator_executor_pair_matrix_doc_records_result() -> None:
+    text = _read("docs/ai/orchestrator_executor_pair_matrix_v1.md")
+
+    for required in [
+        "Orchestrator/Executor Pair Matrix v1",
+        "pair_matrix_office_developer_group_n3_v1",
+        "second_model -> first_model",
+        "second_model -> second_model",
+        "first_model -> first_model",
+        "first_model -> second_model",
+        "0.952618",
+        "0.948958",
+        "orchestrator_plan_parse_failed: 6",
+        "current best observed pair",
+        "No final production recommendation",
     ]:
         assert required in text

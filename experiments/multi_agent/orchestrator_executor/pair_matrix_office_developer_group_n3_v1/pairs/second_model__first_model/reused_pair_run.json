@@ -1,0 +1,11 @@
+{
+  "pair_id": "second_model__first_model",
+  "orchestrator_model_id": "second_model",
+  "executor_model_id": "first_model",
+  "original_artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\repeated_local_second_to_first_group_n3_v1",
+  "protocol_match": true,
+  "protocol_notes": [
+    "protocol matched requested pair matrix settings"
+  ],
+  "created_at": "2026-07-03T11:27:29.976320+00:00"
+}

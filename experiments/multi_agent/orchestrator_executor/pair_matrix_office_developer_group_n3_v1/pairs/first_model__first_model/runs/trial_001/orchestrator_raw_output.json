@@ -1,0 +1,9 @@
+{
+  "raw_model_output": "```json\n{\n  \"tasks\": [\n    {\n      \"task_id\": \"t1\",\n      \"agent_id\": \"office_agent\",\n      \"goal\": \"Review model metadata and prepare a concise local office summary for the group run.\",\n      \"allowed_action_focus\": [\"create_file\", \"read_file\"]\n    },\n    {\n      \"task_id\": \"t2\",\n      \"agent_id\": \"developer_agent\",\n      \"goal\": \"Inspect readiness and quality-spec documentation to identify safe follow-up implementation context.\",\n      \"allowed_action_focus\": [\"create_file\", \"read_file\", \"run_shell_command\"]\n    }\n  ],\n  \"coordination_notes\": \"Agents should avoid external network and unsafe writes.\",\n  \"expected_group_outcome\": \"Both agents perform one safe role-compatible action.\"\n}\n```",
+  "metadata": {
+    "provider": "local_orchestrator_repair",
+    "base_url": "http://127.0.0.1:8081/v1",
+    "max_tokens": 768,
+    "temperature": 0.0
+  }
+}

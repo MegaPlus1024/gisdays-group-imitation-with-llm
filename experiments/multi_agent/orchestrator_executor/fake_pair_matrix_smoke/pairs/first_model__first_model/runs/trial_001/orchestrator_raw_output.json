@@ -1,0 +1,6 @@
+{
+  "raw_model_output": "{\n  \"tasks\": [\n    {\n      \"task_id\": \"task_1\",\n      \"agent_id\": \"office_agent\",\n      \"goal\": \"Review model metadata and prepare a concise local office summary for the group run.\",\n      \"allowed_action_focus\": [\n        \"read_file\",\n        \"create_file\"\n      ],\n      \"success_criteria\": \"Produce safe local evidence for the group objective.\",\n      \"role_hint\": \"office_agent\",\n      \"dependencies\": []\n    },\n    {\n      \"task_id\": \"task_2\",\n      \"agent_id\": \"developer_agent\",\n      \"goal\": \"Inspect readiness and quality-spec documentation to identify safe follow-up implementation context.\",\n      \"allowed_action_focus\": [\n        \"read_file\"\n      ],\n      \"success_criteria\": \"Produce safe local evidence for the group objective.\",\n      \"role_hint\": \"developer_agent\",\n      \"dependencies\": []\n    }\n  ],\n  \"coordination_notes\": \"Agents work independently and write/read only safe local project paths.\",\n  \"expected_group_outcome\": \"Both agents perform safe local role-compatible actions.\"\n}",
+  "metadata": {
+    "provider": "fake_orchestrator"
+  }
+}

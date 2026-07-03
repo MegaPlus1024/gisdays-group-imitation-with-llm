@@ -1,0 +1,29 @@
+{
+  "server_error": null,
+  "servers": [
+    {
+      "role": "orchestrator",
+      "model_id": "first_model",
+      "port": 8081,
+      "wrapper_pid": 31404,
+      "llama_pids": [
+        18908
+      ],
+      "endpoint_ready": true,
+      "endpoint_stopped": true,
+      "error": null
+    },
+    {
+      "role": "executor",
+      "model_id": "second_model",
+      "port": 8082,
+      "wrapper_pid": 36800,
+      "llama_pids": [
+        17776
+      ],
+      "endpoint_ready": true,
+      "endpoint_stopped": true,
+      "error": null
+    }
+  ]
+}

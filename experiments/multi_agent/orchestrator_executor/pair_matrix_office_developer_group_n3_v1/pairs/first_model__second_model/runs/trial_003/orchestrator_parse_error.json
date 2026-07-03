@@ -1,0 +1,7 @@
+{
+  "error": "Invalid orchestrator JSON output: Expecting value: line 1 column 1 (char 0)",
+  "parse_success": false,
+  "validation_success": false,
+  "attempt_index": 1,
+  "attempt_type": "repair"
+}

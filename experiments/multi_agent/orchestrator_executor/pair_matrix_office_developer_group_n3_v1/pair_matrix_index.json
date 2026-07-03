@@ -1,0 +1,74 @@
+[
+  {
+    "pair": "second_model->first_model",
+    "pair_id": "second_model__first_model",
+    "status": "reused",
+    "source": "reused",
+    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_office_developer_group_n3_v1\\pairs\\second_model__first_model",
+    "original_artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\repeated_local_second_to_first_group_n3_v1",
+    "completed_trials": 3,
+    "failed_trials": 0,
+    "mean_pair_quality_score": 0.890528,
+    "std_pair_quality_score": 8.8e-05,
+    "mean_execution_success_rate": 1.0,
+    "total_errors": 0,
+    "common_failure_modes": {},
+    "prototype_pair_rank_score": 0.952618,
+    "error_message": null
+  },
+  {
+    "pair": "second_model->second_model",
+    "pair_id": "second_model__second_model",
+    "status": "completed",
+    "source": "generated",
+    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_office_developer_group_n3_v1\\pairs\\second_model__second_model",
+    "original_artifact_path": null,
+    "completed_trials": 3,
+    "failed_trials": 0,
+    "mean_pair_quality_score": 0.88774,
+    "std_pair_quality_score": 0.00011,
+    "mean_execution_success_rate": 1.0,
+    "total_errors": 0,
+    "common_failure_modes": {},
+    "prototype_pair_rank_score": 0.948958,
+    "error_message": null
+  },
+  {
+    "pair": "first_model->first_model",
+    "pair_id": "first_model__first_model",
+    "status": "failed",
+    "source": "generated",
+    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_office_developer_group_n3_v1\\pairs\\first_model__first_model",
+    "original_artifact_path": null,
+    "completed_trials": 0,
+    "failed_trials": 3,
+    "mean_pair_quality_score": 0.0,
+    "std_pair_quality_score": 0.0,
+    "mean_execution_success_rate": 0.0,
+    "total_errors": 6,
+    "common_failure_modes": {
+      "orchestrator_plan_parse_failed": 6
+    },
+    "prototype_pair_rank_score": 0.0,
+    "error_message": "one or more trials failed"
+  },
+  {
+    "pair": "first_model->second_model",
+    "pair_id": "first_model__second_model",
+    "status": "failed",
+    "source": "generated",
+    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_office_developer_group_n3_v1\\pairs\\first_model__second_model",
+    "original_artifact_path": null,
+    "completed_trials": 0,
+    "failed_trials": 3,
+    "mean_pair_quality_score": 0.0,
+    "std_pair_quality_score": 0.0,
+    "mean_execution_success_rate": 0.0,
+    "total_errors": 6,
+    "common_failure_modes": {
+      "orchestrator_plan_parse_failed": 6
+    },
+    "prototype_pair_rank_score": 0.0,
+    "error_message": "one or more trials failed"
+  }
+]

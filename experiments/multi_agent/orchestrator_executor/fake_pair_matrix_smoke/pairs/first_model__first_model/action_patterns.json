@@ -1,0 +1,9 @@
+{
+  "common_actions": {
+    "read_file": 4
+  },
+  "common_action_parameters": {
+    "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/model_research_metadata.md\"}}": 2,
+    "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/final_tz_readiness_audit.md\"}}": 2
+  }
+}

@@ -122,6 +122,19 @@ The repeated group wrapper runs the same orchestrator/executor group CLI multipl
 
 Local N=3 result: `docs/ai/repeated_local_orchestrator_executor_trials_v1.md`. The `second_model -> first_model` pair completed 3/3 local trials for `office_developer_group_basic_v1`, with mean pair quality `0.890528`, execution success rate `1.0`, and zero recorded errors.
 
+## Pair matrix comparison
+
+The pair matrix wrapper compares repeated group-trial aggregates across orchestrator/executor combinations and writes:
+
+- `pair_matrix_index.json` / `pair_matrix_index.csv`
+- `pair_matrix_comparison.json` / `pair_matrix_comparison.md`
+- `pair_rankings.csv`
+- `pair_failure_modes.json` / `pair_failure_modes.md`
+- `pair_resource_summary.json` / `pair_resource_summary.md`
+- per-pair folders under `pairs/<orchestrator>__<executor>`
+
+Local matrix result: `docs/ai/orchestrator_executor_pair_matrix_v1.md`. For `office_developer_group_basic_v1`, `second_model -> first_model` is the current best observed pair by `prototype_pair_rank_score`; `second_model -> second_model` also completed 3/3 trials; both `first_model` orchestrator pairs failed at plan parsing. This is scenario-level prototype evidence, not a final recommendation.
+
 ## 5. Quality score
 
 The runner writes a prototype `pair_quality_score` in `pair_quality_metrics.json`.

@@ -1,0 +1,22 @@
+{
+  "office_agent": {
+    "agent_id": "office_agent",
+    "task_id": "t1",
+    "assigned_goal": "Review model metadata and prepare a concise local office summary.",
+    "executor_model_id": "second_model",
+    "success_criteria": "File read action for metadata review.",
+    "allowed_action_focus": [
+      "read_file"
+    ]
+  },
+  "developer_agent": {
+    "agent_id": "developer_agent",
+    "task_id": "t2",
+    "assigned_goal": "Inspect readiness and quality-spec documentation.",
+    "executor_model_id": "second_model",
+    "success_criteria": "File read action for documentation inspection.",
+    "allowed_action_focus": [
+      "read_file"
+    ]
+  }
+}

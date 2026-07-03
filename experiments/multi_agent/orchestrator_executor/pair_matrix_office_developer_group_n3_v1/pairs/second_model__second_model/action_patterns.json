@@ -1,0 +1,9 @@
+{
+  "common_actions": {
+    "read_file": 6
+  },
+  "common_action_parameters": {
+    "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/model_research_metadata.md\"}}": 3,
+    "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/orchestrator_executor_quality_spec.md\"}}": 3
+  }
+}
