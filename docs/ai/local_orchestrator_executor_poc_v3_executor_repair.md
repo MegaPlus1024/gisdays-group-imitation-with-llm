@@ -107,4 +107,6 @@ Diagnostic artifacts present:
 - `pair_evaluation.json`
 - `runtime_logs/server_run.json`
 
-Next recommended step: run N=3 repeated local group trials with the same hardened executor prompt/repair path before claiming robustness.
+Follow-up repeated run: `docs/ai/repeated_local_orchestrator_executor_trials_v1.md`.
+
+The N=3 local repeated run completed all three trials for the same `second_model -> first_model` pair and scenario with no errors. This strengthens one-pair/one-scenario robustness evidence, but it still does not prove production readiness, GPU throughput, concurrent capacity, or a final model-pair recommendation.

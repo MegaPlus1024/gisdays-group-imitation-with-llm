@@ -44,6 +44,7 @@ Current evidence:
 - total real local-model trajectories in the final report: 12;
 - a sequential fake-mode orchestrator/executor group MVP now exists;
 - a controlled two-endpoint local orchestrator/executor proof completed after executor prompt hardening, with two validated and executed local read actions;
+- repeated local orchestrator/executor group trials completed N=3 for one pair and one scenario;
 - resource/capacity evaluation exists, but multi-agent capacity is formula-estimated, not stress-tested.
 
 Important limitations:
@@ -52,7 +53,7 @@ Important limitations:
 - production full autonomous agent loop is not implemented;
 - production action execution scheduler/runtime is not implemented;
 - no measured multi-agent stress test;
-- only one narrow successful local orchestrator/executor execution proof exists so far; no repeated group proof or stress test has been run;
+- only one pair/scenario has repeated local orchestrator/executor evidence so far; no stress test has been run;
 - browser behavior is simulated-only;
 - office behavior is stub/file-based;
 - no git/mail actions are included;
@@ -77,6 +78,7 @@ Important limitations:
 - Resource/capacity estimate.
 - Sequential orchestrator/executor group MVP in fake mode.
 - Executor prompt guidance, executor repair attempts, and per-agent attempt artifacts for the group MVP.
+- Repeated local orchestrator/executor group-trials wrapper and aggregate reports.
 - Final evaluation reports.
 
 ## 4. Project structure
@@ -124,7 +126,7 @@ Run the test suite:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests.
 
 ## 7. Model setup
 
@@ -240,6 +242,35 @@ For local mode, the group runner supports separate endpoint overrides:
 
 A controlled local follow-up requires either two local endpoints or a future clean sequential-switching handoff. The first two-endpoint attempt started `second_model` on port 8081 and `first_model` on port 8082, but it was blocked because the real orchestrator response was not valid complete JSON. The v2 repair run hardened the plan prompt, added plan-repair artifacts, obtained a valid plan, and reached two executor calls; both executor actions were rejected by validation before execution. The v3 executor hardening run added action guidance, executor repair, and `per_agent_attempts.jsonl`; it completed with two validated and executed local `read_file` actions. See `docs/ai/local_orchestrator_executor_poc_v1.md`, `docs/ai/local_orchestrator_executor_poc_blocker.md`, `docs/ai/local_orchestrator_executor_poc_v2_repair.md`, and `docs/ai/local_orchestrator_executor_poc_v3_executor_repair.md`.
 
+## Repeated local orchestrator/executor group trials
+
+The repeated group wrapper runs the same group scenario multiple times, preserves every trial folder, and writes aggregate pair metrics.
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_repeated_orchestrator_executor_trials.py `
+  --mode local `
+  --models-config configs\evaluation_models.json `
+  --scenario configs\multi_agent_scenarios\office_developer_group_basic.json `
+  --out-root experiments\multi_agent\orchestrator_executor\repeated_local_second_to_first_group_n3_v1 `
+  --label repeated_local_second_to_first_group_n3_v1 `
+  --trials 3 `
+  --orchestrator-model-id second_model `
+  --executor-model-id first_model `
+  --orchestrator-port 8081 `
+  --executor-port 8082 `
+  --manage-servers `
+  --max-group-steps 1 `
+  --max-steps-per-agent 1 `
+  --orchestrator-max-tokens 768 `
+  --orchestrator-repair-attempts 1 `
+  --repair-attempts 1 `
+  --execute-actions `
+  --continue-on-trial-failure `
+  --force
+```
+
+Latest artifact root: `experiments/multi_agent/orchestrator_executor/repeated_local_second_to_first_group_n3_v1`. The N=3 run completed 3/3 trials with mean pair quality `0.890528`, mean execution success rate `1.0`, and zero recorded errors. This is one-pair/one-scenario robustness evidence, not a final recommendation.
+
 ## 10. Real local single scenario run
 
 Start `llama-server` first, then run:
@@ -350,7 +381,7 @@ Final summary:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests.
 
 ## 17. Publishing to GitHub
 
@@ -401,7 +432,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 
 - Research prototype, not production-ready.
 - No measured multi-agent stress test.
-- Only one narrow successful local orchestrator/executor task execution proof.
+- Only one pair/scenario has repeated local orchestrator/executor task execution evidence.
 - Browser behavior is simulated-only.
 - Office behavior is stub/file-based.
 - No git/mail actions.

@@ -1,0 +1,7 @@
+{
+  "valid": true,
+  "warnings": [
+    "orchestrator_executor_mvp_is_sequential_not_production_scheduler",
+    "fake_mode_does_not_call_llama_server"
+  ]
+}

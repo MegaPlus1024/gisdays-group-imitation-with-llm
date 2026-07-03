@@ -109,6 +109,19 @@ When an executor output fails parsing or validation and `--repair-attempts` is g
 
 Local v3 result: `docs/ai/local_orchestrator_executor_poc_v3_executor_repair.md`. The v3 run completed with two validated and executed executor `read_file` actions. Repair was enabled but not needed in that specific local run; offline tests exercise missing-parameter and absolute-path repair.
 
+## Repeated local group trials
+
+The repeated group wrapper runs the same orchestrator/executor group CLI multiple times, stores each run under `runs/trial_###`, and writes root-level aggregate files:
+
+- `trial_index.json` / `trial_index.csv`
+- `aggregate_group_metrics.json` / `aggregate_group_metrics.csv`
+- `failure_modes.json`
+- `action_patterns.json`
+- `repeated_group_trials_report.md`
+- `server_run.json`
+
+Local N=3 result: `docs/ai/repeated_local_orchestrator_executor_trials_v1.md`. The `second_model -> first_model` pair completed 3/3 local trials for `office_developer_group_basic_v1`, with mean pair quality `0.890528`, execution success rate `1.0`, and zero recorded errors.
+
 ## 5. Quality score
 
 The runner writes a prototype `pair_quality_score` in `pair_quality_metrics.json`.
@@ -197,7 +210,7 @@ Expected files include:
 ## 8. Limitations
 
 - Local multi-model runtime was not stress-tested.
-- One narrow local group inference run completed after executor prompt hardening.
+- One narrow local group inference run and one N=3 repeated local group run completed after executor prompt hardening.
 - No GPU run was configured or measured.
 - No production scheduler was implemented.
 - The virtual network is simulated through constrained local state, files, roles, registry actions, and group history; it is not a real network topology or traffic simulator.

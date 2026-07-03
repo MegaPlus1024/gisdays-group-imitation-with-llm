@@ -1,0 +1,43 @@
+{
+  "evaluation_id": "orchestrator_executor_pair_evaluation_v1",
+  "orchestrator_model_id": "second_model",
+  "executor_model_ids": [
+    "first_model"
+  ],
+  "metrics": {
+    "orchestrator_plan_valid": true,
+    "task_assignment_valid_rate": 1.0,
+    "executor_initial_validation_rate": 1.0,
+    "executor_final_validation_rate": 1.0,
+    "execution_success_rate": 1.0,
+    "role_fit_mean": 1.0,
+    "diversity_mean": 0.458333,
+    "repetition_mean": 1.0,
+    "history_usage_mean": 0.5,
+    "group_coordination_score": 1.0,
+    "task_completion_proxy_score": 1.0,
+    "safety_violation_count": 0,
+    "latency_mean_ms": 0.0185,
+    "pair_quality_score": 0.895833,
+    "metadata": {
+      "attempt_count": 2,
+      "parsed_attempt_count": 2,
+      "initial_attempt_count": 2,
+      "repair_attempt_count": 0,
+      "initial_validation_success_count": 2,
+      "final_attempt_count": 2,
+      "final_validation_success_count": 2,
+      "execution_success_count": 2,
+      "prototype_scoring": true,
+      "orchestrator_attempt_count": 1,
+      "orchestrator_repair_attempted": false,
+      "orchestrator_plan_initial_parse_success": true,
+      "orchestrator_plan_final_validation_success": true
+    }
+  },
+  "verdict": "prototype_pass",
+  "notes": [
+    "Prototype scoring only; not a final scientific metric.",
+    "Fake mode does not prove local multi-model runtime capacity."
+  ]
+}

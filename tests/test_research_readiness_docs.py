@@ -21,6 +21,7 @@ def test_research_readiness_docs_exist() -> None:
         "docs/ai/local_orchestrator_executor_poc_v2_repair.md",
         "docs/ai/local_orchestrator_executor_executor_failure_analysis.md",
         "docs/ai/local_orchestrator_executor_poc_v3_executor_repair.md",
+        "docs/ai/repeated_local_orchestrator_executor_trials_v1.md",
         "docs/ai/orchestrator_executor_pipeline_v1.md",
         "docs/ai/orchestrator_executor_quality_spec.md",
         "docs/ai/gpu_runtime_readiness_audit.md",
@@ -110,9 +111,11 @@ def test_orchestrator_executor_pipeline_doc_names_default_pair_and_artifacts() -
         "Local proof-of-concept follow-up",
         "Plan repair",
         "Executor prompt and repair",
+        "Repeated local group trials",
         "local_orchestrator_executor_poc_blocker.md",
         "local_orchestrator_executor_poc_v2_repair.md",
         "local_orchestrator_executor_poc_v3_executor_repair.md",
+        "repeated_local_orchestrator_executor_trials_v1.md",
     ]:
         assert required in text
 
@@ -159,5 +162,22 @@ def test_local_orchestrator_executor_v3_doc_records_successful_executor_actions(
         "docs/ai/model_research_metadata.md",
         "configs/evaluation_models.json",
         "repair was enabled but not needed",
+        "repeated_local_orchestrator_executor_trials_v1.md",
+    ]:
+        assert required in text
+
+
+def test_repeated_local_orchestrator_executor_trials_doc_records_n3_result() -> None:
+    text = _read("docs/ai/repeated_local_orchestrator_executor_trials_v1.md")
+
+    for required in [
+        "Repeated Local Orchestrator/Executor Trials v1",
+        "repeated_local_second_to_first_group_n3_v1",
+        "attempted trials",
+        "completed trials",
+        "0.890528",
+        "0.000088",
+        "read_file: 6",
+        "No final model recommendation",
     ]:
         assert required in text
