@@ -12,6 +12,8 @@ The experiments show measurable behavioral differences, but neither model is str
 
 Publication note: current repository setup exposes the second model as `second_model`. Some historical artifacts and tables retain the earlier recorded id `qwen2_5_3b_instruct_q4_k_m`.
 
+Post-report prototype extension: after this final report was written, a sequential fake-mode orchestrator/executor group MVP was added under `experiments/multi_agent/orchestrator_executor/fake_office_developer_group_v1`. That extension is not part of the 12 real local-model trajectories summarized here, and it does not change the report's historical conclusions about local multi-agent capacity or final model recommendation readiness.
+
 Multi-agent capacity is estimated by formula, not measured by stress test. The current planning estimate is 11 concurrent agents for both tested models on the current machine, CPU-bound, with low confidence.
 
 Recommended next development: keep the artifact-based evaluation pipeline, keep both models in the evaluation set, use `repair_attempts=1`, fix workspace/safety alignment for developer scenarios, add measured runtime/concurrent capacity probes, and do not declare a final deployment model yet.
@@ -258,6 +260,18 @@ Provisional recommendation for further development:
 6. Add real browser/office automation only if required by scope.
 7. Produce final model recommendation only after cross-scenario, resource and measured capacity evidence improves.
 
+## 15a. Post-report prototype extension
+
+The repository now contains a first fake-mode orchestrator/executor group MVP:
+
+- scenario: `configs/multi_agent_scenarios/office_developer_group_basic.json`;
+- runner: `scripts/run_orchestrator_executor_group.py`;
+- implementation: `src/agent/orchestrator_executor_pipeline.py`;
+- documentation: `docs/ai/orchestrator_executor_pipeline_v1.md`;
+- artifacts: `experiments/multi_agent/orchestrator_executor/fake_office_developer_group_v1`.
+
+This extension demonstrates the structural group-agent path: plan, assignment, per-agent executor actions, validation, bounded execution, group history, and prototype pair-quality metrics. It remains fake-mode evidence only. No local group inference, GPU run, production scheduler, or measured concurrent capacity test is included in this final report.
+
 ## 16. Artifact index
 
 Architecture/onboarding:
@@ -296,6 +310,12 @@ Resource/capacity:
 - `experiments/model_behavior/resources/resource_capacity_v1`
 - `docs/ai/resource_capacity_evaluation_v1.md`
 - `docs/ai/multi_agent_capacity_formula.md`
+
+Post-report orchestrator/executor MVP:
+
+- `docs/ai/orchestrator_executor_pipeline_v1.md`
+- `configs/multi_agent_scenarios/office_developer_group_basic.json`
+- `experiments/multi_agent/orchestrator_executor/fake_office_developer_group_v1`
 
 Verification:
 

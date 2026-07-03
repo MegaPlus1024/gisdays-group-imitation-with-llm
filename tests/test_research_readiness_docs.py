@@ -15,6 +15,7 @@ def test_research_readiness_docs_exist() -> None:
     for relative_path in [
         "docs/ai/model_research_metadata.md",
         "docs/ai/final_tz_readiness_audit.md",
+        "docs/ai/orchestrator_executor_pipeline_v1.md",
         "docs/ai/orchestrator_executor_quality_spec.md",
         "docs/ai/gpu_runtime_readiness_audit.md",
         "docs/ai/next_implementation_plan_orchestrator_executor.md",
@@ -80,10 +81,25 @@ def test_gpu_audit_is_explicit_about_unmeasured_gpu_runtime() -> None:
     assert "cpu-only short single-agent runs demonstrated: yes" in text
 
 
-def test_orchestrator_executor_quality_spec_is_draft_not_implemented_claim() -> None:
+def test_orchestrator_executor_quality_spec_names_prototype_status() -> None:
     text = _read("docs/ai/orchestrator_executor_quality_spec.md").lower()
 
     assert "pair_quality_score" in text
-    assert "not an implemented metric" in text
+    assert "prototype implementation" in text
+    assert "not a final scientific metric" in text
     assert "group_coordination_score" in text
     assert "task_completion_score" in text
+
+
+def test_orchestrator_executor_pipeline_doc_names_default_pair_and_artifacts() -> None:
+    text = _read("docs/ai/orchestrator_executor_pipeline_v1.md")
+
+    for required in [
+        "Orchestrator/Executor Pipeline v1",
+        "second_model",
+        "first_model",
+        "office_developer_group_basic_v1",
+        "pair_quality_score",
+        "experiments/multi_agent/orchestrator_executor/fake_office_developer_group_v1",
+    ]:
+        assert required in text

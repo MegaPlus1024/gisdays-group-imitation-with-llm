@@ -42,6 +42,7 @@ Current evidence:
 - two local models were compared across two behavioral scenarios;
 - repeated trials were completed with N=3 per model per scenario;
 - total real local-model trajectories in the final report: 12;
+- a sequential fake-mode orchestrator/executor group MVP now exists;
 - resource/capacity evaluation exists, but multi-agent capacity is formula-estimated, not stress-tested.
 
 Important limitations:
@@ -50,6 +51,7 @@ Important limitations:
 - production full autonomous agent loop is not implemented;
 - production action execution scheduler/runtime is not implemented;
 - no measured multi-agent stress test;
+- no local orchestrator/executor group run has been executed yet;
 - browser behavior is simulated-only;
 - office behavior is stub/file-based;
 - no git/mail actions are included;
@@ -72,6 +74,7 @@ Important limitations:
 - Behavioral analysis.
 - Cross-scenario behavioral comparison.
 - Resource/capacity estimate.
+- Sequential orchestrator/executor group MVP in fake mode.
 - Final evaluation reports.
 
 ## 4. Project structure
@@ -119,7 +122,7 @@ Run the test suite:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests.
 
 ## 7. Model setup
 
@@ -203,6 +206,28 @@ Fake mode validates the pipeline without llama-server:
   --repair-attempts 1 `
   --force
 ```
+
+## Orchestrator/executor group prototype
+
+The first group-agent MVP uses `second_model` as the default orchestrator candidate and `first_model` as the default executor candidate. In fake mode it validates the full local artifact flow without calling `llama-server`: plan, assignment, executor action selection, registry validation, bounded execution, group history, and pair-level evaluation.
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_orchestrator_executor_group.py `
+  --mode fake `
+  --models-config configs\evaluation_models.json `
+  --scenario configs\multi_agent_scenarios\office_developer_group_basic.json `
+  --out-dir experiments\multi_agent\orchestrator_executor\fake_office_developer_group_v1 `
+  --run-id fake_office_developer_group_v1 `
+  --orchestrator-model-id second_model `
+  --executor-model-id first_model `
+  --max-group-steps 2 `
+  --max-steps-per-agent 2 `
+  --repair-attempts 1 `
+  --execute-actions `
+  --force
+```
+
+Main documentation: `docs/ai/orchestrator_executor_pipeline_v1.md`.
 
 ## 10. Real local single scenario run
 
@@ -314,7 +339,7 @@ Final summary:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests.
 
 ## 17. Publishing to GitHub
 
@@ -365,6 +390,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 
 - Research prototype, not production-ready.
 - No measured multi-agent stress test.
+- No measured local orchestrator/executor group run.
 - Browser behavior is simulated-only.
 - Office behavior is stub/file-based.
 - No git/mail actions.

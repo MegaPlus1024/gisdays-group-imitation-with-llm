@@ -17,6 +17,7 @@ This audit checks the repository against that target without running models, sta
 - Repeated trials exist with N=3 per model per scenario, 12 real local-model trajectories total.
 - Cross-scenario behavioral analysis exists.
 - Resource/capacity formula estimate exists.
+- Sequential fake-mode orchestrator/executor group MVP exists, with plan, assignments, executor actions, group history, artifacts, and prototype pair-quality metrics.
 - Final reports exist, but they explicitly do not make a production recommendation.
 
 ## 3. Requirement Coverage Matrix
@@ -28,12 +29,12 @@ This audit checks the repository against that target without running models, sta
 | script registry | `src/agent/script_registry.py`, registry tests | complete | Registry is local/script-oriented, not a full application automation catalog. | Add git/mail/browser-real actions only behind explicit safety controls. |
 | action validation | NextAction contract and registry validation | complete | Semantic validation remains limited. | Add semantic validators for role-specific intent and path policy. |
 | execution bridge | `ScriptExecutionBridge` and script helpers | complete | Browser/office actions are simulated or stub/file-based. | Add optional real automation adapters later. |
-| history/error logging | `ExecutionHistoryLogger`, run artifacts | complete | Group-level shared history is not implemented. | Add group history model for multi-agent runs. |
+| history/error logging | `ExecutionHistoryLogger`, single-agent artifacts, orchestrator/executor group artifacts | complete | Group history exists for the MVP runner only; it is not a production shared memory/runtime. | Expand group history semantics after local group runs. |
 | behavioral evaluation | activity profiles, repeated-trials analysis, cross-scenario analysis | complete | Limited to two scenarios and short trajectories. | Add at least one more scenario and longer runs. |
-| multiple models | `first_model`, `second_model`, alias support, repeated comparisons | partially complete | Only two executor candidates; no orchestrator/executor pair comparison. | Add pair-level evaluation after orchestrator/executor MVP. |
+| multiple models | `first_model`, `second_model`, alias support, repeated comparisons, default orchestrator/executor pair | partially complete | Only two model candidates; pair comparison is structural/fake-mode only. | Run controlled local pair experiments after runtime readiness. |
 | repeated trials | N=3 per model per scenario | complete | Small sample size. | Increase N only after scenario/path policy is stable. |
-| group of agents | `MultiAgentOrchestratorSmoke`, multi-agent scenario config, fixture tests | partially complete | Smoke/scaffold only; no real local multi-agent run. | Build controlled multi-agent runner with isolated and shared state. |
-| orchestrator/executor pair | Basic single-agent `Orchestrator`; smoke multi-agent coordinator | missing | No model-backed orchestrator planning another model's executor actions. | Implement explicit orchestrator/executor MVP in a separate task. |
+| group of agents | `MultiAgentOrchestratorSmoke`, multi-agent scenario config, orchestrator/executor fake run artifacts | partially complete / MVP implemented | Sequential fake-mode group run exists; no real local multi-agent run or measured concurrency. | Run controlled local sequential group proof, then measured capacity smoke. |
+| orchestrator/executor pair | `src/agent/orchestrator_executor_pipeline.py`, `scripts/run_orchestrator_executor_group.py`, fake artifacts | MVP implemented | Fake-mode pair path exists; local model-backed group run and repeated pair comparison are not executed. | Run a local single-step pair proof after runtime readiness. |
 | virtual network simulation | Controlled filesystem/action environment and constraints | partially complete | No real virtual network, host topology, or network traffic simulation. | Define minimal virtual network abstraction or narrow the claim. |
 | CPU-only runtime | CPU-oriented local runs and resource observations | complete | Evidence is short single-agent only. | Keep CPU-only as demonstrated for short demos, not capacity claims. |
 | GPU runtime | `runtime.local.example.json` marks GPU optional later | missing | No GPU flags in start script, no GPU config fields, no measured GPU run. | Add GPU runtime config and perform measured GPU smoke when hardware is available. |
@@ -45,8 +46,8 @@ This audit checks the repository against that target without running models, sta
 - Single-agent prototype: complete for a research prototype.
 - Behavioral evaluation pipeline: complete for limited scenarios.
 - Multiple executor model comparison: partially complete.
-- Group of agents: partially complete; current support is smoke/scaffolding.
-- Orchestrator/executor pair: missing as an explicit model-backed architecture.
+- Group of agents: partially complete; a sequential fake-mode MVP now exists.
+- Orchestrator/executor pair: MVP implemented structurally in fake mode; local model-backed group run is still not measured.
 - GPU runtime: missing/not configured.
 - Measured multi-agent capacity: missing.
 - Virtual computer network: partially simulated, not a full network.
@@ -54,4 +55,4 @@ This audit checks the repository against that target without running models, sta
 
 ## 5. Next Audit-Based Direction
 
-The next implementation should not add more reports first. It should build a minimal orchestrator/executor experiment path, then run a tiny fake-mode proof, then a local-mode single-step proof, and only then rerun behavioral/capacity experiments.
+The next implementation should not add more reports first. The minimal orchestrator/executor experiment path and fake-mode proof now exist. The next step is a local-mode single-step proof, followed by repeated pair trials and measured multi-agent capacity experiments.

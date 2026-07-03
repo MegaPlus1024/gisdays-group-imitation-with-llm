@@ -1,0 +1,32 @@
+{
+  "plan_id": "fake_office_developer_group_v1_plan",
+  "scenario_id": "office_developer_group_basic_v1",
+  "orchestrator_model_id": "second_model",
+  "tasks": [
+    {
+      "task_id": "task_1",
+      "agent_id": "office_agent",
+      "role_hint": "office_agent",
+      "goal": "Review model metadata and prepare a concise local office summary for the group run.",
+      "allowed_action_focus": [
+        "read_file",
+        "create_file"
+      ],
+      "success_criteria": "Produce safe local evidence for the group objective.",
+      "dependencies": []
+    },
+    {
+      "task_id": "task_2",
+      "agent_id": "developer_agent",
+      "role_hint": "developer_agent",
+      "goal": "Inspect readiness and quality-spec documentation to identify safe follow-up implementation context.",
+      "allowed_action_focus": [
+        "read_file"
+      ],
+      "success_criteria": "Produce safe local evidence for the group objective.",
+      "dependencies": []
+    }
+  ],
+  "coordination_notes": "Agents work independently and write/read only safe local project paths.",
+  "expected_group_outcome": "The office agent records a safe local summary while the developer agent inspects project documentation; all work stays in local files and simulated or stub action boundaries."
+}

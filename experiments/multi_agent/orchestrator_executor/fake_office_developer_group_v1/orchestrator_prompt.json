@@ -1,0 +1,12 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are an orchestrator model for a controlled local multi-agent experiment. Create a concise JSON-only plan. Do not request internet, downloads, external network, real browser automation, or actions outside the provided agents and action focus."
+    },
+    {
+      "role": "user",
+      "content": "{\n  \"output_contract\": {\n    \"tasks\": [\n      {\n        \"task_id\": \"string\",\n        \"agent_id\": \"known agent id\",\n        \"goal\": \"string\",\n        \"allowed_action_focus\": [\n          \"action_name\"\n        ],\n        \"success_criteria\": \"string\"\n      }\n    ],\n    \"coordination_notes\": \"string\",\n    \"expected_group_outcome\": \"string\"\n  },\n  \"scenario_id\": \"office_developer_group_basic_v1\",\n  \"max_group_steps\": 2,\n  \"agents\": [\n    {\n      \"agent_id\": \"office_agent\",\n      \"role_template_path\": \"configs/roles/office_worker.example.json\",\n      \"activity_profile_path\": \"configs/activity_profiles/office_worker.json\",\n      \"initial_state_path\": null,\n      \"state_override\": {},\n      \"assigned_goal\": \"Review model metadata and prepare a concise local office summary for the group run.\",\n      \"executor_model_id\": \"first_model\"\n    },\n    {\n      \"agent_id\": \"developer_agent\",\n      \"role_template_path\": \"configs/roles/developer.example.json\",\n      \"activity_profile_path\": \"configs/activity_profiles/developer.json\",\n      \"initial_state_path\": null,\n      \"state_override\": {},\n      \"assigned_goal\": \"Inspect readiness and quality-spec documentation to identify safe follow-up implementation context.\",\n      \"executor_model_id\": \"first_model\"\n    }\n  ],\n  \"rules\": [\n    \"Return exactly one JSON object.\",\n    \"No Markdown.\",\n    \"No prose outside JSON.\",\n    \"Use only known agent ids.\",\n    \"Do not require external network access.\"\n  ]\n}"
+    }
+  ]
+}

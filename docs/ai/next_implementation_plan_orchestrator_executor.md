@@ -4,24 +4,24 @@
 
 Build the smallest research MVP where one orchestrator model assigns work and one or more executor agents choose validated `NextAction` steps with local models.
 
+Status update: the sequential fake-mode MVP now exists. The remaining plan focuses on local runtime proof, repeated pair trials, and measured capacity rather than the first structural implementation.
+
 ## 2. Missing Pieces
 
-- Explicit orchestrator model spec.
-- Executor model assignment per agent.
-- Orchestrator plan artifact.
-- Group shared history.
-- Multi-agent local runner CLI.
-- Pair-level evaluation artifacts.
-- Group coordination and task-completion metrics.
+- Local model-backed orchestrator/executor run.
+- Repeated pair-level comparison.
+- Measured multi-agent runtime/resource evidence.
+- Production-grade group scheduler.
+- Stronger group coordination and task-completion metrics.
 - Measured multi-agent resource/capacity run.
 
 ## 3. Minimal MVP
 
-1. Fake-mode orchestrator creates a deterministic plan for two agents.
-2. Existing fake/local executor runner executes one step per agent.
-3. Artifacts record plan, assignment, executor outputs, validation, execution, and group summary.
-4. Pair evaluator computes existing executor metrics plus placeholder group coordination metrics.
-5. No concurrency in v1; run agents sequentially with explicit logs.
+1. Fake-mode orchestrator creates a deterministic plan for two agents. Implemented.
+2. Fake/local-compatible executor path runs validated steps per agent. Implemented for fake mode.
+3. Artifacts record plan, assignment, executor outputs, validation, execution, and group summary. Implemented.
+4. Pair evaluator computes existing executor metrics plus prototype group coordination metrics. Implemented as an engineering proxy.
+5. No concurrency in v1; agents run sequentially with explicit logs. Implemented.
 
 ## 4. Proposed Files To Add/Change
 

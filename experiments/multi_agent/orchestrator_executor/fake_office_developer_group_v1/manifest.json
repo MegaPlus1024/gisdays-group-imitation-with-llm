@@ -1,0 +1,37 @@
+{
+  "runner_id": "orchestrator_executor_pipeline_v1",
+  "run_id": "fake_office_developer_group_v1",
+  "scenario_id": "office_developer_group_basic_v1",
+  "scenario_path": "configs\\multi_agent_scenarios\\office_developer_group_basic.json",
+  "mode": "fake",
+  "status": "completed",
+  "success": true,
+  "orchestrator_model": {
+    "model_id": "second_model",
+    "role": "orchestrator",
+    "base_url": "http://127.0.0.1:8080/v1",
+    "model_name": "second_model.gguf",
+    "temperature": 0.0,
+    "max_tokens": 512,
+    "timeout_seconds": 120.0
+  },
+  "executor_model": {
+    "model_id": "first_model",
+    "role": "executor",
+    "base_url": "http://127.0.0.1:8080/v1",
+    "model_name": "first_model.gguf",
+    "temperature": 0.0,
+    "max_tokens": 512,
+    "timeout_seconds": 120.0
+  },
+  "max_group_steps": 2,
+  "max_steps_per_agent": 2,
+  "execute_actions": true,
+  "started_at": "2026-07-03T09:00:03.326737+00:00",
+  "completed_at": "2026-07-03T09:00:03.363478+00:00",
+  "limitations": [
+    "MVP runner is sequential and not a production scheduler.",
+    "Fake mode does not call llama-server.",
+    "Local mode requires already available compatible runtime endpoint(s)."
+  ]
+}

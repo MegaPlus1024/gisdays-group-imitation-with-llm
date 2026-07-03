@@ -1,0 +1,4 @@
+{"agent_id":"office_agent","group_step_index":1,"agent_step_index":1,"validation_accepted":true,"validation_issues":[]}
+{"agent_id":"office_agent","group_step_index":2,"agent_step_index":2,"validation_accepted":true,"validation_issues":[]}
+{"agent_id":"developer_agent","group_step_index":1,"agent_step_index":1,"validation_accepted":true,"validation_issues":[]}
+{"agent_id":"developer_agent","group_step_index":2,"agent_step_index":2,"validation_accepted":true,"validation_issues":[]}

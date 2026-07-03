@@ -1,0 +1,1279 @@
+from __future__ import annotations
+
+import json
+import platform
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Literal, Protocol
+
+import httpx
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from .action_contract import (
+    NextActionContractError,
+    parse_next_action_text,
+)
+from .activity_evaluator import (
+    ActivityTrajectoryEvaluator,
+    ActivityTrajectoryStep,
+)
+from .activity_profile import load_activity_profile
+from .evaluation_models import (
+    EvaluationModelSpec,
+    EvaluationModelsConfig,
+    EvaluationModelRegistry,
+    load_evaluation_models_config,
+)
+from .llm_client import LocalLLMClient
+from .orchestrator_prompt_contract import (
+    OrchestratorPlanJSONError,
+    build_orchestrator_messages,
+    parse_orchestrator_plan_text,
+)
+from .prompt_contract import PromptBuilder
+from .role_template import (
+    RoleTemplate,
+    load_role_template,
+    role_template_to_agent_state_defaults,
+)
+from .schemas import NextAction
+from .script_execution_bridge import (
+    ScriptExecutionBridge,
+    ScriptExecutionBridgeConfig,
+)
+from .script_registry import (
+    ScriptRegistry,
+    load_script_registry,
+    validate_next_action_against_registry,
+)
+from .state import (
+    ActionHistoryEntry,
+    ActionSpec,
+    AgentState,
+    load_agent_state,
+)
+
+
+GroupRunMode = Literal["fake", "local"]
+GroupRunStatus = Literal["completed", "completed_with_failures", "failed"]
+ModelRole = Literal["orchestrator", "executor"]
+
+
+class OrchestratorModelConfig(BaseModel):
+    model_id: str
+    role: Literal["orchestrator"] = "orchestrator"
+    base_url: str
+    model_name: str
+    temperature: float = 0.0
+    max_tokens: int = 512
+    timeout_seconds: float = 120.0
+
+
+class ExecutorModelConfig(BaseModel):
+    model_id: str
+    role: Literal["executor"] = "executor"
+    base_url: str
+    model_name: str
+    temperature: float = 0.0
+    max_tokens: int = 512
+    timeout_seconds: float = 120.0
+
+
+class AgentAssignment(BaseModel):
+    agent_id: str
+    task_id: str
+    assigned_goal: str
+    executor_model_id: str
+    success_criteria: str
+    allowed_action_focus: list[str] = Field(default_factory=list)
+
+
+class GroupAgentSpec(BaseModel):
+    agent_id: str
+    role_template_path: str
+    activity_profile_path: str
+    initial_state_path: str | None = None
+    state_override: dict[str, Any] = Field(default_factory=dict)
+    assigned_goal: str
+    executor_model_id: str
+
+    @field_validator("agent_id", "role_template_path", "activity_profile_path", "assigned_goal", "executor_model_id")
+    @classmethod
+    def validate_non_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("GroupAgentSpec text fields must be non-empty.")
+        return value
+
+
+class OrchestratorPlanTask(BaseModel):
+    task_id: str
+    agent_id: str
+    role_hint: str | None = None
+    goal: str
+    allowed_action_focus: list[str] = Field(default_factory=list)
+    success_criteria: str
+    dependencies: list[str] = Field(default_factory=list)
+
+
+class OrchestratorPlan(BaseModel):
+    plan_id: str
+    scenario_id: str
+    orchestrator_model_id: str
+    tasks: list[OrchestratorPlanTask]
+    coordination_notes: str
+    expected_group_outcome: str
+
+
+class ExecutorActionAttempt(BaseModel):
+    group_step_index: int
+    agent_step_index: int
+    agent_id: str
+    task_id: str
+    attempt_index: int = 0
+    attempt_type: Literal["initial", "repair"] = "initial"
+    raw_model_output: str
+    parse_success: bool = False
+    action: str | None = None
+    next_action: dict[str, Any] | None = None
+    validation_accepted: bool | None = None
+    validation_issues: list[dict[str, Any]] = Field(default_factory=list)
+    execution_attempted: bool = False
+    execution_success: bool | None = None
+    execution_result: dict[str, Any] | None = None
+    selection_latency_ms: float | None = None
+    error_type: str | None = None
+    error_message: str | None = None
+
+
+class ExecutorAgentTrajectory(BaseModel):
+    agent_id: str
+    role_template_path: str
+    activity_profile_path: str
+    assigned_goal: str
+    executor_model_id: str
+    status: Literal["completed", "failed"] = "completed"
+    success: bool = True
+    attempts: list[ExecutorActionAttempt] = Field(default_factory=list)
+    activity_evaluation: dict[str, Any] | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+
+class GroupHistoryRecord(BaseModel):
+    group_step_index: int
+    agent_id: str
+    task_id: str
+    action: str | None = None
+    status: Literal["success", "failure", "skipped"] = "skipped"
+    summary: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class OrchestratorExecutorQualityMetrics(BaseModel):
+    orchestrator_plan_valid: bool
+    task_assignment_valid_rate: float
+    executor_initial_validation_rate: float
+    executor_final_validation_rate: float
+    execution_success_rate: float
+    role_fit_mean: float
+    diversity_mean: float
+    repetition_mean: float
+    history_usage_mean: float
+    group_coordination_score: float
+    task_completion_proxy_score: float
+    safety_violation_count: int
+    latency_mean_ms: float | None = None
+    pair_quality_score: float
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class OrchestratorExecutorPairEvaluationResult(BaseModel):
+    evaluation_id: str = "orchestrator_executor_pair_evaluation_v1"
+    orchestrator_model_id: str
+    executor_model_ids: list[str]
+    metrics: OrchestratorExecutorQualityMetrics
+    verdict: Literal["prototype_pass", "prototype_with_failures", "failed"]
+    notes: list[str] = Field(default_factory=list)
+
+
+class OrchestratorExecutorRunResult(BaseModel):
+    run_id: str
+    scenario_id: str
+    orchestrator_model_id: str
+    executor_model_ids: list[str]
+    status: GroupRunStatus
+    success: bool
+    stopped_reason: str | None = None
+    plan: OrchestratorPlan
+    per_agent_results: list[ExecutorAgentTrajectory]
+    group_history: list[GroupHistoryRecord]
+    quality_metrics: OrchestratorExecutorQualityMetrics
+    pair_evaluation: OrchestratorExecutorPairEvaluationResult
+    artifact_dir: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+    errors: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class OrchestratorExecutorScenario(BaseModel):
+    scenario_id: str
+    description: str
+    orchestrator_model_id: str
+    executor_model_id: str
+    registry_path: str = "configs/script_registry.example.json"
+    max_group_steps: int = 2
+    max_steps_per_agent: int = 2
+    execute_actions: bool = True
+    expected_group_behavior: str
+    agents: list[GroupAgentSpec]
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("scenario_id", "description", "orchestrator_model_id", "executor_model_id", "expected_group_behavior")
+    @classmethod
+    def validate_non_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Scenario text fields must be non-empty.")
+        return value
+
+    @field_validator("max_group_steps", "max_steps_per_agent")
+    @classmethod
+    def validate_positive(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("max_group_steps and max_steps_per_agent must be >= 1.")
+        return value
+
+    @model_validator(mode="after")
+    def validate_agents(self) -> OrchestratorExecutorScenario:
+        if len(self.agents) < 2:
+            raise ValueError("orchestrator/executor scenario requires at least two agents.")
+        ids = [agent.agent_id for agent in self.agents]
+        if len(ids) != len(set(ids)):
+            raise ValueError("agent_id values must be unique.")
+        return self
+
+
+class OrchestratorExecutorRunConfig(BaseModel):
+    project_root: Path = Path(".")
+    mode: GroupRunMode = "fake"
+    models_config_path: str = "configs/evaluation_models.json"
+    scenario_path: str = "configs/multi_agent_scenarios/office_developer_group_basic.json"
+    out_dir: str = "experiments/multi_agent/orchestrator_executor/default"
+    run_id: str = "orchestrator_executor_group_run"
+    orchestrator_model_id: str | None = None
+    executor_model_id: str | None = None
+    max_group_steps: int | None = None
+    max_steps_per_agent: int | None = None
+    repair_attempts: int = 0
+    execute_actions: bool | None = None
+    force: bool = False
+
+    @field_validator("project_root")
+    @classmethod
+    def resolve_project_root(cls, value: Path) -> Path:
+        return value.resolve()
+
+    @field_validator("run_id")
+    @classmethod
+    def validate_run_id(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("run_id must be non-empty.")
+        return value
+
+    @field_validator("repair_attempts")
+    @classmethod
+    def validate_repair_attempts(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("repair_attempts must be >= 0.")
+        return value
+
+    def project_path(self, value: str | Path) -> Path:
+        path = Path(value)
+        if path.is_absolute():
+            return path
+        return self.project_root / path
+
+
+class OrchestratorProviderResult(BaseModel):
+    raw_model_output: str
+    prompt_messages: list[dict[str, str]]
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ExecutorProviderResult(BaseModel):
+    raw_model_output: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class OrchestratorPlanProvider(Protocol):
+    def create_plan(
+        self,
+        *,
+        scenario: OrchestratorExecutorScenario,
+        agents: list[GroupAgentSpec],
+        agent_action_names: dict[str, set[str]],
+    ) -> OrchestratorProviderResult:
+        ...
+
+
+class ExecutorActionProvider(Protocol):
+    def next_action(
+        self,
+        *,
+        agent: GroupAgentSpec,
+        task: OrchestratorPlanTask,
+        state: AgentState,
+        group_step_index: int,
+        agent_step_index: int,
+        out_dir: Path,
+        project_root: Path,
+    ) -> ExecutorProviderResult:
+        ...
+
+
+class FakeOrchestratorPlanProvider:
+    def create_plan(
+        self,
+        *,
+        scenario: OrchestratorExecutorScenario,
+        agents: list[GroupAgentSpec],
+        agent_action_names: dict[str, set[str]],
+    ) -> OrchestratorProviderResult:
+        del agent_action_names
+        tasks: list[dict[str, Any]] = []
+        for index, agent in enumerate(agents, start=1):
+            focus = ["read_file", "create_file"] if "office" in agent.agent_id else ["read_file"]
+            tasks.append(
+                {
+                    "task_id": f"task_{index}",
+                    "agent_id": agent.agent_id,
+                    "goal": agent.assigned_goal,
+                    "allowed_action_focus": focus,
+                    "success_criteria": "Produce safe local evidence for the group objective.",
+                    "role_hint": agent.agent_id,
+                    "dependencies": [],
+                }
+            )
+        raw = json.dumps(
+            {
+                "tasks": tasks,
+                "coordination_notes": "Agents work independently and write/read only safe local project paths.",
+                "expected_group_outcome": scenario.expected_group_behavior,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        messages = build_orchestrator_messages(
+            scenario_id=scenario.scenario_id,
+            agents=[agent.model_dump(mode="json") for agent in agents],
+            max_group_steps=scenario.max_group_steps,
+        )
+        return OrchestratorProviderResult(
+            raw_model_output=raw,
+            prompt_messages=messages,
+            metadata={"provider": "fake_orchestrator"},
+        )
+
+
+class FakeExecutorActionProvider:
+    def next_action(
+        self,
+        *,
+        agent: GroupAgentSpec,
+        task: OrchestratorPlanTask,
+        state: AgentState,
+        group_step_index: int,
+        agent_step_index: int,
+        out_dir: Path,
+        project_root: Path,
+    ) -> ExecutorProviderResult:
+        del task, state, group_step_index
+        if "office" in agent.agent_id:
+            if agent_step_index == 1:
+                action = {
+                    "action": "read_file",
+                    "parameters": {"path": "docs/ai/model_research_metadata.md"},
+                    "reason": "Inspect current model metadata before preparing a group note.",
+                    "expected_result": "Research metadata is available for the office note.",
+                }
+            else:
+                action = {
+                    "action": "create_file",
+                    "parameters": {
+                        "path": _safe_relative_artifact_path(project_root, out_dir / "workspace" / "office_agent_summary.md"),
+                        "content": "Office agent summary: model metadata was reviewed for the group run.\n",
+                    },
+                    "reason": "Use previous metadata review to create a concise safe local summary.",
+                    "expected_result": "A local office summary note is created in the group artifact workspace.",
+                }
+        else:
+            if agent_step_index == 1:
+                action = {
+                    "action": "read_file",
+                    "parameters": {"path": "docs/ai/final_tz_readiness_audit.md"},
+                    "reason": "Inspect the current readiness audit before developer follow-up.",
+                    "expected_result": "Readiness gaps are available to guide the developer task.",
+                }
+            else:
+                action = {
+                    "action": "read_file",
+                    "parameters": {"path": "docs/ai/orchestrator_executor_quality_spec.md"},
+                    "reason": "Use previous readiness context and inspect the pair quality scoring draft.",
+                    "expected_result": "Quality scoring context is available for the group history.",
+                }
+        return ExecutorProviderResult(
+            raw_model_output=json.dumps(action, ensure_ascii=False, indent=2),
+            metadata={"provider": "fake_executor", "agent_id": agent.agent_id},
+        )
+
+
+class LocalOrchestratorPlanProvider:
+    def __init__(self, model: OrchestratorModelConfig) -> None:
+        self.model = model
+
+    def create_plan(
+        self,
+        *,
+        scenario: OrchestratorExecutorScenario,
+        agents: list[GroupAgentSpec],
+        agent_action_names: dict[str, set[str]],
+    ) -> OrchestratorProviderResult:
+        messages = build_orchestrator_messages(
+            scenario_id=scenario.scenario_id,
+            agents=[
+                {
+                    **agent.model_dump(mode="json"),
+                    "allowed_action_names": sorted(agent_action_names.get(agent.agent_id, set())),
+                }
+                for agent in agents
+            ],
+            max_group_steps=scenario.max_group_steps,
+        )
+        payload = {
+            "model": self.model.model_name,
+            "messages": messages,
+            "temperature": self.model.temperature,
+            "max_tokens": self.model.max_tokens,
+        }
+        with httpx.Client(timeout=self.model.timeout_seconds, trust_env=False) as client:
+            response = client.post(f"{self.model.base_url.rstrip('/')}/chat/completions", json=payload)
+            response.raise_for_status()
+            response_json = response.json()
+        raw = LocalLLMClient.extract_assistant_content(response_json)
+        return OrchestratorProviderResult(
+            raw_model_output=raw,
+            prompt_messages=messages,
+            metadata={"provider": "local_orchestrator", "base_url": self.model.base_url},
+        )
+
+
+class LocalExecutorActionProvider:
+    def __init__(self, model: ExecutorModelConfig) -> None:
+        self.model = model
+        self.prompt_builder = PromptBuilder()
+
+    def next_action(
+        self,
+        *,
+        agent: GroupAgentSpec,
+        task: OrchestratorPlanTask,
+        state: AgentState,
+        group_step_index: int,
+        agent_step_index: int,
+        out_dir: Path,
+        project_root: Path,
+    ) -> ExecutorProviderResult:
+        del agent, task, group_step_index, agent_step_index, out_dir, project_root
+        messages = self.prompt_builder.build_messages(state.to_prompt_context())
+        payload = {
+            "model": self.model.model_name,
+            "messages": messages,
+            "temperature": self.model.temperature,
+            "max_tokens": self.model.max_tokens,
+        }
+        with httpx.Client(timeout=self.model.timeout_seconds, trust_env=False) as client:
+            response = client.post(f"{self.model.base_url.rstrip('/')}/chat/completions", json=payload)
+            response.raise_for_status()
+            response_json = response.json()
+        raw = LocalLLMClient.extract_assistant_content(response_json)
+        return ExecutorProviderResult(
+            raw_model_output=raw,
+            metadata={"provider": "local_executor", "base_url": self.model.base_url},
+        )
+
+
+class OrchestratorExecutorRunner:
+    def __init__(
+        self,
+        config: OrchestratorExecutorRunConfig,
+        *,
+        orchestrator_provider: OrchestratorPlanProvider | None = None,
+        executor_provider: ExecutorActionProvider | None = None,
+    ) -> None:
+        self.config = config
+        self.orchestrator_provider = orchestrator_provider
+        self.executor_provider = executor_provider
+
+    def run(self) -> OrchestratorExecutorRunResult:
+        started_at = _utc_now()
+        perf_start = time.perf_counter()
+        out_dir = self.config.project_path(self.config.out_dir)
+        _prepare_output_dir(out_dir, force=self.config.force)
+
+        scenario = load_orchestrator_executor_scenario(self.config.project_path(self.config.scenario_path))
+        scenario = _apply_config_overrides(scenario, self.config)
+        models_config = load_evaluation_models_config(self.config.project_path(self.config.models_config_path))
+        registry = EvaluationModelRegistry(models_config)
+        orchestrator_model = _orchestrator_model_config(registry.require(scenario.orchestrator_model_id))
+        executor_model = _executor_model_config(registry.require(scenario.executor_model_id))
+        script_registry = load_script_registry(self.config.project_path(scenario.registry_path))
+
+        role_templates = {
+            agent.agent_id: load_role_template(self.config.project_path(agent.role_template_path))
+            for agent in scenario.agents
+        }
+        agent_action_names = {
+            agent.agent_id: _allowed_action_names(script_registry, role_templates[agent.agent_id])
+            for agent in scenario.agents
+        }
+
+        orchestrator_provider = self.orchestrator_provider or (
+            FakeOrchestratorPlanProvider()
+            if self.config.mode == "fake"
+            else LocalOrchestratorPlanProvider(orchestrator_model)
+        )
+        executor_provider = self.executor_provider or (
+            FakeExecutorActionProvider()
+            if self.config.mode == "fake"
+            else LocalExecutorActionProvider(executor_model)
+        )
+
+        provider_result = orchestrator_provider.create_plan(
+            scenario=scenario,
+            agents=scenario.agents,
+            agent_action_names=agent_action_names,
+        )
+        plan_payload = parse_orchestrator_plan_text(
+            provider_result.raw_model_output,
+            known_agent_ids={agent.agent_id for agent in scenario.agents},
+            allowed_action_names_by_agent=agent_action_names,
+        )
+        plan = OrchestratorPlan(
+            plan_id=f"{self.config.run_id}_plan",
+            scenario_id=scenario.scenario_id,
+            orchestrator_model_id=scenario.orchestrator_model_id,
+            tasks=[
+                OrchestratorPlanTask.model_validate(task.model_dump(mode="json"))
+                for task in plan_payload.tasks
+            ],
+            coordination_notes=plan_payload.coordination_notes,
+            expected_group_outcome=plan_payload.expected_group_outcome,
+        )
+
+        assignments = _assignments_from_plan(plan, scenario)
+        states = {
+            agent.agent_id: _build_agent_state(
+                self.config.project_root,
+                agent,
+                role_templates[agent.agent_id],
+                script_registry,
+                assignments[agent.agent_id],
+            )
+            for agent in scenario.agents
+        }
+        bridge = ScriptExecutionBridge(
+            ScriptExecutionBridgeConfig(
+                project_root=self.config.project_root,
+                registry_path=scenario.registry_path,
+                validate_with_registry=True,
+                normalize_result=True,
+                write_history=False,
+            ),
+            registry=script_registry,
+        )
+
+        trajectories = {
+            agent.agent_id: ExecutorAgentTrajectory(
+                agent_id=agent.agent_id,
+                role_template_path=agent.role_template_path,
+                activity_profile_path=agent.activity_profile_path,
+                assigned_goal=assignments[agent.agent_id].assigned_goal,
+                executor_model_id=agent.executor_model_id,
+            )
+            for agent in scenario.agents
+        }
+        group_history: list[GroupHistoryRecord] = []
+        errors: list[dict[str, Any]] = []
+
+        task_by_agent = {task.agent_id: task for task in plan.tasks}
+        for group_step in range(1, scenario.max_group_steps + 1):
+            for agent in scenario.agents:
+                trajectory = trajectories[agent.agent_id]
+                if len(trajectory.attempts) >= scenario.max_steps_per_agent:
+                    continue
+                state = states[agent.agent_id]
+                task = task_by_agent[agent.agent_id]
+                attempt = _run_executor_step(
+                    executor_provider=executor_provider,
+                    agent=agent,
+                    task=task,
+                    state=state,
+                    role_template=role_templates[agent.agent_id],
+                    registry=script_registry,
+                    bridge=bridge,
+                    group_step_index=group_step,
+                    execute_actions=scenario.execute_actions,
+                    out_dir=out_dir,
+                    project_root=self.config.project_root,
+                )
+                trajectory.attempts.append(attempt)
+                _update_state_history(state, attempt)
+                group_history.append(_history_from_attempt(attempt))
+                if attempt.error_type:
+                    errors.append(
+                        {
+                            "agent_id": agent.agent_id,
+                            "group_step_index": group_step,
+                            "error_type": attempt.error_type,
+                            "error_message": attempt.error_message,
+                        }
+                    )
+
+        activity_profiles = {
+            agent.agent_id: load_activity_profile(self.config.project_path(agent.activity_profile_path))
+            for agent in scenario.agents
+        }
+        evaluator = ActivityTrajectoryEvaluator()
+        for agent in scenario.agents:
+            trajectory = trajectories[agent.agent_id]
+            activity_steps = _activity_steps_from_attempts(trajectory.attempts)
+            activity_result = evaluator.evaluate(activity_steps, activity_profiles[agent.agent_id])
+            trajectory.activity_evaluation = activity_result.model_dump(mode="json")
+            trajectory.success = bool(trajectory.attempts) and all(
+                attempt.error_type is None for attempt in trajectory.attempts
+            )
+            trajectory.status = "completed" if trajectory.success else "failed"
+
+        quality = _compute_quality_metrics(
+            plan=plan,
+            assignments=assignments,
+            trajectories=list(trajectories.values()),
+            scenario=scenario,
+        )
+        pair_eval = _pair_evaluation(scenario, quality)
+        status: GroupRunStatus = "completed" if not errors else "completed_with_failures"
+        success = not errors
+        result = OrchestratorExecutorRunResult(
+            run_id=self.config.run_id,
+            scenario_id=scenario.scenario_id,
+            orchestrator_model_id=scenario.orchestrator_model_id,
+            executor_model_ids=sorted({agent.executor_model_id for agent in scenario.agents}),
+            status=status,
+            success=success,
+            stopped_reason=None if success else "One or more executor steps failed.",
+            plan=plan,
+            per_agent_results=list(trajectories.values()),
+            group_history=group_history,
+            quality_metrics=quality,
+            pair_evaluation=pair_eval,
+            artifact_dir=str(out_dir),
+            warnings=_runtime_warnings(self.config.mode, orchestrator_model, executor_model),
+            errors=errors,
+        )
+        _write_artifacts(
+            out_dir=out_dir,
+            result=result,
+            config=self.config,
+            scenario=scenario,
+            orchestrator_model=orchestrator_model,
+            executor_model=executor_model,
+            provider_result=provider_result,
+            assignments=assignments,
+            started_at=started_at,
+            wall_time_seconds=time.perf_counter() - perf_start,
+        )
+        return result
+
+
+def load_orchestrator_executor_scenario(path: str | Path) -> OrchestratorExecutorScenario:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    return OrchestratorExecutorScenario.model_validate(payload)
+
+
+def _apply_config_overrides(
+    scenario: OrchestratorExecutorScenario,
+    config: OrchestratorExecutorRunConfig,
+) -> OrchestratorExecutorScenario:
+    payload = scenario.model_dump(mode="json")
+    if config.orchestrator_model_id:
+        payload["orchestrator_model_id"] = config.orchestrator_model_id
+    if config.executor_model_id:
+        payload["executor_model_id"] = config.executor_model_id
+        for agent in payload["agents"]:
+            agent["executor_model_id"] = config.executor_model_id
+    if config.max_group_steps is not None:
+        payload["max_group_steps"] = config.max_group_steps
+    if config.max_steps_per_agent is not None:
+        payload["max_steps_per_agent"] = config.max_steps_per_agent
+    if config.execute_actions is not None:
+        payload["execute_actions"] = config.execute_actions
+    return OrchestratorExecutorScenario.model_validate(payload)
+
+
+def _orchestrator_model_config(spec: EvaluationModelSpec) -> OrchestratorModelConfig:
+    return OrchestratorModelConfig(
+        model_id=spec.model_id,
+        base_url=spec.base_url,
+        model_name=spec.model_name,
+        temperature=spec.temperature,
+        max_tokens=spec.max_tokens,
+        timeout_seconds=spec.timeout_seconds,
+    )
+
+
+def _executor_model_config(spec: EvaluationModelSpec) -> ExecutorModelConfig:
+    return ExecutorModelConfig(
+        model_id=spec.model_id,
+        base_url=spec.base_url,
+        model_name=spec.model_name,
+        temperature=spec.temperature,
+        max_tokens=spec.max_tokens,
+        timeout_seconds=spec.timeout_seconds,
+    )
+
+
+def _allowed_action_names(registry: ScriptRegistry, role_template: RoleTemplate) -> set[str]:
+    role_allowed = role_template.constraints.allowed_action_names
+    if role_allowed:
+        return set(role_allowed) & registry.script_names()
+    return registry.script_names()
+
+
+def _assignments_from_plan(
+    plan: OrchestratorPlan,
+    scenario: OrchestratorExecutorScenario,
+) -> dict[str, AgentAssignment]:
+    agents = {agent.agent_id: agent for agent in scenario.agents}
+    out: dict[str, AgentAssignment] = {}
+    for task in plan.tasks:
+        agent = agents[task.agent_id]
+        out[task.agent_id] = AgentAssignment(
+            agent_id=task.agent_id,
+            task_id=task.task_id,
+            assigned_goal=task.goal,
+            executor_model_id=agent.executor_model_id,
+            success_criteria=task.success_criteria,
+            allowed_action_focus=list(task.allowed_action_focus),
+        )
+    missing = sorted(set(agents) - set(out))
+    if missing:
+        raise OrchestratorPlanJSONError(f"Orchestrator plan did not assign all agents: {missing}")
+    return out
+
+
+def _build_agent_state(
+    project_root: Path,
+    agent: GroupAgentSpec,
+    role_template: RoleTemplate,
+    registry: ScriptRegistry,
+    assignment: AgentAssignment,
+) -> AgentState:
+    if agent.initial_state_path:
+        state = load_agent_state(project_root / agent.initial_state_path)
+        payload = state.model_dump(mode="json")
+    else:
+        payload = role_template_to_agent_state_defaults(role_template)
+        payload.update(
+            {
+                "agent_id": agent.agent_id,
+                "environment": {
+                    "os": platform.platform(),
+                    "project_root": str(project_root),
+                    "runtime": "orchestrator_executor_pipeline_v1",
+                    "network_allowed": False,
+                    "notes": ["No external network in group MVP."],
+                },
+                "available_actions": [
+                    _action_spec_from_descriptor(registry.get_script(name)).model_dump(mode="json")
+                    for name in sorted(_allowed_action_names(registry, role_template))
+                    if registry.get_script(name) is not None
+                ],
+                "history": [],
+                "current_step": 1,
+            }
+        )
+    payload["agent_id"] = agent.agent_id
+    payload["objective"]["primary"] = assignment.assigned_goal
+    payload["objective"]["success_criteria"] = list(
+        dict.fromkeys([*payload["objective"].get("success_criteria", []), assignment.success_criteria])
+    )
+    payload["metadata"] = {
+        **payload.get("metadata", {}),
+        **agent.state_override,
+        "assigned_goal": assignment.assigned_goal,
+        "executor_model_id": assignment.executor_model_id,
+        "orchestrator_task_id": assignment.task_id,
+    }
+    return AgentState.model_validate(payload)
+
+
+def _action_spec_from_descriptor(descriptor: Any) -> ActionSpec:
+    assert descriptor is not None
+    return ActionSpec(
+        name=descriptor.name,
+        description=descriptor.description,
+        parameters_schema={
+            p.name: {
+                "type": p.type,
+                "required": p.required,
+                "description": p.description,
+            }
+            for p in descriptor.parameters
+        },
+        safety_notes=list(descriptor.safety.notes),
+    )
+
+
+def _run_executor_step(
+    *,
+    executor_provider: ExecutorActionProvider,
+    agent: GroupAgentSpec,
+    task: OrchestratorPlanTask,
+    state: AgentState,
+    role_template: RoleTemplate,
+    registry: ScriptRegistry,
+    bridge: ScriptExecutionBridge,
+    group_step_index: int,
+    execute_actions: bool,
+    out_dir: Path,
+    project_root: Path,
+) -> ExecutorActionAttempt:
+    started = time.perf_counter()
+    agent_step_index = state.current_step
+    try:
+        provider_result = executor_provider.next_action(
+            agent=agent,
+            task=task,
+            state=state,
+            group_step_index=group_step_index,
+            agent_step_index=agent_step_index,
+            out_dir=out_dir,
+            project_root=project_root,
+        )
+    except Exception as exc:
+        return ExecutorActionAttempt(
+            group_step_index=group_step_index,
+            agent_step_index=agent_step_index,
+            agent_id=agent.agent_id,
+            task_id=task.task_id,
+            raw_model_output="",
+            selection_latency_ms=_elapsed_ms(started),
+            error_type=exc.__class__.__name__,
+            error_message=str(exc) or exc.__class__.__name__,
+        )
+
+    attempt = ExecutorActionAttempt(
+        group_step_index=group_step_index,
+        agent_step_index=agent_step_index,
+        agent_id=agent.agent_id,
+        task_id=task.task_id,
+        raw_model_output=provider_result.raw_model_output,
+        selection_latency_ms=_elapsed_ms(started),
+    )
+    try:
+        next_action = parse_next_action_text(provider_result.raw_model_output)
+        attempt.parse_success = True
+        attempt.action = next_action.action
+        attempt.next_action = next_action.model_dump(mode="json")
+    except NextActionContractError as exc:
+        attempt.error_type = exc.__class__.__name__
+        attempt.error_message = str(exc)
+        return attempt
+
+    validation = validate_next_action_against_registry(next_action, registry, role_template)
+    attempt.validation_accepted = validation.accepted
+    attempt.validation_issues = [issue.model_dump(mode="json") for issue in validation.issues]
+    if not validation.accepted:
+        attempt.error_type = "validation_failed"
+        attempt.error_message = ", ".join(issue.code for issue in validation.issues)
+        return attempt
+
+    if execute_actions:
+        output = bridge.execute_next_action(
+            next_action,
+            run_id=agent.agent_id,
+            agent_id=agent.agent_id,
+            step_index=agent_step_index,
+        )
+        attempt.execution_attempted = True
+        attempt.execution_success = output.success
+        attempt.execution_result = output.model_dump(mode="json")
+        if not output.success:
+            attempt.error_type = output.raw_result.error_type or "execution_failed"
+            attempt.error_message = output.raw_result.error_message or "Execution failed."
+    else:
+        attempt.execution_attempted = False
+        attempt.execution_success = None
+    return attempt
+
+
+def _update_state_history(state: AgentState, attempt: ExecutorActionAttempt) -> None:
+    if attempt.next_action:
+        action = attempt.next_action["action"]
+        params = dict(attempt.next_action.get("parameters") or {})
+    else:
+        action = "invalid_or_missing_action"
+        params = {}
+    if attempt.error_type is None:
+        status = "success"
+        summary = f"Group step {attempt.group_step_index} action accepted."
+        error = None
+    else:
+        status = "failure"
+        summary = f"Group step {attempt.group_step_index} failed: {attempt.error_type}."
+        error = attempt.error_message
+    state.history.append(
+        ActionHistoryEntry(
+            step=state.current_step,
+            action=action,
+            parameters=params,
+            status=status,
+            summary=summary,
+            error=error,
+        )
+    )
+    state.current_step = max(entry.step for entry in state.history) + 1
+
+
+def _history_from_attempt(attempt: ExecutorActionAttempt) -> GroupHistoryRecord:
+    status: Literal["success", "failure", "skipped"]
+    if attempt.error_type is None:
+        status = "success"
+    elif attempt.parse_success:
+        status = "failure"
+    else:
+        status = "skipped"
+    return GroupHistoryRecord(
+        group_step_index=attempt.group_step_index,
+        agent_id=attempt.agent_id,
+        task_id=attempt.task_id,
+        action=attempt.action,
+        status=status,
+        summary=attempt.error_message or "Executor step completed.",
+        metadata={
+            "validation_accepted": attempt.validation_accepted,
+            "execution_attempted": attempt.execution_attempted,
+            "execution_success": attempt.execution_success,
+        },
+    )
+
+
+def _activity_steps_from_attempts(attempts: list[ExecutorActionAttempt]) -> list[ActivityTrajectoryStep]:
+    steps: list[ActivityTrajectoryStep] = []
+    for attempt in attempts:
+        if not attempt.next_action:
+            continue
+        steps.append(
+            ActivityTrajectoryStep(
+                step_index=attempt.agent_step_index,
+                action=str(attempt.next_action["action"]),
+                parameters=dict(attempt.next_action.get("parameters") or {}),
+                success=attempt.error_type is None,
+                status="success" if attempt.error_type is None else "failure",
+                issue_codes=[str(issue.get("code")) for issue in attempt.validation_issues if issue.get("code")],
+                reason=str(attempt.next_action.get("reason") or ""),
+                expected_result=str(attempt.next_action.get("expected_result") or ""),
+                used_history=attempt.agent_step_index > 1,
+            )
+        )
+    return steps
+
+
+def _compute_quality_metrics(
+    *,
+    plan: OrchestratorPlan,
+    assignments: dict[str, AgentAssignment],
+    trajectories: list[ExecutorAgentTrajectory],
+    scenario: OrchestratorExecutorScenario,
+) -> OrchestratorExecutorQualityMetrics:
+    attempts = [attempt for trajectory in trajectories for attempt in trajectory.attempts]
+    initial_attempts = [attempt for attempt in attempts if attempt.attempt_type == "initial"]
+    parsed_attempts = [attempt for attempt in attempts if attempt.parse_success]
+    validation_ok = [attempt for attempt in attempts if attempt.validation_accepted is True]
+    final_validation_rate = _rate(len(validation_ok), len(attempts))
+    execution_attempts = [attempt for attempt in attempts if attempt.execution_attempted]
+    execution_successes = [attempt for attempt in execution_attempts if attempt.execution_success is True]
+    safety_violations = sum(
+        1
+        for attempt in attempts
+        for issue in attempt.validation_issues
+        if issue.get("layer") == "safety_policy" or str(issue.get("code", "")).startswith("unsafe")
+    )
+    activity_metrics = [
+        trajectory.activity_evaluation["metrics"]
+        for trajectory in trajectories
+        if trajectory.activity_evaluation
+    ]
+    role_fit = _mean([m["role_fit_score"] for m in activity_metrics])
+    diversity = _mean([m["diversity_score"] for m in activity_metrics])
+    repetition = _mean([m["repetition_score"] for m in activity_metrics])
+    history = _mean([m["history_usage_score"] for m in activity_metrics])
+    coordination = 1.0 if set(assignments) == {agent.agent_id for agent in scenario.agents} and plan.tasks else 0.0
+    task_completion = _rate(sum(1 for trajectory in trajectories if trajectory.success), len(trajectories))
+    latency_values = [attempt.selection_latency_ms for attempt in attempts if attempt.selection_latency_ms is not None]
+    latency_mean = _mean(latency_values) if latency_values else None
+    latency_component = 1.0 if latency_mean is None else max(0.0, min(1.0, 1.0 - (latency_mean / 5000.0)))
+    pair_quality = (
+        0.20 * final_validation_rate
+        + 0.20 * _rate(len(execution_successes), len(execution_attempts) if execution_attempts else len(validation_ok))
+        + 0.15 * role_fit
+        + 0.10 * diversity
+        + 0.10 * history
+        + 0.10 * coordination
+        + 0.10 * task_completion
+        + 0.05 * latency_component
+    )
+    if safety_violations:
+        pair_quality -= min(0.20, 0.05 * safety_violations)
+    return OrchestratorExecutorQualityMetrics(
+        orchestrator_plan_valid=True,
+        task_assignment_valid_rate=_rate(len(assignments), len(scenario.agents)),
+        executor_initial_validation_rate=_rate(
+            sum(1 for attempt in initial_attempts if attempt.validation_accepted is True),
+            len(initial_attempts),
+        ),
+        executor_final_validation_rate=final_validation_rate,
+        execution_success_rate=_rate(len(execution_successes), len(execution_attempts)) if execution_attempts else 0.0,
+        role_fit_mean=role_fit,
+        diversity_mean=diversity,
+        repetition_mean=repetition,
+        history_usage_mean=history,
+        group_coordination_score=coordination,
+        task_completion_proxy_score=task_completion,
+        safety_violation_count=safety_violations,
+        latency_mean_ms=latency_mean,
+        pair_quality_score=round(max(0.0, min(1.0, pair_quality)), 6),
+        metadata={
+            "attempt_count": len(attempts),
+            "parsed_attempt_count": len(parsed_attempts),
+            "prototype_scoring": True,
+        },
+    )
+
+
+def _pair_evaluation(
+    scenario: OrchestratorExecutorScenario,
+    metrics: OrchestratorExecutorQualityMetrics,
+) -> OrchestratorExecutorPairEvaluationResult:
+    if metrics.pair_quality_score >= 0.7 and metrics.safety_violation_count == 0:
+        verdict: Literal["prototype_pass", "prototype_with_failures", "failed"] = "prototype_pass"
+    elif metrics.executor_final_validation_rate > 0:
+        verdict = "prototype_with_failures"
+    else:
+        verdict = "failed"
+    return OrchestratorExecutorPairEvaluationResult(
+        orchestrator_model_id=scenario.orchestrator_model_id,
+        executor_model_ids=sorted({agent.executor_model_id for agent in scenario.agents}),
+        metrics=metrics,
+        verdict=verdict,
+        notes=[
+            "Prototype scoring only; not a final scientific metric.",
+            "Fake mode does not prove local multi-model runtime capacity.",
+        ],
+    )
+
+
+def _write_artifacts(
+    *,
+    out_dir: Path,
+    result: OrchestratorExecutorRunResult,
+    config: OrchestratorExecutorRunConfig,
+    scenario: OrchestratorExecutorScenario,
+    orchestrator_model: OrchestratorModelConfig,
+    executor_model: ExecutorModelConfig,
+    provider_result: OrchestratorProviderResult,
+    assignments: dict[str, AgentAssignment],
+    started_at: str,
+    wall_time_seconds: float,
+) -> None:
+    _write_json(out_dir / "manifest.json", _manifest(result, config, scenario, orchestrator_model, executor_model, started_at))
+    _write_json(out_dir / "orchestrator_prompt.json", {"messages": provider_result.prompt_messages})
+    _write_json(out_dir / "orchestrator_raw_output.json", {"raw_model_output": provider_result.raw_model_output, "metadata": provider_result.metadata})
+    _write_json(out_dir / "orchestrator_plan.json", result.plan.model_dump(mode="json"))
+    _write_json(out_dir / "orchestrator_validation.json", {"valid": True, "warnings": result.warnings})
+    _write_json(out_dir / "agent_assignments.json", {key: value.model_dump(mode="json") for key, value in assignments.items()})
+    _write_json(out_dir / "pair_quality_metrics.json", result.quality_metrics.model_dump(mode="json"))
+    _write_json(out_dir / "pair_evaluation.json", result.pair_evaluation.model_dump(mode="json"))
+    _write_json(out_dir / "resource_summary.json", _resource_summary(started_at, wall_time_seconds))
+    _write_jsonl(out_dir / "group_steps.jsonl", [item.model_dump(mode="json") for item in result.group_history])
+    _write_jsonl(out_dir / "group_history.jsonl", [item.model_dump(mode="json") for item in result.group_history])
+    _write_jsonl(
+        out_dir / "per_agent_actions.jsonl",
+        [
+            {"agent_id": trajectory.agent_id, **attempt.model_dump(mode="json")}
+            for trajectory in result.per_agent_results
+            for attempt in trajectory.attempts
+        ],
+    )
+    _write_jsonl(
+        out_dir / "per_agent_validation_results.jsonl",
+        [
+            {
+                "agent_id": trajectory.agent_id,
+                "group_step_index": attempt.group_step_index,
+                "agent_step_index": attempt.agent_step_index,
+                "validation_accepted": attempt.validation_accepted,
+                "validation_issues": attempt.validation_issues,
+            }
+            for trajectory in result.per_agent_results
+            for attempt in trajectory.attempts
+        ],
+    )
+    _write_jsonl(
+        out_dir / "per_agent_execution_results.jsonl",
+        [
+            {
+                "agent_id": trajectory.agent_id,
+                "group_step_index": attempt.group_step_index,
+                "agent_step_index": attempt.agent_step_index,
+                "execution_attempted": attempt.execution_attempted,
+                "execution_success": attempt.execution_success,
+                "execution_result": attempt.execution_result,
+            }
+            for trajectory in result.per_agent_results
+            for attempt in trajectory.attempts
+        ],
+    )
+    _write_jsonl(out_dir / "errors.jsonl", result.errors)
+    (out_dir / "replay_commands.ps1").write_text(_replay_command(config) + "\n", encoding="utf-8")
+    (out_dir / "README.md").write_text(_artifact_readme(result), encoding="utf-8")
+
+
+def _manifest(
+    result: OrchestratorExecutorRunResult,
+    config: OrchestratorExecutorRunConfig,
+    scenario: OrchestratorExecutorScenario,
+    orchestrator_model: OrchestratorModelConfig,
+    executor_model: ExecutorModelConfig,
+    started_at: str,
+) -> dict[str, Any]:
+    return {
+        "runner_id": "orchestrator_executor_pipeline_v1",
+        "run_id": result.run_id,
+        "scenario_id": result.scenario_id,
+        "scenario_path": config.scenario_path,
+        "mode": config.mode,
+        "status": result.status,
+        "success": result.success,
+        "orchestrator_model": orchestrator_model.model_dump(mode="json"),
+        "executor_model": executor_model.model_dump(mode="json"),
+        "max_group_steps": scenario.max_group_steps,
+        "max_steps_per_agent": scenario.max_steps_per_agent,
+        "execute_actions": scenario.execute_actions,
+        "started_at": started_at,
+        "completed_at": _utc_now(),
+        "limitations": [
+            "MVP runner is sequential and not a production scheduler.",
+            "Fake mode does not call llama-server.",
+            "Local mode requires already available compatible runtime endpoint(s).",
+        ],
+    }
+
+
+def _resource_summary(started_at: str, wall_time_seconds: float) -> dict[str, Any]:
+    return {
+        "started_at": started_at,
+        "completed_at": _utc_now(),
+        "wall_time_ms": round(wall_time_seconds * 1000.0, 3),
+        "platform": platform.platform(),
+        "python_version": platform.python_version(),
+    }
+
+
+def _replay_command(config: OrchestratorExecutorRunConfig) -> str:
+    action_flag = "--execute-actions" if config.execute_actions is not False else "--no-execute-actions"
+    return (
+        "python scripts\\run_orchestrator_executor_group.py "
+        f"--mode {config.mode} "
+        f"--models-config {config.models_config_path} "
+        f"--scenario {config.scenario_path} "
+        f"--out-dir {config.out_dir} "
+        f"--run-id {config.run_id} "
+        f"--orchestrator-model-id {config.orchestrator_model_id or 'second_model'} "
+        f"--executor-model-id {config.executor_model_id or 'first_model'} "
+        f"--max-group-steps {config.max_group_steps or 2} "
+        f"--max-steps-per-agent {config.max_steps_per_agent or 2} "
+        f"--repair-attempts {config.repair_attempts} "
+        f"{action_flag} "
+        "--force"
+    )
+
+
+def _artifact_readme(result: OrchestratorExecutorRunResult) -> str:
+    return f"""# Orchestrator/Executor Group Run
+
+Run id: `{result.run_id}`
+
+Scenario: `{result.scenario_id}`
+
+Status: `{result.status}`
+
+Pair quality score: `{result.quality_metrics.pair_quality_score}`
+
+This artifact was produced by the sequential MVP runner. It is useful as a structural group-agent prototype, not as a production scheduler or measured capacity result.
+"""
+
+
+def _runtime_warnings(
+    mode: GroupRunMode,
+    orchestrator_model: OrchestratorModelConfig,
+    executor_model: ExecutorModelConfig,
+) -> list[str]:
+    warnings = ["orchestrator_executor_mvp_is_sequential_not_production_scheduler"]
+    if mode == "fake":
+        warnings.append("fake_mode_does_not_call_llama_server")
+    if mode == "local" and orchestrator_model.base_url == executor_model.base_url:
+        warnings.append("local_mode_uses_same_base_url_for_orchestrator_and_executor; manual runtime coordination may be required")
+    return warnings
+
+
+def _safe_relative_artifact_path(project_root: Path, path: Path) -> str:
+    try:
+        return path.resolve().relative_to(project_root.resolve()).as_posix()
+    except ValueError:
+        return "experiments/multi_agent/orchestrator_executor/workspace/office_agent_summary.md"
+
+
+def _prepare_output_dir(out_dir: Path, *, force: bool) -> None:
+    if out_dir.exists() and not force:
+        raise FileExistsError(f"Output directory already exists: {out_dir}")
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+
+def _write_json(path: Path, payload: Any) -> None:
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.write_text(
+        "".join(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _elapsed_ms(start: float) -> float:
+    return round((time.perf_counter() - start) * 1000.0, 3)
+
+
+def _rate(numerator: int, denominator: int) -> float:
+    if denominator <= 0:
+        return 0.0
+    return round(numerator / denominator, 6)
+
+
+def _mean(values: list[float | int]) -> float:
+    if not values:
+        return 0.0
+    return round(sum(float(value) for value in values) / len(values), 6)

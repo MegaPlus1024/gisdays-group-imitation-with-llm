@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This draft defines how to compare an orchestrator model plus one or more executor models. It is a proposed scoring spec, not an implemented metric.
+This draft defines how to compare an orchestrator model plus one or more executor models. A limited prototype implementation now exists in `src/agent/orchestrator_executor_pipeline.py`; the score is still not a final scientific metric or production recommendation.
 
 ## Pair Quality Score
 
@@ -27,8 +27,8 @@ Positive component weights sum to 1.0:
 | diversity_score | 0.07 | yes | Action/parameter diversity. |
 | anti_template_score | 0.07 | yes/partial | Inverse of repeated/template patterns. |
 | failure_recovery_score | 0.07 | partial | Repair and recovery evidence exists; group recovery does not. |
-| group_coordination_score | 0.11 | no | Requires orchestrator/executor group artifacts. |
-| task_completion_score | 0.12 | no/partial | Requires scenario-level task completion criteria. |
+| group_coordination_score | 0.11 | prototype | Structural proxy from orchestrator/executor group artifacts. |
+| task_completion_score | 0.12 | prototype/partial | Proxy from per-agent trajectory success; scenario-specific completion criteria still needed. |
 
 Penalty caps:
 
@@ -49,16 +49,19 @@ Penalty caps:
 - Per-step selection latency.
 - Lightweight CPU/RAM observations.
 - Safety/path validation failures.
+- Prototype group coordination proxy in fake-mode orchestrator/executor artifacts.
+- Prototype task-completion proxy based on per-agent trajectory success.
 
 ## What Is Missing
 
-- Model-backed orchestrator planning.
-- Executor assignment metadata.
-- Group shared history.
-- Group coordination score.
-- Scenario task-completion score.
+- Local model-backed orchestrator planning run.
+- Repeated pair-level trials.
+- Production shared memory/runtime.
+- Measured group coordination score beyond the current structural proxy.
+- Scenario task-completion score beyond the current trajectory-success proxy.
 - Concurrent multi-agent resource measurement.
-- Pair-level artifacts with `orchestrator_model_id`, `executor_model_ids`, assignments, plans, and per-agent outcomes.
+
+Implemented prototype pair-level artifacts include `orchestrator_model_id`, `executor_model_ids`, assignments, plans, per-agent outcomes, group history, `pair_quality_metrics.json`, and `pair_evaluation.json`.
 
 ## Pair Comparison Protocol
 

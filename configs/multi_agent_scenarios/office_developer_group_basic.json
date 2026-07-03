@@ -1,0 +1,33 @@
+{
+  "scenario_id": "office_developer_group_basic_v1",
+  "description": "Small offline orchestrator/executor group scenario with one office worker agent and one developer agent.",
+  "orchestrator_model_id": "second_model",
+  "executor_model_id": "first_model",
+  "registry_path": "configs/script_registry.example.json",
+  "max_group_steps": 2,
+  "max_steps_per_agent": 2,
+  "execute_actions": true,
+  "expected_group_behavior": "The office agent records a safe local summary while the developer agent inspects project documentation; all work stays in local files and simulated or stub action boundaries.",
+  "agents": [
+    {
+      "agent_id": "office_agent",
+      "role_template_path": "configs/roles/office_worker.example.json",
+      "activity_profile_path": "configs/activity_profiles/office_worker.json",
+      "assigned_goal": "Review model metadata and prepare a concise local office summary for the group run.",
+      "executor_model_id": "first_model"
+    },
+    {
+      "agent_id": "developer_agent",
+      "role_template_path": "configs/roles/developer.example.json",
+      "activity_profile_path": "configs/activity_profiles/developer.json",
+      "assigned_goal": "Inspect readiness and quality-spec documentation to identify safe follow-up implementation context.",
+      "executor_model_id": "first_model"
+    }
+  ],
+  "metadata": {
+    "schema_version": "orchestrator_executor_group_scenario_v1",
+    "network_required": false,
+    "browser_real_automation_required": false,
+    "office_real_automation_required": false
+  }
+}
