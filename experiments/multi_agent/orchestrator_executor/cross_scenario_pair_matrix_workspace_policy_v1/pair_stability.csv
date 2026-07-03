@@ -1,0 +1,5 @@
+pair,pair_id,scenarios_completed,mean_rank_score_across_scenarios,mean_quality_across_scenarios,quality_drop_simple_to_heavy,execution_success_drop_simple_to_heavy,stability_verdict
+second_model->second_model,second_model__second_model,2,0.854073,0.881595,0.012289,0.0,stable_but_low_confidence
+second_model->first_model,second_model__first_model,2,0.761943,0.855428,0.0702,0.0,stable_but_low_confidence
+first_model->first_model,first_model__first_model,0,,,0.0,0.0,degraded_on_heavy
+first_model->second_model,first_model__second_model,0,,,0.0,0.0,degraded_on_heavy

@@ -63,8 +63,8 @@ class OrchestratorPlanPayload(BaseModel):
     def validate_tasks(cls, value: list[OrchestratorPlanTaskPayload]) -> list[OrchestratorPlanTaskPayload]:
         if not value:
             raise ValueError("tasks must contain at least one task.")
-        if len(value) > 2:
-            raise ValueError("tasks must contain at most 2 tasks for the MVP local proof.")
+        if len(value) > 4:
+            raise ValueError("tasks must contain at most 4 tasks for the local group proof.")
         task_ids = [task.task_id for task in value]
         if len(task_ids) != len(set(task_ids)):
             raise ValueError("task_id values must be unique.")
@@ -89,38 +89,33 @@ def build_orchestrator_messages(
     max_group_steps: int,
 ) -> list[dict[str, str]]:
     compact_agents = _compact_agents(agents)
+    example_tasks = [
+        {
+            "task_id": f"t{index}",
+            "agent_id": agent["agent_id"],
+            "goal": str(agent.get("goal") or "Inspect safe local project context.")[:110],
+            "allowed_action_focus": list(agent.get("allowed_actions") or ["read_file"])[:2],
+            "success_criteria": "A safe local action is selected.",
+        }
+        for index, agent in enumerate(compact_agents, start=1)
+    ]
     example = {
-        "tasks": [
-            {
-                "task_id": "t1",
-                "agent_id": "office_agent",
-                "goal": "Review available project notes and summarize next action.",
-                "allowed_action_focus": ["read_file", "list_directory"],
-                "success_criteria": "A safe file or directory action is selected.",
-            },
-            {
-                "task_id": "t2",
-                "agent_id": "developer_agent",
-                "goal": "Inspect safe project documentation for maintenance context.",
-                "allowed_action_focus": ["read_file", "list_directory"],
-                "success_criteria": "A safe project documentation path is inspected.",
-            },
-        ],
+        "tasks": example_tasks,
         "coordination_notes": "Agents should avoid external network and unsafe writes.",
-        "expected_group_outcome": "Both agents perform one safe role-compatible action.",
+        "expected_group_outcome": "All agents perform safe role-compatible local actions.",
     }
     return [
         {
             "role": "system",
             "content": (
-                "Return only one compact JSON object for a local two-agent plan. "
+                "Return only one compact JSON object for a local group plan. "
                 "No Markdown, no prose outside JSON, no multiline strings."
             ),
         },
         {
             "role": "user",
             "content": (
-                "Create max 2 tasks for known agents only.\n"
+                "Create exactly one task for each known agent, max 4 tasks total.\n"
                 "Limits: goal<=120 chars; success_criteria<=120; coordination_notes<=160; "
                 "expected_group_outcome<=160; allowed_action_focus<=3 names.\n"
                 "Use only allowed actions. Do not request internet, downloads, external network, "
@@ -162,7 +157,7 @@ def build_orchestrator_repair_messages(
                 "Known agents and allowed actions:\n"
                 f"{json.dumps(compact_agents, ensure_ascii=False, separators=(',', ':'))}\n"
                 "Return JSON with keys: tasks, coordination_notes, expected_group_outcome. "
-                "Use max 2 tasks, known agent_id values only, short single-line strings, "
+                "Use exactly one task for each known agent, max 4 tasks, short single-line strings, "
                 "and allowed_action_focus with max 3 allowed action names."
             ),
         },
@@ -242,7 +237,7 @@ def _validate_no_external_network_requirement(plan: OrchestratorPlanPayload) -> 
 
 def _compact_agents(agents: list[dict[str, Any]]) -> list[dict[str, Any]]:
     compact: list[dict[str, Any]] = []
-    for agent in agents[:2]:
+    for agent in agents[:4]:
         allowed_actions = agent.get("allowed_action_names") or agent.get("allowed_action_focus") or []
         compact.append(
             {

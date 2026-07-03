@@ -1,0 +1,108 @@
+[
+  {
+    "trial_id": "trial_001",
+    "run_id": "fake_heavy_group_scenario_smoke_workspace_policy_v1_trial_001",
+    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\fake_heavy_group_scenario_smoke_workspace_policy_v1\\runs\\trial_001",
+    "status": "completed",
+    "trial_status": "completed",
+    "success": true,
+    "plan_valid": true,
+    "executor_calls": 8,
+    "final_validation_success_count": 8,
+    "execution_success_count": 8,
+    "pair_quality_score": 0.958333,
+    "main_errors": "",
+    "return_code": 0,
+    "error_message": null,
+    "orchestrator_initial_parse_success": true,
+    "orchestrator_repair_attempt_count": 0,
+    "executor_model_calls_attempted": 8,
+    "initial_validation_success_count": 8,
+    "repair_attempt_count": 0,
+    "execution_attempted_count": 8,
+    "safety_violation_count": 0,
+    "error_count": 0,
+    "pair_verdict": "prototype_pass",
+    "wall_time_ms": 56.65,
+    "orchestrator_latency_ms": 0.099,
+    "executor_latency_mean_ms": 0.061375,
+    "repeated_action_count": 6,
+    "dominant_action_parameters": [
+      {
+        "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/model_research_metadata.md\"}}",
+        "count": 2
+      },
+      {
+        "action_parameters": "{\"action\": \"create_file\", \"parameters\": {\"content\": \"Office agent summary: model metadata was reviewed for the group run.\\n\", \"path\": \"experiments/multi_agent/orchestrator_executor/fake_heavy_group_scenario_smoke_workspace_policy_v1/runs/trial_001/workspace/office_agent_summary.md\"}}",
+        "count": 2
+      },
+      {
+        "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/final_tz_readiness_audit.md\"}}",
+        "count": 2
+      },
+      {
+        "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/orchestrator_executor_quality_spec.md\"}}",
+        "count": 2
+      }
+    ],
+    "common_failure_modes": {},
+    "common_actions": {
+      "read_file": 6,
+      "create_file": 2
+    },
+    "stopped_reason": null
+  },
+  {
+    "trial_id": "trial_002",
+    "run_id": "fake_heavy_group_scenario_smoke_workspace_policy_v1_trial_002",
+    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\fake_heavy_group_scenario_smoke_workspace_policy_v1\\runs\\trial_002",
+    "status": "completed",
+    "trial_status": "completed",
+    "success": true,
+    "plan_valid": true,
+    "executor_calls": 8,
+    "final_validation_success_count": 8,
+    "execution_success_count": 8,
+    "pair_quality_score": 0.958333,
+    "main_errors": "",
+    "return_code": 0,
+    "error_message": null,
+    "orchestrator_initial_parse_success": true,
+    "orchestrator_repair_attempt_count": 0,
+    "executor_model_calls_attempted": 8,
+    "initial_validation_success_count": 8,
+    "repair_attempt_count": 0,
+    "execution_attempted_count": 8,
+    "safety_violation_count": 0,
+    "error_count": 0,
+    "pair_verdict": "prototype_pass",
+    "wall_time_ms": 6.615,
+    "orchestrator_latency_ms": 0.071,
+    "executor_latency_mean_ms": 0.058375,
+    "repeated_action_count": 6,
+    "dominant_action_parameters": [
+      {
+        "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/model_research_metadata.md\"}}",
+        "count": 2
+      },
+      {
+        "action_parameters": "{\"action\": \"create_file\", \"parameters\": {\"content\": \"Office agent summary: model metadata was reviewed for the group run.\\n\", \"path\": \"experiments/multi_agent/orchestrator_executor/fake_heavy_group_scenario_smoke_workspace_policy_v1/runs/trial_002/workspace/office_agent_summary.md\"}}",
+        "count": 2
+      },
+      {
+        "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/final_tz_readiness_audit.md\"}}",
+        "count": 2
+      },
+      {
+        "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/orchestrator_executor_quality_spec.md\"}}",
+        "count": 2
+      }
+    ],
+    "common_failure_modes": {},
+    "common_actions": {
+      "read_file": 6,
+      "create_file": 2
+    },
+    "stopped_reason": null
+  }
+]

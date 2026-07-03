@@ -20,7 +20,9 @@ This audit checks the repository against that target without running models, sta
 - Sequential fake-mode orchestrator/executor group MVP exists, with plan, assignments, executor actions, group history, artifacts, and prototype pair-quality metrics.
 - One narrow two-endpoint local orchestrator/executor proof completed after executor prompt hardening, with two validated and executed local read actions.
 - A repeated local group run completed N=3 for the same `second_model -> first_model` pair and one scenario, with zero recorded errors.
-- An orchestrator/executor pair matrix compared four pairs for the same group scenario. `second_model -> first_model` is the current best observed pair for this scenario, while both `first_model` orchestrator pairs failed at plan parsing.
+- An orchestrator/executor pair matrix compared four pairs for the basic group scenario. `second_model -> first_model` was the best observed pair there, while both `first_model` orchestrator pairs failed at plan parsing.
+- A heavier four-agent group scenario was added with two group steps and workspace-only writes. Its pair matrix completed all four pair entries; `second_model -> second_model` was best observed there, while `second_model -> first_model` completed with validation/repair failures and both `first_model` orchestrator pairs failed at plan parsing.
+- Cross-scenario pair comparison now covers the basic and heavy group scenarios. The top completed pairs are `stable_but_low_confidence`, and the best observed pair changes by scenario.
 - Final reports exist, but they explicitly do not make a production recommendation.
 
 ## 3. Requirement Coverage Matrix
@@ -34,10 +36,10 @@ This audit checks the repository against that target without running models, sta
 | execution bridge | `ScriptExecutionBridge` and script helpers | complete | Browser/office actions are simulated or stub/file-based. | Add optional real automation adapters later. |
 | history/error logging | `ExecutionHistoryLogger`, single-agent artifacts, orchestrator/executor group artifacts | complete | Group history exists for the MVP runner only; it is not a production shared memory/runtime. | Expand group history semantics after local group runs. |
 | behavioral evaluation | activity profiles, repeated-trials analysis, cross-scenario analysis | complete | Limited to two scenarios and short trajectories. | Add at least one more scenario and longer runs. |
-| multiple models | `first_model`, `second_model`, alias support, repeated comparisons, default orchestrator/executor pair, pair matrix | partially complete | Only two model candidates; pair matrix covers one group scenario only. | Add additional group scenarios with the same pair matrix protocol. |
+| multiple models | `first_model`, `second_model`, alias support, repeated comparisons, default orchestrator/executor pair, pair matrices | partially complete | Only two model candidates; pair matrices cover two short group scenarios only. | Add more scenario diversity and measured resource/capacity probes. |
 | repeated trials | N=3 per model per scenario | complete | Small sample size. | Increase N only after scenario/path policy is stable. |
-| group of agents | `MultiAgentOrchestratorSmoke`, multi-agent scenario config, orchestrator/executor artifacts | partially complete / MVP implemented | Sequential fake-mode and N=3 local repeated group evidence exist for one pair/scenario; no measured concurrency. | Add more scenarios or run measured capacity smoke. |
-| orchestrator/executor pair | `src/agent/orchestrator_executor_pipeline.py`, `scripts/run_orchestrator_executor_group.py`, repeated local artifacts, `docs/ai/orchestrator_executor_pair_matrix_v1.md` | partially complete | Pair comparison is complete for one group scenario only; no multi-scenario robustness or resource benchmark. | Repeat the matrix on a heavier group scenario. |
+| group of agents | `MultiAgentOrchestratorSmoke`, multi-agent scenario configs, orchestrator/executor artifacts | partially complete / MVP implemented | Sequential fake-mode and local pair-matrix evidence exist for short group scenarios; no measured concurrency. | Run measured capacity smoke and add more realistic scenario variants. |
+| orchestrator/executor pair | `src/agent/orchestrator_executor_pipeline.py`, `scripts/run_orchestrator_executor_group.py`, repeated local artifacts, `docs/ai/orchestrator_executor_pair_matrix_v1.md`, `docs/ai/heavy_multi_agent_scenario_v1.md` | partially complete | Pair comparison covers two group scenarios but remains N=3, short-horizon, CPU-only, and not capacity measured. | Measure top-pair runtime/resource/capacity and add more scenario diversity. |
 | virtual network simulation | Controlled filesystem/action environment and constraints | partially complete | No real virtual network, host topology, or network traffic simulation. | Define minimal virtual network abstraction or narrow the claim. |
 | CPU-only runtime | CPU-oriented local runs and resource observations | complete | Evidence is short single-agent only. | Keep CPU-only as demonstrated for short demos, not capacity claims. |
 | GPU runtime | `runtime.local.example.json` marks GPU optional later | missing | No GPU flags in start script, no GPU config fields, no measured GPU run. | Add GPU runtime config and perform measured GPU smoke when hardware is available. |
@@ -49,8 +51,8 @@ This audit checks the repository against that target without running models, sta
 - Single-agent prototype: complete for a research prototype.
 - Behavioral evaluation pipeline: complete for limited scenarios.
 - Multiple executor model comparison: partially complete.
-- Group of agents: partially complete; a sequential fake-mode MVP and one N=3 local repeated two-endpoint proof now exist.
-- Orchestrator/executor pair comparison: partially complete for one group scenario; `second_model -> first_model` is current best observed there, but multi-scenario robustness is not measured.
+- Group of agents: partially complete; sequential fake-mode and local repeated/matrix evidence now exist, including a four-agent heavy scenario, but no measured concurrency.
+- Orchestrator/executor pair comparison: partially complete for two group scenarios. The best observed pair changed from `second_model -> first_model` on the basic scenario to `second_model -> second_model` on the heavy scenario, so evidence is preliminary only.
 - GPU runtime: missing/not configured.
 - Measured multi-agent capacity: missing.
 - Virtual computer network: partially simulated, not a full network.
@@ -58,4 +60,4 @@ This audit checks the repository against that target without running models, sta
 
 ## 5. Next Audit-Based Direction
 
-The next implementation should not add more reports first. The minimal orchestrator/executor experiment path, fake-mode proof, one local-mode single-step proof, one N=3 repeated local pair proof, and one same-scenario pair matrix now exist. The next step is either the same pair matrix on a heavier scenario or measured multi-agent capacity experiments.
+The next implementation should not add more reports first. The minimal orchestrator/executor experiment path, fake-mode proof, local repeated pair proof, basic pair matrix, heavy pair matrix, and cross-scenario pair comparison now exist. The next step is measured runtime/resource/capacity evidence for the top completed pairs, followed by additional scenario diversity.

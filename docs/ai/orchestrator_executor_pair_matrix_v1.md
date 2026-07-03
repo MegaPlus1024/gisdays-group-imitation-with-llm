@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-This comparison extends the repeated local group-agent proof from one pair to a small orchestrator/executor matrix. It supports model-pair selection for the current TZ prototype while staying within one short group scenario and without making a final production recommendation.
+This comparison extends the repeated local group-agent proof from one pair to a small orchestrator/executor matrix. It supports model-pair selection for the current TZ prototype while staying within short controlled group scenarios and without making a final production recommendation.
 
 ## 2. Protocol
 
@@ -89,6 +89,48 @@ The reused `second_model -> first_model` pair did not start servers during the m
 - No final production recommendation.
 - Failed `first_model` orchestrator pairs may improve only after additional prompt/repair work; this matrix records current behavior, not a permanent model property.
 
-## 8. Next step
+## 8. Heavy follow-up matrix
 
-Add a heavier multi-agent scenario and run the same matrix protocol. After that, measure runtime/GPU/capacity separately before updating any final recommendation.
+A heavier four-agent scenario was added after the first matrix:
+
+```text
+configs/multi_agent_scenarios/office_developer_maintenance_group_heavy.json
+```
+
+Heavy matrix artifact root:
+
+```text
+experiments/multi_agent/orchestrator_executor/pair_matrix_heavy_group_n3_workspace_policy_v1
+```
+
+The heavy scenario uses four agents, two group steps, and an `artifact_workspace_only` write policy. It exposed additional executor robustness issues while keeping writes bounded to artifacts.
+
+| rank | pair | status | completed | failed | mean pair quality | execution success | total errors | common failure modes | prototype pair rank score |
+|---:|---|---|---:|---:|---:|---:|---:|---|---:|
+| 1 | `second_model -> second_model` | completed | 3 | 0 | `0.875451` | `1.0` | 6 | `NextActionJSONError: 6`, `NextActionValidationError: 6` | `0.759188` |
+| 2 | `second_model -> first_model` | reused | 3 | 0 | `0.820328` | `1.0` | 18 | `validation_failed: 18`, `write_path_outside_artifact_workspace: 18`, `HTTPStatusError: 18` | `0.571269` |
+| 3 | `first_model -> first_model` | failed | 0 | 3 | `0.0` | `0.0` | 6 | `orchestrator_plan_parse_failed: 6` | `0.0` |
+| 4 | `first_model -> second_model` | failed | 0 | 3 | `0.0` | `0.0` | 6 | `orchestrator_plan_parse_failed: 6` | `0.0` |
+
+For the heavier scenario, the best observed pair was `second_model -> second_model`.
+
+## 9. Cross-scenario comparison
+
+Cross-scenario artifact root:
+
+```text
+experiments/multi_agent/orchestrator_executor/cross_scenario_pair_matrix_workspace_policy_v1
+```
+
+| field | value |
+|---|---|
+| simple scenario best pair | `second_model -> first_model` |
+| heavy scenario best pair | `second_model -> second_model` |
+| best observed pair across tested scenarios | `second_model -> second_model` |
+| top completed-pair stability verdict | `stable_but_low_confidence` |
+
+The best observed pair changed between the simple and heavy scenarios. That is useful evidence against making a final recommendation from the original one-scenario matrix alone.
+
+## 10. Next step
+
+Measure runtime, memory, and capacity for the top two completed pairs, then add more scenario diversity before updating any final recommendation.

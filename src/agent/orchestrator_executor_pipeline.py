@@ -792,16 +792,23 @@ class OrchestratorExecutorRunner:
         errors: list[dict[str, Any]] = list(orchestrator_errors)
 
         task_by_agent = {task.agent_id: task for task in plan.tasks}
+        per_group_step_budget = _uses_per_group_step_agent_budget(scenario)
         for group_step in range(1, scenario.max_group_steps + 1):
             for agent in scenario.agents:
                 trajectory = trajectories[agent.agent_id]
-                completed_agent_steps = sum(1 for attempt in trajectory.attempts if attempt.attempt_type == "initial")
+                completed_agent_steps = sum(
+                    1
+                    for attempt in trajectory.attempts
+                    if attempt.attempt_type == "initial"
+                    and (not per_group_step_budget or attempt.group_step_index == group_step)
+                )
                 if completed_agent_steps >= scenario.max_steps_per_agent:
                     continue
                 state = states[agent.agent_id]
                 task = task_by_agent[agent.agent_id]
                 attempts = _run_executor_step(
                     executor_provider=executor_provider,
+                    scenario=scenario,
                     agent=agent,
                     task=task,
                     state=state,
@@ -1195,6 +1202,10 @@ def _assignments_from_plan(
     return out
 
 
+def _uses_per_group_step_agent_budget(scenario: OrchestratorExecutorScenario) -> bool:
+    return scenario.metadata.get("agent_step_budget_scope") == "per_group_step"
+
+
 def _build_agent_state(
     project_root: Path,
     agent: GroupAgentSpec,
@@ -1392,6 +1403,9 @@ def _safe_action_examples(
     if any(parameter.name == "path" for parameter in descriptor.parameters):
         if descriptor.safety.read_only:
             for candidate in [
+                "configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md",
+                "configs/multi_agent_fixtures/office_developer_maintenance/maintenance_notes.md",
+                "configs/multi_agent_fixtures/office_developer_maintenance/project_context.md",
                 "docs/ai/model_research_metadata.md",
                 "docs/ai/final_tz_readiness_audit.md",
                 "docs/ai/orchestrator_executor_quality_spec.md",
@@ -1407,11 +1421,12 @@ def _safe_action_examples(
             if _path_allowed_by_roots(safe_out, roots):
                 examples.append({"path": safe_out, "content": f"{agent_id} local group note.\n"})
 
-    for example in descriptor.examples:
-        path = example.get("path")
-        if isinstance(path, str) and roots and not _path_allowed_by_roots(path, roots):
-            continue
-        examples.append(dict(example))
+    if descriptor.safety.read_only:
+        for example in descriptor.examples:
+            path = example.get("path")
+            if isinstance(path, str) and roots and not _path_allowed_by_roots(path, roots):
+                continue
+            examples.append(dict(example))
 
     deduped: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -1532,6 +1547,7 @@ def _issue_values(validation_issues: list[dict[str, Any]], *codes: str) -> list[
 def _run_executor_step(
     *,
     executor_provider: ExecutorActionProvider,
+    scenario: OrchestratorExecutorScenario,
     agent: GroupAgentSpec,
     task: OrchestratorPlanTask,
     state: AgentState,
@@ -1607,6 +1623,9 @@ def _run_executor_step(
             group_step_index=group_step_index,
             agent_step_index=agent_step_index,
             execute_actions=execute_actions,
+            scenario=scenario,
+            out_dir=out_dir,
+            project_root=project_root,
             latency_ms=_elapsed_ms(started),
         )
         attempts.append(attempt)
@@ -1634,6 +1653,9 @@ def _executor_attempt_from_result(
     group_step_index: int,
     agent_step_index: int,
     execute_actions: bool,
+    scenario: OrchestratorExecutorScenario,
+    out_dir: Path,
+    project_root: Path,
     latency_ms: float,
 ) -> ExecutorActionAttempt:
     attempt = ExecutorActionAttempt(
@@ -1664,6 +1686,19 @@ def _executor_attempt_from_result(
         attempt.error_message = ", ".join(issue.code for issue in validation.issues)
         return attempt
 
+    scenario_issue = _scenario_action_constraint_issue(
+        next_action=next_action,
+        scenario=scenario,
+        out_dir=out_dir,
+        project_root=project_root,
+    )
+    if scenario_issue is not None:
+        attempt.validation_accepted = False
+        attempt.validation_issues.append(scenario_issue)
+        attempt.error_type = "validation_failed"
+        attempt.error_message = str(scenario_issue["code"])
+        return attempt
+
     if execute_actions:
         output = bridge.execute_next_action(
             next_action,
@@ -1681,6 +1716,50 @@ def _executor_attempt_from_result(
         attempt.execution_attempted = False
         attempt.execution_success = None
     return attempt
+
+
+def _scenario_action_constraint_issue(
+    *,
+    next_action: NextAction,
+    scenario: OrchestratorExecutorScenario,
+    out_dir: Path,
+    project_root: Path,
+) -> dict[str, Any] | None:
+    if scenario.metadata.get("write_path_policy") != "artifact_workspace_only":
+        return None
+    if next_action.action not in {"create_file", "append_file", "office_create_document_stub"}:
+        return None
+    path = next_action.parameters.get("path")
+    if not isinstance(path, str) or not path.strip():
+        return {
+            "code": "missing_write_path",
+            "field": "parameters.path",
+            "message": "Write actions must include a non-empty path.",
+            "severity": "error",
+        }
+    workspace_root = _safe_relative_workspace_root(project_root, out_dir)
+    if not workspace_root.endswith("/"):
+        workspace_root += "/"
+    normalized = path.replace("\\", "/")
+    if normalized.startswith(workspace_root):
+        return None
+    return {
+        "code": "write_path_outside_artifact_workspace",
+        "field": "parameters.path",
+        "message": f"Write path '{path}' must be under '{workspace_root}'.",
+        "severity": "error",
+        "allowed_root": workspace_root,
+    }
+
+
+def _safe_relative_workspace_root(project_root: Path, out_dir: Path) -> str:
+    try:
+        value = (out_dir / "workspace").resolve().relative_to(project_root.resolve()).as_posix()
+    except ValueError:
+        value = "experiments/multi_agent/orchestrator_executor/workspace"
+    if not value.endswith("/"):
+        value += "/"
+    return value
 
 
 def _repair_executor_action(

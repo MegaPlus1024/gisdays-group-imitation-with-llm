@@ -23,6 +23,7 @@ def test_research_readiness_docs_exist() -> None:
         "docs/ai/local_orchestrator_executor_poc_v3_executor_repair.md",
         "docs/ai/repeated_local_orchestrator_executor_trials_v1.md",
         "docs/ai/orchestrator_executor_pair_matrix_v1.md",
+        "docs/ai/heavy_multi_agent_scenario_v1.md",
         "docs/ai/orchestrator_executor_pipeline_v1.md",
         "docs/ai/orchestrator_executor_quality_spec.md",
         "docs/ai/gpu_runtime_readiness_audit.md",
@@ -202,5 +203,31 @@ def test_orchestrator_executor_pair_matrix_doc_records_result() -> None:
         "orchestrator_plan_parse_failed: 6",
         "current best observed pair",
         "No final production recommendation",
+        "pair_matrix_heavy_group_n3_workspace_policy_v1",
+        "cross_scenario_pair_matrix_workspace_policy_v1",
+        "stable_but_low_confidence",
+    ]:
+        assert required in text
+
+
+def test_heavy_multi_agent_scenario_doc_records_matrix_result() -> None:
+    text = _read("docs/ai/heavy_multi_agent_scenario_v1.md")
+
+    for required in [
+        "Heavy Multi-Agent Scenario v1",
+        "office_developer_maintenance_group_heavy_v1",
+        "office_agent_1",
+        "developer_agent_2",
+        "artifact_workspace_only",
+        "fake_heavy_group_scenario_smoke_workspace_policy_v1",
+        "repeated_local_second_to_first_heavy_group_n3_workspace_policy_v1",
+        "0.820328",
+        "write_path_outside_artifact_workspace",
+        "pair_matrix_heavy_group_n3_workspace_policy_v1",
+        "second_model -> second_model",
+        "0.759188",
+        "cross_scenario_pair_matrix_workspace_policy_v1",
+        "stable_but_low_confidence",
+        "not a final recommendation",
     ]:
         assert required in text

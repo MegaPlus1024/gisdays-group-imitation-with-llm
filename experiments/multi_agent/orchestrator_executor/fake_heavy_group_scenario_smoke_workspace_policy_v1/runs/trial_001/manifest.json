@@ -1,0 +1,55 @@
+{
+  "runner_id": "orchestrator_executor_pipeline_v1",
+  "run_id": "fake_heavy_group_scenario_smoke_workspace_policy_v1_trial_001",
+  "scenario_id": "office_developer_maintenance_group_heavy_v1",
+  "scenario_path": "configs\\multi_agent_scenarios\\office_developer_maintenance_group_heavy.json",
+  "mode": "fake",
+  "status": "completed",
+  "success": true,
+  "orchestrator_model_id": "second_model",
+  "executor_model_id": "first_model",
+  "orchestrator_base_url": "http://127.0.0.1:8080/v1",
+  "executor_base_url": "http://127.0.0.1:8080/v1",
+  "orchestrator_model_name": "second_model.gguf",
+  "executor_model_name": "first_model.gguf",
+  "orchestrator_max_tokens": 512,
+  "orchestrator_temperature": 0.0,
+  "orchestrator_repair_attempts": 1,
+  "executor_repair_attempts": 1,
+  "orchestrator_model": {
+    "model_id": "second_model",
+    "role": "orchestrator",
+    "base_url": "http://127.0.0.1:8080/v1",
+    "model_name": "second_model.gguf",
+    "temperature": 0.0,
+    "max_tokens": 512,
+    "timeout_seconds": 120.0
+  },
+  "executor_model": {
+    "model_id": "first_model",
+    "role": "executor",
+    "base_url": "http://127.0.0.1:8080/v1",
+    "model_name": "first_model.gguf",
+    "temperature": 0.0,
+    "max_tokens": 512,
+    "timeout_seconds": 120.0
+  },
+  "runtime_overrides": {
+    "orchestrator_base_url": null,
+    "executor_base_url": null,
+    "orchestrator_model_name": null,
+    "executor_model_name": null,
+    "orchestrator_max_tokens": null,
+    "orchestrator_temperature": null
+  },
+  "max_group_steps": 2,
+  "max_steps_per_agent": 1,
+  "execute_actions": true,
+  "started_at": "2026-07-03T12:43:30.337402+00:00",
+  "completed_at": "2026-07-03T12:43:30.393562+00:00",
+  "limitations": [
+    "MVP runner is sequential and not a production scheduler.",
+    "Fake mode does not call llama-server.",
+    "Local mode requires already available compatible runtime endpoint(s)."
+  ]
+}

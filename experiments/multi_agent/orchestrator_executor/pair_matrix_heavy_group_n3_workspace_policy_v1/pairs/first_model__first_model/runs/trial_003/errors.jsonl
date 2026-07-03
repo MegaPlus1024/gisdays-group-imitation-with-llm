@@ -1,0 +1,2 @@
+{"stage":"orchestrator","attempt_index":0,"attempt_type":"initial","error_type":"orchestrator_plan_parse_failed","error_message":"Invalid orchestrator JSON output: Expecting value: line 1 column 1 (char 0)"}
+{"stage":"orchestrator","attempt_index":1,"attempt_type":"repair","error_type":"orchestrator_plan_parse_failed","error_message":"Invalid orchestrator JSON output: Expecting value: line 1 column 1 (char 0)"}

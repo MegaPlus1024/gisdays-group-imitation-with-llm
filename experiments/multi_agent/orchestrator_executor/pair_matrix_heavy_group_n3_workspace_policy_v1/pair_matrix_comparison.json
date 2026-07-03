@@ -1,0 +1,971 @@
+{
+  "comparison_id": "pair_matrix_heavy_group_n3_workspace_policy_v1",
+  "generated_at": "2026-07-03T12:46:20.337048+00:00",
+  "scenario_path": "configs\\multi_agent_scenarios\\office_developer_maintenance_group_heavy.json",
+  "mode": "local",
+  "trials_per_pair": 3,
+  "pairs": [
+    {
+      "spec": {
+        "orchestrator_model_id": "second_model",
+        "executor_model_id": "first_model"
+      },
+      "pair_id": "second_model__first_model",
+      "status": "reused",
+      "reference": {
+        "pair_id": "second_model__first_model",
+        "orchestrator_model_id": "second_model",
+        "executor_model_id": "first_model",
+        "source": "reused",
+        "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_heavy_group_n3_workspace_policy_v1\\pairs\\second_model__first_model",
+        "original_artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\repeated_local_second_to_first_heavy_group_n3_workspace_policy_v1",
+        "protocol_match": true,
+        "protocol_notes": [
+          "protocol matched requested pair matrix settings"
+        ],
+        "server_strategy": "reused existing repeated group artifact; no servers started",
+        "server_notes": [
+          "existing artifact matched requested matrix protocol"
+        ]
+      },
+      "aggregate": {
+        "orchestrator_model_id": "second_model",
+        "executor_model_id": "first_model",
+        "orchestrator_upstream_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
+        "executor_upstream_name": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+        "trial_count": 3,
+        "completed_trial_count": 3,
+        "failed_trial_count": 0,
+        "mean_pair_quality_score": 0.820328,
+        "std_pair_quality_score": 7.7e-05,
+        "mean_execution_success_rate": 1.0,
+        "mean_final_validation_success_rate": 0.454545,
+        "mean_plan_valid_rate": 1.0,
+        "mean_executor_model_calls": 11.0,
+        "total_errors": 18,
+        "common_failure_modes": {
+          "validation_failed": 18,
+          "write_path_outside_artifact_workspace": 18,
+          "HTTPStatusError": 18
+        },
+        "mean_wall_time_ms": 6804.056333,
+        "mean_orchestrator_latency_ms": 1644.759333,
+        "mean_executor_latency_ms": 467.207424,
+        "safety_violation_count": 0,
+        "pair_verdict_distribution": {
+          "prototype_pass": 3
+        },
+        "resource_notes": [
+          "source=reused",
+          "reused existing repeated group artifact; no servers started",
+          "mean_wall_time_ms=6804.056333",
+          "existing artifact matched requested matrix protocol"
+        ]
+      },
+      "trial_index": [
+        {
+          "trial_id": "trial_001",
+          "run_id": "repeated_local_second_to_first_heavy_group_n3_workspace_policy_v1_trial_001",
+          "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\repeated_local_second_to_first_heavy_group_n3_workspace_policy_v1\\runs\\trial_001",
+          "status": "completed_with_failures",
+          "trial_status": "completed",
+          "success": false,
+          "plan_valid": true,
+          "executor_calls": 11,
+          "final_validation_success_count": 5,
+          "execution_success_count": 5,
+          "pair_quality_score": 0.82023,
+          "main_errors": "validation_failed: write_path_outside_artifact_workspace; HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:8082/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400; developer_agent_1 validation_failed: write_path_outside_artifact_workspace; developer_agent_1 HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:8082/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400; developer_agent_2 validation_failed: write_path_outside_artifact_workspace; developer_agent_2 HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:8082/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400",
+          "return_code": 0,
+          "error_message": null,
+          "orchestrator_initial_parse_success": true,
+          "orchestrator_repair_attempt_count": 0,
+          "executor_model_calls_attempted": 11,
+          "initial_validation_success_count": 5,
+          "repair_attempt_count": 3,
+          "execution_attempted_count": 5,
+          "safety_violation_count": 0,
+          "error_count": 6,
+          "pair_verdict": "prototype_pass",
+          "wall_time_ms": 7015.713,
+          "orchestrator_latency_ms": 1726.564,
+          "executor_latency_mean_ms": 476.951364,
+          "repeated_action_count": 6,
+          "dominant_action_parameters": [
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}",
+              "count": 2
+            },
+            {
+              "action_parameters": "{\"action\": \"create_file\", \"parameters\": {\"content\": \"office_agent_2 local group note.\", \"path\": \"experiments/multi_agent/orchestrator_executor/repeated_local_second_to_first_heavy_group_n3_workspace_policy_v1/runs/trial_001/workspace/office_agent_2_executor_note.md\"}}",
+              "count": 2
+            },
+            {
+              "action_parameters": "{\"action\": \"create_file\", \"parameters\": {\"content\": \"The local document content is available.\", \"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}",
+              "count": 1
+            },
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}",
+              "count": 1
+            },
+            {
+              "action_parameters": "{\"action\": \"create_file\", \"parameters\": {\"content\": \"Maintenance follow-up context content.\", \"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}",
+              "count": 1
+            }
+          ],
+          "common_failure_modes": {
+            "validation_failed": 6,
+            "write_path_outside_artifact_workspace": 6,
+            "HTTPStatusError": 6
+          },
+          "common_actions": {
+            "read_file": 3,
+            "create_file": 5
+          },
+          "stopped_reason": null
+        },
+        {
+          "trial_id": "trial_002",
+          "run_id": "repeated_local_second_to_first_heavy_group_n3_workspace_policy_v1_trial_002",
+          "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\repeated_local_second_to_first_heavy_group_n3_workspace_policy_v1\\runs\\trial_002",
+          "status": "completed_with_failures",
+          "trial_status": "completed",
+          "success": false,
+          "plan_valid": true,
+          "executor_calls": 11,
+          "final_validation_success_count": 5,
+          "execution_success_count": 5,
+          "pair_quality_score": 0.820337,
+          "main_errors": "validation_failed: write_path_outside_artifact_workspace; HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:8082/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400; developer_agent_1 validation_failed: write_path_outside_artifact_workspace; developer_agent_1 HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:8082/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400; developer_agent_2 validation_failed: write_path_outside_artifact_workspace; developer_agent_2 HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:8082/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400",
+          "return_code": 0,
+          "error_message": null,
+          "orchestrator_initial_parse_success": true,
+          "orchestrator_repair_attempt_count": 0,
+          "executor_model_calls_attempted": 11,
+          "initial_validation_success_count": 5,
+          "repair_attempt_count": 3,
+          "execution_attempted_count": 5,
+          "safety_violation_count": 0,
+          "error_count": 6,
+          "pair_verdict": "prototype_pass",
+          "wall_time_ms": 6723.769,
+          "orchestrator_latency_ms": 1585.179,
+          "executor_latency_mean_ms": 466.343909,
+          "repeated_action_count": 6,
+          "dominant_action_parameters": [
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}",
+              "count": 2
+            },
+            {
+              "action_parameters": "{\"action\": \"create_file\", \"parameters\": {\"content\": \"office_agent_2 local group note.\", \"path\": \"experiments/multi_agent/orchestrator_executor/repeated_local_second_to_first_heavy_group_n3_workspace_policy_v1/runs/trial_002/workspace/office_agent_2_executor_note.md\"}}",
+              "count": 2
+            },
+            {
+              "action_parameters": "{\"action\": \"create_file\", \"parameters\": {\"content\": \"Maintenance follow-up context content here.\", \"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}",
+              "count": 2
+            },
+            {
+              "action_parameters": "{\"action\": \"create_file\", \"parameters\": {\"content\": \"The local document content is available.\", \"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}",
+              "count": 1
+            },
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}",
+              "count": 1
+            }
+          ],
+          "common_failure_modes": {
+            "validation_failed": 6,
+            "write_path_outside_artifact_workspace": 6,
+            "HTTPStatusError": 6
+          },
+          "common_actions": {
+            "read_file": 3,
+            "create_file": 5
+          },
+          "stopped_reason": null
+        },
+        {
+          "trial_id": "trial_003",
+          "run_id": "repeated_local_second_to_first_heavy_group_n3_workspace_policy_v1_trial_003",
+          "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\repeated_local_second_to_first_heavy_group_n3_workspace_policy_v1\\runs\\trial_003",
+          "status": "completed_with_failures",
+          "trial_status": "completed",
+          "success": false,
+          "plan_valid": true,
+          "executor_calls": 11,
+          "final_validation_success_count": 5,
+          "execution_success_count": 5,
+          "pair_quality_score": 0.820417,
+          "main_errors": "validation_failed: write_path_outside_artifact_workspace; HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:8082/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400; developer_agent_1 validation_failed: write_path_outside_artifact_workspace; developer_agent_1 HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:8082/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400; developer_agent_2 validation_failed: write_path_outside_artifact_workspace; developer_agent_2 HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:8082/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400",
+          "return_code": 0,
+          "error_message": null,
+          "orchestrator_initial_parse_success": true,
+          "orchestrator_repair_attempt_count": 0,
+          "executor_model_calls_attempted": 11,
+          "initial_validation_success_count": 5,
+          "repair_attempt_count": 3,
+          "execution_attempted_count": 5,
+          "safety_violation_count": 0,
+          "error_count": 6,
+          "pair_verdict": "prototype_pass",
+          "wall_time_ms": 6672.687,
+          "orchestrator_latency_ms": 1622.535,
+          "executor_latency_mean_ms": 458.327,
+          "repeated_action_count": 6,
+          "dominant_action_parameters": [
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}",
+              "count": 2
+            },
+            {
+              "action_parameters": "{\"action\": \"create_file\", \"parameters\": {\"content\": \"office_agent_2 local group note.\", \"path\": \"experiments/multi_agent/orchestrator_executor/repeated_local_second_to_first_heavy_group_n3_workspace_policy_v1/runs/trial_003/workspace/office_agent_2_executor_note.md\"}}",
+              "count": 2
+            },
+            {
+              "action_parameters": "{\"action\": \"create_file\", \"parameters\": {\"content\": \"Maintenance follow-up context content here.\", \"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}",
+              "count": 2
+            },
+            {
+              "action_parameters": "{\"action\": \"create_file\", \"parameters\": {\"content\": \"The local document content is available.\", \"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}",
+              "count": 1
+            },
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}",
+              "count": 1
+            }
+          ],
+          "common_failure_modes": {
+            "validation_failed": 6,
+            "write_path_outside_artifact_workspace": 6,
+            "HTTPStatusError": 6
+          },
+          "common_actions": {
+            "read_file": 3,
+            "create_file": 5
+          },
+          "stopped_reason": null
+        }
+      ],
+      "prototype_pair_rank_score": 0.571269,
+      "error_message": null,
+      "skipped_reason": null
+    },
+    {
+      "spec": {
+        "orchestrator_model_id": "second_model",
+        "executor_model_id": "second_model"
+      },
+      "pair_id": "second_model__second_model",
+      "status": "completed",
+      "reference": {
+        "pair_id": "second_model__second_model",
+        "orchestrator_model_id": "second_model",
+        "executor_model_id": "second_model",
+        "source": "generated",
+        "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_heavy_group_n3_workspace_policy_v1\\pairs\\second_model__second_model",
+        "original_artifact_path": null,
+        "protocol_match": true,
+        "protocol_notes": [
+          "generated by pair matrix run"
+        ],
+        "server_strategy": "two separate llama-server endpoints for the same model on different ports",
+        "server_notes": [
+          "orchestrator second_model port 8081; executor second_model port 8082"
+        ]
+      },
+      "aggregate": {
+        "orchestrator_model_id": "second_model",
+        "executor_model_id": "second_model",
+        "orchestrator_upstream_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
+        "executor_upstream_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
+        "trial_count": 3,
+        "completed_trial_count": 3,
+        "failed_trial_count": 0,
+        "mean_pair_quality_score": 0.875451,
+        "std_pair_quality_score": 5.6e-05,
+        "mean_execution_success_rate": 1.0,
+        "mean_final_validation_success_rate": 0.777778,
+        "mean_plan_valid_rate": 1.0,
+        "mean_executor_model_calls": 9.0,
+        "total_errors": 6,
+        "common_failure_modes": {
+          "NextActionValidationError": 6,
+          "NextActionJSONError": 6
+        },
+        "mean_wall_time_ms": 8776.273,
+        "mean_orchestrator_latency_ms": 1659.897,
+        "mean_executor_latency_ms": 788.232556,
+        "safety_violation_count": 0,
+        "pair_verdict_distribution": {
+          "prototype_pass": 3
+        },
+        "resource_notes": [
+          "source=generated",
+          "two separate llama-server endpoints for the same model on different ports",
+          "mean_wall_time_ms=8776.273",
+          "orchestrator second_model port 8081; executor second_model port 8082"
+        ]
+      },
+      "trial_index": [
+        {
+          "trial_id": "trial_001",
+          "run_id": "pair_matrix_heavy_group_n3_workspace_policy_v1_second_model__second_model_trial_001",
+          "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_heavy_group_n3_workspace_policy_v1\\pairs\\second_model__second_model\\runs\\trial_001",
+          "status": "completed_with_failures",
+          "trial_status": "completed",
+          "success": false,
+          "plan_valid": true,
+          "executor_calls": 9,
+          "final_validation_success_count": 7,
+          "execution_success_count": 7,
+          "pair_quality_score": 0.875464,
+          "main_errors": "NextActionValidationError: Next-action JSON failed schema validation: 1 validation error for NextAction\nexpected_result\n  Field required [type=missing, input_value={'action': 'read_file', '...for the assigned task.'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing; NextActionJSONError: Invalid JSON output: Unterminated string starting at: line 3 column 3 (char 29); developer_agent_1 NextActionValidationError: Next-action JSON failed schema validation: 1 validation error for NextAction\nexpected_result\n  Field required [type=missing, input_value={'action': 'read_file', '...for the assigned task.'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing; developer_agent_1 NextActionJSONError: Invalid JSON output: Unterminated string starting at: line 3 column 3 (char 29)",
+          "return_code": 0,
+          "error_message": null,
+          "orchestrator_initial_parse_success": true,
+          "orchestrator_repair_attempt_count": 0,
+          "executor_model_calls_attempted": 9,
+          "initial_validation_success_count": 7,
+          "repair_attempt_count": 1,
+          "execution_attempted_count": 7,
+          "safety_violation_count": 0,
+          "error_count": 2,
+          "pair_verdict": "prototype_pass",
+          "wall_time_ms": 8803.719,
+          "orchestrator_latency_ms": 1673.477,
+          "executor_latency_mean_ms": 786.929778,
+          "repeated_action_count": 6,
+          "dominant_action_parameters": [
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}",
+              "count": 2
+            },
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/maintenance_notes.md\"}}",
+              "count": 2
+            },
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}",
+              "count": 2
+            },
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}",
+              "count": 1
+            }
+          ],
+          "common_failure_modes": {
+            "NextActionValidationError": 2,
+            "NextActionJSONError": 2
+          },
+          "common_actions": {
+            "read_file": 7
+          },
+          "stopped_reason": null
+        },
+        {
+          "trial_id": "trial_002",
+          "run_id": "pair_matrix_heavy_group_n3_workspace_policy_v1_second_model__second_model_trial_002",
+          "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_heavy_group_n3_workspace_policy_v1\\pairs\\second_model__second_model\\runs\\trial_002",
+          "status": "completed_with_failures",
+          "trial_status": "completed",
+          "success": false,
+          "plan_valid": true,
+          "executor_calls": 9,
+          "final_validation_success_count": 7,
+          "execution_success_count": 7,
+          "pair_quality_score": 0.875512,
+          "main_errors": "NextActionValidationError: Next-action JSON failed schema validation: 1 validation error for NextAction\nexpected_result\n  Field required [type=missing, input_value={'action': 'read_file', '...for the assigned task.'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing; NextActionJSONError: Invalid JSON output: Unterminated string starting at: line 3 column 3 (char 29); developer_agent_1 NextActionValidationError: Next-action JSON failed schema validation: 1 validation error for NextAction\nexpected_result\n  Field required [type=missing, input_value={'action': 'read_file', '...for the assigned task.'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing; developer_agent_1 NextActionJSONError: Invalid JSON output: Unterminated string starting at: line 3 column 3 (char 29)",
+          "return_code": 0,
+          "error_message": null,
+          "orchestrator_initial_parse_success": true,
+          "orchestrator_repair_attempt_count": 0,
+          "executor_model_calls_attempted": 9,
+          "initial_validation_success_count": 7,
+          "repair_attempt_count": 1,
+          "execution_attempted_count": 7,
+          "safety_violation_count": 0,
+          "error_count": 2,
+          "pair_verdict": "prototype_pass",
+          "wall_time_ms": 8690.708,
+          "orchestrator_latency_ms": 1641.905,
+          "executor_latency_mean_ms": 782.147333,
+          "repeated_action_count": 6,
+          "dominant_action_parameters": [
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}",
+              "count": 2
+            },
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/maintenance_notes.md\"}}",
+              "count": 2
+            },
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}",
+              "count": 2
+            },
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}",
+              "count": 1
+            }
+          ],
+          "common_failure_modes": {
+            "NextActionValidationError": 2,
+            "NextActionJSONError": 2
+          },
+          "common_actions": {
+            "read_file": 7
+          },
+          "stopped_reason": null
+        },
+        {
+          "trial_id": "trial_003",
+          "run_id": "pair_matrix_heavy_group_n3_workspace_policy_v1_second_model__second_model_trial_003",
+          "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_heavy_group_n3_workspace_policy_v1\\pairs\\second_model__second_model\\runs\\trial_003",
+          "status": "completed_with_failures",
+          "trial_status": "completed",
+          "success": false,
+          "plan_valid": true,
+          "executor_calls": 9,
+          "final_validation_success_count": 7,
+          "execution_success_count": 7,
+          "pair_quality_score": 0.875377,
+          "main_errors": "NextActionValidationError: Next-action JSON failed schema validation: 1 validation error for NextAction\nexpected_result\n  Field required [type=missing, input_value={'action': 'read_file', '...for the assigned task.'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing; NextActionJSONError: Invalid JSON output: Unterminated string starting at: line 3 column 3 (char 29); developer_agent_1 NextActionValidationError: Next-action JSON failed schema validation: 1 validation error for NextAction\nexpected_result\n  Field required [type=missing, input_value={'action': 'read_file', '...for the assigned task.'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing; developer_agent_1 NextActionJSONError: Invalid JSON output: Unterminated string starting at: line 3 column 3 (char 29)",
+          "return_code": 0,
+          "error_message": null,
+          "orchestrator_initial_parse_success": true,
+          "orchestrator_repair_attempt_count": 0,
+          "executor_model_calls_attempted": 9,
+          "initial_validation_success_count": 7,
+          "repair_attempt_count": 1,
+          "execution_attempted_count": 7,
+          "safety_violation_count": 0,
+          "error_count": 2,
+          "pair_verdict": "prototype_pass",
+          "wall_time_ms": 8834.392,
+          "orchestrator_latency_ms": 1664.309,
+          "executor_latency_mean_ms": 795.620556,
+          "repeated_action_count": 6,
+          "dominant_action_parameters": [
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}",
+              "count": 2
+            },
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/maintenance_notes.md\"}}",
+              "count": 2
+            },
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}",
+              "count": 2
+            },
+            {
+              "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}",
+              "count": 1
+            }
+          ],
+          "common_failure_modes": {
+            "NextActionValidationError": 2,
+            "NextActionJSONError": 2
+          },
+          "common_actions": {
+            "read_file": 7
+          },
+          "stopped_reason": null
+        }
+      ],
+      "prototype_pair_rank_score": 0.759188,
+      "error_message": null,
+      "skipped_reason": null
+    },
+    {
+      "spec": {
+        "orchestrator_model_id": "first_model",
+        "executor_model_id": "first_model"
+      },
+      "pair_id": "first_model__first_model",
+      "status": "failed",
+      "reference": {
+        "pair_id": "first_model__first_model",
+        "orchestrator_model_id": "first_model",
+        "executor_model_id": "first_model",
+        "source": "generated",
+        "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_heavy_group_n3_workspace_policy_v1\\pairs\\first_model__first_model",
+        "original_artifact_path": null,
+        "protocol_match": true,
+        "protocol_notes": [
+          "generated by pair matrix run"
+        ],
+        "server_strategy": "two separate llama-server endpoints for the same model on different ports",
+        "server_notes": [
+          "orchestrator first_model port 8081; executor first_model port 8082"
+        ]
+      },
+      "aggregate": {
+        "orchestrator_model_id": "first_model",
+        "executor_model_id": "first_model",
+        "orchestrator_upstream_name": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+        "executor_upstream_name": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+        "trial_count": 3,
+        "completed_trial_count": 0,
+        "failed_trial_count": 3,
+        "mean_pair_quality_score": 0.0,
+        "std_pair_quality_score": 0.0,
+        "mean_execution_success_rate": 0.0,
+        "mean_final_validation_success_rate": 0.0,
+        "mean_plan_valid_rate": 0.0,
+        "mean_executor_model_calls": 0.0,
+        "total_errors": 6,
+        "common_failure_modes": {
+          "orchestrator_plan_parse_failed": 6
+        },
+        "mean_wall_time_ms": 2557.494333,
+        "mean_orchestrator_latency_ms": 1278.335333,
+        "mean_executor_latency_ms": null,
+        "safety_violation_count": 0,
+        "pair_verdict_distribution": {
+          "failed": 3
+        },
+        "resource_notes": [
+          "source=generated",
+          "two separate llama-server endpoints for the same model on different ports",
+          "mean_wall_time_ms=2557.494333",
+          "orchestrator first_model port 8081; executor first_model port 8082"
+        ]
+      },
+      "trial_index": [
+        {
+          "trial_id": "trial_001",
+          "run_id": "pair_matrix_heavy_group_n3_workspace_policy_v1_first_model__first_model_trial_001",
+          "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_heavy_group_n3_workspace_policy_v1\\pairs\\first_model__first_model\\runs\\trial_001",
+          "status": "failed",
+          "trial_status": "failed",
+          "success": false,
+          "plan_valid": false,
+          "executor_calls": 0,
+          "final_validation_success_count": 0,
+          "execution_success_count": 0,
+          "pair_quality_score": 0.0,
+          "main_errors": "orchestrator_plan_parse_failed: Invalid orchestrator JSON output: Expecting value: line 1 column 1 (char 0)",
+          "return_code": 1,
+          "error_message": "Invalid orchestrator JSON output: Expecting value: line 1 column 1 (char 0)",
+          "orchestrator_initial_parse_success": false,
+          "orchestrator_repair_attempt_count": 1,
+          "executor_model_calls_attempted": 0,
+          "initial_validation_success_count": 0,
+          "repair_attempt_count": 0,
+          "execution_attempted_count": 0,
+          "safety_violation_count": 0,
+          "error_count": 2,
+          "pair_verdict": "failed",
+          "wall_time_ms": 2577.09,
+          "orchestrator_latency_ms": 1288.0825,
+          "executor_latency_mean_ms": null,
+          "repeated_action_count": 0,
+          "dominant_action_parameters": [],
+          "common_failure_modes": {
+            "orchestrator_plan_parse_failed": 2
+          },
+          "common_actions": {},
+          "stopped_reason": null
+        },
+        {
+          "trial_id": "trial_002",
+          "run_id": "pair_matrix_heavy_group_n3_workspace_policy_v1_first_model__first_model_trial_002",
+          "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_heavy_group_n3_workspace_policy_v1\\pairs\\first_model__first_model\\runs\\trial_002",
+          "status": "failed",
+          "trial_status": "failed",
+          "success": false,
+          "plan_valid": false,
+          "executor_calls": 0,
+          "final_validation_success_count": 0,
+          "execution_success_count": 0,
+          "pair_quality_score": 0.0,
+          "main_errors": "orchestrator_plan_parse_failed: Invalid orchestrator JSON output: Expecting value: line 1 column 1 (char 0)",
+          "return_code": 1,
+          "error_message": "Invalid orchestrator JSON output: Expecting value: line 1 column 1 (char 0)",
+          "orchestrator_initial_parse_success": false,
+          "orchestrator_repair_attempt_count": 1,
+          "executor_model_calls_attempted": 0,
+          "initial_validation_success_count": 0,
+          "repair_attempt_count": 0,
+          "execution_attempted_count": 0,
+          "safety_violation_count": 0,
+          "error_count": 2,
+          "pair_verdict": "failed",
+          "wall_time_ms": 2533.277,
+          "orchestrator_latency_ms": 1266.232,
+          "executor_latency_mean_ms": null,
+          "repeated_action_count": 0,
+          "dominant_action_parameters": [],
+          "common_failure_modes": {
+            "orchestrator_plan_parse_failed": 2
+          },
+          "common_actions": {},
+          "stopped_reason": null
+        },
+        {
+          "trial_id": "trial_003",
+          "run_id": "pair_matrix_heavy_group_n3_workspace_policy_v1_first_model__first_model_trial_003",
+          "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_heavy_group_n3_workspace_policy_v1\\pairs\\first_model__first_model\\runs\\trial_003",
+          "status": "failed",
+          "trial_status": "failed",
+          "success": false,
+          "plan_valid": false,
+          "executor_calls": 0,
+          "final_validation_success_count": 0,
+          "execution_success_count": 0,
+          "pair_quality_score": 0.0,
+          "main_errors": "orchestrator_plan_parse_failed: Invalid orchestrator JSON output: Expecting value: line 1 column 1 (char 0)",
+          "return_code": 1,
+          "error_message": "Invalid orchestrator JSON output: Expecting value: line 1 column 1 (char 0)",
+          "orchestrator_initial_parse_success": false,
+          "orchestrator_repair_attempt_count": 1,
+          "executor_model_calls_attempted": 0,
+          "initial_validation_success_count": 0,
+          "repair_attempt_count": 0,
+          "execution_attempted_count": 0,
+          "safety_violation_count": 0,
+          "error_count": 2,
+          "pair_verdict": "failed",
+          "wall_time_ms": 2562.116,
+          "orchestrator_latency_ms": 1280.6915,
+          "executor_latency_mean_ms": null,
+          "repeated_action_count": 0,
+          "dominant_action_parameters": [],
+          "common_failure_modes": {
+            "orchestrator_plan_parse_failed": 2
+          },
+          "common_actions": {},
+          "stopped_reason": null
+        }
+      ],
+      "prototype_pair_rank_score": 0.0,
+      "error_message": "one or more trials failed",
+      "skipped_reason": null
+    },
+    {
+      "spec": {
+        "orchestrator_model_id": "first_model",
+        "executor_model_id": "second_model"
+      },
+      "pair_id": "first_model__second_model",
+      "status": "failed",
+      "reference": {
+        "pair_id": "first_model__second_model",
+        "orchestrator_model_id": "first_model",
+        "executor_model_id": "second_model",
+        "source": "generated",
+        "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_heavy_group_n3_workspace_policy_v1\\pairs\\first_model__second_model",
+        "original_artifact_path": null,
+        "protocol_match": true,
+        "protocol_notes": [
+          "generated by pair matrix run"
+        ],
+        "server_strategy": "two separate llama-server endpoints on different ports",
+        "server_notes": [
+          "orchestrator first_model port 8081; executor second_model port 8082"
+        ]
+      },
+      "aggregate": {
+        "orchestrator_model_id": "first_model",
+        "executor_model_id": "second_model",
+        "orchestrator_upstream_name": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+        "executor_upstream_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
+        "trial_count": 3,
+        "completed_trial_count": 0,
+        "failed_trial_count": 3,
+        "mean_pair_quality_score": 0.0,
+        "std_pair_quality_score": 0.0,
+        "mean_execution_success_rate": 0.0,
+        "mean_final_validation_success_rate": 0.0,
+        "mean_plan_valid_rate": 0.0,
+        "mean_executor_model_calls": 0.0,
+        "total_errors": 6,
+        "common_failure_modes": {
+          "orchestrator_plan_parse_failed": 6
+        },
+        "mean_wall_time_ms": 2564.732333,
+        "mean_orchestrator_latency_ms": 1281.9585,
+        "mean_executor_latency_ms": null,
+        "safety_violation_count": 0,
+        "pair_verdict_distribution": {
+          "failed": 3
+        },
+        "resource_notes": [
+          "source=generated",
+          "two separate llama-server endpoints on different ports",
+          "mean_wall_time_ms=2564.732333",
+          "orchestrator first_model port 8081; executor second_model port 8082"
+        ]
+      },
+      "trial_index": [
+        {
+          "trial_id": "trial_001",
+          "run_id": "pair_matrix_heavy_group_n3_workspace_policy_v1_first_model__second_model_trial_001",
+          "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_heavy_group_n3_workspace_policy_v1\\pairs\\first_model__second_model\\runs\\trial_001",
+          "status": "failed",
+          "trial_status": "failed",
+          "success": false,
+          "plan_valid": false,
+          "executor_calls": 0,
+          "final_validation_success_count": 0,
+          "execution_success_count": 0,
+          "pair_quality_score": 0.0,
+          "main_errors": "orchestrator_plan_parse_failed: Invalid orchestrator JSON output: Expecting value: line 1 column 1 (char 0)",
+          "return_code": 1,
+          "error_message": "Invalid orchestrator JSON output: Expecting value: line 1 column 1 (char 0)",
+          "orchestrator_initial_parse_success": false,
+          "orchestrator_repair_attempt_count": 1,
+          "executor_model_calls_attempted": 0,
+          "initial_validation_success_count": 0,
+          "repair_attempt_count": 0,
+          "execution_attempted_count": 0,
+          "safety_violation_count": 0,
+          "error_count": 2,
+          "pair_verdict": "failed",
+          "wall_time_ms": 2598.9,
+          "orchestrator_latency_ms": 1298.9715,
+          "executor_latency_mean_ms": null,
+          "repeated_action_count": 0,
+          "dominant_action_parameters": [],
+          "common_failure_modes": {
+            "orchestrator_plan_parse_failed": 2
+          },
+          "common_actions": {},
+          "stopped_reason": null
+        },
+        {
+          "trial_id": "trial_002",
+          "run_id": "pair_matrix_heavy_group_n3_workspace_policy_v1_first_model__second_model_trial_002",
+          "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_heavy_group_n3_workspace_policy_v1\\pairs\\first_model__second_model\\runs\\trial_002",
+          "status": "failed",
+          "trial_status": "failed",
+          "success": false,
+          "plan_valid": false,
+          "executor_calls": 0,
+          "final_validation_success_count": 0,
+          "execution_success_count": 0,
+          "pair_quality_score": 0.0,
+          "main_errors": "orchestrator_plan_parse_failed: Invalid orchestrator JSON output: Expecting value: line 1 column 1 (char 0)",
+          "return_code": 1,
+          "error_message": "Invalid orchestrator JSON output: Expecting value: line 1 column 1 (char 0)",
+          "orchestrator_initial_parse_success": false,
+          "orchestrator_repair_attempt_count": 1,
+          "executor_model_calls_attempted": 0,
+          "initial_validation_success_count": 0,
+          "repair_attempt_count": 0,
+          "execution_attempted_count": 0,
+          "safety_violation_count": 0,
+          "error_count": 2,
+          "pair_verdict": "failed",
+          "wall_time_ms": 2530.073,
+          "orchestrator_latency_ms": 1264.656,
+          "executor_latency_mean_ms": null,
+          "repeated_action_count": 0,
+          "dominant_action_parameters": [],
+          "common_failure_modes": {
+            "orchestrator_plan_parse_failed": 2
+          },
+          "common_actions": {},
+          "stopped_reason": null
+        },
+        {
+          "trial_id": "trial_003",
+          "run_id": "pair_matrix_heavy_group_n3_workspace_policy_v1_first_model__second_model_trial_003",
+          "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_heavy_group_n3_workspace_policy_v1\\pairs\\first_model__second_model\\runs\\trial_003",
+          "status": "failed",
+          "trial_status": "failed",
+          "success": false,
+          "plan_valid": false,
+          "executor_calls": 0,
+          "final_validation_success_count": 0,
+          "execution_success_count": 0,
+          "pair_quality_score": 0.0,
+          "main_errors": "orchestrator_plan_parse_failed: Invalid orchestrator JSON output: Expecting value: line 1 column 1 (char 0)",
+          "return_code": 1,
+          "error_message": "Invalid orchestrator JSON output: Expecting value: line 1 column 1 (char 0)",
+          "orchestrator_initial_parse_success": false,
+          "orchestrator_repair_attempt_count": 1,
+          "executor_model_calls_attempted": 0,
+          "initial_validation_success_count": 0,
+          "repair_attempt_count": 0,
+          "execution_attempted_count": 0,
+          "safety_violation_count": 0,
+          "error_count": 2,
+          "pair_verdict": "failed",
+          "wall_time_ms": 2565.224,
+          "orchestrator_latency_ms": 1282.248,
+          "executor_latency_mean_ms": null,
+          "repeated_action_count": 0,
+          "dominant_action_parameters": [],
+          "common_failure_modes": {
+            "orchestrator_plan_parse_failed": 2
+          },
+          "common_actions": {},
+          "stopped_reason": null
+        }
+      ],
+      "prototype_pair_rank_score": 0.0,
+      "error_message": "one or more trials failed",
+      "skipped_reason": null
+    }
+  ],
+  "rankings": [
+    {
+      "rank": 1,
+      "pair": "second_model->second_model",
+      "pair_id": "second_model__second_model",
+      "status": "completed",
+      "completed_trials": 3,
+      "failed_trials": 0,
+      "mean_pair_quality_score": 0.875451,
+      "std_pair_quality_score": 5.6e-05,
+      "mean_execution_success_rate": 1.0,
+      "mean_final_validation_success_rate": 0.777778,
+      "total_errors": 6,
+      "common_failure_modes": {
+        "NextActionValidationError": 6,
+        "NextActionJSONError": 6
+      },
+      "prototype_pair_rank_score": 0.759188
+    },
+    {
+      "rank": 2,
+      "pair": "second_model->first_model",
+      "pair_id": "second_model__first_model",
+      "status": "reused",
+      "completed_trials": 3,
+      "failed_trials": 0,
+      "mean_pair_quality_score": 0.820328,
+      "std_pair_quality_score": 7.7e-05,
+      "mean_execution_success_rate": 1.0,
+      "mean_final_validation_success_rate": 0.454545,
+      "total_errors": 18,
+      "common_failure_modes": {
+        "validation_failed": 18,
+        "write_path_outside_artifact_workspace": 18,
+        "HTTPStatusError": 18
+      },
+      "prototype_pair_rank_score": 0.571269
+    },
+    {
+      "rank": 3,
+      "pair": "first_model->first_model",
+      "pair_id": "first_model__first_model",
+      "status": "failed",
+      "completed_trials": 0,
+      "failed_trials": 3,
+      "mean_pair_quality_score": 0.0,
+      "std_pair_quality_score": 0.0,
+      "mean_execution_success_rate": 0.0,
+      "mean_final_validation_success_rate": 0.0,
+      "total_errors": 6,
+      "common_failure_modes": {
+        "orchestrator_plan_parse_failed": 6
+      },
+      "prototype_pair_rank_score": 0.0
+    },
+    {
+      "rank": 4,
+      "pair": "first_model->second_model",
+      "pair_id": "first_model__second_model",
+      "status": "failed",
+      "completed_trials": 0,
+      "failed_trials": 3,
+      "mean_pair_quality_score": 0.0,
+      "std_pair_quality_score": 0.0,
+      "mean_execution_success_rate": 0.0,
+      "mean_final_validation_success_rate": 0.0,
+      "total_errors": 6,
+      "common_failure_modes": {
+        "orchestrator_plan_parse_failed": 6
+      },
+      "prototype_pair_rank_score": 0.0
+    }
+  ],
+  "best_observed_pair": "second_model->second_model",
+  "pair_failure_modes": {
+    "second_model__first_model": {
+      "validation_failed": 18,
+      "write_path_outside_artifact_workspace": 18,
+      "HTTPStatusError": 18
+    },
+    "second_model__second_model": {
+      "NextActionValidationError": 6,
+      "NextActionJSONError": 6
+    },
+    "first_model__first_model": {
+      "orchestrator_plan_parse_failed": 6
+    },
+    "first_model__second_model": {
+      "orchestrator_plan_parse_failed": 6
+    }
+  },
+  "pair_resource_summary": {
+    "second_model__first_model": {
+      "mean_wall_time_ms": 6804.056333,
+      "mean_orchestrator_latency_ms": 1644.759333,
+      "mean_executor_latency_ms": 467.207424,
+      "resource_notes": [
+        "source=reused",
+        "reused existing repeated group artifact; no servers started",
+        "mean_wall_time_ms=6804.056333",
+        "existing artifact matched requested matrix protocol"
+      ],
+      "server_strategy": "reused existing repeated group artifact; no servers started"
+    },
+    "second_model__second_model": {
+      "mean_wall_time_ms": 8776.273,
+      "mean_orchestrator_latency_ms": 1659.897,
+      "mean_executor_latency_ms": 788.232556,
+      "resource_notes": [
+        "source=generated",
+        "two separate llama-server endpoints for the same model on different ports",
+        "mean_wall_time_ms=8776.273",
+        "orchestrator second_model port 8081; executor second_model port 8082"
+      ],
+      "server_strategy": "two separate llama-server endpoints for the same model on different ports"
+    },
+    "first_model__first_model": {
+      "mean_wall_time_ms": 2557.494333,
+      "mean_orchestrator_latency_ms": 1278.335333,
+      "mean_executor_latency_ms": null,
+      "resource_notes": [
+        "source=generated",
+        "two separate llama-server endpoints for the same model on different ports",
+        "mean_wall_time_ms=2557.494333",
+        "orchestrator first_model port 8081; executor first_model port 8082"
+      ],
+      "server_strategy": "two separate llama-server endpoints for the same model on different ports"
+    },
+    "first_model__second_model": {
+      "mean_wall_time_ms": 2564.732333,
+      "mean_orchestrator_latency_ms": 1281.9585,
+      "mean_executor_latency_ms": null,
+      "resource_notes": [
+        "source=generated",
+        "two separate llama-server endpoints on different ports",
+        "mean_wall_time_ms=2564.732333",
+        "orchestrator first_model port 8081; executor second_model port 8082"
+      ],
+      "server_strategy": "two separate llama-server endpoints on different ports"
+    }
+  },
+  "limitations": [
+    "Only one group scenario is included.",
+    "N=3 per pair is directional prototype evidence, not a benchmark.",
+    "No GPU runtime was configured or measured.",
+    "No stress or concurrent capacity test was run.",
+    "prototype_pair_rank_score is not a final production score."
+  ],
+  "interpretation": {
+    "best_observed_pair": "second_model->second_model",
+    "final_recommendation_ready": false,
+    "summary": "The current best observed pair for this one scenario is `second_model->second_model`. This is directional prototype evidence only; final recommendation requires more scenarios and resource measurements.",
+    "pair_notes": [
+      "second_model -> second_model is strongest here, suggesting the stronger executor improved this scenario while likely increasing local resource cost.",
+      "first_model -> first_model trails the larger-orchestrator baseline, supporting use of a larger orchestrator for this scenario."
+    ]
+  }
+}

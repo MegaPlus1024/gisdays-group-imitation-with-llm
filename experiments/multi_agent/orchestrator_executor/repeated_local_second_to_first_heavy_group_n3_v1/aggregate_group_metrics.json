@@ -1,0 +1,33 @@
+{
+  "trial_count": 3,
+  "completed_trial_count": 3,
+  "failed_trial_count": 0,
+  "mean_pair_quality_score": 0.946169,
+  "std_pair_quality_score": 0.000294,
+  "min_pair_quality_score": 0.94576,
+  "max_pair_quality_score": 0.946438,
+  "mean_plan_valid_rate": 1.0,
+  "mean_executor_call_count": 8.0,
+  "mean_final_validation_success_rate": 1.0,
+  "mean_execution_success_rate": 1.0,
+  "total_safety_violations": 0,
+  "total_errors": 0,
+  "common_failure_modes": {},
+  "common_actions": {
+    "read_file": 15,
+    "create_file": 9
+  },
+  "common_action_parameters": {
+    "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}": 6,
+    "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}": 6,
+    "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}": 3,
+    "{\"action\": \"create_file\", \"parameters\": {\"content\": \"Update the local office note.\", \"path\": \"experiments/multi_agent/orchestrator_executor/repeated_local_second_to_first_heavy_group_n3_v1/runs/trial_001/workspace/office_agent_2_executor_note.md\"}}": 2,
+    "{\"action\": \"create_file\", \"parameters\": {\"content\": \"Example note.\", \"path\": \"docs/ai/example_note.md\"}}": 2,
+    "{\"action\": \"create_file\", \"parameters\": {\"content\": \"Update the note.\", \"path\": \"experiments/multi_agent/orchestrator_executor/repeated_local_second_to_first_heavy_group_n3_v1/runs/trial_002/workspace/office_agent_2_executor_note.md\"}}": 2,
+    "{\"action\": \"create_file\", \"parameters\": {\"content\": \"Update the note.\", \"path\": \"experiments/multi_agent/orchestrator_executor/repeated_local_second_to_first_heavy_group_n3_v1/runs/trial_003/workspace/office_agent_2_executor_note.md\"}}": 2,
+    "{\"action\": \"create_file\", \"parameters\": {\"content\": \"local planning note.\", \"path\": \"experiments/multi_agent/orchestrator_executor/repeated_local_second_to_first_heavy_group_n3_v1/runs/trial_003/workspace/office_agent_1_executor_note.md\"}}": 1
+  },
+  "mean_wall_time_ms": 6331.021,
+  "mean_orchestrator_latency_ms": 1578.171667,
+  "mean_executor_latency_ms": 591.429792
+}

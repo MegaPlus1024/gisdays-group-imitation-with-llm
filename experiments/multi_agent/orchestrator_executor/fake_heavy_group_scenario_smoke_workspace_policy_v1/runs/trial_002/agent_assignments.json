@@ -1,0 +1,44 @@
+{
+  "office_agent_1": {
+    "agent_id": "office_agent_1",
+    "task_id": "task_1",
+    "assigned_goal": "Read configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md and prepare a short local planning note.",
+    "executor_model_id": "first_model",
+    "success_criteria": "Produce safe local evidence for the group objective.",
+    "allowed_action_focus": [
+      "read_file",
+      "create_file"
+    ]
+  },
+  "office_agent_2": {
+    "agent_id": "office_agent_2",
+    "task_id": "task_2",
+    "assigned_goal": "Review configs/multi_agent_fixtures/office_developer_maintenance/maintenance_notes.md and update a safe office note.",
+    "executor_model_id": "first_model",
+    "success_criteria": "Produce safe local evidence for the group objective.",
+    "allowed_action_focus": [
+      "read_file",
+      "create_file"
+    ]
+  },
+  "developer_agent_1": {
+    "agent_id": "developer_agent_1",
+    "task_id": "task_3",
+    "assigned_goal": "Inspect configs/multi_agent_fixtures/office_developer_maintenance/project_context.md for implementation context.",
+    "executor_model_id": "first_model",
+    "success_criteria": "Produce safe local evidence for the group objective.",
+    "allowed_action_focus": [
+      "read_file"
+    ]
+  },
+  "developer_agent_2": {
+    "agent_id": "developer_agent_2",
+    "task_id": "task_4",
+    "assigned_goal": "Inspect docs/ai/orchestrator_executor_pair_matrix_v1.md and prepare maintenance follow-up context.",
+    "executor_model_id": "first_model",
+    "success_criteria": "Produce safe local evidence for the group objective.",
+    "allowed_action_focus": [
+      "read_file"
+    ]
+  }
+}

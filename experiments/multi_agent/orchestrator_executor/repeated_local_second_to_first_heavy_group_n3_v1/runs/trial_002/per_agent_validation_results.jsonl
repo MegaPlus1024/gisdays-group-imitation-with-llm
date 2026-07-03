@@ -1,0 +1,8 @@
+{"agent_id":"office_agent_1","group_step_index":1,"agent_step_index":1,"attempt_index":0,"attempt_type":"initial","validation_accepted":true,"validation_issues":[]}
+{"agent_id":"office_agent_1","group_step_index":2,"agent_step_index":2,"attempt_index":0,"attempt_type":"initial","validation_accepted":true,"validation_issues":[]}
+{"agent_id":"office_agent_2","group_step_index":1,"agent_step_index":1,"attempt_index":0,"attempt_type":"initial","validation_accepted":true,"validation_issues":[]}
+{"agent_id":"office_agent_2","group_step_index":2,"agent_step_index":2,"attempt_index":0,"attempt_type":"initial","validation_accepted":true,"validation_issues":[]}
+{"agent_id":"developer_agent_1","group_step_index":1,"agent_step_index":1,"attempt_index":0,"attempt_type":"initial","validation_accepted":true,"validation_issues":[]}
+{"agent_id":"developer_agent_1","group_step_index":2,"agent_step_index":2,"attempt_index":0,"attempt_type":"initial","validation_accepted":true,"validation_issues":[]}
+{"agent_id":"developer_agent_2","group_step_index":1,"agent_step_index":1,"attempt_index":0,"attempt_type":"initial","validation_accepted":true,"validation_issues":[]}
+{"agent_id":"developer_agent_2","group_step_index":2,"agent_step_index":2,"attempt_index":0,"attempt_type":"initial","validation_accepted":true,"validation_issues":[]}

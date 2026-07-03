@@ -1,0 +1,69 @@
+{
+  "scenario_id": "office_developer_maintenance_group_heavy_v1",
+  "description": "Heavier offline orchestrator/executor group scenario with four agents coordinating around local maintenance notes and project documentation.",
+  "orchestrator_model_id": "second_model",
+  "executor_model_id": "first_model",
+  "registry_path": "configs/script_registry.example.json",
+  "max_group_steps": 2,
+  "max_steps_per_agent": 1,
+  "execute_actions": true,
+  "expected_group_behavior": "Four agents use safe local file and document actions across two group steps to inspect shared fixtures, project docs, and experiment notes without external network or model-file access.",
+  "agents": [
+    {
+      "agent_id": "office_agent_1",
+      "role_template_path": "configs/roles/office_worker.example.json",
+      "activity_profile_path": "configs/activity_profiles/office_worker.json",
+      "assigned_goal": "Read configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md and prepare a short local planning note.",
+      "executor_model_id": "first_model"
+    },
+    {
+      "agent_id": "office_agent_2",
+      "role_template_path": "configs/roles/office_worker.example.json",
+      "activity_profile_path": "configs/activity_profiles/office_worker.json",
+      "assigned_goal": "Review configs/multi_agent_fixtures/office_developer_maintenance/maintenance_notes.md and update a safe office note.",
+      "executor_model_id": "first_model"
+    },
+    {
+      "agent_id": "developer_agent_1",
+      "role_template_path": "configs/roles/developer.example.json",
+      "activity_profile_path": "configs/activity_profiles/developer.json",
+      "assigned_goal": "Inspect configs/multi_agent_fixtures/office_developer_maintenance/project_context.md for implementation context.",
+      "executor_model_id": "first_model"
+    },
+    {
+      "agent_id": "developer_agent_2",
+      "role_template_path": "configs/roles/developer.example.json",
+      "activity_profile_path": "configs/activity_profiles/developer.json",
+      "assigned_goal": "Inspect docs/ai/orchestrator_executor_pair_matrix_v1.md and prepare maintenance follow-up context.",
+      "executor_model_id": "first_model"
+    }
+  ],
+  "metadata": {
+    "schema_version": "orchestrator_executor_group_scenario_v1",
+    "scenario_weight": "heavy_behavioral_validation",
+    "agent_step_budget_scope": "per_group_step",
+    "write_path_policy": "artifact_workspace_only",
+    "network_required": false,
+    "browser_real_automation_required": false,
+    "office_real_automation_required": false,
+    "external_services_required": false,
+    "fixture_paths": [
+      "configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md",
+      "configs/multi_agent_fixtures/office_developer_maintenance/maintenance_notes.md",
+      "configs/multi_agent_fixtures/office_developer_maintenance/project_context.md"
+    ],
+    "expected_safe_actions": [
+      "read_file",
+      "create_file",
+      "append_file",
+      "list_directory",
+      "office_create_document_stub"
+    ],
+    "limitations": [
+      "This is not a stress test.",
+      "This is not a GPU benchmark.",
+      "Browser remains simulated-only.",
+      "Office behavior remains stub/file-based."
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "common_actions": {
+    "read_file": 12,
+    "create_file": 4
+  },
+  "common_action_parameters": {
+    "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/model_research_metadata.md\"}}": 4,
+    "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/final_tz_readiness_audit.md\"}}": 4,
+    "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/orchestrator_executor_quality_spec.md\"}}": 4,
+    "{\"action\": \"create_file\", \"parameters\": {\"content\": \"Office agent summary: model metadata was reviewed for the group run.\\n\", \"path\": \"experiments/multi_agent/orchestrator_executor/fake_heavy_group_scenario_smoke_workspace_policy_v1/runs/trial_001/workspace/office_agent_summary.md\"}}": 2,
+    "{\"action\": \"create_file\", \"parameters\": {\"content\": \"Office agent summary: model metadata was reviewed for the group run.\\n\", \"path\": \"experiments/multi_agent/orchestrator_executor/fake_heavy_group_scenario_smoke_workspace_policy_v1/runs/trial_002/workspace/office_agent_summary.md\"}}": 2
+  }
+}

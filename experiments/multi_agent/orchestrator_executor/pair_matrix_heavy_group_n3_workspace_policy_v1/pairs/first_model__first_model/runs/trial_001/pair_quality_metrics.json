@@ -1,0 +1,24 @@
+{
+  "orchestrator_plan_valid": false,
+  "task_assignment_valid_rate": 0.0,
+  "executor_initial_validation_rate": 0.0,
+  "executor_final_validation_rate": 0.0,
+  "execution_success_rate": 0.0,
+  "role_fit_mean": 0.0,
+  "diversity_mean": 0.0,
+  "repetition_mean": 0.0,
+  "history_usage_mean": 0.0,
+  "group_coordination_score": 0.0,
+  "task_completion_proxy_score": 0.0,
+  "safety_violation_count": 0,
+  "latency_mean_ms": 1288.0825,
+  "pair_quality_score": 0.0,
+  "metadata": {
+    "status": "failed",
+    "failure_stage": "orchestrator_plan",
+    "failure_reason": "Invalid orchestrator JSON output: Expecting value: line 1 column 1 (char 0)",
+    "orchestrator_attempt_count": 2,
+    "orchestrator_repair_attempted": true,
+    "prototype_scoring": true
+  }
+}

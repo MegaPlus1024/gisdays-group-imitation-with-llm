@@ -45,7 +45,9 @@ Current evidence:
 - a sequential fake-mode orchestrator/executor group MVP now exists;
 - a controlled two-endpoint local orchestrator/executor proof completed after executor prompt hardening, with two validated and executed local read actions;
 - repeated local orchestrator/executor group trials completed N=3 for one pair and one scenario;
-- orchestrator/executor pair matrix comparison completed for one group scenario, with `second_model -> first_model` as the current best observed pair there;
+- orchestrator/executor pair matrix comparison completed for the basic group scenario, with `second_model -> first_model` as the best observed pair there;
+- a heavier four-agent group scenario and second pair matrix completed, with `second_model -> second_model` as the best observed pair there;
+- cross-scenario pair comparison now exists, but the best observed pair changes by scenario and remains preliminary only;
 - resource/capacity evaluation exists, but multi-agent capacity is formula-estimated, not stress-tested.
 
 Important limitations:
@@ -54,7 +56,7 @@ Important limitations:
 - production full autonomous agent loop is not implemented;
 - production action execution scheduler/runtime is not implemented;
 - no measured multi-agent stress test;
-- pair-matrix evidence covers only one group scenario so far; no stress test has been run;
+- pair-matrix evidence covers two short group scenarios so far; no stress test has been run;
 - browser behavior is simulated-only;
 - office behavior is stub/file-based;
 - no git/mail actions are included;
@@ -81,6 +83,7 @@ Important limitations:
 - Executor prompt guidance, executor repair attempts, and per-agent attempt artifacts for the group MVP.
 - Repeated local orchestrator/executor group-trials wrapper and aggregate reports.
 - Orchestrator/executor pair matrix comparison and prototype pair ranking.
+- Heavy four-agent group scenario and cross-scenario pair matrix comparison.
 - Final evaluation reports.
 
 ## 4. Project structure
@@ -128,7 +131,7 @@ Run the test suite:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests. After the heavy multi-agent scenario and cross-scenario pair comparison, the full suite passed with 703 tests.
 
 ## 7. Model setup
 
@@ -300,7 +303,37 @@ The pair matrix wrapper compares multiple orchestrator/executor combinations wit
   --force
 ```
 
-Latest artifact root: `experiments/multi_agent/orchestrator_executor/pair_matrix_office_developer_group_n3_v1`. `second_model -> first_model` ranked first for this scenario with prototype score `0.952618`; `second_model -> second_model` also completed 3/3 trials; both `first_model` orchestrator pairs failed at `orchestrator_plan_parse_failed`. This is current best-observed scenario evidence, not a final production recommendation.
+Latest basic-scenario artifact root: `experiments/multi_agent/orchestrator_executor/pair_matrix_office_developer_group_n3_v1`. `second_model -> first_model` ranked first for this scenario with prototype score `0.952618`; `second_model -> second_model` also completed 3/3 trials; both `first_model` orchestrator pairs failed at `orchestrator_plan_parse_failed`. This is scenario evidence, not a final production recommendation.
+
+## Heavy multi-agent scenario
+
+The heavier scenario uses four agents, two group steps, local fixtures, and an `artifact_workspace_only` write policy.
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_orchestrator_executor_pair_matrix.py `
+  --mode local `
+  --models-config configs\evaluation_models.json `
+  --scenario configs\multi_agent_scenarios\office_developer_maintenance_group_heavy.json `
+  --out-root experiments\multi_agent\orchestrator_executor\pair_matrix_heavy_group_n3_workspace_policy_v1 `
+  --label pair_matrix_heavy_group_n3_workspace_policy_v1 `
+  --pairs second_model:first_model,second_model:second_model,first_model:first_model,first_model:second_model `
+  --existing-pair-run second_model:first_model=experiments\multi_agent\orchestrator_executor\repeated_local_second_to_first_heavy_group_n3_workspace_policy_v1 `
+  --trials 3 `
+  --base-orchestrator-port 8081 `
+  --base-executor-port 8082 `
+  --manage-servers `
+  --max-group-steps 2 `
+  --max-steps-per-agent 1 `
+  --orchestrator-max-tokens 1024 `
+  --orchestrator-repair-attempts 1 `
+  --repair-attempts 1 `
+  --execute-actions `
+  --continue-on-pair-failure
+```
+
+Heavy artifact root: `experiments/multi_agent/orchestrator_executor/pair_matrix_heavy_group_n3_workspace_policy_v1`. `second_model -> second_model` ranked first with prototype score `0.759188`; `second_model -> first_model` completed but recorded workspace-policy validation and repair failures; both `first_model` orchestrator pairs failed at `orchestrator_plan_parse_failed`.
+
+Cross-scenario artifact root: `experiments/multi_agent/orchestrator_executor/cross_scenario_pair_matrix_workspace_policy_v1`. The simple scenario best pair is `second_model -> first_model`, while the heavy scenario best pair is `second_model -> second_model`; this is preliminary evidence only, not a final recommendation.
 
 ## 10. Real local single scenario run
 
@@ -412,7 +445,7 @@ Final summary:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests. After the heavy multi-agent scenario and cross-scenario pair comparison, the full suite passed with 703 tests.
 
 ## 17. Publishing to GitHub
 
@@ -469,7 +502,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 
 - Research prototype, not production-ready.
 - No measured multi-agent stress test.
-- Pair-matrix local orchestrator/executor task execution evidence covers one group scenario only.
+- Pair-matrix local orchestrator/executor task execution evidence covers two short group scenarios only.
 - Browser behavior is simulated-only.
 - Office behavior is stub/file-based.
 - No git/mail actions.

@@ -1,0 +1,100 @@
+{
+  "comparison_id": "cross_scenario_pair_matrix_workspace_policy_v1",
+  "generated_at": "2026-07-03T12:46:52.446830+00:00",
+  "simple_matrix_root": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_office_developer_group_n3_v1",
+  "heavy_matrix_root": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_heavy_group_n3_workspace_policy_v1",
+  "simple_scenario_best_pair": "second_model->first_model",
+  "heavy_scenario_best_pair": "second_model->second_model",
+  "best_observed_pair_across_tested_scenarios": "second_model->second_model",
+  "pairs": [
+    {
+      "pair": "second_model->second_model",
+      "pair_id": "second_model__second_model",
+      "scenarios_present": 2,
+      "scenarios_completed": 2,
+      "mean_rank_score_across_scenarios": 0.854073,
+      "mean_quality_across_scenarios": 0.881595,
+      "quality_drop_simple_to_heavy": 0.012289,
+      "execution_success_drop_simple_to_heavy": 0.0,
+      "failure_mode_change": {
+        "simple": {},
+        "heavy": {
+          "NextActionValidationError": 6,
+          "NextActionJSONError": 6
+        }
+      },
+      "simple_status": "completed",
+      "heavy_status": "completed",
+      "stability_verdict": "stable_but_low_confidence"
+    },
+    {
+      "pair": "second_model->first_model",
+      "pair_id": "second_model__first_model",
+      "scenarios_present": 2,
+      "scenarios_completed": 2,
+      "mean_rank_score_across_scenarios": 0.761943,
+      "mean_quality_across_scenarios": 0.855428,
+      "quality_drop_simple_to_heavy": 0.0702,
+      "execution_success_drop_simple_to_heavy": 0.0,
+      "failure_mode_change": {
+        "simple": {},
+        "heavy": {
+          "validation_failed": 18,
+          "write_path_outside_artifact_workspace": 18,
+          "HTTPStatusError": 18
+        }
+      },
+      "simple_status": "reused",
+      "heavy_status": "reused",
+      "stability_verdict": "stable_but_low_confidence"
+    },
+    {
+      "pair": "first_model->first_model",
+      "pair_id": "first_model__first_model",
+      "scenarios_present": 2,
+      "scenarios_completed": 0,
+      "mean_rank_score_across_scenarios": null,
+      "mean_quality_across_scenarios": null,
+      "quality_drop_simple_to_heavy": 0.0,
+      "execution_success_drop_simple_to_heavy": 0.0,
+      "failure_mode_change": {
+        "simple": {
+          "orchestrator_plan_parse_failed": 6
+        },
+        "heavy": {
+          "orchestrator_plan_parse_failed": 6
+        }
+      },
+      "simple_status": "failed",
+      "heavy_status": "failed",
+      "stability_verdict": "degraded_on_heavy"
+    },
+    {
+      "pair": "first_model->second_model",
+      "pair_id": "first_model__second_model",
+      "scenarios_present": 2,
+      "scenarios_completed": 0,
+      "mean_rank_score_across_scenarios": null,
+      "mean_quality_across_scenarios": null,
+      "quality_drop_simple_to_heavy": 0.0,
+      "execution_success_drop_simple_to_heavy": 0.0,
+      "failure_mode_change": {
+        "simple": {
+          "orchestrator_plan_parse_failed": 6
+        },
+        "heavy": {
+          "orchestrator_plan_parse_failed": 6
+        }
+      },
+      "simple_status": "failed",
+      "heavy_status": "failed",
+      "stability_verdict": "degraded_on_heavy"
+    }
+  ],
+  "limitations": [
+    "Only two group scenarios are compared.",
+    "This is not a production recommendation.",
+    "No GPU runtime or stress benchmark is included.",
+    "Rank score is prototype-only."
+  ]
+}
