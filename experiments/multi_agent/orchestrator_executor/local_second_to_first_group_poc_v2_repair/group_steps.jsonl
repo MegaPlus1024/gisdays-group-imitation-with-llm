@@ -1,0 +1,2 @@
+{"group_step_index":1,"agent_id":"office_agent","task_id":"t1","action":"read_file","status":"failure","summary":"missing_required_parameter","metadata":{"validation_accepted":false,"execution_attempted":false,"execution_success":null}}
+{"group_step_index":1,"agent_id":"developer_agent","task_id":"t2","action":"create_file","status":"failure","summary":"unsafe_path, path_outside_allowed_roots, path_outside_allowed_roots","metadata":{"validation_accepted":false,"execution_attempted":false,"execution_success":null}}

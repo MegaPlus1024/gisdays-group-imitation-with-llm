@@ -26,6 +26,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--executor-base-url", default=None)
     parser.add_argument("--orchestrator-model-name", default=None)
     parser.add_argument("--executor-model-name", default=None)
+    parser.add_argument("--orchestrator-max-tokens", type=int, default=None)
+    parser.add_argument("--orchestrator-temperature", type=float, default=None)
+    parser.add_argument("--orchestrator-repair-attempts", type=int, default=0)
     parser.add_argument("--max-group-steps", type=int, default=None)
     parser.add_argument("--max-steps-per-agent", type=int, default=None)
     parser.add_argument("--repair-attempts", type=int, default=0)
@@ -58,6 +61,9 @@ def main(argv: list[str] | None = None) -> int:
         executor_base_url=args.executor_base_url,
         orchestrator_model_name=args.orchestrator_model_name,
         executor_model_name=args.executor_model_name,
+        orchestrator_max_tokens=args.orchestrator_max_tokens,
+        orchestrator_temperature=args.orchestrator_temperature,
+        orchestrator_repair_attempts=args.orchestrator_repair_attempts,
         max_group_steps=args.max_group_steps,
         max_steps_per_agent=args.max_steps_per_agent,
         repair_attempts=args.repair_attempts,

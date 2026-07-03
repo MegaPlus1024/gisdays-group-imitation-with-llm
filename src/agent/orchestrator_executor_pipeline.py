@@ -29,6 +29,7 @@ from .llm_client import LocalLLMClient
 from .orchestrator_prompt_contract import (
     OrchestratorPlanJSONError,
     build_orchestrator_messages,
+    build_orchestrator_repair_messages,
     parse_orchestrator_plan_text,
 )
 from .prompt_contract import PromptBuilder
@@ -169,6 +170,19 @@ class GroupHistoryRecord(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class OrchestratorPlanAttempt(BaseModel):
+    attempt_index: int
+    attempt_type: Literal["initial", "repair"]
+    prompt: list[dict[str, str]] = Field(default_factory=list)
+    raw_output: str = ""
+    parse_success: bool = False
+    validation_success: bool = False
+    parse_error: str | None = None
+    validation_errors: list[str] = Field(default_factory=list)
+    latency_ms: float | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class OrchestratorExecutorQualityMetrics(BaseModel):
     orchestrator_plan_valid: bool
     task_assignment_valid_rate: float
@@ -264,6 +278,9 @@ class OrchestratorExecutorRunConfig(BaseModel):
     executor_base_url: str | None = None
     orchestrator_model_name: str | None = None
     executor_model_name: str | None = None
+    orchestrator_max_tokens: int | None = None
+    orchestrator_temperature: float | None = None
+    orchestrator_repair_attempts: int = 0
     max_group_steps: int | None = None
     max_steps_per_agent: int | None = None
     repair_attempts: int = 0
@@ -294,7 +311,21 @@ class OrchestratorExecutorRunConfig(BaseModel):
             raise ValueError("Optional runtime override values must be non-empty when provided.")
         return value
 
-    @field_validator("repair_attempts")
+    @field_validator("orchestrator_max_tokens")
+    @classmethod
+    def validate_optional_positive_int(cls, value: int | None) -> int | None:
+        if value is not None and value <= 0:
+            raise ValueError("orchestrator_max_tokens must be > 0 when provided.")
+        return value
+
+    @field_validator("orchestrator_temperature")
+    @classmethod
+    def validate_optional_temperature(cls, value: float | None) -> float | None:
+        if value is not None and value < 0:
+            raise ValueError("orchestrator_temperature must be >= 0 when provided.")
+        return value
+
+    @field_validator("repair_attempts", "orchestrator_repair_attempts")
     @classmethod
     def validate_repair_attempts(cls, value: int) -> int:
         if value < 0:
@@ -372,7 +403,7 @@ class FakeOrchestratorPlanProvider:
             {
                 "tasks": tasks,
                 "coordination_notes": "Agents work independently and write/read only safe local project paths.",
-                "expected_group_outcome": scenario.expected_group_behavior,
+                "expected_group_outcome": "Both agents perform safe local role-compatible actions.",
             },
             ensure_ascii=False,
             indent=2,
@@ -387,6 +418,18 @@ class FakeOrchestratorPlanProvider:
             prompt_messages=messages,
             metadata={"provider": "fake_orchestrator"},
         )
+
+    def repair_plan(
+        self,
+        *,
+        scenario: OrchestratorExecutorScenario,
+        agents: list[GroupAgentSpec],
+        agent_action_names: dict[str, set[str]],
+        previous_raw_output: str,
+        error_message: str,
+    ) -> OrchestratorProviderResult:
+        del previous_raw_output, error_message
+        return self.create_plan(scenario=scenario, agents=agents, agent_action_names=agent_action_names)
 
 
 class FakeExecutorActionProvider:
@@ -463,6 +506,52 @@ class LocalOrchestratorPlanProvider:
             ],
             max_group_steps=scenario.max_group_steps,
         )
+        raw = self._chat(messages)
+        return OrchestratorProviderResult(
+            raw_model_output=raw,
+            prompt_messages=messages,
+            metadata={
+                "provider": "local_orchestrator",
+                "base_url": self.model.base_url,
+                "max_tokens": self.model.max_tokens,
+                "temperature": self.model.temperature,
+            },
+        )
+
+    def repair_plan(
+        self,
+        *,
+        scenario: OrchestratorExecutorScenario,
+        agents: list[GroupAgentSpec],
+        agent_action_names: dict[str, set[str]],
+        previous_raw_output: str,
+        error_message: str,
+    ) -> OrchestratorProviderResult:
+        messages = build_orchestrator_repair_messages(
+            error_message=error_message,
+            previous_raw_output=previous_raw_output,
+            agents=[
+                {
+                    **agent.model_dump(mode="json"),
+                    "allowed_action_names": sorted(agent_action_names.get(agent.agent_id, set())),
+                }
+                for agent in agents
+            ],
+            max_group_steps=scenario.max_group_steps,
+        )
+        raw = self._chat(messages)
+        return OrchestratorProviderResult(
+            raw_model_output=raw,
+            prompt_messages=messages,
+            metadata={
+                "provider": "local_orchestrator_repair",
+                "base_url": self.model.base_url,
+                "max_tokens": self.model.max_tokens,
+                "temperature": self.model.temperature,
+            },
+        )
+
+    def _chat(self, messages: list[dict[str, str]]) -> str:
         payload = {
             "model": self.model.model_name,
             "messages": messages,
@@ -473,12 +562,7 @@ class LocalOrchestratorPlanProvider:
             response = client.post(f"{self.model.base_url.rstrip('/')}/chat/completions", json=payload)
             response.raise_for_status()
             response_json = response.json()
-        raw = LocalLLMClient.extract_assistant_content(response_json)
-        return OrchestratorProviderResult(
-            raw_model_output=raw,
-            prompt_messages=messages,
-            metadata={"provider": "local_orchestrator", "base_url": self.model.base_url},
-        )
+        return LocalLLMClient.extract_assistant_content(response_json)
 
 
 class LocalExecutorActionProvider:
@@ -567,16 +651,41 @@ class OrchestratorExecutorRunner:
             else LocalExecutorActionProvider(executor_model)
         )
 
-        provider_result = orchestrator_provider.create_plan(
+        (
+            provider_result,
+            plan_payload,
+            orchestrator_attempts,
+            orchestrator_errors,
+        ) = _run_orchestrator_plan_stage(
+            orchestrator_provider=orchestrator_provider,
             scenario=scenario,
-            agents=scenario.agents,
             agent_action_names=agent_action_names,
+            repair_attempts=self.config.orchestrator_repair_attempts,
         )
-        plan_payload = parse_orchestrator_plan_text(
-            provider_result.raw_model_output,
-            known_agent_ids={agent.agent_id for agent in scenario.agents},
-            allowed_action_names_by_agent=agent_action_names,
-        )
+        if provider_result is None or plan_payload is None:
+            result = _failed_orchestrator_result(
+                config=self.config,
+                scenario=scenario,
+                orchestrator_model=orchestrator_model,
+                executor_model=executor_model,
+                attempts=orchestrator_attempts,
+                errors=orchestrator_errors,
+                out_dir=out_dir,
+            )
+            _write_orchestrator_failure_artifacts(
+                out_dir=out_dir,
+                result=result,
+                config=self.config,
+                scenario=scenario,
+                orchestrator_model=orchestrator_model,
+                executor_model=executor_model,
+                attempts=orchestrator_attempts,
+                errors=orchestrator_errors,
+                started_at=started_at,
+                wall_time_seconds=time.perf_counter() - perf_start,
+            )
+            return result
+
         plan = OrchestratorPlan(
             plan_id=f"{self.config.run_id}_plan",
             scenario_id=scenario.scenario_id,
@@ -622,7 +731,7 @@ class OrchestratorExecutorRunner:
             for agent in scenario.agents
         }
         group_history: list[GroupHistoryRecord] = []
-        errors: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = list(orchestrator_errors)
 
         task_by_agent = {task.agent_id: task for task in plan.tasks}
         for group_step in range(1, scenario.max_group_steps + 1):
@@ -699,6 +808,20 @@ class OrchestratorExecutorRunner:
             warnings=_runtime_warnings(self.config.mode, orchestrator_model, executor_model),
             errors=errors,
         )
+        result.quality_metrics.metadata.update(
+            {
+                "orchestrator_attempt_count": len(orchestrator_attempts),
+                "orchestrator_repair_attempted": any(
+                    attempt.attempt_type == "repair" for attempt in orchestrator_attempts
+                ),
+                "orchestrator_plan_initial_parse_success": (
+                    orchestrator_attempts[0].parse_success if orchestrator_attempts else False
+                ),
+                "orchestrator_plan_final_validation_success": (
+                    orchestrator_attempts[-1].validation_success if orchestrator_attempts else False
+                ),
+            }
+        )
         _write_artifacts(
             out_dir=out_dir,
             result=result,
@@ -707,11 +830,200 @@ class OrchestratorExecutorRunner:
             orchestrator_model=orchestrator_model,
             executor_model=executor_model,
             provider_result=provider_result,
+            orchestrator_attempts=orchestrator_attempts,
             assignments=assignments,
             started_at=started_at,
             wall_time_seconds=time.perf_counter() - perf_start,
         )
         return result
+
+
+def _run_orchestrator_plan_stage(
+    *,
+    orchestrator_provider: OrchestratorPlanProvider,
+    scenario: OrchestratorExecutorScenario,
+    agent_action_names: dict[str, set[str]],
+    repair_attempts: int,
+) -> tuple[
+    OrchestratorProviderResult | None,
+    Any | None,
+    list[OrchestratorPlanAttempt],
+    list[dict[str, Any]],
+]:
+    attempts: list[OrchestratorPlanAttempt] = []
+    errors: list[dict[str, Any]] = []
+    previous_raw = ""
+    previous_error = ""
+    provider_result: OrchestratorProviderResult | None = None
+    plan_payload: Any | None = None
+
+    for attempt_index in range(0, repair_attempts + 1):
+        attempt_type: Literal["initial", "repair"] = "initial" if attempt_index == 0 else "repair"
+        started = time.perf_counter()
+        if attempt_type == "initial":
+            provider_result = orchestrator_provider.create_plan(
+                scenario=scenario,
+                agents=scenario.agents,
+                agent_action_names=agent_action_names,
+            )
+        else:
+            provider_result = _repair_orchestrator_plan(
+                orchestrator_provider=orchestrator_provider,
+                scenario=scenario,
+                agent_action_names=agent_action_names,
+                previous_raw_output=previous_raw,
+                error_message=previous_error,
+            )
+        latency_ms = _elapsed_ms(started)
+        attempt, maybe_plan = _orchestrator_attempt_from_result(
+            attempt_index=attempt_index,
+            attempt_type=attempt_type,
+            provider_result=provider_result,
+            latency_ms=latency_ms,
+            known_agent_ids={agent.agent_id for agent in scenario.agents},
+            allowed_action_names_by_agent=agent_action_names,
+        )
+        attempts.append(attempt)
+        if maybe_plan is not None:
+            plan_payload = maybe_plan
+            break
+        previous_raw = provider_result.raw_model_output
+        previous_error = attempt.parse_error or "; ".join(attempt.validation_errors) or "Unknown orchestrator plan error."
+        errors.append(
+            {
+                "stage": "orchestrator",
+                "attempt_index": attempt.attempt_index,
+                "attempt_type": attempt.attempt_type,
+                "error_type": "orchestrator_plan_parse_failed"
+                if not attempt.parse_success
+                else "orchestrator_plan_validation_failed",
+                "error_message": previous_error,
+            }
+        )
+
+    return provider_result, plan_payload, attempts, errors
+
+
+def _repair_orchestrator_plan(
+    *,
+    orchestrator_provider: OrchestratorPlanProvider,
+    scenario: OrchestratorExecutorScenario,
+    agent_action_names: dict[str, set[str]],
+    previous_raw_output: str,
+    error_message: str,
+) -> OrchestratorProviderResult:
+    repair_method = getattr(orchestrator_provider, "repair_plan", None)
+    if callable(repair_method):
+        return repair_method(
+            scenario=scenario,
+            agents=scenario.agents,
+            agent_action_names=agent_action_names,
+            previous_raw_output=previous_raw_output,
+            error_message=error_message,
+        )
+    return orchestrator_provider.create_plan(
+        scenario=scenario,
+        agents=scenario.agents,
+        agent_action_names=agent_action_names,
+    )
+
+
+def _orchestrator_attempt_from_result(
+    *,
+    attempt_index: int,
+    attempt_type: Literal["initial", "repair"],
+    provider_result: OrchestratorProviderResult,
+    latency_ms: float,
+    known_agent_ids: set[str],
+    allowed_action_names_by_agent: dict[str, set[str]],
+) -> tuple[OrchestratorPlanAttempt, Any | None]:
+    parse_success = False
+    parse_error: str | None = None
+    validation_success = False
+    validation_errors: list[str] = []
+    plan_payload: Any | None = None
+
+    try:
+        json.loads(provider_result.raw_model_output)
+        parse_success = True
+    except json.JSONDecodeError as exc:
+        parse_error = f"Invalid orchestrator JSON output: {exc}"
+
+    if parse_success:
+        try:
+            plan_payload = parse_orchestrator_plan_text(
+                provider_result.raw_model_output,
+                known_agent_ids=known_agent_ids,
+                allowed_action_names_by_agent=allowed_action_names_by_agent,
+            )
+            validation_success = True
+        except OrchestratorPlanJSONError as exc:
+            validation_errors = [str(exc)]
+
+    return (
+        OrchestratorPlanAttempt(
+            attempt_index=attempt_index,
+            attempt_type=attempt_type,
+            prompt=provider_result.prompt_messages,
+            raw_output=provider_result.raw_model_output,
+            parse_success=parse_success,
+            validation_success=validation_success,
+            parse_error=parse_error,
+            validation_errors=validation_errors,
+            latency_ms=latency_ms,
+            metadata=provider_result.metadata,
+        ),
+        plan_payload,
+    )
+
+
+def _failed_orchestrator_result(
+    *,
+    config: OrchestratorExecutorRunConfig,
+    scenario: OrchestratorExecutorScenario,
+    orchestrator_model: OrchestratorModelConfig,
+    executor_model: ExecutorModelConfig,
+    attempts: list[OrchestratorPlanAttempt],
+    errors: list[dict[str, Any]],
+    out_dir: Path,
+) -> OrchestratorExecutorRunResult:
+    reason = _final_orchestrator_error(attempts)
+    plan = OrchestratorPlan(
+        plan_id=f"{config.run_id}_plan_failed",
+        scenario_id=scenario.scenario_id,
+        orchestrator_model_id=scenario.orchestrator_model_id,
+        tasks=[],
+        coordination_notes="",
+        expected_group_outcome="",
+    )
+    metrics = _failed_quality_metrics(reason=reason, attempts=attempts)
+    pair_eval = OrchestratorExecutorPairEvaluationResult(
+        orchestrator_model_id=orchestrator_model.model_id,
+        executor_model_ids=[executor_model.model_id],
+        metrics=metrics,
+        verdict="failed",
+        notes=[
+            "Orchestrator plan was not valid; executor stage was not reached.",
+            "Diagnostic artifacts preserve prompt, raw output, and parse/validation errors.",
+        ],
+    )
+    return OrchestratorExecutorRunResult(
+        run_id=config.run_id,
+        scenario_id=scenario.scenario_id,
+        orchestrator_model_id=scenario.orchestrator_model_id,
+        executor_model_ids=[executor_model.model_id],
+        status="failed",
+        success=False,
+        stopped_reason=reason,
+        plan=plan,
+        per_agent_results=[],
+        group_history=[],
+        quality_metrics=metrics,
+        pair_evaluation=pair_eval,
+        artifact_dir=str(out_dir),
+        warnings=_runtime_warnings(config.mode, orchestrator_model, executor_model),
+        errors=errors,
+    )
 
 
 def load_orchestrator_executor_scenario(path: str | Path) -> OrchestratorExecutorScenario:
@@ -776,6 +1088,10 @@ def _apply_runtime_overrides(
         orchestrator_updates["model_name"] = config.orchestrator_model_name
     if config.executor_model_name:
         executor_updates["model_name"] = config.executor_model_name
+    if config.orchestrator_max_tokens is not None:
+        orchestrator_updates["max_tokens"] = config.orchestrator_max_tokens
+    if config.orchestrator_temperature is not None:
+        orchestrator_updates["temperature"] = config.orchestrator_temperature
     return (
         orchestrator_model.model_copy(update=orchestrator_updates),
         executor_model.model_copy(update=executor_updates),
@@ -1020,7 +1336,9 @@ def _activity_steps_from_attempts(attempts: list[ExecutorActionAttempt]) -> list
                 parameters=dict(attempt.next_action.get("parameters") or {}),
                 success=attempt.error_type is None,
                 status="success" if attempt.error_type is None else "failure",
-                issue_codes=[str(issue.get("code")) for issue in attempt.validation_issues if issue.get("code")],
+                issue_codes=sorted(
+                    {str(issue.get("code")) for issue in attempt.validation_issues if issue.get("code")}
+                ),
                 reason=str(attempt.next_action.get("reason") or ""),
                 expected_result=str(attempt.next_action.get("expected_result") or ""),
                 used_history=attempt.agent_step_index > 1,
@@ -1123,6 +1441,37 @@ def _pair_evaluation(
     )
 
 
+def _failed_quality_metrics(
+    *,
+    reason: str,
+    attempts: list[OrchestratorPlanAttempt],
+) -> OrchestratorExecutorQualityMetrics:
+    return OrchestratorExecutorQualityMetrics(
+        orchestrator_plan_valid=False,
+        task_assignment_valid_rate=0.0,
+        executor_initial_validation_rate=0.0,
+        executor_final_validation_rate=0.0,
+        execution_success_rate=0.0,
+        role_fit_mean=0.0,
+        diversity_mean=0.0,
+        repetition_mean=0.0,
+        history_usage_mean=0.0,
+        group_coordination_score=0.0,
+        task_completion_proxy_score=0.0,
+        safety_violation_count=0,
+        latency_mean_ms=_mean([a.latency_ms for a in attempts if a.latency_ms is not None]) if attempts else None,
+        pair_quality_score=0.0,
+        metadata={
+            "status": "failed",
+            "failure_stage": "orchestrator_plan",
+            "failure_reason": reason,
+            "orchestrator_attempt_count": len(attempts),
+            "orchestrator_repair_attempted": any(attempt.attempt_type == "repair" for attempt in attempts),
+            "prototype_scoring": True,
+        },
+    )
+
+
 def _write_artifacts(
     *,
     out_dir: Path,
@@ -1132,6 +1481,7 @@ def _write_artifacts(
     orchestrator_model: OrchestratorModelConfig,
     executor_model: ExecutorModelConfig,
     provider_result: OrchestratorProviderResult,
+    orchestrator_attempts: list[OrchestratorPlanAttempt],
     assignments: dict[str, AgentAssignment],
     started_at: str,
     wall_time_seconds: float,
@@ -1139,6 +1489,10 @@ def _write_artifacts(
     _write_json(out_dir / "manifest.json", _manifest(result, config, scenario, orchestrator_model, executor_model, started_at))
     _write_json(out_dir / "orchestrator_prompt.json", {"messages": provider_result.prompt_messages})
     _write_json(out_dir / "orchestrator_raw_output.json", {"raw_model_output": provider_result.raw_model_output, "metadata": provider_result.metadata})
+    _write_jsonl(
+        out_dir / "orchestrator_attempts.jsonl",
+        [attempt.model_dump(mode="json") for attempt in orchestrator_attempts],
+    )
     _write_json(out_dir / "orchestrator_plan.json", result.plan.model_dump(mode="json"))
     _write_json(out_dir / "orchestrator_validation.json", {"valid": True, "warnings": result.warnings})
     _write_json(out_dir / "agent_assignments.json", {key: value.model_dump(mode="json") for key, value in assignments.items()})
@@ -1189,6 +1543,62 @@ def _write_artifacts(
     (out_dir / "README.md").write_text(_artifact_readme(result), encoding="utf-8")
 
 
+def _write_orchestrator_failure_artifacts(
+    *,
+    out_dir: Path,
+    result: OrchestratorExecutorRunResult,
+    config: OrchestratorExecutorRunConfig,
+    scenario: OrchestratorExecutorScenario,
+    orchestrator_model: OrchestratorModelConfig,
+    executor_model: ExecutorModelConfig,
+    attempts: list[OrchestratorPlanAttempt],
+    errors: list[dict[str, Any]],
+    started_at: str,
+    wall_time_seconds: float,
+) -> None:
+    latest = attempts[-1] if attempts else None
+    _write_json(out_dir / "manifest.json", _manifest(result, config, scenario, orchestrator_model, executor_model, started_at))
+    _write_json(out_dir / "orchestrator_prompt.json", {"messages": latest.prompt if latest else [], "attempt_count": len(attempts)})
+    _write_json(
+        out_dir / "orchestrator_raw_output.json",
+        {
+            "raw_model_output": latest.raw_output if latest else "",
+            "metadata": latest.metadata if latest else {},
+        },
+    )
+    _write_jsonl(out_dir / "orchestrator_attempts.jsonl", [attempt.model_dump(mode="json") for attempt in attempts])
+    _write_json(
+        out_dir / "orchestrator_parse_error.json",
+        {
+            "error": _final_orchestrator_error(attempts),
+            "parse_success": latest.parse_success if latest else False,
+            "validation_success": latest.validation_success if latest else False,
+            "attempt_index": latest.attempt_index if latest else None,
+            "attempt_type": latest.attempt_type if latest else None,
+        },
+    )
+    _write_json(
+        out_dir / "orchestrator_validation.json",
+        {
+            "valid": False,
+            "final_error": _final_orchestrator_error(attempts),
+            "attempt_count": len(attempts),
+        },
+    )
+    _write_json(out_dir / "agent_assignments.json", {})
+    _write_json(out_dir / "pair_quality_metrics.json", result.quality_metrics.model_dump(mode="json"))
+    _write_json(out_dir / "pair_evaluation.json", result.pair_evaluation.model_dump(mode="json"))
+    _write_json(out_dir / "resource_summary.json", _resource_summary(started_at, wall_time_seconds))
+    _write_jsonl(out_dir / "group_steps.jsonl", [])
+    _write_jsonl(out_dir / "group_history.jsonl", [])
+    _write_jsonl(out_dir / "per_agent_actions.jsonl", [])
+    _write_jsonl(out_dir / "per_agent_validation_results.jsonl", [])
+    _write_jsonl(out_dir / "per_agent_execution_results.jsonl", [])
+    _write_jsonl(out_dir / "errors.jsonl", errors)
+    (out_dir / "replay_commands.ps1").write_text(_replay_command(config) + "\n", encoding="utf-8")
+    (out_dir / "README.md").write_text(_artifact_readme(result), encoding="utf-8")
+
+
 def _manifest(
     result: OrchestratorExecutorRunResult,
     config: OrchestratorExecutorRunConfig,
@@ -1211,6 +1621,9 @@ def _manifest(
         "executor_base_url": executor_model.base_url,
         "orchestrator_model_name": orchestrator_model.model_name,
         "executor_model_name": executor_model.model_name,
+        "orchestrator_max_tokens": orchestrator_model.max_tokens,
+        "orchestrator_temperature": orchestrator_model.temperature,
+        "orchestrator_repair_attempts": config.orchestrator_repair_attempts,
         "orchestrator_model": orchestrator_model.model_dump(mode="json"),
         "executor_model": executor_model.model_dump(mode="json"),
         "runtime_overrides": {
@@ -1218,6 +1631,8 @@ def _manifest(
             "executor_base_url": config.executor_base_url,
             "orchestrator_model_name": config.orchestrator_model_name,
             "executor_model_name": config.executor_model_name,
+            "orchestrator_max_tokens": config.orchestrator_max_tokens,
+            "orchestrator_temperature": config.orchestrator_temperature,
         },
         "max_group_steps": scenario.max_group_steps,
         "max_steps_per_agent": scenario.max_steps_per_agent,
@@ -1253,6 +1668,12 @@ def _replay_command(config: OrchestratorExecutorRunConfig) -> str:
         optional_flags += f"--orchestrator-model-name {config.orchestrator_model_name} "
     if config.executor_model_name:
         optional_flags += f"--executor-model-name {config.executor_model_name} "
+    if config.orchestrator_max_tokens is not None:
+        optional_flags += f"--orchestrator-max-tokens {config.orchestrator_max_tokens} "
+    if config.orchestrator_temperature is not None:
+        optional_flags += f"--orchestrator-temperature {config.orchestrator_temperature} "
+    if config.orchestrator_repair_attempts:
+        optional_flags += f"--orchestrator-repair-attempts {config.orchestrator_repair_attempts} "
     return (
         "python scripts\\run_orchestrator_executor_group.py "
         f"--mode {config.mode} "
@@ -1284,6 +1705,13 @@ Pair quality score: `{result.quality_metrics.pair_quality_score}`
 
 This artifact was produced by the sequential MVP runner. It is useful as a structural group-agent prototype, not as a production scheduler or measured capacity result.
 """
+
+
+def _final_orchestrator_error(attempts: list[OrchestratorPlanAttempt]) -> str:
+    if not attempts:
+        return "Orchestrator plan was not attempted."
+    latest = attempts[-1]
+    return latest.parse_error or "; ".join(latest.validation_errors) or "Orchestrator plan failed."
 
 
 def _runtime_warnings(

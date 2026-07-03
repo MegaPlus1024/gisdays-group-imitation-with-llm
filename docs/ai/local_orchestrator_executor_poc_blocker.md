@@ -106,3 +106,18 @@ Sequential switching would require a valid persisted orchestrator plan from the 
 4. Re-run the same two-endpoint proof after the orchestrator plan contract is hardened.
 
 No final model-pair recommendation should be made from this blocked proof attempt.
+
+## V2 status
+
+V2 status: resolved for the original orchestrator-plan blocker.
+
+Follow-up document: `docs/ai/local_orchestrator_executor_poc_v2_repair.md`.
+
+V2 changes added compact plan prompting, `--orchestrator-max-tokens`, `--orchestrator-repair-attempts`, `orchestrator_attempts.jsonl`, and complete failure artifact preservation. The v2 run obtained a valid initial orchestrator plan and reached two executor model calls.
+
+New remaining blocker: executor output quality. Both `first_model` executor actions parsed as `NextAction`, but validation rejected them before execution:
+
+- `office_agent`: missing required `path` parameter for `read_file`;
+- `developer_agent`: unsafe absolute path for `create_file`.
+
+This means v2 proves local orchestrator/executor routing and executor call reachability, but not useful successful task execution.

@@ -18,6 +18,7 @@ def test_research_readiness_docs_exist() -> None:
         "docs/ai/local_orchestrator_executor_runtime_audit.md",
         "docs/ai/local_orchestrator_executor_poc_v1.md",
         "docs/ai/local_orchestrator_executor_poc_blocker.md",
+        "docs/ai/local_orchestrator_executor_poc_v2_repair.md",
         "docs/ai/orchestrator_executor_pipeline_v1.md",
         "docs/ai/orchestrator_executor_quality_spec.md",
         "docs/ai/gpu_runtime_readiness_audit.md",
@@ -105,7 +106,9 @@ def test_orchestrator_executor_pipeline_doc_names_default_pair_and_artifacts() -
         "pair_quality_score",
         "experiments/multi_agent/orchestrator_executor/fake_office_developer_group_v1",
         "Local proof-of-concept follow-up",
+        "Plan repair",
         "local_orchestrator_executor_poc_blocker.md",
+        "local_orchestrator_executor_poc_v2_repair.md",
     ]:
         assert required in text
 
@@ -124,3 +127,18 @@ def test_local_orchestrator_executor_poc_docs_record_blocked_attempt() -> None:
         assert required in poc or required in blocker
 
     assert "No final model-pair recommendation" in blocker
+
+
+def test_local_orchestrator_executor_v2_doc_records_executor_reachability() -> None:
+    text = _read("docs/ai/local_orchestrator_executor_poc_v2_repair.md")
+
+    for required in [
+        "completed_with_failures",
+        "initial plan parse success",
+        "executor calls attempted",
+        "2",
+        "0.291764",
+        "missing_required_parameter",
+        "unsafe_path",
+    ]:
+        assert required in text

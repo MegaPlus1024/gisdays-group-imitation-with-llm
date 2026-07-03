@@ -101,6 +101,6 @@ def test_readme_references_existing_key_report_files() -> None:
 def test_current_readme_uses_current_test_count() -> None:
     text = _read("README.md")
 
-    assert "670 tests" in text or "670 passed" in text
+    assert "675 tests" in text or "675 passed" in text
     for stale_count in ["567 passed", "576 passed", "586 passed", "592 passed", "602 passed", "608 passed", "617 passed", "618 passed", "627 passed"]:
         assert stale_count not in text

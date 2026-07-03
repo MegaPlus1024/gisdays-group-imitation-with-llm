@@ -1,0 +1,2 @@
+{"agent_id":"office_agent","group_step_index":1,"error_type":"validation_failed","error_message":"missing_required_parameter"}
+{"agent_id":"developer_agent","group_step_index":1,"error_type":"validation_failed","error_message":"unsafe_path, path_outside_allowed_roots, path_outside_allowed_roots"}

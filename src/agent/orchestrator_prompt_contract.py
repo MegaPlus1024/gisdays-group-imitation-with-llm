@@ -24,6 +24,15 @@ class OrchestratorPlanTaskPayload(BaseModel):
     def validate_non_empty(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("task_id, agent_id, goal, and success_criteria must be non-empty.")
+        if "\n" in value or "\r" in value:
+            raise ValueError("Plan text fields must be single-line strings.")
+        return value
+
+    @field_validator("goal", "success_criteria")
+    @classmethod
+    def validate_short_task_text(cls, value: str) -> str:
+        if len(value) > 120:
+            raise ValueError("goal and success_criteria must be <= 120 characters.")
         return value
 
     @field_validator("allowed_action_focus", "dependencies")
@@ -36,6 +45,13 @@ class OrchestratorPlanTaskPayload(BaseModel):
             raise ValueError("List values must be unique.")
         return cleaned
 
+    @field_validator("allowed_action_focus")
+    @classmethod
+    def validate_short_action_focus(cls, value: list[str]) -> list[str]:
+        if len(value) > 3:
+            raise ValueError("allowed_action_focus must contain at most 3 action names.")
+        return value
+
 
 class OrchestratorPlanPayload(BaseModel):
     tasks: list[OrchestratorPlanTaskPayload]
@@ -47,6 +63,8 @@ class OrchestratorPlanPayload(BaseModel):
     def validate_tasks(cls, value: list[OrchestratorPlanTaskPayload]) -> list[OrchestratorPlanTaskPayload]:
         if not value:
             raise ValueError("tasks must contain at least one task.")
+        if len(value) > 2:
+            raise ValueError("tasks must contain at most 2 tasks for the MVP local proof.")
         task_ids = [task.task_id for task in value]
         if len(task_ids) != len(set(task_ids)):
             raise ValueError("task_id values must be unique.")
@@ -57,6 +75,10 @@ class OrchestratorPlanPayload(BaseModel):
     def validate_non_empty(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("coordination_notes and expected_group_outcome must be non-empty.")
+        if "\n" in value or "\r" in value:
+            raise ValueError("Plan text fields must be single-line strings.")
+        if len(value) > 160:
+            raise ValueError("coordination_notes and expected_group_outcome must be <= 160 characters.")
         return value
 
 
@@ -66,45 +88,82 @@ def build_orchestrator_messages(
     agents: list[dict[str, Any]],
     max_group_steps: int,
 ) -> list[dict[str, str]]:
+    compact_agents = _compact_agents(agents)
+    example = {
+        "tasks": [
+            {
+                "task_id": "t1",
+                "agent_id": "office_agent",
+                "goal": "Review available project notes and summarize next action.",
+                "allowed_action_focus": ["read_file", "list_directory"],
+                "success_criteria": "A safe file or directory action is selected.",
+            },
+            {
+                "task_id": "t2",
+                "agent_id": "developer_agent",
+                "goal": "Inspect safe project documentation for maintenance context.",
+                "allowed_action_focus": ["read_file", "list_directory"],
+                "success_criteria": "A safe project documentation path is inspected.",
+            },
+        ],
+        "coordination_notes": "Agents should avoid external network and unsafe writes.",
+        "expected_group_outcome": "Both agents perform one safe role-compatible action.",
+    }
     return [
         {
             "role": "system",
             "content": (
-                "You are an orchestrator model for a controlled local multi-agent experiment. "
-                "Create a concise JSON-only plan. Do not request internet, downloads, external network, "
-                "real browser automation, or actions outside the provided agents and action focus."
+                "Return only one compact JSON object for a local two-agent plan. "
+                "No Markdown, no prose outside JSON, no multiline strings."
             ),
         },
         {
             "role": "user",
-            "content": json.dumps(
-                {
-                    "output_contract": {
-                        "tasks": [
-                            {
-                                "task_id": "string",
-                                "agent_id": "known agent id",
-                                "goal": "string",
-                                "allowed_action_focus": ["action_name"],
-                                "success_criteria": "string",
-                            }
-                        ],
-                        "coordination_notes": "string",
-                        "expected_group_outcome": "string",
-                    },
-                    "scenario_id": scenario_id,
-                    "max_group_steps": max_group_steps,
-                    "agents": agents,
-                    "rules": [
-                        "Return exactly one JSON object.",
-                        "No Markdown.",
-                        "No prose outside JSON.",
-                        "Use only known agent ids.",
-                        "Do not require external network access.",
-                    ],
-                },
-                ensure_ascii=False,
-                indent=2,
+            "content": (
+                "Create max 2 tasks for known agents only.\n"
+                "Limits: goal<=120 chars; success_criteria<=120; coordination_notes<=160; "
+                "expected_group_outcome<=160; allowed_action_focus<=3 names.\n"
+                "Use only allowed actions. Do not request internet, downloads, external network, "
+                "real browser automation, or unsafe writes.\n"
+                f"scenario_id: {scenario_id}\n"
+                f"max_group_steps: {min(max_group_steps, 2)}\n"
+                "agents:\n"
+                f"{json.dumps(compact_agents, ensure_ascii=False, separators=(',', ':'))}\n"
+                "Output JSON shape example:\n"
+                f"{json.dumps(example, ensure_ascii=False, separators=(',', ':'))}"
+            ),
+        },
+    ]
+
+
+def build_orchestrator_repair_messages(
+    *,
+    error_message: str,
+    previous_raw_output: str,
+    agents: list[dict[str, Any]],
+    max_group_steps: int,
+) -> list[dict[str, str]]:
+    compact_agents = _compact_agents(agents)
+    clipped_previous = previous_raw_output[:3000]
+    return [
+        {
+            "role": "system",
+            "content": (
+                "Fix the previous orchestrator output. Return only one valid compact JSON object. "
+                "No Markdown, no explanation, no multiline strings."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Error: {error_message[:500]}\n"
+                f"Previous output: {clipped_previous}\n"
+                f"max_group_steps: {min(max_group_steps, 2)}\n"
+                "Known agents and allowed actions:\n"
+                f"{json.dumps(compact_agents, ensure_ascii=False, separators=(',', ':'))}\n"
+                "Return JSON with keys: tasks, coordination_notes, expected_group_outcome. "
+                "Use max 2 tasks, known agent_id values only, short single-line strings, "
+                "and allowed_action_focus with max 3 allowed action names."
             ),
         },
     ]
@@ -179,3 +238,17 @@ def _validate_no_external_network_requirement(plan: OrchestratorPlanPayload) -> 
             raise OrchestratorPlanJSONError(
                 f"Orchestrator plan appears to require forbidden external capability: {phrase}"
             )
+
+
+def _compact_agents(agents: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    compact: list[dict[str, Any]] = []
+    for agent in agents[:2]:
+        allowed_actions = agent.get("allowed_action_names") or agent.get("allowed_action_focus") or []
+        compact.append(
+            {
+                "agent_id": agent.get("agent_id"),
+                "goal": str(agent.get("assigned_goal") or agent.get("goal") or "")[:120],
+                "allowed_actions": list(allowed_actions)[:6],
+            }
+        )
+    return compact

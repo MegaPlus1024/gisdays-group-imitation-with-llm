@@ -79,6 +79,22 @@ Blocker report: `docs/ai/local_orchestrator_executor_poc_blocker.md`.
 
 The next implementation step is to harden local orchestrator plan generation: shorter prompt, larger orchestrator response budget, orchestrator-plan repair, and failed-plan artifact preservation.
 
+## Plan repair
+
+The runner now records orchestrator generation attempts in `orchestrator_attempts.jsonl`. Each attempt stores:
+
+- attempt index and type: `initial` or `repair`;
+- prompt messages;
+- raw model output;
+- parse success;
+- validation success;
+- parse/validation errors;
+- latency.
+
+When the initial plan output fails parsing or validation and `--orchestrator-repair-attempts` is greater than zero, the runner sends a compact repair prompt containing the exact error, previous raw output, known agent ids, and allowed action names. If no valid plan is obtained, the run still writes a failed diagnostic artifact set with `manifest.json`, `orchestrator_raw_output.json`, `orchestrator_parse_error.json`, `pair_quality_metrics.json`, `pair_evaluation.json`, `errors.jsonl`, `README.md`, and replay command.
+
+Local v2 result: `docs/ai/local_orchestrator_executor_poc_v2_repair.md`. The v2 run obtained a valid initial orchestrator plan and reached two executor model calls. Both executor actions were rejected by validation, so useful execution is still not proven.
+
 ## 5. Quality score
 
 The runner writes a prototype `pair_quality_score` in `pair_quality_metrics.json`.

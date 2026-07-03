@@ -1,0 +1,25 @@
+{
+  "orchestrator_plan_valid": true,
+  "task_assignment_valid_rate": 1.0,
+  "executor_initial_validation_rate": 0.0,
+  "executor_final_validation_rate": 0.0,
+  "execution_success_rate": 0.0,
+  "role_fit_mean": 1.0,
+  "diversity_mean": 0.458333,
+  "repetition_mean": 1.0,
+  "history_usage_mean": 0.5,
+  "group_coordination_score": 1.0,
+  "task_completion_proxy_score": 0.0,
+  "safety_violation_count": 2,
+  "latency_mean_ms": 406.9095,
+  "pair_quality_score": 0.291764,
+  "metadata": {
+    "attempt_count": 2,
+    "parsed_attempt_count": 2,
+    "prototype_scoring": true,
+    "orchestrator_attempt_count": 1,
+    "orchestrator_repair_attempted": false,
+    "orchestrator_plan_initial_parse_success": true,
+    "orchestrator_plan_final_validation_success": true
+  }
+}

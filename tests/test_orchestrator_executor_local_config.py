@@ -70,7 +70,7 @@ def test_local_mode_providers_receive_separate_base_urls(
                             for index, agent in enumerate(agents, start=1)
                         ],
                         "coordination_notes": "Use local files only.",
-                        "expected_group_outcome": scenario.expected_group_behavior,
+                        "expected_group_outcome": "Both agents perform one safe local action.",
                     }
                 ),
                 prompt_messages=[],
