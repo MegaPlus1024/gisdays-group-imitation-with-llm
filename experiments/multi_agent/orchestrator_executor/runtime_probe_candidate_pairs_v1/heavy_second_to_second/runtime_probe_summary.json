@@ -1,0 +1,87 @@
+{
+  "run_label": "heavy_second_to_second",
+  "status": "completed",
+  "scenario_label": "heavy",
+  "scenario_path": "configs\\multi_agent_scenarios\\office_developer_maintenance_group_heavy.json",
+  "pair": "second_model->second_model",
+  "pair_id": "second_model__second_model",
+  "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\heavy_second_to_second",
+  "wall_time_ms_probe": 46013.0493,
+  "server_error": null,
+  "servers": [
+    {
+      "role": "orchestrator",
+      "model_id": "second_model",
+      "port": 8081,
+      "wrapper_pid": 43868,
+      "llama_pids": [
+        18968
+      ],
+      "endpoint_ready": true,
+      "endpoint_stopped": true,
+      "startup_time_ms": 2517.6646,
+      "endpoint_before": false,
+      "endpoint_after": false,
+      "error": null
+    },
+    {
+      "role": "executor",
+      "model_id": "second_model",
+      "port": 8082,
+      "wrapper_pid": 41196,
+      "llama_pids": [
+        33636
+      ],
+      "endpoint_ready": true,
+      "endpoint_stopped": true,
+      "startup_time_ms": 2528.1694,
+      "endpoint_before": false,
+      "endpoint_after": false,
+      "error": null
+    }
+  ],
+  "server_strategy": "two separate llama-server endpoints for the same model on different ports",
+  "aggregate": {
+    "trial_count": 3,
+    "completed_trial_count": 3,
+    "failed_trial_count": 0,
+    "mean_pair_quality_score": 0.875509,
+    "std_pair_quality_score": 4.8e-05,
+    "min_pair_quality_score": 0.875444,
+    "max_pair_quality_score": 0.875557,
+    "mean_plan_valid_rate": 1.0,
+    "mean_executor_call_count": 9.0,
+    "mean_final_validation_success_rate": 0.777778,
+    "mean_execution_success_rate": 1.0,
+    "total_safety_violations": 0,
+    "total_errors": 6,
+    "common_failure_modes": {
+      "NextActionValidationError": 6,
+      "NextActionJSONError": 6
+    },
+    "common_actions": {
+      "read_file": 21
+    },
+    "common_action_parameters": {
+      "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}": 6,
+      "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/maintenance_notes.md\"}}": 6,
+      "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}": 6,
+      "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}": 3
+    },
+    "mean_wall_time_ms": 8699.126667,
+    "mean_orchestrator_latency_ms": 1645.543333,
+    "mean_executor_latency_ms": 782.425889
+  },
+  "telemetry": {
+    "sample_count": 51,
+    "psutil_available": true,
+    "peak_ram_mb_pair": 5675.605469,
+    "mean_ram_mb_pair": 4890.731541,
+    "peak_cpu_percent_pair": 51.5,
+    "mean_cpu_percent_pair": 36.386275,
+    "min_system_ram_available_mb": 82541.761719,
+    "max_active_llama_server_processes": 2
+  },
+  "mean_group_step_time_ms": 4349.563334,
+  "mean_repair_latency_ms": 295.811
+}

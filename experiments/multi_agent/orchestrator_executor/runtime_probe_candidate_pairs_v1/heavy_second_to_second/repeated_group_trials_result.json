@@ -1,0 +1,232 @@
+{
+  "comparison_id": "heavy_second_to_second",
+  "generated_at": "2026-07-03T13:32:16.388356+00:00",
+  "status": "complete",
+  "orchestrator_model_id": "second_model",
+  "executor_model_id": "second_model",
+  "trial_index": [
+    {
+      "trial_id": "trial_001",
+      "run_id": "heavy_second_to_second_trial_001",
+      "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\heavy_second_to_second\\runs\\trial_001",
+      "status": "completed_with_failures",
+      "trial_status": "completed",
+      "success": false,
+      "plan_valid": true,
+      "executor_calls": 9,
+      "final_validation_success_count": 7,
+      "execution_success_count": 7,
+      "pair_quality_score": 0.875444,
+      "main_errors": "NextActionValidationError: Next-action JSON failed schema validation: 1 validation error for NextAction\nexpected_result\n  Field required [type=missing, input_value={'action': 'read_file', '...for the assigned task.'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing; NextActionJSONError: Invalid JSON output: Unterminated string starting at: line 3 column 3 (char 29); developer_agent_1 NextActionValidationError: Next-action JSON failed schema validation: 1 validation error for NextAction\nexpected_result\n  Field required [type=missing, input_value={'action': 'read_file', '...for the assigned task.'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing; developer_agent_1 NextActionJSONError: Invalid JSON output: Unterminated string starting at: line 3 column 3 (char 29)",
+      "return_code": 0,
+      "error_message": null,
+      "orchestrator_initial_parse_success": true,
+      "orchestrator_repair_attempt_count": 0,
+      "executor_model_calls_attempted": 9,
+      "initial_validation_success_count": 7,
+      "repair_attempt_count": 1,
+      "execution_attempted_count": 7,
+      "safety_violation_count": 0,
+      "error_count": 2,
+      "pair_verdict": "prototype_pass",
+      "wall_time_ms": 8788.98,
+      "orchestrator_latency_ms": 1678.706,
+      "executor_latency_mean_ms": 788.945111,
+      "repeated_action_count": 6,
+      "dominant_action_parameters": [
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}",
+          "count": 2
+        },
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/maintenance_notes.md\"}}",
+          "count": 2
+        },
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}",
+          "count": 2
+        },
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}",
+          "count": 1
+        }
+      ],
+      "common_failure_modes": {
+        "NextActionValidationError": 2,
+        "NextActionJSONError": 2
+      },
+      "common_actions": {
+        "read_file": 7
+      },
+      "stopped_reason": null
+    },
+    {
+      "trial_id": "trial_002",
+      "run_id": "heavy_second_to_second_trial_002",
+      "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\heavy_second_to_second\\runs\\trial_002",
+      "status": "completed_with_failures",
+      "trial_status": "completed",
+      "success": false,
+      "plan_valid": true,
+      "executor_calls": 9,
+      "final_validation_success_count": 7,
+      "execution_success_count": 7,
+      "pair_quality_score": 0.875557,
+      "main_errors": "NextActionValidationError: Next-action JSON failed schema validation: 1 validation error for NextAction\nexpected_result\n  Field required [type=missing, input_value={'action': 'read_file', '...for the assigned task.'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing; NextActionJSONError: Invalid JSON output: Unterminated string starting at: line 3 column 3 (char 29); developer_agent_1 NextActionValidationError: Next-action JSON failed schema validation: 1 validation error for NextAction\nexpected_result\n  Field required [type=missing, input_value={'action': 'read_file', '...for the assigned task.'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing; developer_agent_1 NextActionJSONError: Invalid JSON output: Unterminated string starting at: line 3 column 3 (char 29)",
+      "return_code": 0,
+      "error_message": null,
+      "orchestrator_initial_parse_success": true,
+      "orchestrator_repair_attempt_count": 0,
+      "executor_model_calls_attempted": 9,
+      "initial_validation_success_count": 7,
+      "repair_attempt_count": 1,
+      "execution_attempted_count": 7,
+      "safety_violation_count": 0,
+      "error_count": 2,
+      "pair_verdict": "prototype_pass",
+      "wall_time_ms": 8654.317,
+      "orchestrator_latency_ms": 1638.4,
+      "executor_latency_mean_ms": 777.583111,
+      "repeated_action_count": 6,
+      "dominant_action_parameters": [
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}",
+          "count": 2
+        },
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/maintenance_notes.md\"}}",
+          "count": 2
+        },
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}",
+          "count": 2
+        },
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}",
+          "count": 1
+        }
+      ],
+      "common_failure_modes": {
+        "NextActionValidationError": 2,
+        "NextActionJSONError": 2
+      },
+      "common_actions": {
+        "read_file": 7
+      },
+      "stopped_reason": null
+    },
+    {
+      "trial_id": "trial_003",
+      "run_id": "heavy_second_to_second_trial_003",
+      "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\heavy_second_to_second\\runs\\trial_003",
+      "status": "completed_with_failures",
+      "trial_status": "completed",
+      "success": false,
+      "plan_valid": true,
+      "executor_calls": 9,
+      "final_validation_success_count": 7,
+      "execution_success_count": 7,
+      "pair_quality_score": 0.875526,
+      "main_errors": "NextActionValidationError: Next-action JSON failed schema validation: 1 validation error for NextAction\nexpected_result\n  Field required [type=missing, input_value={'action': 'read_file', '...for the assigned task.'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing; NextActionJSONError: Invalid JSON output: Unterminated string starting at: line 3 column 3 (char 29); developer_agent_1 NextActionValidationError: Next-action JSON failed schema validation: 1 validation error for NextAction\nexpected_result\n  Field required [type=missing, input_value={'action': 'read_file', '...for the assigned task.'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing; developer_agent_1 NextActionJSONError: Invalid JSON output: Unterminated string starting at: line 3 column 3 (char 29)",
+      "return_code": 0,
+      "error_message": null,
+      "orchestrator_initial_parse_success": true,
+      "orchestrator_repair_attempt_count": 0,
+      "executor_model_calls_attempted": 9,
+      "initial_validation_success_count": 7,
+      "repair_attempt_count": 1,
+      "execution_attempted_count": 7,
+      "safety_violation_count": 0,
+      "error_count": 2,
+      "pair_verdict": "prototype_pass",
+      "wall_time_ms": 8654.083,
+      "orchestrator_latency_ms": 1619.524,
+      "executor_latency_mean_ms": 780.749444,
+      "repeated_action_count": 6,
+      "dominant_action_parameters": [
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}",
+          "count": 2
+        },
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/maintenance_notes.md\"}}",
+          "count": 2
+        },
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}",
+          "count": 2
+        },
+        {
+          "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}",
+          "count": 1
+        }
+      ],
+      "common_failure_modes": {
+        "NextActionValidationError": 2,
+        "NextActionJSONError": 2
+      },
+      "common_actions": {
+        "read_file": 7
+      },
+      "stopped_reason": null
+    }
+  ],
+  "aggregate": {
+    "trial_count": 3,
+    "completed_trial_count": 3,
+    "failed_trial_count": 0,
+    "mean_pair_quality_score": 0.875509,
+    "std_pair_quality_score": 4.8e-05,
+    "min_pair_quality_score": 0.875444,
+    "max_pair_quality_score": 0.875557,
+    "mean_plan_valid_rate": 1.0,
+    "mean_executor_call_count": 9.0,
+    "mean_final_validation_success_rate": 0.777778,
+    "mean_execution_success_rate": 1.0,
+    "total_safety_violations": 0,
+    "total_errors": 6,
+    "common_failure_modes": {
+      "NextActionValidationError": 6,
+      "NextActionJSONError": 6
+    },
+    "common_actions": {
+      "read_file": 21
+    },
+    "common_action_parameters": {
+      "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}": 6,
+      "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/maintenance_notes.md\"}}": 6,
+      "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}": 6,
+      "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}": 3
+    },
+    "mean_wall_time_ms": 8699.126667,
+    "mean_orchestrator_latency_ms": 1645.543333,
+    "mean_executor_latency_ms": 782.425889
+  },
+  "failure_modes": {
+    "NextActionValidationError": 6,
+    "NextActionJSONError": 6
+  },
+  "action_patterns": {
+    "common_actions": {
+      "read_file": 21
+    },
+    "common_action_parameters": {
+      "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}": 6,
+      "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/maintenance_notes.md\"}}": 6,
+      "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}": 6,
+      "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}": 3
+    }
+  },
+  "limitations": [
+    "Only one orchestrator/executor pair is included.",
+    "Only one scenario is repeated.",
+    "N=3 is a robustness smoke, not a benchmark or final recommendation.",
+    "The runner is sequential and does not measure concurrent capacity.",
+    "No GPU runtime is configured or measured."
+  ],
+  "interpretation": {
+    "closes_group_pair_single_run_gap": true,
+    "recommendation_ready": false,
+    "summary": "Repeated local group trials strengthen evidence for this one pair/scenario, but do not establish production readiness, GPU throughput, concurrent capacity, or a final best pair."
+  }
+}

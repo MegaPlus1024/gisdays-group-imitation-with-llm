@@ -1,0 +1,51 @@
+{
+  "generated_at_local": "2026-07-03T16:32:45+03:00",
+  "gpu_detected": true,
+  "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+  "nvidia_smi_available": true,
+  "nvidia_smi_version": "582.16",
+  "driver_version": "582.16",
+  "cuda_version_reported_by_nvidia_smi": "13.0",
+  "total_vram_mib": 24467,
+  "vram_used_mib_at_audit": 1577,
+  "gpu_utilization_percent_at_audit": 35,
+  "win32_video_controllers": [
+    {
+      "name": "Intel(R) Graphics",
+      "adapter_ram": 2147479552,
+      "driver_version": "32.0.101.6629"
+    },
+    {
+      "name": "NVIDIA RTX PRO 4000 Blackwell",
+      "adapter_ram": 4293918720,
+      "driver_version": "32.0.15.8216"
+    }
+  ],
+  "start_script_dry_run_checked": true,
+  "start_script_exposes_gpu_flags": false,
+  "dry_run_command_summary": "llama-server -m <model> --host 127.0.0.1 --port 8081 --ctx-size 4096",
+  "llama_server_help_checked": true,
+  "llama_server_gpu_flags_available": true,
+  "available_gpu_related_flags": [
+    "--device",
+    "--list-devices",
+    "--gpu-layers",
+    "--n-gpu-layers",
+    "-ngl",
+    "--tensor-split",
+    "--main-gpu",
+    "--fit",
+    "--op-offload"
+  ],
+  "available_runtime_tuning_flags": [
+    "--threads",
+    "--threads-batch",
+    "--ctx-size",
+    "--batch-size",
+    "--ubatch-size",
+    "--threads-http"
+  ],
+  "gpu_runtime_measured": false,
+  "cpu_local_group_runtime_measured": true,
+  "recommendation": "GPU is likely useful for throughput/capacity, but current CPU local group evidence is already functional."
+}

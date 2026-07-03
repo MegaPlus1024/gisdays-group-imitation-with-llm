@@ -1,0 +1,23 @@
+{
+  "rankings": [
+    {
+      "pair": "second_model->second_model",
+      "mean_quality": 0.881402,
+      "total_errors": 6,
+      "peak_ram_mb_pair": 5675.605469,
+      "mean_wall_time_ms": 5626.024,
+      "quality_cost_score": 0.687916
+    },
+    {
+      "pair": "second_model->first_model",
+      "mean_quality": 0.855035,
+      "total_errors": 18,
+      "peak_ram_mb_pair": 4390.257813,
+      "mean_wall_time_ms": 4557.082833,
+      "quality_cost_score": 0.570069
+    }
+  ],
+  "preliminary_quality_winner": "second_model->second_model",
+  "preliminary_resource_balanced_winner": "second_model->second_model",
+  "recommendation_status": "preliminary only"
+}

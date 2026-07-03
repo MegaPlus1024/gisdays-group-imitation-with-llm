@@ -133,4 +133,4 @@ The best observed pair changed between the simple and heavy scenarios. That is u
 
 ## 10. Next step
 
-Measure runtime, memory, and capacity for the top two completed pairs, then add more scenario diversity before updating any final recommendation.
+The runtime, memory, and capacity probe for the top two completed pairs now exists at `docs/ai/orchestrator_executor_runtime_capacity_v1.md` and `experiments/multi_agent/orchestrator_executor/runtime_probe_candidate_pairs_v1`. The next step is a reviewed GPU smoke or true concurrent stress test, then more scenario diversity before updating any final recommendation.

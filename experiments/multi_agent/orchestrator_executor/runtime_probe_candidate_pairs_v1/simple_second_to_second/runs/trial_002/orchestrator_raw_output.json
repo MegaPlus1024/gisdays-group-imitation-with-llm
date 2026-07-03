@@ -1,0 +1,9 @@
+{
+  "raw_model_output": "{\"tasks\":[{\"task_id\":\"t1\",\"agent_id\":\"office_agent\",\"goal\":\"Review model metadata and prepare a concise local office summary for the group run.\",\"allowed_action_focus\":[\"create_file\",\"read_file\"],\"success_criteria\":\"A safe local action is selected.\"},{\"task_id\":\"t2\",\"agent_id\":\"developer_agent\",\"goal\":\"Inspect readiness and quality-spec documentation to identify safe follow-up implementation context.\",\"allowed_action_focus\":[\"create_file\",\"read_file\"],\"success_criteria\":\"A safe local action is selected.\"}],\"coordination_notes\":\"Agents should avoid external network and unsafe writes.\",\"expected_group_outcome\":\"All agents perform safe role-compatible local actions.\"}",
+  "metadata": {
+    "provider": "local_orchestrator",
+    "base_url": "http://127.0.0.1:8081/v1",
+    "max_tokens": 768,
+    "temperature": 0.0
+  }
+}

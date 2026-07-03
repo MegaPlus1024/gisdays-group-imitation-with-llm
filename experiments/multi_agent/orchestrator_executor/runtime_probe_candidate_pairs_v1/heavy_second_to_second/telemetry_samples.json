@@ -1,0 +1,1328 @@
+[
+  {
+    "timestamp": "2026-07-03T13:31:50.275425+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 1996.605469,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 1996.34375,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 3992.949219,
+    "pair_cpu_percent": 0.0,
+    "system_cpu_percent": 0.0,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84582.179688,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:50.813196+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2008.195312,
+        "cpu_percent": 37.1,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 1996.34375,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4004.539062,
+    "pair_cpu_percent": 37.1,
+    "system_cpu_percent": 11.0,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84565.261719,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:51.338441+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2008.199219,
+        "cpu_percent": 45.5,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 1996.34375,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4004.542969,
+    "pair_cpu_percent": 45.5,
+    "system_cpu_percent": 10.2,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84561.976562,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:51.872708+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2008.199219,
+        "cpu_percent": 47.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 1996.34375,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4004.542969,
+    "pair_cpu_percent": 47.0,
+    "system_cpu_percent": 11.5,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84563.6875,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:52.393265+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2008.242188,
+        "cpu_percent": 11.8,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2003.21875,
+        "cpu_percent": 12.1,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4011.460938,
+    "pair_cpu_percent": 23.9,
+    "system_cpu_percent": 14.0,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84563.984375,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:52.922643+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2008.242188,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2115.800781,
+        "cpu_percent": 50.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4124.042969,
+    "pair_cpu_percent": 50.0,
+    "system_cpu_percent": 9.6,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84489.171875,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:53.450102+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2008.242188,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2117.539062,
+        "cpu_percent": 32.4,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4125.78125,
+    "pair_cpu_percent": 32.4,
+    "system_cpu_percent": 8.8,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84448.371094,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:54.006948+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2008.242188,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2222.6875,
+        "cpu_percent": 34.3,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4230.929688,
+    "pair_cpu_percent": 34.3,
+    "system_cpu_percent": 11.8,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84339.835938,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:54.541582+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2008.246094,
+        "cpu_percent": 2.9,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2224.421875,
+        "cpu_percent": 40.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4232.667969,
+    "pair_cpu_percent": 42.9,
+    "system_cpu_percent": 14.9,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84236.632812,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:55.071240+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2008.246094,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2367.5625,
+        "cpu_percent": 30.3,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4375.808594,
+    "pair_cpu_percent": 30.3,
+    "system_cpu_percent": 21.8,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83970.386719,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:55.587623+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.246094,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2368.304688,
+        "cpu_percent": 50.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4375.550782,
+    "pair_cpu_percent": 50.0,
+    "system_cpu_percent": 23.0,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83866.214844,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:56.103827+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.246094,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2481.734375,
+        "cpu_percent": 33.3,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4488.980469,
+    "pair_cpu_percent": 33.3,
+    "system_cpu_percent": 14.4,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83696.113281,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:56.628441+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.246094,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2483.476562,
+        "cpu_percent": 32.4,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4490.722656,
+    "pair_cpu_percent": 32.4,
+    "system_cpu_percent": 12.7,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83691.722656,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:57.140136+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.246094,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2591.242188,
+        "cpu_percent": 40.6,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4598.488282,
+    "pair_cpu_percent": 40.6,
+    "system_cpu_percent": 11.2,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83584.25,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:57.652983+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.246094,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2697.507812,
+        "cpu_percent": 42.5,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4704.753906,
+    "pair_cpu_percent": 42.5,
+    "system_cpu_percent": 15.8,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83762.96875,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:58.171966+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.246094,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2699.765625,
+        "cpu_percent": 39.4,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4707.011719,
+    "pair_cpu_percent": 39.4,
+    "system_cpu_percent": 9.2,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83773.296875,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:58.698080+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.246094,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2700.875,
+        "cpu_percent": 38.3,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4708.121094,
+    "pair_cpu_percent": 38.3,
+    "system_cpu_percent": 11.3,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83764.429688,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:59.211666+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.277344,
+        "cpu_percent": 3.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2702.648438,
+        "cpu_percent": 30.3,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4709.925782,
+    "pair_cpu_percent": 33.3,
+    "system_cpu_percent": 13.0,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83778.359375,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:31:59.727999+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.277344,
+        "cpu_percent": 42.4,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2702.648438,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4709.925782,
+    "pair_cpu_percent": 42.4,
+    "system_cpu_percent": 11.1,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83779.46875,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:00.252579+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.277344,
+        "cpu_percent": 48.5,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2702.648438,
+        "cpu_percent": 2.9,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4709.925782,
+    "pair_cpu_percent": 51.4,
+    "system_cpu_percent": 15.7,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83776.3125,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:00.781675+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.277344,
+        "cpu_percent": 44.1,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2702.648438,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4709.925782,
+    "pair_cpu_percent": 44.1,
+    "system_cpu_percent": 17.1,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83754.164062,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:01.303823+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.277344,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2818.3125,
+        "cpu_percent": 32.3,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4825.589844,
+    "pair_cpu_percent": 32.3,
+    "system_cpu_percent": 18.8,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83589.421875,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:01.832222+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.277344,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2921.882812,
+        "cpu_percent": 39.4,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4929.160156,
+    "pair_cpu_percent": 39.4,
+    "system_cpu_percent": 16.8,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83315.273438,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:02.355437+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.277344,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2923.625,
+        "cpu_percent": 35.2,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4930.902344,
+    "pair_cpu_percent": 35.2,
+    "system_cpu_percent": 19.4,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83284.785156,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:02.869822+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.277344,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3026.941406,
+        "cpu_percent": 24.3,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5034.21875,
+    "pair_cpu_percent": 24.3,
+    "system_cpu_percent": 13.6,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83136.714844,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:03.383020+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.277344,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3028.683594,
+        "cpu_percent": 30.3,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5035.960938,
+    "pair_cpu_percent": 30.3,
+    "system_cpu_percent": 14.9,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83116.53125,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:03.908809+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.277344,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2913.453125,
+        "cpu_percent": 26.5,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4920.730469,
+    "pair_cpu_percent": 26.5,
+    "system_cpu_percent": 11.4,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83230.449219,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:04.420006+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.277344,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 2913.453125,
+        "cpu_percent": 34.4,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4920.730469,
+    "pair_cpu_percent": 34.4,
+    "system_cpu_percent": 12.1,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83217.230469,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:04.939356+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.277344,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3026.835938,
+        "cpu_percent": 32.4,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5034.113282,
+    "pair_cpu_percent": 32.4,
+    "system_cpu_percent": 9.1,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83456.707031,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:05.466760+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.277344,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3132.929688,
+        "cpu_percent": 42.4,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5140.207032,
+    "pair_cpu_percent": 42.4,
+    "system_cpu_percent": 15.7,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83355.136719,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:05.992879+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.277344,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3134.671875,
+        "cpu_percent": 35.3,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5141.949219,
+    "pair_cpu_percent": 35.3,
+    "system_cpu_percent": 11.5,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83350.269531,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:06.503815+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.277344,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3240.78125,
+        "cpu_percent": 30.3,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5248.058594,
+    "pair_cpu_percent": 30.3,
+    "system_cpu_percent": 11.2,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83245.90625,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:07.019813+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.277344,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3242.523438,
+        "cpu_percent": 45.5,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5249.800782,
+    "pair_cpu_percent": 45.5,
+    "system_cpu_percent": 10.1,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83253.855469,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:07.537809+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.277344,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3129.21875,
+        "cpu_percent": 27.3,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5136.496094,
+    "pair_cpu_percent": 27.3,
+    "system_cpu_percent": 12.1,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83370.265625,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:08.051770+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.308594,
+        "cpu_percent": 12.1,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3129.21875,
+        "cpu_percent": 15.1,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5136.527344,
+    "pair_cpu_percent": 27.2,
+    "system_cpu_percent": 11.3,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83382.597656,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:08.567768+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.308594,
+        "cpu_percent": 51.5,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3129.21875,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5136.527344,
+    "pair_cpu_percent": 51.5,
+    "system_cpu_percent": 13.2,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83399.710938,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:09.090116+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.308594,
+        "cpu_percent": 50.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3129.21875,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5136.527344,
+    "pair_cpu_percent": 50.0,
+    "system_cpu_percent": 11.0,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83395.726562,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:09.605092+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.308594,
+        "cpu_percent": 33.3,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3242.890625,
+        "cpu_percent": 9.1,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5250.199219,
+    "pair_cpu_percent": 42.4,
+    "system_cpu_percent": 11.5,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83287.007812,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:10.119617+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.308594,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3244.632812,
+        "cpu_percent": 39.4,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5251.941406,
+    "pair_cpu_percent": 39.4,
+    "system_cpu_percent": 21.8,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83247.4375,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:10.646784+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.308594,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3347.921875,
+        "cpu_percent": 32.4,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5355.230469,
+    "pair_cpu_percent": 32.4,
+    "system_cpu_percent": 13.3,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83082.257812,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:11.168782+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.308594,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3349.664062,
+        "cpu_percent": 30.3,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5356.972656,
+    "pair_cpu_percent": 30.3,
+    "system_cpu_percent": 14.7,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 82943.503906,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:11.680473+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.308594,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3454.691406,
+        "cpu_percent": 30.3,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5462.0,
+    "pair_cpu_percent": 30.3,
+    "system_cpu_percent": 12.0,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 82812.46875,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:12.195966+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.308594,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3454.789062,
+        "cpu_percent": 33.4,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5462.097656,
+    "pair_cpu_percent": 33.4,
+    "system_cpu_percent": 11.8,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 82816.320312,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:12.724008+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.308594,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3339.441406,
+        "cpu_percent": 41.1,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5346.75,
+    "pair_cpu_percent": 41.1,
+    "system_cpu_percent": 16.4,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 82903.710938,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:13.242630+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.308594,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3451.046875,
+        "cpu_percent": 33.4,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5458.355469,
+    "pair_cpu_percent": 33.4,
+    "system_cpu_percent": 19.0,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 82758.097656,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:13.754895+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.371094,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3452.789062,
+        "cpu_percent": 39.4,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5460.160156,
+    "pair_cpu_percent": 39.4,
+    "system_cpu_percent": 19.2,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 82766.804688,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:14.270509+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.371094,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3558.699219,
+        "cpu_percent": 33.4,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5566.070313,
+    "pair_cpu_percent": 33.4,
+    "system_cpu_percent": 17.4,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 82638.425781,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:14.785522+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.371094,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3560.441406,
+        "cpu_percent": 42.4,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5567.8125,
+    "pair_cpu_percent": 42.4,
+    "system_cpu_percent": 13.2,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 82646.960938,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:15.294966+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.371094,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3666.390625,
+        "cpu_percent": 25.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5673.761719,
+    "pair_cpu_percent": 25.0,
+    "system_cpu_percent": 9.4,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 82547.019531,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:15.809109+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.371094,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3668.234375,
+        "cpu_percent": 33.3,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5675.605469,
+    "pair_cpu_percent": 33.3,
+    "system_cpu_percent": 12.2,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 82541.761719,
+    "active_llama_server_processes": 2
+  },
+  {
+    "timestamp": "2026-07-03T13:32:16.337356+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 18968,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.371094,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 33636,
+        "name": "llama-server.exe",
+        "rss_mb": 3554.882812,
+        "cpu_percent": 44.1,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 5562.253906,
+    "pair_cpu_percent": 44.1,
+    "system_cpu_percent": 16.4,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 82949.445312,
+    "active_llama_server_processes": 2
+  }
+]

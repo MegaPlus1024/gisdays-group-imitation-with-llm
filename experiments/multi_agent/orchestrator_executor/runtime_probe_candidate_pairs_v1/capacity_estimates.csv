@@ -1,0 +1,3 @@
+pair,peak_ram_mb_pair,peak_cpu_percent_pair,estimated_concurrent_pairs_by_ram,estimated_agents_by_ram,bottleneck,confidence
+second_model->first_model,4390.257813,60.6,28,112,unknown,medium
+second_model->second_model,5675.605469,57.1,22,88,unknown,medium

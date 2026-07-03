@@ -1,0 +1,35 @@
+{
+  "server_error": null,
+  "servers": [
+    {
+      "role": "orchestrator",
+      "model_id": "second_model",
+      "port": 8081,
+      "wrapper_pid": 40392,
+      "llama_pids": [
+        26384
+      ],
+      "endpoint_ready": true,
+      "endpoint_stopped": true,
+      "startup_time_ms": 2529.5585,
+      "endpoint_before": false,
+      "endpoint_after": false,
+      "error": null
+    },
+    {
+      "role": "executor",
+      "model_id": "first_model",
+      "port": 8082,
+      "wrapper_pid": 49168,
+      "llama_pids": [
+        24876
+      ],
+      "endpoint_ready": true,
+      "endpoint_stopped": true,
+      "startup_time_ms": 2027.7082,
+      "endpoint_before": false,
+      "endpoint_after": false,
+      "error": null
+    }
+  ]
+}

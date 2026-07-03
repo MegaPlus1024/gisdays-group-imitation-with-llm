@@ -67,6 +67,8 @@ Result:
 
 The run completed, but all trials were `completed_with_failures`. The common failure mode was `write_path_outside_artifact_workspace`; repair attempts then hit executor HTTP 400 responses. This is useful negative evidence: the pair can complete bounded actions, but the executor is not robust under the heavier path policy.
 
+Detailed error analysis: `docs/ai/heavy_scenario_error_analysis_v1.md`.
+
 ## 6. Heavy pair matrix
 
 Artifact root:
@@ -111,4 +113,4 @@ The cross-scenario stability verdict for both completed `second_model` orchestra
 
 ## 9. Next step
 
-Run a measured capacity or resource probe for the top two `second_model` orchestrator pairs, then increase scenario diversity before making any final recommendation.
+The measured runtime/resource probe now exists at `docs/ai/orchestrator_executor_runtime_capacity_v1.md` and `experiments/multi_agent/orchestrator_executor/runtime_probe_candidate_pairs_v1`. The next step is a GPU smoke or true concurrent stress test, then more scenario diversity before making any final recommendation.

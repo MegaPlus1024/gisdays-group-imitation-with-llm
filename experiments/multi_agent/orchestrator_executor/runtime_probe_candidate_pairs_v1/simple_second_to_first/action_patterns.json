@@ -1,0 +1,12 @@
+{
+  "common_actions": {
+    "create_file": 3,
+    "read_file": 3
+  },
+  "common_action_parameters": {
+    "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/evaluation_models.json\"}}": 3,
+    "{\"action\": \"create_file\", \"parameters\": {\"content\": \"office_agent local group note.\", \"path\": \"experiments/multi_agent/orchestrator_executor/runtime_probe_candidate_pairs_v1/simple_second_to_first/runs/trial_001/workspace/office_agent_executor_note.md\"}}": 1,
+    "{\"action\": \"create_file\", \"parameters\": {\"content\": \"office_agent local group note.\", \"path\": \"experiments/multi_agent/orchestrator_executor/runtime_probe_candidate_pairs_v1/simple_second_to_first/runs/trial_002/workspace/office_agent_executor_note.md\"}}": 1,
+    "{\"action\": \"create_file\", \"parameters\": {\"content\": \"office_agent local group note.\", \"path\": \"experiments/multi_agent/orchestrator_executor/runtime_probe_candidate_pairs_v1/simple_second_to_first/runs/trial_003/workspace/office_agent_executor_note.md\"}}": 1
+  }
+}

@@ -48,15 +48,17 @@ Current evidence:
 - orchestrator/executor pair matrix comparison completed for the basic group scenario, with `second_model -> first_model` as the best observed pair there;
 - a heavier four-agent group scenario and second pair matrix completed, with `second_model -> second_model` as the best observed pair there;
 - cross-scenario pair comparison now exists, but the best observed pair changes by scenario and remains preliminary only;
-- resource/capacity evaluation exists, but multi-agent capacity is formula-estimated, not stress-tested.
+- heavy-scenario validation and repair errors are analyzed in `docs/ai/heavy_scenario_error_analysis_v1.md`;
+- measured local runtime/resource telemetry now exists for the two top completed pairs across simple and heavy group scenarios;
+- resource/capacity evaluation exists, but multi-agent capacity is still not concurrent stress-tested.
 
 Important limitations:
 
 - not production-ready;
 - production full autonomous agent loop is not implemented;
 - production action execution scheduler/runtime is not implemented;
-- no measured multi-agent stress test;
-- pair-matrix evidence covers two short group scenarios so far; no stress test has been run;
+- no measured concurrent multi-agent stress test;
+- pair-matrix and runtime-probe evidence covers two short group scenarios so far; no long stress test has been run;
 - browser behavior is simulated-only;
 - office behavior is stub/file-based;
 - no git/mail actions are included;
@@ -84,6 +86,7 @@ Important limitations:
 - Repeated local orchestrator/executor group-trials wrapper and aggregate reports.
 - Orchestrator/executor pair matrix comparison and prototype pair ranking.
 - Heavy four-agent group scenario and cross-scenario pair matrix comparison.
+- Heavy scenario error analysis and measured orchestrator/executor runtime/capacity probe.
 - Final evaluation reports.
 
 ## 4. Project structure
@@ -131,7 +134,7 @@ Run the test suite:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests. After the heavy multi-agent scenario and cross-scenario pair comparison, the full suite passed with 703 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests. After the heavy multi-agent scenario and cross-scenario pair comparison, the full suite passed with 703 tests. After the runtime/capacity candidate-pair probe, the full suite passed with 710 tests.
 
 ## 7. Model setup
 
@@ -335,6 +338,36 @@ Heavy artifact root: `experiments/multi_agent/orchestrator_executor/pair_matrix_
 
 Cross-scenario artifact root: `experiments/multi_agent/orchestrator_executor/cross_scenario_pair_matrix_workspace_policy_v1`. The simple scenario best pair is `second_model -> first_model`, while the heavy scenario best pair is `second_model -> second_model`; this is preliminary evidence only, not a final recommendation.
 
+## Runtime/capacity probe for candidate pairs
+
+The runtime probe measures short local RSS/CPU telemetry for selected orchestrator/executor pairs and writes a capacity estimate from measured pair RAM. It is not a concurrent stress test.
+
+```powershell
+.\.venv\Scripts\python.exe scripts\probe_orchestrator_executor_runtime.py `
+  --mode local `
+  --models-config configs\evaluation_models.json `
+  --out-root experiments\multi_agent\orchestrator_executor\runtime_probe_candidate_pairs_v1 `
+  --label runtime_probe_candidate_pairs_v1 `
+  --pairs second_model:first_model,second_model:second_model `
+  --scenarios simple=configs\multi_agent_scenarios\office_developer_group_basic.json,heavy=configs\multi_agent_scenarios\office_developer_maintenance_group_heavy.json `
+  --trials 3 `
+  --base-orchestrator-port 8081 `
+  --base-executor-port 8082 `
+  --manage-servers `
+  --simple-max-group-steps 1 `
+  --heavy-max-group-steps 2 `
+  --max-steps-per-agent 1 `
+  --simple-orchestrator-max-tokens 768 `
+  --heavy-orchestrator-max-tokens 1024 `
+  --orchestrator-repair-attempts 1 `
+  --repair-attempts 1 `
+  --execute-actions `
+  --sample-interval-seconds 0.5 `
+  --continue-on-pair-failure
+```
+
+Latest runtime artifact root: `experiments/multi_agent/orchestrator_executor/runtime_probe_candidate_pairs_v1`. In this probe, `second_model -> second_model` had the best preliminary quality/cost score (`0.687916`) and fewer heavy-scenario errors, while `second_model -> first_model` used less RAM and was slightly faster in the short run. See `docs/ai/orchestrator_executor_runtime_capacity_v1.md`.
+
 ## 10. Real local single scenario run
 
 Start `llama-server` first, then run:
@@ -404,7 +437,7 @@ Recreate the cross-scenario analysis:
 
 ## 14. Resource/capacity evaluation
 
-Capacity is formula-based unless a runtime/concurrent probe is explicitly run.
+The older resource evaluation is formula-based unless a runtime/concurrent probe is explicitly run.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\evaluate_resource_capacity.py `
@@ -420,6 +453,13 @@ Capacity is formula-based unless a runtime/concurrent probe is explicitly run.
   --no-probe-runtime `
   --force
 ```
+
+The newer orchestrator/executor runtime probe measured short local pair RSS/CPU telemetry and produced RAM-based group capacity estimates:
+
+- artifact root: `experiments/multi_agent/orchestrator_executor/runtime_probe_candidate_pairs_v1`
+- doc: `docs/ai/orchestrator_executor_runtime_capacity_v1.md`
+- best preliminary quality/cost pair in the measured probe: `second_model -> second_model`
+- still missing: true concurrent multi-agent stress test and GPU-enabled runtime measurement
 
 ## 15. Final reports
 
@@ -437,7 +477,8 @@ Final summary:
 - `first_model` had some useful execution but is repair-dependent;
 - both models show weak coherence and template-like behavior;
 - final model recommendation is not ready;
-- capacity estimate: 11 agents, CPU-bound, low confidence.
+- historical single-agent formula capacity estimate: 11 agents, CPU-bound, low confidence;
+- newer group runtime capacity estimate: preliminary only, RAM-based from short sequential telemetry, not a concurrent stress test.
 
 ## 16. Testing
 
@@ -445,7 +486,7 @@ Final summary:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests. After the heavy multi-agent scenario and cross-scenario pair comparison, the full suite passed with 703 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests. After the heavy multi-agent scenario and cross-scenario pair comparison, the full suite passed with 703 tests. After the runtime/capacity candidate-pair probe, the full suite passed with 710 tests.
 
 ## 17. Publishing to GitHub
 
@@ -501,8 +542,8 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 ## 18. Limitations
 
 - Research prototype, not production-ready.
-- No measured multi-agent stress test.
-- Pair-matrix local orchestrator/executor task execution evidence covers two short group scenarios only.
+- No measured concurrent multi-agent stress test.
+- Pair-matrix and runtime-probe local orchestrator/executor evidence covers two short group scenarios only.
 - Browser behavior is simulated-only.
 - Office behavior is stub/file-based.
 - No git/mail actions.
