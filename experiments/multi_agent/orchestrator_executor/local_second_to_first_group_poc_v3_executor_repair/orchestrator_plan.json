@@ -1,0 +1,31 @@
+{
+  "plan_id": "local_second_to_first_group_poc_v3_executor_repair_plan",
+  "scenario_id": "office_developer_group_basic_v1",
+  "orchestrator_model_id": "second_model",
+  "tasks": [
+    {
+      "task_id": "t1",
+      "agent_id": "office_agent",
+      "role_hint": null,
+      "goal": "Review model metadata and prepare a concise local office summary.",
+      "allowed_action_focus": [
+        "read_file"
+      ],
+      "success_criteria": "File read action for metadata review.",
+      "dependencies": []
+    },
+    {
+      "task_id": "t2",
+      "agent_id": "developer_agent",
+      "role_hint": null,
+      "goal": "Inspect readiness and quality-spec documentation.",
+      "allowed_action_focus": [
+        "read_file"
+      ],
+      "success_criteria": "File read action for documentation inspection.",
+      "dependencies": []
+    }
+  ],
+  "coordination_notes": "Agents avoid external network and unsafe writes.",
+  "expected_group_outcome": "Review and inspect specified documentation."
+}

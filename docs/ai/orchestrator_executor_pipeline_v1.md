@@ -60,7 +60,7 @@ Short form:
 Plan -> assign -> execute -> validate -> log -> evaluate
 ```
 
-In fake mode, both orchestrator and executor outputs are deterministic local fixtures. In local mode, the same runner can call OpenAI-compatible local endpoints, but local group inference was not executed for this MVP checkpoint.
+In fake mode, both orchestrator and executor outputs are deterministic local fixtures. In local mode, the same runner can call separate OpenAI-compatible local endpoints.
 
 ## Local proof-of-concept follow-up
 
@@ -77,7 +77,7 @@ POC note: `docs/ai/local_orchestrator_executor_poc_v1.md`.
 
 Blocker report: `docs/ai/local_orchestrator_executor_poc_blocker.md`.
 
-The next implementation step is to harden local orchestrator plan generation: shorter prompt, larger orchestrator response budget, orchestrator-plan repair, and failed-plan artifact preservation.
+The next implementation step was to harden local orchestrator plan generation: shorter prompt, larger orchestrator response budget, orchestrator-plan repair, and failed-plan artifact preservation.
 
 ## Plan repair
 
@@ -94,6 +94,20 @@ The runner now records orchestrator generation attempts in `orchestrator_attempt
 When the initial plan output fails parsing or validation and `--orchestrator-repair-attempts` is greater than zero, the runner sends a compact repair prompt containing the exact error, previous raw output, known agent ids, and allowed action names. If no valid plan is obtained, the run still writes a failed diagnostic artifact set with `manifest.json`, `orchestrator_raw_output.json`, `orchestrator_parse_error.json`, `pair_quality_metrics.json`, `pair_evaluation.json`, `errors.jsonl`, `README.md`, and replay command.
 
 Local v2 result: `docs/ai/local_orchestrator_executor_poc_v2_repair.md`. The v2 run obtained a valid initial orchestrator plan and reached two executor model calls. Both executor actions were rejected by validation, so useful execution is still not proven.
+
+## Executor prompt and repair
+
+The executor prompt now includes `EXECUTOR_ACTION_GUIDANCE` with:
+
+- assigned `agent_id`, `role_id`, task id, and goal;
+- allowed actions and required parameters from the script registry;
+- effective safe roots after combining registry and role constraints;
+- real safe read examples such as `docs/ai/model_research_metadata.md`;
+- relative-path-only rules and a JSON-only `NextAction` example.
+
+When an executor output fails parsing or validation and `--repair-attempts` is greater than zero, the runner sends a repair prompt containing the previous raw output, exact validation issues, missing parameters, unsafe/disallowed paths, allowed roots, and required action schemas. Initial and repair attempts are preserved in `per_agent_attempts.jsonl`.
+
+Local v3 result: `docs/ai/local_orchestrator_executor_poc_v3_executor_repair.md`. The v3 run completed with two validated and executed executor `read_file` actions. Repair was enabled but not needed in that specific local run; offline tests exercise missing-parameter and absolute-path repair.
 
 ## 5. Quality score
 
@@ -170,6 +184,7 @@ Expected files include:
 - `group_steps.jsonl`
 - `group_history.jsonl`
 - `per_agent_actions.jsonl`
+- `per_agent_attempts.jsonl`
 - `per_agent_validation_results.jsonl`
 - `per_agent_execution_results.jsonl`
 - `errors.jsonl`
@@ -182,7 +197,7 @@ Expected files include:
 ## 8. Limitations
 
 - Local multi-model runtime was not stress-tested.
-- No local group inference run was executed in this checkpoint.
+- One narrow local group inference run completed after executor prompt hardening.
 - No GPU run was configured or measured.
 - No production scheduler was implemented.
 - The virtual network is simulated through constrained local state, files, roles, registry actions, and group history; it is not a real network topology or traffic simulator.

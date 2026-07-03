@@ -115,11 +115,21 @@ class PromptBuilder:
 
         state_json = json.dumps(normalized, ensure_ascii=False, sort_keys=True, indent=2)
         action_names_json = json.dumps(action_names, ensure_ascii=False, sort_keys=True, indent=2)
+        guidance = {}
+        metadata = normalized.get("metadata")
+        if isinstance(metadata, dict) and isinstance(metadata.get("executor_prompt_hints"), dict):
+            guidance = metadata["executor_prompt_hints"]
+        guidance_json = json.dumps(guidance, ensure_ascii=False, sort_keys=True, indent=2)
 
         lines = [
             f"PROMPT_CONTRACT_ID: {self.config.contract_id}",
             "NEXT_ACTION_OUTPUT_CONTRACT:",
             NEXT_ACTION_JSON_SCHEMA_TEXT,
+            "EXECUTOR_ACTION_GUIDANCE:",
+            guidance_json,
+            "Use EXECUTOR_ACTION_GUIDANCE for the assigned task, required parameters, safe roots, and examples.",
+            "All file paths in parameters must be relative project paths with forward slashes.",
+            "Never return absolute paths, drive-prefixed paths, leading slashes, or '..' traversal.",
             "AGENT_STATE_DATA:",
             state_json,
             "AVAILABLE_ACTION_NAMES:",

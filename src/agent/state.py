@@ -150,6 +150,7 @@ class AgentState(BaseModel):
             "available_actions": [action.model_dump() for action in self.available_actions],
             "history": [entry.model_dump() for entry in self.history],
             "current_step": self.current_step,
+            "metadata": dict(self.metadata),
         }
 
     def available_action_names(self) -> set[str]:

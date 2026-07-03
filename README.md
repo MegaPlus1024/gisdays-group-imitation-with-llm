@@ -43,7 +43,7 @@ Current evidence:
 - repeated trials were completed with N=3 per model per scenario;
 - total real local-model trajectories in the final report: 12;
 - a sequential fake-mode orchestrator/executor group MVP now exists;
-- a controlled two-endpoint local orchestrator/executor proof reached executor model calls after plan hardening, but executor actions were rejected by validation;
+- a controlled two-endpoint local orchestrator/executor proof completed after executor prompt hardening, with two validated and executed local read actions;
 - resource/capacity evaluation exists, but multi-agent capacity is formula-estimated, not stress-tested.
 
 Important limitations:
@@ -52,7 +52,7 @@ Important limitations:
 - production full autonomous agent loop is not implemented;
 - production action execution scheduler/runtime is not implemented;
 - no measured multi-agent stress test;
-- no successful useful local orchestrator/executor task execution has completed yet;
+- only one narrow successful local orchestrator/executor execution proof exists so far; no repeated group proof or stress test has been run;
 - browser behavior is simulated-only;
 - office behavior is stub/file-based;
 - no git/mail actions are included;
@@ -76,6 +76,7 @@ Important limitations:
 - Cross-scenario behavioral comparison.
 - Resource/capacity estimate.
 - Sequential orchestrator/executor group MVP in fake mode.
+- Executor prompt guidance, executor repair attempts, and per-agent attempt artifacts for the group MVP.
 - Final evaluation reports.
 
 ## 4. Project structure
@@ -123,7 +124,7 @@ Run the test suite:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests.
 
 ## 7. Model setup
 
@@ -237,7 +238,7 @@ For local mode, the group runner supports separate endpoint overrides:
 - `--orchestrator-model-name`
 - `--executor-model-name`
 
-A controlled local follow-up requires either two local endpoints or a future clean sequential-switching handoff. The first two-endpoint attempt started `second_model` on port 8081 and `first_model` on port 8082, but it was blocked because the real orchestrator response was not valid complete JSON. The v2 repair run hardened the plan prompt, added plan-repair artifacts, obtained a valid plan, and reached two executor calls; both executor actions were rejected by validation before execution. See `docs/ai/local_orchestrator_executor_poc_v1.md`, `docs/ai/local_orchestrator_executor_poc_blocker.md`, and `docs/ai/local_orchestrator_executor_poc_v2_repair.md`.
+A controlled local follow-up requires either two local endpoints or a future clean sequential-switching handoff. The first two-endpoint attempt started `second_model` on port 8081 and `first_model` on port 8082, but it was blocked because the real orchestrator response was not valid complete JSON. The v2 repair run hardened the plan prompt, added plan-repair artifacts, obtained a valid plan, and reached two executor calls; both executor actions were rejected by validation before execution. The v3 executor hardening run added action guidance, executor repair, and `per_agent_attempts.jsonl`; it completed with two validated and executed local `read_file` actions. See `docs/ai/local_orchestrator_executor_poc_v1.md`, `docs/ai/local_orchestrator_executor_poc_blocker.md`, `docs/ai/local_orchestrator_executor_poc_v2_repair.md`, and `docs/ai/local_orchestrator_executor_poc_v3_executor_repair.md`.
 
 ## 10. Real local single scenario run
 
@@ -349,7 +350,7 @@ Final summary:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests.
 
 ## 17. Publishing to GitHub
 
@@ -400,7 +401,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 
 - Research prototype, not production-ready.
 - No measured multi-agent stress test.
-- No successful useful local orchestrator/executor task execution.
+- Only one narrow successful local orchestrator/executor task execution proof.
 - Browser behavior is simulated-only.
 - Office behavior is stub/file-based.
 - No git/mail actions.

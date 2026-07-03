@@ -117,6 +117,7 @@ def test_fake_group_run_completes_and_writes_artifacts(tmp_path: Path) -> None:
         "group_steps.jsonl",
         "group_history.jsonl",
         "per_agent_actions.jsonl",
+        "per_agent_attempts.jsonl",
         "per_agent_validation_results.jsonl",
         "per_agent_execution_results.jsonl",
         "errors.jsonl",

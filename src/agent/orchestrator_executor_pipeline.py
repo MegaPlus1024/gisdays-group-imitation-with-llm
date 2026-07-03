@@ -581,8 +581,68 @@ class LocalExecutorActionProvider:
         out_dir: Path,
         project_root: Path,
     ) -> ExecutorProviderResult:
-        del agent, task, group_step_index, agent_step_index, out_dir, project_root
         messages = self.prompt_builder.build_messages(state.to_prompt_context())
+        raw = self._chat(messages)
+        return ExecutorProviderResult(
+            raw_model_output=raw,
+            metadata={
+                "provider": "local_executor",
+                "base_url": self.model.base_url,
+                "agent_id": agent.agent_id,
+                "task_id": task.task_id,
+                "attempt_type": "initial",
+                "group_step_index": group_step_index,
+                "agent_step_index": agent_step_index,
+                "out_dir": str(out_dir),
+                "project_root": str(project_root),
+            },
+        )
+
+    def repair_action(
+        self,
+        *,
+        agent: GroupAgentSpec,
+        task: OrchestratorPlanTask,
+        state: AgentState,
+        group_step_index: int,
+        agent_step_index: int,
+        out_dir: Path,
+        project_root: Path,
+        previous_raw_output: str,
+        validation_issues: list[dict[str, Any]],
+        error_message: str,
+    ) -> ExecutorProviderResult:
+        messages = self.prompt_builder.build_messages(state.to_prompt_context())
+        messages.append(
+            {
+                "role": "user",
+                "content": _executor_repair_user_message(
+                    agent=agent,
+                    task=task,
+                    state=state,
+                    previous_raw_output=previous_raw_output,
+                    validation_issues=validation_issues,
+                    error_message=error_message,
+                ),
+            }
+        )
+        raw = self._chat(messages)
+        return ExecutorProviderResult(
+            raw_model_output=raw,
+            metadata={
+                "provider": "local_executor_repair",
+                "base_url": self.model.base_url,
+                "agent_id": agent.agent_id,
+                "task_id": task.task_id,
+                "attempt_type": "repair",
+                "group_step_index": group_step_index,
+                "agent_step_index": agent_step_index,
+                "out_dir": str(out_dir),
+                "project_root": str(project_root),
+            },
+        )
+
+    def _chat(self, messages: list[dict[str, str]]) -> str:
         payload = {
             "model": self.model.model_name,
             "messages": messages,
@@ -593,11 +653,7 @@ class LocalExecutorActionProvider:
             response = client.post(f"{self.model.base_url.rstrip('/')}/chat/completions", json=payload)
             response.raise_for_status()
             response_json = response.json()
-        raw = LocalLLMClient.extract_assistant_content(response_json)
-        return ExecutorProviderResult(
-            raw_model_output=raw,
-            metadata={"provider": "local_executor", "base_url": self.model.base_url},
-        )
+        return LocalLLMClient.extract_assistant_content(response_json)
 
 
 class OrchestratorExecutorRunner:
@@ -699,6 +755,7 @@ class OrchestratorExecutorRunner:
         )
 
         assignments = _assignments_from_plan(plan, scenario)
+        (out_dir / "workspace").mkdir(parents=True, exist_ok=True)
         states = {
             agent.agent_id: _build_agent_state(
                 self.config.project_root,
@@ -706,6 +763,7 @@ class OrchestratorExecutorRunner:
                 role_templates[agent.agent_id],
                 script_registry,
                 assignments[agent.agent_id],
+                out_dir,
             )
             for agent in scenario.agents
         }
@@ -737,11 +795,12 @@ class OrchestratorExecutorRunner:
         for group_step in range(1, scenario.max_group_steps + 1):
             for agent in scenario.agents:
                 trajectory = trajectories[agent.agent_id]
-                if len(trajectory.attempts) >= scenario.max_steps_per_agent:
+                completed_agent_steps = sum(1 for attempt in trajectory.attempts if attempt.attempt_type == "initial")
+                if completed_agent_steps >= scenario.max_steps_per_agent:
                     continue
                 state = states[agent.agent_id]
                 task = task_by_agent[agent.agent_id]
-                attempt = _run_executor_step(
+                attempts = _run_executor_step(
                     executor_provider=executor_provider,
                     agent=agent,
                     task=task,
@@ -753,19 +812,28 @@ class OrchestratorExecutorRunner:
                     execute_actions=scenario.execute_actions,
                     out_dir=out_dir,
                     project_root=self.config.project_root,
+                    repair_attempts=self.config.repair_attempts,
                 )
-                trajectory.attempts.append(attempt)
-                _update_state_history(state, attempt)
-                group_history.append(_history_from_attempt(attempt))
-                if attempt.error_type:
-                    errors.append(
-                        {
-                            "agent_id": agent.agent_id,
-                            "group_step_index": group_step,
-                            "error_type": attempt.error_type,
-                            "error_message": attempt.error_message,
-                        }
-                    )
+                trajectory.attempts.extend(attempts)
+                final_attempt = attempts[-1]
+                _update_state_history(state, final_attempt)
+                group_history.append(_history_from_attempt(final_attempt))
+                for attempt in attempts:
+                    if attempt.error_type:
+                        errors.append(
+                            {
+                                "stage": "executor",
+                                "agent_id": agent.agent_id,
+                                "task_id": task.task_id,
+                                "group_step_index": group_step,
+                                "agent_step_index": attempt.agent_step_index,
+                                "attempt_index": attempt.attempt_index,
+                                "attempt_type": attempt.attempt_type,
+                                "error_type": attempt.error_type,
+                                "error_message": attempt.error_message,
+                                "validation_issues": attempt.validation_issues,
+                            }
+                        )
 
         activity_profiles = {
             agent.agent_id: load_activity_profile(self.config.project_path(agent.activity_profile_path))
@@ -1133,6 +1201,7 @@ def _build_agent_state(
     role_template: RoleTemplate,
     registry: ScriptRegistry,
     assignment: AgentAssignment,
+    out_dir: Path,
 ) -> AgentState:
     if agent.initial_state_path:
         state = load_agent_state(project_root / agent.initial_state_path)
@@ -1169,6 +1238,14 @@ def _build_agent_state(
         "assigned_goal": assignment.assigned_goal,
         "executor_model_id": assignment.executor_model_id,
         "orchestrator_task_id": assignment.task_id,
+        "executor_prompt_hints": _executor_prompt_hints(
+            project_root=project_root,
+            agent=agent,
+            role_template=role_template,
+            registry=registry,
+            assignment=assignment,
+            out_dir=out_dir,
+        ),
     }
     return AgentState.model_validate(payload)
 
@@ -1190,6 +1267,268 @@ def _action_spec_from_descriptor(descriptor: Any) -> ActionSpec:
     )
 
 
+def _executor_prompt_hints(
+    *,
+    project_root: Path,
+    agent: GroupAgentSpec,
+    role_template: RoleTemplate,
+    registry: ScriptRegistry,
+    assignment: AgentAssignment,
+    out_dir: Path,
+) -> dict[str, Any]:
+    allowed_actions = sorted(_allowed_action_names(registry, role_template))
+    action_schemas: dict[str, Any] = {}
+    safe_path_roots: set[str] = set()
+    safe_existing_read_paths: set[str] = set()
+    safe_write_path_examples: set[str] = set()
+
+    for action_name in allowed_actions:
+        descriptor = registry.get_script(action_name)
+        if descriptor is None:
+            continue
+        roots = _effective_allowed_file_roots(descriptor, role_template)
+        safe_path_roots.update(roots)
+        examples = _safe_action_examples(
+            project_root=project_root,
+            descriptor=descriptor,
+            roots=roots,
+            agent_id=agent.agent_id,
+            out_dir=out_dir,
+        )
+        for example in examples:
+            path = example.get("path")
+            if not isinstance(path, str):
+                continue
+            if descriptor.safety.read_only:
+                safe_existing_read_paths.add(path)
+            else:
+                safe_write_path_examples.add(path)
+
+        action_schemas[action_name] = {
+            "description": descriptor.description,
+            "required_parameters": sorted(descriptor.required_parameter_names()),
+            "parameters": {
+                parameter.name: {
+                    "type": parameter.type,
+                    "required": parameter.required,
+                    "description": parameter.description,
+                }
+                for parameter in descriptor.parameters
+            },
+            "allowed_file_roots": roots,
+            "forbidden_file_roots": sorted(
+                set(_normalized_roots(descriptor.safety.forbidden_file_roots))
+                | set(_normalized_roots(role_template.constraints.forbidden_file_roots))
+            ),
+            "allowed_shell_commands": list(descriptor.safety.allowed_shell_commands),
+            "examples": examples[:3],
+        }
+
+    json_only_example = _next_action_json_example(action_schemas, safe_existing_read_paths, safe_write_path_examples)
+    return {
+        "agent_id": agent.agent_id,
+        "role_id": role_template.role_id,
+        "task_id": assignment.task_id,
+        "assigned_goal": assignment.assigned_goal,
+        "success_criteria": assignment.success_criteria,
+        "allowed_action_focus": list(assignment.allowed_action_focus),
+        "allowed_actions": allowed_actions,
+        "action_schemas": action_schemas,
+        "safe_path_roots": sorted(safe_path_roots),
+        "safe_existing_read_paths": sorted(safe_existing_read_paths),
+        "safe_write_path_examples": sorted(safe_write_path_examples),
+        "path_rules": [
+            "Use relative project paths only.",
+            "Use forward slashes.",
+            "Do not include drive letters such as C:/.",
+            "Do not include leading slashes.",
+            "Do not include '..' traversal.",
+            "Do not touch models/gguf/, .venv/, or .git/.",
+        ],
+        "json_only_example": json_only_example,
+    }
+
+
+def _effective_allowed_file_roots(descriptor: Any, role_template: RoleTemplate) -> list[str]:
+    registry_roots = _normalized_roots(descriptor.safety.allowed_file_roots)
+    role_roots = _normalized_roots(role_template.constraints.allowed_file_roots)
+    if not registry_roots:
+        return role_roots
+    if not role_roots:
+        return registry_roots
+
+    effective: set[str] = set()
+    for registry_root in registry_roots:
+        for role_root in role_roots:
+            if registry_root == role_root:
+                effective.add(registry_root)
+            elif registry_root.startswith(role_root):
+                effective.add(registry_root)
+            elif role_root.startswith(registry_root):
+                effective.add(role_root)
+    return sorted(effective)
+
+
+def _normalized_roots(roots: list[str]) -> list[str]:
+    normalized: list[str] = []
+    for root in roots:
+        value = root.replace("\\", "/")
+        if value and not value.endswith("/"):
+            value += "/"
+        if value:
+            normalized.append(value)
+    return sorted(dict.fromkeys(normalized))
+
+
+def _safe_action_examples(
+    *,
+    project_root: Path,
+    descriptor: Any,
+    roots: list[str],
+    agent_id: str,
+    out_dir: Path,
+) -> list[dict[str, Any]]:
+    examples: list[dict[str, Any]] = []
+    if any(parameter.name == "path" for parameter in descriptor.parameters):
+        if descriptor.safety.read_only:
+            for candidate in [
+                "docs/ai/model_research_metadata.md",
+                "docs/ai/final_tz_readiness_audit.md",
+                "docs/ai/orchestrator_executor_quality_spec.md",
+                "configs/evaluation_models.json",
+            ]:
+                if _path_allowed_by_roots(candidate, roots) and (project_root / candidate).exists():
+                    examples.append({"path": candidate})
+        else:
+            safe_out = _safe_relative_artifact_path(
+                project_root,
+                out_dir / "workspace" / f"{agent_id}_executor_note.md",
+            )
+            if _path_allowed_by_roots(safe_out, roots):
+                examples.append({"path": safe_out, "content": f"{agent_id} local group note.\n"})
+
+    for example in descriptor.examples:
+        path = example.get("path")
+        if isinstance(path, str) and roots and not _path_allowed_by_roots(path, roots):
+            continue
+        examples.append(dict(example))
+
+    deduped: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for example in examples:
+        key = json.dumps(example, ensure_ascii=False, sort_keys=True)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(example)
+    return deduped
+
+
+def _path_allowed_by_roots(path: str, roots: list[str]) -> bool:
+    normalized = path.replace("\\", "/")
+    if not roots:
+        return True
+    return any(normalized.startswith(root) for root in roots)
+
+
+def _next_action_json_example(
+    action_schemas: dict[str, Any],
+    safe_existing_read_paths: set[str],
+    safe_write_path_examples: set[str],
+) -> dict[str, Any]:
+    if "read_file" in action_schemas:
+        path = sorted(safe_existing_read_paths)[0] if safe_existing_read_paths else "docs/ai/model_research_metadata.md"
+        return {
+            "action": "read_file",
+            "parameters": {"path": path},
+            "reason": "Read a safe local project document for the assigned task.",
+            "expected_result": "The local document content is available.",
+        }
+    if "create_file" in action_schemas:
+        path = (
+            sorted(safe_write_path_examples)[0]
+            if safe_write_path_examples
+            else "experiments/multi_agent/orchestrator_executor/workspace/executor_note.md"
+        )
+        return {
+            "action": "create_file",
+            "parameters": {"path": path, "content": "Local group note.\n"},
+            "reason": "Create a safe local note for the assigned task.",
+            "expected_result": "The note is written under an allowed project path.",
+        }
+    action_name = sorted(action_schemas)[0] if action_schemas else "read_file"
+    return {
+        "action": action_name,
+        "parameters": {},
+        "reason": "Select the safest available action for the assigned task.",
+        "expected_result": "A valid local action is selected.",
+    }
+
+
+def _executor_repair_user_message(
+    *,
+    agent: GroupAgentSpec,
+    task: OrchestratorPlanTask,
+    state: AgentState,
+    previous_raw_output: str,
+    validation_issues: list[dict[str, Any]],
+    error_message: str,
+) -> str:
+    prompt_context = state.to_prompt_context()
+    metadata = prompt_context.get("metadata") if isinstance(prompt_context, dict) else {}
+    guidance = metadata.get("executor_prompt_hints") if isinstance(metadata, dict) else {}
+    payload = {
+        "agent_id": agent.agent_id,
+        "task_id": task.task_id,
+        "assigned_goal": task.goal,
+        "error_message": error_message,
+        "previous_raw_output": previous_raw_output,
+        "validation_issues": validation_issues,
+        "missing_required_parameters": _issue_values(validation_issues, "missing_required_parameter"),
+        "unsafe_or_disallowed_paths": _issue_values(
+            validation_issues,
+            "unsafe_path",
+            "path_outside_allowed_roots",
+            "forbidden_path",
+        ),
+        "allowed_roots": guidance.get("safe_path_roots") if isinstance(guidance, dict) else [],
+        "required_action_schemas": guidance.get("action_schemas") if isinstance(guidance, dict) else {},
+        "repair_rules": [
+            "Return one raw JSON object only.",
+            "Use one action from allowed_actions.",
+            "Include every required parameter for that action.",
+            "For path parameters, use only relative project paths under allowed_roots.",
+            "Do not use absolute Windows paths, drive letters, leading slashes, or '..'.",
+            "Prefer safe_existing_read_paths for read_file.",
+        ],
+    }
+    return "\n".join(
+        [
+            "EXECUTOR_REPAIR_REQUEST:",
+            "The previous NextAction failed parse or validation. Return a corrected NextAction JSON object.",
+            "Do not explain the fix. Do not use Markdown.",
+            "REPAIR_CONTEXT_JSON:",
+            json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2),
+        ]
+    )
+
+
+def _issue_values(validation_issues: list[dict[str, Any]], *codes: str) -> list[str]:
+    wanted = set(codes)
+    values: list[str] = []
+    for issue in validation_issues:
+        if issue.get("code") not in wanted:
+            continue
+        message = str(issue.get("message") or "")
+        if "'" in message:
+            parts = message.split("'")
+            if len(parts) >= 2 and parts[1]:
+                values.append(parts[1])
+                continue
+        values.append(message)
+    return sorted(dict.fromkeys(values))
+
+
 def _run_executor_step(
     *,
     executor_provider: ExecutorActionProvider,
@@ -1203,38 +1542,109 @@ def _run_executor_step(
     execute_actions: bool,
     out_dir: Path,
     project_root: Path,
-) -> ExecutorActionAttempt:
-    started = time.perf_counter()
+    repair_attempts: int,
+) -> list[ExecutorActionAttempt]:
     agent_step_index = state.current_step
-    try:
-        provider_result = executor_provider.next_action(
+    attempts: list[ExecutorActionAttempt] = []
+    previous_raw_output = ""
+    previous_issues: list[dict[str, Any]] = []
+    previous_error = ""
+
+    for attempt_index in range(0, repair_attempts + 1):
+        attempt_type: Literal["initial", "repair"] = "initial" if attempt_index == 0 else "repair"
+        started = time.perf_counter()
+        try:
+            if attempt_type == "initial":
+                provider_result = executor_provider.next_action(
+                    agent=agent,
+                    task=task,
+                    state=state,
+                    group_step_index=group_step_index,
+                    agent_step_index=agent_step_index,
+                    out_dir=out_dir,
+                    project_root=project_root,
+                )
+            else:
+                provider_result = _repair_executor_action(
+                    executor_provider=executor_provider,
+                    agent=agent,
+                    task=task,
+                    state=state,
+                    group_step_index=group_step_index,
+                    agent_step_index=agent_step_index,
+                    out_dir=out_dir,
+                    project_root=project_root,
+                    previous_raw_output=previous_raw_output,
+                    validation_issues=previous_issues,
+                    error_message=previous_error,
+                )
+        except Exception as exc:
+            attempts.append(
+                ExecutorActionAttempt(
+                    group_step_index=group_step_index,
+                    agent_step_index=agent_step_index,
+                    agent_id=agent.agent_id,
+                    task_id=task.task_id,
+                    attempt_index=attempt_index,
+                    attempt_type=attempt_type,
+                    raw_model_output="",
+                    selection_latency_ms=_elapsed_ms(started),
+                    error_type=exc.__class__.__name__,
+                    error_message=str(exc) or exc.__class__.__name__,
+                )
+            )
+            break
+
+        attempt = _executor_attempt_from_result(
+            provider_result=provider_result,
+            attempt_index=attempt_index,
+            attempt_type=attempt_type,
             agent=agent,
             task=task,
-            state=state,
+            role_template=role_template,
+            registry=registry,
+            bridge=bridge,
             group_step_index=group_step_index,
             agent_step_index=agent_step_index,
-            out_dir=out_dir,
-            project_root=project_root,
+            execute_actions=execute_actions,
+            latency_ms=_elapsed_ms(started),
         )
-    except Exception as exc:
-        return ExecutorActionAttempt(
-            group_step_index=group_step_index,
-            agent_step_index=agent_step_index,
-            agent_id=agent.agent_id,
-            task_id=task.task_id,
-            raw_model_output="",
-            selection_latency_ms=_elapsed_ms(started),
-            error_type=exc.__class__.__name__,
-            error_message=str(exc) or exc.__class__.__name__,
-        )
+        attempts.append(attempt)
+        if attempt.error_type is None:
+            break
+        if attempt.parse_success and attempt.validation_accepted is not False:
+            break
+        previous_raw_output = provider_result.raw_model_output
+        previous_issues = list(attempt.validation_issues)
+        previous_error = attempt.error_message or attempt.error_type or "Executor action validation failed."
 
+    return attempts
+
+
+def _executor_attempt_from_result(
+    *,
+    provider_result: ExecutorProviderResult,
+    attempt_index: int,
+    attempt_type: Literal["initial", "repair"],
+    agent: GroupAgentSpec,
+    task: OrchestratorPlanTask,
+    role_template: RoleTemplate,
+    registry: ScriptRegistry,
+    bridge: ScriptExecutionBridge,
+    group_step_index: int,
+    agent_step_index: int,
+    execute_actions: bool,
+    latency_ms: float,
+) -> ExecutorActionAttempt:
     attempt = ExecutorActionAttempt(
         group_step_index=group_step_index,
         agent_step_index=agent_step_index,
         agent_id=agent.agent_id,
         task_id=task.task_id,
+        attempt_index=attempt_index,
+        attempt_type=attempt_type,
         raw_model_output=provider_result.raw_model_output,
-        selection_latency_ms=_elapsed_ms(started),
+        selection_latency_ms=latency_ms,
     )
     try:
         next_action = parse_next_action_text(provider_result.raw_model_output)
@@ -1271,6 +1681,45 @@ def _run_executor_step(
         attempt.execution_attempted = False
         attempt.execution_success = None
     return attempt
+
+
+def _repair_executor_action(
+    *,
+    executor_provider: ExecutorActionProvider,
+    agent: GroupAgentSpec,
+    task: OrchestratorPlanTask,
+    state: AgentState,
+    group_step_index: int,
+    agent_step_index: int,
+    out_dir: Path,
+    project_root: Path,
+    previous_raw_output: str,
+    validation_issues: list[dict[str, Any]],
+    error_message: str,
+) -> ExecutorProviderResult:
+    repair_method = getattr(executor_provider, "repair_action", None)
+    if callable(repair_method):
+        return repair_method(
+            agent=agent,
+            task=task,
+            state=state,
+            group_step_index=group_step_index,
+            agent_step_index=agent_step_index,
+            out_dir=out_dir,
+            project_root=project_root,
+            previous_raw_output=previous_raw_output,
+            validation_issues=validation_issues,
+            error_message=error_message,
+        )
+    return executor_provider.next_action(
+        agent=agent,
+        task=task,
+        state=state,
+        group_step_index=group_step_index,
+        agent_step_index=agent_step_index,
+        out_dir=out_dir,
+        project_root=project_root,
+    )
 
 
 def _update_state_history(state: AgentState, attempt: ExecutorActionAttempt) -> None:
@@ -1356,9 +1805,11 @@ def _compute_quality_metrics(
 ) -> OrchestratorExecutorQualityMetrics:
     attempts = [attempt for trajectory in trajectories for attempt in trajectory.attempts]
     initial_attempts = [attempt for attempt in attempts if attempt.attempt_type == "initial"]
+    repair_attempts = [attempt for attempt in attempts if attempt.attempt_type == "repair"]
+    final_attempts = _final_executor_attempts(attempts)
     parsed_attempts = [attempt for attempt in attempts if attempt.parse_success]
-    validation_ok = [attempt for attempt in attempts if attempt.validation_accepted is True]
-    final_validation_rate = _rate(len(validation_ok), len(attempts))
+    final_validation_ok = [attempt for attempt in final_attempts if attempt.validation_accepted is True]
+    final_validation_rate = _rate(len(final_validation_ok), len(final_attempts))
     execution_attempts = [attempt for attempt in attempts if attempt.execution_attempted]
     execution_successes = [attempt for attempt in execution_attempts if attempt.execution_success is True]
     safety_violations = sum(
@@ -1383,7 +1834,10 @@ def _compute_quality_metrics(
     latency_component = 1.0 if latency_mean is None else max(0.0, min(1.0, 1.0 - (latency_mean / 5000.0)))
     pair_quality = (
         0.20 * final_validation_rate
-        + 0.20 * _rate(len(execution_successes), len(execution_attempts) if execution_attempts else len(validation_ok))
+        + 0.20 * _rate(
+            len(execution_successes),
+            len(execution_attempts) if execution_attempts else len(final_validation_ok),
+        )
         + 0.15 * role_fit
         + 0.10 * diversity
         + 0.10 * history
@@ -1414,9 +1868,24 @@ def _compute_quality_metrics(
         metadata={
             "attempt_count": len(attempts),
             "parsed_attempt_count": len(parsed_attempts),
+            "initial_attempt_count": len(initial_attempts),
+            "repair_attempt_count": len(repair_attempts),
+            "initial_validation_success_count": sum(
+                1 for attempt in initial_attempts if attempt.validation_accepted is True
+            ),
+            "final_attempt_count": len(final_attempts),
+            "final_validation_success_count": len(final_validation_ok),
+            "execution_success_count": len(execution_successes),
             "prototype_scoring": True,
         },
     )
+
+
+def _final_executor_attempts(attempts: list[ExecutorActionAttempt]) -> list[ExecutorActionAttempt]:
+    by_step: dict[tuple[str, int, int], ExecutorActionAttempt] = {}
+    for attempt in attempts:
+        by_step[(attempt.agent_id, attempt.group_step_index, attempt.agent_step_index)] = attempt
+    return list(by_step.values())
 
 
 def _pair_evaluation(
@@ -1472,6 +1941,34 @@ def _failed_quality_metrics(
     )
 
 
+def _per_agent_attempt_rows(result: OrchestratorExecutorRunResult) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for trajectory in result.per_agent_results:
+        for attempt in trajectory.attempts:
+            rows.append(
+                {
+                    "agent_id": trajectory.agent_id,
+                    "group_step_index": attempt.group_step_index,
+                    "agent_step_index": attempt.agent_step_index,
+                    "task_id": attempt.task_id,
+                    "attempt_index": attempt.attempt_index,
+                    "attempt_type": attempt.attempt_type,
+                    "raw_output": attempt.raw_model_output,
+                    "parse_success": attempt.parse_success,
+                    "parsed_action": attempt.next_action,
+                    "validation_accepted": attempt.validation_accepted,
+                    "validation_issues": attempt.validation_issues,
+                    "execution_attempted": attempt.execution_attempted,
+                    "execution_success": attempt.execution_success,
+                    "execution_result": attempt.execution_result,
+                    "error_type": attempt.error_type,
+                    "error_message": attempt.error_message,
+                    "latency_ms": attempt.selection_latency_ms,
+                }
+            )
+    return rows
+
+
 def _write_artifacts(
     *,
     out_dir: Path,
@@ -1509,6 +2006,7 @@ def _write_artifacts(
             for attempt in trajectory.attempts
         ],
     )
+    _write_jsonl(out_dir / "per_agent_attempts.jsonl", _per_agent_attempt_rows(result))
     _write_jsonl(
         out_dir / "per_agent_validation_results.jsonl",
         [
@@ -1516,6 +2014,8 @@ def _write_artifacts(
                 "agent_id": trajectory.agent_id,
                 "group_step_index": attempt.group_step_index,
                 "agent_step_index": attempt.agent_step_index,
+                "attempt_index": attempt.attempt_index,
+                "attempt_type": attempt.attempt_type,
                 "validation_accepted": attempt.validation_accepted,
                 "validation_issues": attempt.validation_issues,
             }
@@ -1592,6 +2092,7 @@ def _write_orchestrator_failure_artifacts(
     _write_jsonl(out_dir / "group_steps.jsonl", [])
     _write_jsonl(out_dir / "group_history.jsonl", [])
     _write_jsonl(out_dir / "per_agent_actions.jsonl", [])
+    _write_jsonl(out_dir / "per_agent_attempts.jsonl", [])
     _write_jsonl(out_dir / "per_agent_validation_results.jsonl", [])
     _write_jsonl(out_dir / "per_agent_execution_results.jsonl", [])
     _write_jsonl(out_dir / "errors.jsonl", errors)
@@ -1624,6 +2125,7 @@ def _manifest(
         "orchestrator_max_tokens": orchestrator_model.max_tokens,
         "orchestrator_temperature": orchestrator_model.temperature,
         "orchestrator_repair_attempts": config.orchestrator_repair_attempts,
+        "executor_repair_attempts": config.repair_attempts,
         "orchestrator_model": orchestrator_model.model_dump(mode="json"),
         "executor_model": executor_model.model_dump(mode="json"),
         "runtime_overrides": {

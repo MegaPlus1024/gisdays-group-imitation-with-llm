@@ -78,3 +78,9 @@ This does not prove:
 ## 6. Next step
 
 Repeat N=3 local group trials only after tightening executor prompts/repair so `first_model` supplies required parameters and avoids unsafe absolute paths. Track whether validation success improves without weakening safety policy.
+
+## 7. Follow-up
+
+Executor failure analysis: `docs/ai/local_orchestrator_executor_executor_failure_analysis.md`.
+
+The v3 follow-up added executor prompt guidance, real safe relative path examples, executor repair attempts, and `per_agent_attempts.jsonl`. The controlled v3 local run completed with two successful executor `read_file` actions. See `docs/ai/local_orchestrator_executor_poc_v3_executor_repair.md`.

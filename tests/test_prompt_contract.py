@@ -77,6 +77,23 @@ def test_user_message_contains_agent_id_from_example_state() -> None:
     assert '"agent_id": "student_researcher_001"' in user
 
 
+def test_user_message_contains_executor_action_guidance_from_metadata() -> None:
+    state = _example_state()
+    state.metadata["executor_prompt_hints"] = {
+        "agent_id": "student_researcher_001",
+        "allowed_actions": ["read_file"],
+        "action_schemas": {"read_file": {"required_parameters": ["path"]}},
+        "safe_existing_read_paths": ["docs/ai/model_research_metadata.md"],
+    }
+
+    user = PromptBuilder().build_messages(state)[1]["content"]
+
+    assert "EXECUTOR_ACTION_GUIDANCE" in user
+    assert '"required_parameters": [' in user
+    assert '"path"' in user
+    assert "docs/ai/model_research_metadata.md" in user
+
+
 def test_history_is_limited_by_include_history_limit() -> None:
     state = _example_state()
     state.history = state.history + [

@@ -1,0 +1,17 @@
+﻿{
+    "second_model":  {
+                         "port":  8081,
+                         "pid":  54728,
+                         "model":  "second_model.gguf"
+                     },
+    "first_model":  {
+                        "port":  8082,
+                        "pid":  3052,
+                        "model":  "first_model.gguf"
+                    },
+    "second_endpoint_ready":  true,
+    "first_endpoint_ready":  true,
+    "second_endpoint_stopped":  true,
+    "first_endpoint_stopped":  true,
+    "exit_code":  0
+}
