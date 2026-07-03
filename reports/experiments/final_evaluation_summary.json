@@ -140,6 +140,32 @@
       "Capacity estimate is formula-based and low-confidence, not measured by multi-agent stress test."
     ]
   },
+  "multi_agent_extension": {
+    "status": "research_prototype_validated",
+    "report": "reports/experiments/final_multi_agent_research_report.md",
+    "best_observed_quality_pair": "second_model->second_model",
+    "resource_balanced_pair": "second_model->first_model",
+    "not_recommended_orchestrator": "first_model",
+    "simple_scenario_best_pair": "second_model->first_model",
+    "heavy_scenario_best_pair": "second_model->second_model",
+    "bounded_stress_status": "concurrency_1_viable_for_second_model_to_second_model_gpu_full_offload; concurrency_2_unstable",
+    "production_recommendation": false,
+    "limitations": [
+      "Only two group scenarios.",
+      "N=3 for pair matrices.",
+      "Bounded stress is short only.",
+      "Concurrency 2 unstable.",
+      "No concurrency 4.",
+      "No strict CPU baseline.",
+      "No long soak.",
+      "No real browser automation.",
+      "No real office automation.",
+      "Virtual network is simulated.",
+      "No external network behavior.",
+      "No production scheduler.",
+      "Metrics are prototype metrics."
+    ]
+  },
   "limitations": [
     "Only two scenarios.",
     "N=3 per model per scenario.",

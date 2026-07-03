@@ -1,5 +1,17 @@
 # Local LLM Agent Lab
 
+## Current research status
+
+This repository now has both the original single-agent evidence base and a consolidated multi-agent orchestrator/executor research report.
+
+- Single-agent evidence: two local GGUF models across two behavioral scenarios, N=3 per model/scenario, summarized in `reports/experiments/final_evaluation_report.md`.
+- Multi-agent orchestrator/executor evidence: fake MVP, local POC, repeated group trials, simple/heavy pair matrices, runtime probe, GPU smoke, and corrected bounded stress v2.
+- Preliminary quality-focused pair: `second_model -> second_model`.
+- Resource-balanced/simple-scenario pair: `second_model -> first_model`.
+- `first_model` is not recommended as orchestrator in the current tests.
+- Bounded stress caveat: concurrency 1 is viable for `second_model -> second_model`, but concurrency 2 is unstable and no production capacity claim is made.
+- Current consolidated report: `reports/experiments/final_multi_agent_research_report.md`.
+
 ## 1. What this project is
 
 Local LLM Agent Lab is a research prototype for a group of local LLM agents that simulate normal user activity in a controlled virtual computer/network environment.
@@ -139,7 +151,7 @@ Run the test suite:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests. After the heavy multi-agent scenario and cross-scenario pair comparison, the full suite passed with 703 tests. After the runtime/capacity candidate-pair probe, the full suite passed with 710 tests. After GPU wrapper/smoke support, the full suite passed with 716 tests. After bounded stress probe support, the full suite passed with 723 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests. After the heavy multi-agent scenario and cross-scenario pair comparison, the full suite passed with 703 tests. After the runtime/capacity candidate-pair probe, the full suite passed with 710 tests. After GPU wrapper/smoke support, the full suite passed with 716 tests. After bounded stress probe support, the full suite passed with 723 tests. After bounded stress workspace handling, the full suite passed with 728 tests. After final multi-agent report consolidation, the full suite passed with 731 tests.
 
 ## 7. Model setup
 
@@ -542,6 +554,7 @@ The newer orchestrator/executor runtime probe measured short local pair RSS/CPU 
 Report files:
 
 - `reports/experiments/final_evaluation_report.md`
+- `reports/experiments/final_multi_agent_research_report.md`
 - `reports/experiments/manager_summary.md`
 - `reports/experiments/project_usage_appendix.md`
 - `reports/experiments/final_evaluation_summary.json`
@@ -552,7 +565,9 @@ Final summary:
 - `second_model` has better contract validity and latency in the current evidence base;
 - `first_model` had some useful execution but is repair-dependent;
 - both models show weak coherence and template-like behavior;
-- final model recommendation is not ready;
+- multi-agent preliminary quality-focused pair: `second_model -> second_model`;
+- multi-agent resource-balanced/simple-scenario pair: `second_model -> first_model`;
+- final production model recommendation is not ready;
 - historical single-agent formula capacity estimate: 11 agents, CPU-bound, low confidence;
 - newer group runtime capacity estimate: preliminary only, RAM-based from short sequential telemetry, not a concurrent stress test.
 
@@ -562,7 +577,7 @@ Final summary:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests. After the heavy multi-agent scenario and cross-scenario pair comparison, the full suite passed with 703 tests. After the runtime/capacity candidate-pair probe, the full suite passed with 710 tests. After GPU wrapper/smoke support, the full suite passed with 716 tests. After bounded stress probe support, the full suite passed with 723 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests. After the heavy multi-agent scenario and cross-scenario pair comparison, the full suite passed with 703 tests. After the runtime/capacity candidate-pair probe, the full suite passed with 710 tests. After GPU wrapper/smoke support, the full suite passed with 716 tests. After bounded stress probe support, the full suite passed with 723 tests. After bounded stress workspace handling, the full suite passed with 728 tests. After final multi-agent report consolidation, the full suite passed with 731 tests.
 
 ## 17. Publishing to GitHub
 

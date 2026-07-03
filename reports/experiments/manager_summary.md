@@ -28,6 +28,15 @@ The prototype and experimental evidence base are ready for reporting as a resear
 - Both models show weak coherence and repeated/template-like behavior.
 - Neither model is sufficient for a final production recommendation.
 
+## Multi-agent orchestrator/executor update
+
+- A real local group prototype is now demonstrated: orchestrator plans, executor actions, validation, bounded execution, group history, pair metrics, and artifacts are all present.
+- Preliminary quality-focused pair: `second_model -> second_model`.
+- Resource-balanced/simple-scenario pair: `second_model -> first_model`.
+- `first_model` is not recommended as orchestrator because pair-matrix runs failed at `orchestrator_plan_parse_failed`.
+- Bounded stress v2 fixed the v1 workspace/path harness failure. Stable concurrency 1 was observed for `second_model -> second_model`; concurrency 2 remains unstable.
+- This is a research-prototype finding, not a production recommendation.
+
 ## Resource estimate
 
 The current machine snapshot has 24 physical/logical CPUs and about 130 GB RAM. The low-confidence planning formula estimates 11 concurrent agents for both tested models, CPU-bound.

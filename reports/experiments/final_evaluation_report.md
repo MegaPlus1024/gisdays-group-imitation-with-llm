@@ -12,7 +12,7 @@ The experiments show measurable behavioral differences, but neither model is str
 
 Publication note: current repository setup exposes the second model as `second_model`. Some historical artifacts and tables retain the earlier recorded id `qwen2_5_3b_instruct_q4_k_m`.
 
-Post-report prototype extension: after this final report was written, a sequential fake-mode orchestrator/executor group MVP was added under `experiments/multi_agent/orchestrator_executor/fake_office_developer_group_v1`. That extension is not part of the 12 real local-model trajectories summarized here, and it does not change the report's historical conclusions about local multi-agent capacity or final model recommendation readiness.
+Post-report prototype extension: after this single-agent final report was written, the repository added a multi-agent orchestrator/executor research track with fake-mode, local POC, pair-matrix, runtime, GPU smoke, and bounded stress evidence. That later evidence is summarized in `reports/experiments/final_multi_agent_research_report.md`. It is not part of the 12 real local-model trajectories summarized here, and it does not create a production recommendation.
 
 Multi-agent capacity is estimated by formula, not measured by stress test. The current planning estimate is 11 concurrent agents for both tested models on the current machine, CPU-bound, with low confidence.
 
@@ -65,7 +65,7 @@ Key components:
 | OpenAI-compatible endpoint | `src/agent/llm_client.py`, model `base_url` values | Keeps local model calls isolated behind a simple adapter. |
 | GGUF models | `models/gguf/README.md`, `configs/evaluation_models.json` | Fits local/offline model requirement. |
 | Pydantic/JSON contracts | `src/agent/schemas.py`, `src/agent/evaluation_models.py` | Makes state/action/model contracts explicit and testable. |
-| Pytest validation | `tests/`, final run `636 passed` | Offline regression coverage for runner, analysis and resource layers. |
+| Pytest validation | `tests/`, single-agent reporting run `636 passed`; later multi-agent consolidation run `731 passed` | Offline regression coverage for runner, analysis and resource layers. |
 | `psutil` resource summaries | `requirements.txt`, `resource_summary.json`, `resource_capacity_v1` | Provides lightweight CPU/RAM observations without heavy benchmarking. |
 
 ## 5. Models tested
@@ -272,6 +272,26 @@ The repository now contains a first fake-mode orchestrator/executor group MVP:
 
 This extension demonstrates the structural group-agent path: plan, assignment, per-agent executor actions, validation, bounded execution, group history, and prototype pair-quality metrics. It remains fake-mode evidence only. No local group inference, GPU run, production scheduler, or measured concurrent capacity test is included in this final report.
 
+## Post-report multi-agent extension
+
+The later multi-agent research track is consolidated in:
+
+```text
+reports/experiments/final_multi_agent_research_report.md
+```
+
+It adds evidence for:
+
+- local orchestrator/executor group execution;
+- repeated group trials and simple/heavy pair matrices;
+- preliminary best observed quality pair: `second_model -> second_model`;
+- resource-balanced/simple-scenario pair: `second_model -> first_model`;
+- `first_model` as an unsuitable orchestrator in the current tests;
+- GPU wrapper/smoke readiness;
+- corrected bounded stress v2 with stable concurrency 1 for `second_model -> second_model` and unstable concurrency 2.
+
+The later report does not change this document's historical single-agent evidence. It also does not make a production recommendation.
+
 ## 16. Artifact index
 
 Architecture/onboarding:
@@ -319,4 +339,5 @@ Post-report orchestrator/executor MVP:
 
 Verification:
 
-- latest full test run in this reporting step: `636 passed`.
+- latest full test run in the original single-agent reporting step: `636 passed`;
+- latest full test run after multi-agent report consolidation: `731 passed`.

@@ -115,19 +115,127 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start_llama_server.ps1 -Model
   --force
 ```
 
-## 9. Run tests
+## 9. Run current multi-agent research commands
+
+Repeated local group trials:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_repeated_orchestrator_executor_trials.py `
+  --mode local `
+  --models-config configs\evaluation_models.json `
+  --scenario configs\multi_agent_scenarios\office_developer_group_basic.json `
+  --out-root experiments\multi_agent\orchestrator_executor\repeated_local_second_to_first_group_n3_v1 `
+  --label repeated_local_second_to_first_group_n3_v1 `
+  --trials 3 `
+  --orchestrator-model-id second_model `
+  --executor-model-id first_model `
+  --orchestrator-port 8081 `
+  --executor-port 8082 `
+  --manage-servers `
+  --execute-actions `
+  --continue-on-trial-failure `
+  --force
+```
+
+Simple pair matrix:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_orchestrator_executor_pair_matrix.py `
+  --mode local `
+  --models-config configs\evaluation_models.json `
+  --scenario configs\multi_agent_scenarios\office_developer_group_basic.json `
+  --out-root experiments\multi_agent\orchestrator_executor\pair_matrix_office_developer_group_n3_v1 `
+  --label pair_matrix_office_developer_group_n3_v1 `
+  --pairs second_model:first_model,second_model:second_model,first_model:first_model,first_model:second_model `
+  --trials 3 `
+  --manage-servers `
+  --execute-actions `
+  --continue-on-pair-failure `
+  --force
+```
+
+Heavy scenario pair matrix:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_orchestrator_executor_pair_matrix.py `
+  --mode local `
+  --models-config configs\evaluation_models.json `
+  --scenario configs\multi_agent_scenarios\office_developer_maintenance_group_heavy.json `
+  --out-root experiments\multi_agent\orchestrator_executor\pair_matrix_heavy_group_n3_workspace_policy_v1 `
+  --label pair_matrix_heavy_group_n3_workspace_policy_v1 `
+  --pairs second_model:first_model,second_model:second_model,first_model:first_model,first_model:second_model `
+  --trials 3 `
+  --manage-servers `
+  --execute-actions `
+  --continue-on-pair-failure
+```
+
+Runtime probe:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\probe_orchestrator_executor_runtime.py `
+  --mode local `
+  --models-config configs\evaluation_models.json `
+  --out-root experiments\multi_agent\orchestrator_executor\runtime_probe_candidate_pairs_v1 `
+  --label runtime_probe_candidate_pairs_v1 `
+  --pairs second_model:first_model,second_model:second_model `
+  --scenarios simple=configs\multi_agent_scenarios\office_developer_group_basic.json,heavy=configs\multi_agent_scenarios\office_developer_maintenance_group_heavy.json `
+  --trials 3 `
+  --manage-servers `
+  --execute-actions `
+  --continue-on-pair-failure
+```
+
+GPU smoke:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_gpu_smoke_orchestrator_executor.py `
+  --models-config configs\evaluation_models.json `
+  --scenario configs\multi_agent_scenarios\office_developer_maintenance_group_heavy.json `
+  --out-root experiments\multi_agent\orchestrator_executor\gpu_smoke_second_to_second_heavy_v1 `
+  --pair second_model:second_model `
+  --trials 1 `
+  --gpu-layers all `
+  --main-gpu 0 `
+  --split-mode none `
+  --execute-actions
+```
+
+Bounded stress v2:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_orchestrator_executor_stress_probe.py `
+  --models-config configs\evaluation_models.json `
+  --runtime-profiles-config configs\runtime_profiles.json `
+  --scenario configs\multi_agent_scenarios\office_developer_maintenance_group_heavy.json `
+  --out-root experiments\multi_agent\orchestrator_executor\bounded_stress_candidate_pairs_v2 `
+  --label bounded_stress_candidate_pairs_v2 `
+  --pairs second_model:second_model,second_model:first_model `
+  --profiles cpu_requested_device_none,gpu_full_offload `
+  --concurrency-levels 1,2 `
+  --runs-per-level 2 `
+  --base-port 8081 `
+  --execute-actions `
+  --timeout-seconds 180 `
+  --continue-on-failure `
+  --force `
+  --skipped-concurrency-levels 4
+```
+
+## 10. Run tests
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Latest reporting-step result: `636 passed`.
+Latest reporting-step result: `731 passed` after final multi-agent report consolidation.
 
-## 10. Artifact locations
+## 11. Artifact locations
 
 - single scenario runs: `experiments/model_behavior/results/`
 - repeated trials: `experiments/model_behavior/repeated_trials/`
 - behavioral analyses: `experiments/model_behavior/analysis/`
 - cross-scenario comparison: `experiments/model_behavior/cross_scenario/`
 - resource/capacity: `experiments/model_behavior/resources/`
+- multi-agent orchestrator/executor: `experiments/multi_agent/orchestrator_executor/`
 - final reports: `reports/experiments/`

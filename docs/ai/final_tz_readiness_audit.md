@@ -63,6 +63,14 @@ This audit checks the repository against that target without running models, sta
 - Virtual computer network: partially simulated, not a full network.
 - Final production recommendation: not ready.
 
+## 4a. Final Consolidated Multi-Agent Status
+
+- Group-agent prototype: complete at research-prototype level. The local orchestrator/executor workflow can plan, assign, execute bounded actions, log group history, and produce pair-quality artifacts.
+- Orchestrator/executor pair selection: preliminary complete. The current quality-focused candidate is `second_model -> second_model`; the resource-balanced/simple-scenario candidate is `second_model -> first_model`; `first_model` is not suitable as orchestrator in the current tests.
+- GPU support: implemented and smoke-tested. Wrapper GPU flags, telemetry, one GPU smoke, and bounded GPU stress rows exist.
+- Stress/capacity: partial. Corrected bounded stress v2 fixed the v1 workspace harness issue and observed stable concurrency 1 for `second_model -> second_model`, but concurrency 2 unstable and concurrency 4 was not run.
+- Production recommendation: not ready. The current result is a research-prototype conclusion, not production sizing or deployment guidance.
+
 ## 5. Next Audit-Based Direction
 
-The next implementation should not add more reports first. The minimal orchestrator/executor experiment path, fake-mode proof, local repeated pair proof, basic pair matrix, heavy pair matrix, cross-scenario pair comparison, heavy error analysis, short measured runtime/resource probe, GPU smoke, and corrected bounded stress smoke now exist. The next step is to investigate concurrency-2 quality collapse and repair `HTTPStatusError` behavior before updating any final preliminary recommendation.
+After final report consolidation, the next implementation step is to investigate concurrency-2 quality collapse and repair `HTTPStatusError` behavior before any stronger recommendation is attempted.
