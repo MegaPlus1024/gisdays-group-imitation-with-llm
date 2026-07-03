@@ -1,0 +1,86 @@
+{
+  "comparison_id": "second_model__first_model__gpu_full_offload__concurrency_1__run_001",
+  "generated_at": "2026-07-03T16:21:51.527296+00:00",
+  "status": "partial",
+  "orchestrator_model_id": "second_model",
+  "executor_model_id": "first_model",
+  "trial_index": [
+    {
+      "trial_id": "trial_001",
+      "run_id": "second_model__first_model__gpu_full_offload__concurrency_1__run_001_trial_001",
+      "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v1\\second_model__first_model\\gpu_full_offload\\concurrency_1\\group_runs\\run_001\\runs\\trial_001",
+      "status": "failed",
+      "trial_status": "failed",
+      "success": false,
+      "plan_valid": false,
+      "executor_calls": 0,
+      "final_validation_success_count": 0,
+      "execution_success_count": 0,
+      "pair_quality_score": null,
+      "main_errors": "FileNotFoundError: [Errno 2] No such file or directory: 'C:\\\\Users\\\\m\\\\Documents\\\\local-llm-test-gisdays\\\\local-llm-agent-lab\\\\experiments\\\\multi_agent\\\\orchestrator_executor\\\\bounded_stress_candidate_pairs_v1\\\\second_model__first_model\\\\gpu_full_offload\\\\concurrency_1\\\\group_runs\\\\run_001\\\\runs\\\\trial_001\\\\workspace\\\\office_agent_1_executor_note.md'",
+      "return_code": 1,
+      "error_message": "[Errno 2] No such file or directory: 'C:\\\\Users\\\\m\\\\Documents\\\\local-llm-test-gisdays\\\\local-llm-agent-lab\\\\experiments\\\\multi_agent\\\\orchestrator_executor\\\\bounded_stress_candidate_pairs_v1\\\\second_model__first_model\\\\gpu_full_offload\\\\concurrency_1\\\\group_runs\\\\run_001\\\\runs\\\\trial_001\\\\workspace\\\\office_agent_1_executor_note.md'",
+      "orchestrator_initial_parse_success": null,
+      "orchestrator_repair_attempt_count": 0,
+      "executor_model_calls_attempted": 0,
+      "initial_validation_success_count": 0,
+      "repair_attempt_count": 0,
+      "execution_attempted_count": 0,
+      "safety_violation_count": 0,
+      "error_count": 1,
+      "pair_verdict": "failed",
+      "wall_time_ms": null,
+      "orchestrator_latency_ms": null,
+      "executor_latency_mean_ms": null,
+      "repeated_action_count": 0,
+      "dominant_action_parameters": [],
+      "common_failure_modes": {
+        "FileNotFoundError": 1
+      },
+      "common_actions": {},
+      "stopped_reason": "[Errno 2] No such file or directory: 'C:\\\\Users\\\\m\\\\Documents\\\\local-llm-test-gisdays\\\\local-llm-agent-lab\\\\experiments\\\\multi_agent\\\\orchestrator_executor\\\\bounded_stress_candidate_pairs_v1\\\\second_model__first_model\\\\gpu_full_offload\\\\concurrency_1\\\\group_runs\\\\run_001\\\\runs\\\\trial_001\\\\workspace\\\\office_agent_1_executor_note.md'"
+    }
+  ],
+  "aggregate": {
+    "trial_count": 1,
+    "completed_trial_count": 0,
+    "failed_trial_count": 1,
+    "mean_pair_quality_score": null,
+    "std_pair_quality_score": null,
+    "min_pair_quality_score": null,
+    "max_pair_quality_score": null,
+    "mean_plan_valid_rate": 0.0,
+    "mean_executor_call_count": 0.0,
+    "mean_final_validation_success_rate": 0.0,
+    "mean_execution_success_rate": 0.0,
+    "total_safety_violations": 0,
+    "total_errors": 1,
+    "common_failure_modes": {
+      "FileNotFoundError": 1
+    },
+    "common_actions": {},
+    "common_action_parameters": {},
+    "mean_wall_time_ms": null,
+    "mean_orchestrator_latency_ms": null,
+    "mean_executor_latency_ms": null
+  },
+  "failure_modes": {
+    "FileNotFoundError": 1
+  },
+  "action_patterns": {
+    "common_actions": {},
+    "common_action_parameters": {}
+  },
+  "limitations": [
+    "Only one orchestrator/executor pair is included.",
+    "Only one scenario is repeated.",
+    "N=3 is a robustness smoke, not a benchmark or final recommendation.",
+    "The runner is sequential and does not measure concurrent capacity.",
+    "No GPU runtime is configured or measured."
+  ],
+  "interpretation": {
+    "closes_group_pair_single_run_gap": false,
+    "recommendation_ready": false,
+    "summary": "Repeated local group trials strengthen evidence for this one pair/scenario, but do not establish production readiness, GPU throughput, concurrent capacity, or a final best pair."
+  }
+}

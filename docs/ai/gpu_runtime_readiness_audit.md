@@ -16,6 +16,12 @@ GPU smoke artifact:
 experiments/multi_agent/orchestrator_executor/gpu_smoke_second_to_second_heavy_v1
 ```
 
+Bounded stress artifact:
+
+```text
+experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v1
+```
+
 ## Findings
 
 | Question | Answer |
@@ -27,6 +33,7 @@ experiments/multi_agent/orchestrator_executor/gpu_smoke_second_to_second_heavy_v
 | Does `scripts/start_llama_server.ps1` support GPU flags? | Yes. It now exposes `-GpuLayers`, `-MainGpu`, `-SplitMode`, `-TensorSplit`, `-BatchSize`, `-UBatchSize`, `-Threads`, `-FlashAttention`, and `-CpuOnly`. |
 | Does `configs/evaluation_models.json` record GPU settings? | No. It records local model/runtime metadata but not GPU layer/device settings. |
 | Was GPU runtime measured? | Yes, as a short N=1 smoke for `second_model -> second_model` on the heavy group scenario. |
+| Was bounded GPU stress attempted? | Yes, under `gpu_full_offload`, but all attempted heavy action-execution batches failed. |
 | Is CPU local group runtime measured? | Yes. The runtime probe measured the two candidate pairs on simple and heavy group scenarios. |
 
 ## Hardware Snapshot
@@ -105,10 +112,11 @@ The result proves that explicit wrapper GPU flags can start and complete a short
 - llama-server GPU flags available: yes.
 - GPU runtime configured: yes, optional wrapper flags implemented.
 - GPU runtime measured: yes, short N=1 smoke only.
-- Multi-agent concurrent capacity measured: no; current capacity is estimated from short measured telemetry.
+- Bounded multi-agent concurrent stress attempted: yes.
+- Stable multi-agent concurrent capacity measured: no; all bounded stress batches failed before successful group-run completion.
 
-GPU is likely useful for throughput/capacity, but current CPU local group evidence is already functional.
+GPU is likely useful for throughput/capacity, but the current bounded stress result is not ready to support a capacity recommendation.
 
 ## Recommended Next Step
 
-Run a controlled bounded stress smoke only after deciding whether the baseline should be strict `-CpuOnly` or the existing no-explicit-GPU-flags baseline. Keep the GPU idle where possible and continue preserving blocker artifacts on any failure.
+Fix or classify the missing workspace-file failure path from the bounded stress artifact, then rerun the same explicit `strict_cpu` and `gpu_full_offload` profiles.

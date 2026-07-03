@@ -92,7 +92,38 @@ CPU/GPU smoke summary:
 
 Speedup wall-time ratio was `1.006842`, so the first smoke is a readiness check, not evidence of meaningful acceleration.
 
-## 7. Server Management
+## 7. Bounded Stress Follow-up
+
+A later bounded stress smoke was run with explicit runtime profiles:
+
+```text
+experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v1
+```
+
+Profiles:
+
+- `strict_cpu`: wrapper `-CpuOnly`, emitted `--device none`.
+- `gpu_full_offload`: emitted `--n-gpu-layers 999 --main-gpu 0 --split-mode none`.
+
+Candidate pairs:
+
+- `second_model -> second_model`
+- `second_model -> first_model`
+
+Concurrency levels tested: `1`, `2`. Concurrency `4` was skipped with an explicit bounded-smoke reason.
+
+Stress result:
+
+| pair | profile | levels | max stable concurrency observed | verdict |
+|---|---|---|---:|---|
+| `second_model -> second_model` | `strict_cpu` | `1,2` | none | failed |
+| `second_model -> second_model` | `gpu_full_offload` | `1,2` | none | failed |
+| `second_model -> first_model` | `strict_cpu` | `1,2` | none | failed |
+| `second_model -> first_model` | `gpu_full_offload` | `1,2` | none | failed |
+
+The common failure mode was `FileNotFoundError` in heavy action-execution trials, including missing workspace files such as `workspace/office_agent_1_executor_note.md`. Telemetry and server lifecycle artifacts were preserved, but the result does not establish stable concurrent capacity.
+
+## 8. Server Management
 
 All four pair/scenario measurements started managed local endpoints and stopped them after the run. The generated `server_run.json` files record `endpoint_stopped: true` for both roles in all four runs.
 
@@ -102,18 +133,18 @@ Post-run checks:
 - `http://127.0.0.1:8082/v1/models`: stopped
 - active `llama-server.exe` processes after probe: none
 
-## 8. Recommendation Status
+## 9. Recommendation Status
 
 Recommendation status: preliminary only.
 
-The measured probe is enough to update the prototype default candidate to `second_model -> second_model` for the current local orchestrator/executor group workflow. It is not enough for a production recommendation because concurrency, GPU runtime, longer scenarios, and additional behavioral diversity are still missing.
+The measured runtime probe is enough to keep `second_model -> second_model` as the current preliminary quality/cost candidate for the non-concurrent local orchestrator/executor group workflow. It is not enough for a production recommendation because the bounded concurrent stress follow-up observed no stable concurrency.
 
-## 9. Limitations
+## 10. Limitations
 
 - N=3 per pair/scenario.
-- Sequential runner; no true concurrent multi-agent stress test.
+- The later bounded concurrent stress smoke ran, but every attempted batch failed.
 - CPU local runtime only.
-- GPU hardware was detected and a short GPU smoke completed, but no concurrent GPU stress test was run.
+- GPU hardware was detected and a short GPU smoke completed, but bounded GPU stress did not produce completed group runs.
 - Browser behavior remains simulated-only.
 - Office behavior remains stub/file-based.
 - The virtual network is still a controlled local action environment, not a full network simulation.

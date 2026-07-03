@@ -1,0 +1,36 @@
+{
+  "profiles": [
+    {
+      "profile_id": "strict_cpu",
+      "description": "CPU-only runtime profile using the local llama-server --device none flag via the wrapper -CpuOnly option.",
+      "server_params": {
+        "cpu_only": true,
+        "ctx_size": 4096
+      },
+      "expected_gpu_usage": "none",
+      "confidence": "medium",
+      "limitations": [
+        "The wrapper emits --device none and rejects GPU placement flags for this profile.",
+        "GPU telemetry is collected at the device level with nvidia-smi, so unrelated desktop or driver activity can still appear in samples.",
+        "A profile run must not be described as truly strict CPU-only if measured GPU utilization clearly appears during the batch."
+      ]
+    },
+    {
+      "profile_id": "gpu_full_offload",
+      "description": "GPU runtime profile using explicit full layer offload flags observed in local llama-server help and previous smoke runs.",
+      "server_params": {
+        "gpu_layers": "999",
+        "main_gpu": 0,
+        "split_mode": "none",
+        "ctx_size": 4096
+      },
+      "expected_gpu_usage": "high",
+      "confidence": "medium",
+      "limitations": [
+        "Full offload is requested with --n-gpu-layers 999; the exact placement remains llama-server dependent.",
+        "Flash attention is not enabled in this profile because the previous successful GPU smoke did not require it.",
+        "This profile is for bounded research smoke only, not production sizing."
+      ]
+    }
+  ]
+}

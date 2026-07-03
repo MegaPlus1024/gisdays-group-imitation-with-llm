@@ -74,6 +74,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start_llama_server.ps1 `
 ## 6. Limitations
 
 - GPU smoke is not a stress test.
+- Bounded GPU stress was attempted in `bounded_stress_candidate_pairs_v1`, but all heavy action-execution batches failed before successful group-run completion.
 - GPU speedup depends on backend/build/model/context and other active GPU workloads.
 - Final capacity requires measured concurrent runs.
 - This wrapper does not download models and does not change GGUF files.

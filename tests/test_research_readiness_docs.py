@@ -32,6 +32,7 @@ def test_research_readiness_docs_exist() -> None:
         "docs/ai/llama_server_gpu_flags_observed.md",
         "docs/ai/gpu_runtime_configuration_v1.md",
         "docs/ai/gpu_smoke_second_to_second_heavy_v1.md",
+        "docs/ai/bounded_stress_candidate_pairs_v1.md",
         "docs/ai/next_implementation_plan_orchestrator_executor.md",
     ]:
         assert (PROJECT_ROOT / relative_path).exists(), relative_path
@@ -44,6 +45,7 @@ def test_readme_links_research_model_metadata() -> None:
     assert "docs/ai/orchestrator_executor_runtime_capacity_v1.md" in readme
     assert "docs/ai/gpu_runtime_configuration_v1.md" in readme
     assert "docs/ai/gpu_smoke_second_to_second_heavy_v1.md" in readme
+    assert "docs/ai/bounded_stress_candidate_pairs_v1.md" in readme
 
 
 def test_evaluation_model_registry_has_current_models_and_legacy_alias() -> None:
@@ -277,6 +279,7 @@ def test_orchestrator_executor_runtime_capacity_doc_records_probe() -> None:
         "quality/cost winner",
         "GPU detected: yes",
         "GPU smoke artifact",
+        "Bounded Stress Follow-up",
         "preliminary only",
     ]:
         assert required in text
@@ -322,5 +325,25 @@ def test_gpu_smoke_doc_records_result_and_caveats() -> None:
         "1.006842",
         "not the same as strict `--device none`",
         "not evidence of meaningful acceleration",
+    ]:
+        assert required in text
+
+
+def test_bounded_stress_doc_records_failed_result_and_profiles() -> None:
+    text = _read("docs/ai/bounded_stress_candidate_pairs_v1.md")
+
+    for required in [
+        "Bounded Stress Probe for Candidate Pairs v1",
+        "bounded_stress_candidate_pairs_v1",
+        "strict_cpu",
+        "gpu_full_offload",
+        "second_model -> second_model",
+        "second_model -> first_model",
+        "concurrency levels tested: `1`, `2`",
+        "skipped concurrency level: `4`",
+        "FileNotFoundError",
+        "max stable concurrency observed",
+        "none",
+        "not proven truly strict",
     ]:
         assert required in text

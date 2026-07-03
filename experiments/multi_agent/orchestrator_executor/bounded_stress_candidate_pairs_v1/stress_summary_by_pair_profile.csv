@@ -1,0 +1,5 @@
+pair,profile_id,levels_observed,max_stable_concurrency_observed,max_nonfailed_concurrency_observed,quality_degradation_at_concurrency_2,latency_degradation_at_concurrency_2,quality_degradation_at_concurrency_4,latency_degradation_at_concurrency_4,bottleneck,mean_quality_across_levels,max_peak_ram_mb_total,max_peak_vram_mb,max_peak_gpu_utilization_percent,verdicts
+second_model->first_model,gpu_full_offload,"[1, 2]",,,,,,,GPU,,3200.53125,5439.0,95.0,"{""1"": ""failed"", ""2"": ""failed""}"
+second_model->first_model,strict_cpu,"[1, 2]",,,,,,,CPU,,5437.1875,1779.0,80.0,"{""1"": ""failed"", ""2"": ""failed""}"
+second_model->second_model,gpu_full_offload,"[1, 2]",,,,,,,GPU,,5271.523437,6192.0,99.0,"{""1"": ""failed"", ""2"": ""failed""}"
+second_model->second_model,strict_cpu,"[1, 2]",,,,,,,CPU,,8099.003907,1525.0,77.0,"{""1"": ""failed"", ""2"": ""failed""}"

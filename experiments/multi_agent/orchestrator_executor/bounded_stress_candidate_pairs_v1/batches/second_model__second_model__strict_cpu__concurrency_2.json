@@ -1,0 +1,150 @@
+{
+  "batch_id": "second_model__second_model__strict_cpu__concurrency_2",
+  "status": "completed_with_failures",
+  "pair": "second_model->second_model",
+  "pair_id": "second_model__second_model",
+  "profile_id": "strict_cpu",
+  "concurrency_level": 2,
+  "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v1\\second_model__second_model\\strict_cpu\\concurrency_2",
+  "planned_runs": 2,
+  "server_strategy": "two separate llama-server endpoints for the same model on different ports",
+  "server_flags_used": {
+    "orchestrator": [
+      "-CtxSize",
+      "4096",
+      "-CpuOnly"
+    ],
+    "executor": [
+      "-CtxSize",
+      "4096",
+      "-CpuOnly"
+    ]
+  },
+  "server_run": {
+    "server_error": null,
+    "server_strategy": "two separate llama-server endpoints for the same model on different ports",
+    "profile_id": "strict_cpu",
+    "profile_server_params": {
+      "cpu_only": true,
+      "ctx_size": 4096
+    },
+    "ports": {
+      "orchestrator": 8081,
+      "executor": 8082
+    },
+    "servers": [
+      {
+        "role": "orchestrator",
+        "model_id": "second_model",
+        "port": 8081,
+        "wrapper_pid": 52656,
+        "llama_pids": [
+          43780
+        ],
+        "endpoint_ready": true,
+        "endpoint_stopped": true,
+        "startup_time_ms": 2585.5439,
+        "endpoint_before": false,
+        "endpoint_after": false,
+        "error": null,
+        "runtime_flags": [
+          "-CtxSize",
+          "4096",
+          "-CpuOnly"
+        ],
+        "wrapper_command": [
+          "powershell",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          ".\\scripts\\start_llama_server.ps1",
+          "-ModelId",
+          "second_model",
+          "-ModelsConfig",
+          "configs\\evaluation_models.json",
+          "-Port",
+          "8081",
+          "-CtxSize",
+          "4096",
+          "-CpuOnly"
+        ]
+      },
+      {
+        "role": "executor",
+        "model_id": "second_model",
+        "port": 8082,
+        "wrapper_pid": 39648,
+        "llama_pids": [
+          23580
+        ],
+        "endpoint_ready": true,
+        "endpoint_stopped": true,
+        "startup_time_ms": 2544.7995,
+        "endpoint_before": false,
+        "endpoint_after": false,
+        "error": null,
+        "runtime_flags": [
+          "-CtxSize",
+          "4096",
+          "-CpuOnly"
+        ],
+        "wrapper_command": [
+          "powershell",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          ".\\scripts\\start_llama_server.ps1",
+          "-ModelId",
+          "second_model",
+          "-ModelsConfig",
+          "configs\\evaluation_models.json",
+          "-Port",
+          "8082",
+          "-CtxSize",
+          "4096",
+          "-CpuOnly"
+        ]
+      }
+    ]
+  },
+  "metrics": {
+    "profile_id": "strict_cpu",
+    "pair": "second_model->second_model",
+    "pair_id": "second_model__second_model",
+    "concurrency_level": 2,
+    "planned_runs": 2,
+    "runs_started": 2,
+    "runs_completed": 0,
+    "runs_failed": 2,
+    "timeout_count": 1,
+    "mean_wall_time_ms": null,
+    "p95_wall_time_ms": null,
+    "mean_pair_quality_score": null,
+    "mean_execution_success_rate": null,
+    "total_errors": 2,
+    "errors_per_run": 1.0,
+    "validation_failure_count": 0,
+    "repair_failure_count": 0,
+    "endpoint_error_count": 0,
+    "peak_ram_mb_total": 7582.277343,
+    "peak_ram_mb_per_server": 4108.539062,
+    "peak_cpu_percent_total": 2278.0,
+    "peak_vram_mb": 1525.0,
+    "mean_vram_mb": 1463.348387,
+    "peak_gpu_utilization_percent": 77.0,
+    "mean_gpu_utilization_percent": 25.529032,
+    "gpu_telemetry_available": true,
+    "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+    "gpu_total_vram_mb": 24467.0,
+    "throughput_runs_per_minute": 0.0,
+    "throughput_group_steps_per_minute": 0.0,
+    "batch_wall_time_ms": 200509.3101,
+    "sample_count": 310,
+    "server_error": null,
+    "common_failure_modes": {
+      "FileNotFoundError": 1,
+      "TimeoutError": 1
+    },
+    "stability_verdict": "failed"
+  }
+}

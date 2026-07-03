@@ -1,0 +1,94 @@
+[
+  {
+    "pair": "second_model->first_model",
+    "profile_id": "gpu_full_offload",
+    "levels_observed": [
+      1,
+      2
+    ],
+    "max_stable_concurrency_observed": null,
+    "max_nonfailed_concurrency_observed": null,
+    "quality_degradation_at_concurrency_2": null,
+    "latency_degradation_at_concurrency_2": null,
+    "quality_degradation_at_concurrency_4": null,
+    "latency_degradation_at_concurrency_4": null,
+    "bottleneck": "GPU",
+    "mean_quality_across_levels": null,
+    "max_peak_ram_mb_total": 3200.53125,
+    "max_peak_vram_mb": 5439.0,
+    "max_peak_gpu_utilization_percent": 95.0,
+    "verdicts": {
+      "1": "failed",
+      "2": "failed"
+    }
+  },
+  {
+    "pair": "second_model->first_model",
+    "profile_id": "strict_cpu",
+    "levels_observed": [
+      1,
+      2
+    ],
+    "max_stable_concurrency_observed": null,
+    "max_nonfailed_concurrency_observed": null,
+    "quality_degradation_at_concurrency_2": null,
+    "latency_degradation_at_concurrency_2": null,
+    "quality_degradation_at_concurrency_4": null,
+    "latency_degradation_at_concurrency_4": null,
+    "bottleneck": "CPU",
+    "mean_quality_across_levels": null,
+    "max_peak_ram_mb_total": 5437.1875,
+    "max_peak_vram_mb": 1779.0,
+    "max_peak_gpu_utilization_percent": 80.0,
+    "verdicts": {
+      "1": "failed",
+      "2": "failed"
+    }
+  },
+  {
+    "pair": "second_model->second_model",
+    "profile_id": "gpu_full_offload",
+    "levels_observed": [
+      1,
+      2
+    ],
+    "max_stable_concurrency_observed": null,
+    "max_nonfailed_concurrency_observed": null,
+    "quality_degradation_at_concurrency_2": null,
+    "latency_degradation_at_concurrency_2": null,
+    "quality_degradation_at_concurrency_4": null,
+    "latency_degradation_at_concurrency_4": null,
+    "bottleneck": "GPU",
+    "mean_quality_across_levels": null,
+    "max_peak_ram_mb_total": 5271.523437,
+    "max_peak_vram_mb": 6192.0,
+    "max_peak_gpu_utilization_percent": 99.0,
+    "verdicts": {
+      "1": "failed",
+      "2": "failed"
+    }
+  },
+  {
+    "pair": "second_model->second_model",
+    "profile_id": "strict_cpu",
+    "levels_observed": [
+      1,
+      2
+    ],
+    "max_stable_concurrency_observed": null,
+    "max_nonfailed_concurrency_observed": null,
+    "quality_degradation_at_concurrency_2": null,
+    "latency_degradation_at_concurrency_2": null,
+    "quality_degradation_at_concurrency_4": null,
+    "latency_degradation_at_concurrency_4": null,
+    "bottleneck": "CPU",
+    "mean_quality_across_levels": null,
+    "max_peak_ram_mb_total": 8099.003907,
+    "max_peak_vram_mb": 1525.0,
+    "max_peak_gpu_utilization_percent": 77.0,
+    "verdicts": {
+      "1": "failed",
+      "2": "failed"
+    }
+  }
+]

@@ -1,0 +1,87 @@
+{
+  "server_error": null,
+  "server_strategy": "two separate llama-server endpoints for the same model on different ports",
+  "profile_id": "strict_cpu",
+  "profile_server_params": {
+    "cpu_only": true,
+    "ctx_size": 4096
+  },
+  "ports": {
+    "orchestrator": 8081,
+    "executor": 8082
+  },
+  "servers": [
+    {
+      "role": "orchestrator",
+      "model_id": "second_model",
+      "port": 8081,
+      "wrapper_pid": 52656,
+      "llama_pids": [
+        43780
+      ],
+      "endpoint_ready": true,
+      "endpoint_stopped": true,
+      "startup_time_ms": 2585.5439,
+      "endpoint_before": false,
+      "endpoint_after": false,
+      "error": null,
+      "runtime_flags": [
+        "-CtxSize",
+        "4096",
+        "-CpuOnly"
+      ],
+      "wrapper_command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".\\scripts\\start_llama_server.ps1",
+        "-ModelId",
+        "second_model",
+        "-ModelsConfig",
+        "configs\\evaluation_models.json",
+        "-Port",
+        "8081",
+        "-CtxSize",
+        "4096",
+        "-CpuOnly"
+      ]
+    },
+    {
+      "role": "executor",
+      "model_id": "second_model",
+      "port": 8082,
+      "wrapper_pid": 39648,
+      "llama_pids": [
+        23580
+      ],
+      "endpoint_ready": true,
+      "endpoint_stopped": true,
+      "startup_time_ms": 2544.7995,
+      "endpoint_before": false,
+      "endpoint_after": false,
+      "error": null,
+      "runtime_flags": [
+        "-CtxSize",
+        "4096",
+        "-CpuOnly"
+      ],
+      "wrapper_command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".\\scripts\\start_llama_server.ps1",
+        "-ModelId",
+        "second_model",
+        "-ModelsConfig",
+        "configs\\evaluation_models.json",
+        "-Port",
+        "8082",
+        "-CtxSize",
+        "4096",
+        "-CpuOnly"
+      ]
+    }
+  ]
+}

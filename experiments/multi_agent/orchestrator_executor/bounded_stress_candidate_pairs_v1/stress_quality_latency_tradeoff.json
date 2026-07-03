@@ -1,0 +1,104 @@
+{
+  "rankings": [
+    {
+      "pair": "second_model->second_model",
+      "profile_id": "strict_cpu",
+      "concurrency_level": 1,
+      "mean_pair_quality_score": null,
+      "mean_wall_time_ms": null,
+      "total_errors": 2,
+      "throughput_runs_per_minute": 0.0,
+      "stability_verdict": "failed",
+      "quality_latency_score": -0.52
+    },
+    {
+      "pair": "second_model->second_model",
+      "profile_id": "strict_cpu",
+      "concurrency_level": 2,
+      "mean_pair_quality_score": null,
+      "mean_wall_time_ms": null,
+      "total_errors": 2,
+      "throughput_runs_per_minute": 0.0,
+      "stability_verdict": "failed",
+      "quality_latency_score": -0.52
+    },
+    {
+      "pair": "second_model->second_model",
+      "profile_id": "gpu_full_offload",
+      "concurrency_level": 1,
+      "mean_pair_quality_score": null,
+      "mean_wall_time_ms": null,
+      "total_errors": 2,
+      "throughput_runs_per_minute": 0.0,
+      "stability_verdict": "failed",
+      "quality_latency_score": -0.52
+    },
+    {
+      "pair": "second_model->second_model",
+      "profile_id": "gpu_full_offload",
+      "concurrency_level": 2,
+      "mean_pair_quality_score": null,
+      "mean_wall_time_ms": null,
+      "total_errors": 2,
+      "throughput_runs_per_minute": 0.0,
+      "stability_verdict": "failed",
+      "quality_latency_score": -0.52
+    },
+    {
+      "pair": "second_model->first_model",
+      "profile_id": "strict_cpu",
+      "concurrency_level": 1,
+      "mean_pair_quality_score": null,
+      "mean_wall_time_ms": null,
+      "total_errors": 2,
+      "throughput_runs_per_minute": 0.0,
+      "stability_verdict": "failed",
+      "quality_latency_score": -0.52
+    },
+    {
+      "pair": "second_model->first_model",
+      "profile_id": "strict_cpu",
+      "concurrency_level": 2,
+      "mean_pair_quality_score": null,
+      "mean_wall_time_ms": null,
+      "total_errors": 2,
+      "throughput_runs_per_minute": 0.0,
+      "stability_verdict": "failed",
+      "quality_latency_score": -0.52
+    },
+    {
+      "pair": "second_model->first_model",
+      "profile_id": "gpu_full_offload",
+      "concurrency_level": 1,
+      "mean_pair_quality_score": null,
+      "mean_wall_time_ms": null,
+      "total_errors": 2,
+      "throughput_runs_per_minute": 0.0,
+      "stability_verdict": "failed",
+      "quality_latency_score": -0.52
+    },
+    {
+      "pair": "second_model->first_model",
+      "profile_id": "gpu_full_offload",
+      "concurrency_level": 2,
+      "mean_pair_quality_score": null,
+      "mean_wall_time_ms": null,
+      "total_errors": 2,
+      "throughput_runs_per_minute": 0.0,
+      "stability_verdict": "failed",
+      "quality_latency_score": -0.52
+    }
+  ],
+  "best_observed_batch": {
+    "pair": "second_model->second_model",
+    "profile_id": "strict_cpu",
+    "concurrency_level": 1,
+    "mean_pair_quality_score": null,
+    "mean_wall_time_ms": null,
+    "total_errors": 2,
+    "throughput_runs_per_minute": 0.0,
+    "stability_verdict": "failed",
+    "quality_latency_score": -0.52
+  },
+  "recommendation_status": "preliminary only"
+}
