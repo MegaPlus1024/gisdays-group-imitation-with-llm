@@ -43,6 +43,7 @@ Current evidence:
 - repeated trials were completed with N=3 per model per scenario;
 - total real local-model trajectories in the final report: 12;
 - a sequential fake-mode orchestrator/executor group MVP now exists;
+- a controlled two-endpoint local orchestrator/executor proof was attempted and blocked on invalid orchestrator plan JSON;
 - resource/capacity evaluation exists, but multi-agent capacity is formula-estimated, not stress-tested.
 
 Important limitations:
@@ -51,7 +52,7 @@ Important limitations:
 - production full autonomous agent loop is not implemented;
 - production action execution scheduler/runtime is not implemented;
 - no measured multi-agent stress test;
-- no local orchestrator/executor group run has been executed yet;
+- no successful local orchestrator/executor group proof has completed yet;
 - browser behavior is simulated-only;
 - office behavior is stub/file-based;
 - no git/mail actions are included;
@@ -122,7 +123,7 @@ Run the test suite:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests.
 
 ## 7. Model setup
 
@@ -228,6 +229,15 @@ The first group-agent MVP uses `second_model` as the default orchestrator candid
 ```
 
 Main documentation: `docs/ai/orchestrator_executor_pipeline_v1.md`.
+
+For local mode, the group runner supports separate endpoint overrides:
+
+- `--orchestrator-base-url`
+- `--executor-base-url`
+- `--orchestrator-model-name`
+- `--executor-model-name`
+
+A controlled local follow-up requires either two local endpoints or a future clean sequential-switching handoff. The first two-endpoint attempt started `second_model` on port 8081 and `first_model` on port 8082, but it was blocked because the real orchestrator response was not valid complete JSON. See `docs/ai/local_orchestrator_executor_poc_v1.md` and `docs/ai/local_orchestrator_executor_poc_blocker.md`.
 
 ## 10. Real local single scenario run
 
@@ -339,7 +349,7 @@ Final summary:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests.
 
 ## 17. Publishing to GitHub
 
@@ -390,7 +400,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 
 - Research prototype, not production-ready.
 - No measured multi-agent stress test.
-- No measured local orchestrator/executor group run.
+- No successful measured local orchestrator/executor group run.
 - Browser behavior is simulated-only.
 - Office behavior is stub/file-based.
 - No git/mail actions.

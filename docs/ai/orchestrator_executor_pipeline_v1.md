@@ -62,6 +62,23 @@ Plan -> assign -> execute -> validate -> log -> evaluate
 
 In fake mode, both orchestrator and executor outputs are deterministic local fixtures. In local mode, the same runner can call OpenAI-compatible local endpoints, but local group inference was not executed for this MVP checkpoint.
 
+## Local proof-of-concept follow-up
+
+A controlled local follow-up was prepared with explicit per-role endpoint overrides:
+
+- `second_model` as orchestrator on `http://127.0.0.1:8081/v1`;
+- `first_model` as executor on `http://127.0.0.1:8082/v1`.
+
+Runtime audit: `docs/ai/local_orchestrator_executor_runtime_audit.md`.
+
+The two local endpoints started and responded to `/v1/models`, but the proof did not complete because the real orchestrator response failed the JSON plan contract before executor calls were attempted.
+
+POC note: `docs/ai/local_orchestrator_executor_poc_v1.md`.
+
+Blocker report: `docs/ai/local_orchestrator_executor_poc_blocker.md`.
+
+The next implementation step is to harden local orchestrator plan generation: shorter prompt, larger orchestrator response budget, orchestrator-plan repair, and failed-plan artifact preservation.
+
 ## 5. Quality score
 
 The runner writes a prototype `pair_quality_score` in `pair_quality_metrics.json`.

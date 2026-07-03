@@ -260,6 +260,10 @@ class OrchestratorExecutorRunConfig(BaseModel):
     run_id: str = "orchestrator_executor_group_run"
     orchestrator_model_id: str | None = None
     executor_model_id: str | None = None
+    orchestrator_base_url: str | None = None
+    executor_base_url: str | None = None
+    orchestrator_model_name: str | None = None
+    executor_model_name: str | None = None
     max_group_steps: int | None = None
     max_steps_per_agent: int | None = None
     repair_attempts: int = 0
@@ -276,6 +280,18 @@ class OrchestratorExecutorRunConfig(BaseModel):
     def validate_run_id(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("run_id must be non-empty.")
+        return value
+
+    @field_validator(
+        "orchestrator_base_url",
+        "executor_base_url",
+        "orchestrator_model_name",
+        "executor_model_name",
+    )
+    @classmethod
+    def validate_optional_non_empty(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("Optional runtime override values must be non-empty when provided.")
         return value
 
     @field_validator("repair_attempts")
@@ -524,6 +540,11 @@ class OrchestratorExecutorRunner:
         registry = EvaluationModelRegistry(models_config)
         orchestrator_model = _orchestrator_model_config(registry.require(scenario.orchestrator_model_id))
         executor_model = _executor_model_config(registry.require(scenario.executor_model_id))
+        orchestrator_model, executor_model = _apply_runtime_overrides(
+            orchestrator_model,
+            executor_model,
+            self.config,
+        )
         script_registry = load_script_registry(self.config.project_path(scenario.registry_path))
 
         role_templates = {
@@ -737,6 +758,27 @@ def _executor_model_config(spec: EvaluationModelSpec) -> ExecutorModelConfig:
         temperature=spec.temperature,
         max_tokens=spec.max_tokens,
         timeout_seconds=spec.timeout_seconds,
+    )
+
+
+def _apply_runtime_overrides(
+    orchestrator_model: OrchestratorModelConfig,
+    executor_model: ExecutorModelConfig,
+    config: OrchestratorExecutorRunConfig,
+) -> tuple[OrchestratorModelConfig, ExecutorModelConfig]:
+    orchestrator_updates: dict[str, Any] = {}
+    executor_updates: dict[str, Any] = {}
+    if config.orchestrator_base_url:
+        orchestrator_updates["base_url"] = config.orchestrator_base_url.rstrip("/")
+    if config.executor_base_url:
+        executor_updates["base_url"] = config.executor_base_url.rstrip("/")
+    if config.orchestrator_model_name:
+        orchestrator_updates["model_name"] = config.orchestrator_model_name
+    if config.executor_model_name:
+        executor_updates["model_name"] = config.executor_model_name
+    return (
+        orchestrator_model.model_copy(update=orchestrator_updates),
+        executor_model.model_copy(update=executor_updates),
     )
 
 
@@ -1163,8 +1205,20 @@ def _manifest(
         "mode": config.mode,
         "status": result.status,
         "success": result.success,
+        "orchestrator_model_id": orchestrator_model.model_id,
+        "executor_model_id": executor_model.model_id,
+        "orchestrator_base_url": orchestrator_model.base_url,
+        "executor_base_url": executor_model.base_url,
+        "orchestrator_model_name": orchestrator_model.model_name,
+        "executor_model_name": executor_model.model_name,
         "orchestrator_model": orchestrator_model.model_dump(mode="json"),
         "executor_model": executor_model.model_dump(mode="json"),
+        "runtime_overrides": {
+            "orchestrator_base_url": config.orchestrator_base_url,
+            "executor_base_url": config.executor_base_url,
+            "orchestrator_model_name": config.orchestrator_model_name,
+            "executor_model_name": config.executor_model_name,
+        },
         "max_group_steps": scenario.max_group_steps,
         "max_steps_per_agent": scenario.max_steps_per_agent,
         "execute_actions": scenario.execute_actions,
@@ -1190,6 +1244,15 @@ def _resource_summary(started_at: str, wall_time_seconds: float) -> dict[str, An
 
 def _replay_command(config: OrchestratorExecutorRunConfig) -> str:
     action_flag = "--execute-actions" if config.execute_actions is not False else "--no-execute-actions"
+    optional_flags = ""
+    if config.orchestrator_base_url:
+        optional_flags += f"--orchestrator-base-url {config.orchestrator_base_url} "
+    if config.executor_base_url:
+        optional_flags += f"--executor-base-url {config.executor_base_url} "
+    if config.orchestrator_model_name:
+        optional_flags += f"--orchestrator-model-name {config.orchestrator_model_name} "
+    if config.executor_model_name:
+        optional_flags += f"--executor-model-name {config.executor_model_name} "
     return (
         "python scripts\\run_orchestrator_executor_group.py "
         f"--mode {config.mode} "
@@ -1199,6 +1262,7 @@ def _replay_command(config: OrchestratorExecutorRunConfig) -> str:
         f"--run-id {config.run_id} "
         f"--orchestrator-model-id {config.orchestrator_model_id or 'second_model'} "
         f"--executor-model-id {config.executor_model_id or 'first_model'} "
+        f"{optional_flags}"
         f"--max-group-steps {config.max_group_steps or 2} "
         f"--max-steps-per-agent {config.max_steps_per_agent or 2} "
         f"--repair-attempts {config.repair_attempts} "

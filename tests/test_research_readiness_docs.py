@@ -15,6 +15,9 @@ def test_research_readiness_docs_exist() -> None:
     for relative_path in [
         "docs/ai/model_research_metadata.md",
         "docs/ai/final_tz_readiness_audit.md",
+        "docs/ai/local_orchestrator_executor_runtime_audit.md",
+        "docs/ai/local_orchestrator_executor_poc_v1.md",
+        "docs/ai/local_orchestrator_executor_poc_blocker.md",
         "docs/ai/orchestrator_executor_pipeline_v1.md",
         "docs/ai/orchestrator_executor_quality_spec.md",
         "docs/ai/gpu_runtime_readiness_audit.md",
@@ -101,5 +104,23 @@ def test_orchestrator_executor_pipeline_doc_names_default_pair_and_artifacts() -
         "office_developer_group_basic_v1",
         "pair_quality_score",
         "experiments/multi_agent/orchestrator_executor/fake_office_developer_group_v1",
+        "Local proof-of-concept follow-up",
+        "local_orchestrator_executor_poc_blocker.md",
     ]:
         assert required in text
+
+
+def test_local_orchestrator_executor_poc_docs_record_blocked_attempt() -> None:
+    poc = _read("docs/ai/local_orchestrator_executor_poc_v1.md")
+    blocker = _read("docs/ai/local_orchestrator_executor_poc_blocker.md")
+
+    for required in [
+        "second_model",
+        "first_model",
+        "http://127.0.0.1:8081/v1",
+        "http://127.0.0.1:8082/v1",
+        "invalid orchestrator JSON",
+    ]:
+        assert required in poc or required in blocker
+
+    assert "No final model-pair recommendation" in blocker

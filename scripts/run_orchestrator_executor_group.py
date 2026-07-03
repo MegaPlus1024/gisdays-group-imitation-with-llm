@@ -22,6 +22,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-id", default="orchestrator_executor_group_run")
     parser.add_argument("--orchestrator-model-id", default="second_model")
     parser.add_argument("--executor-model-id", default="first_model")
+    parser.add_argument("--orchestrator-base-url", default=None)
+    parser.add_argument("--executor-base-url", default=None)
+    parser.add_argument("--orchestrator-model-name", default=None)
+    parser.add_argument("--executor-model-name", default=None)
     parser.add_argument("--max-group-steps", type=int, default=None)
     parser.add_argument("--max-steps-per-agent", type=int, default=None)
     parser.add_argument("--repair-attempts", type=int, default=0)
@@ -50,6 +54,10 @@ def main(argv: list[str] | None = None) -> int:
         run_id=args.run_id,
         orchestrator_model_id=args.orchestrator_model_id,
         executor_model_id=args.executor_model_id,
+        orchestrator_base_url=args.orchestrator_base_url,
+        executor_base_url=args.executor_base_url,
+        orchestrator_model_name=args.orchestrator_model_name,
+        executor_model_name=args.executor_model_name,
         max_group_steps=args.max_group_steps,
         max_steps_per_agent=args.max_steps_per_agent,
         repair_attempts=args.repair_attempts,
@@ -76,6 +84,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"success: {result.success}")
     print(f"orchestrator_model_id: {result.orchestrator_model_id}")
     print(f"executor_model_ids: {','.join(result.executor_model_ids)}")
+    print(f"orchestrator_base_url_override: {config.orchestrator_base_url or 'registry'}")
+    print(f"executor_base_url_override: {config.executor_base_url or 'registry'}")
     print(f"pair_quality_score: {result.quality_metrics.pair_quality_score}")
     print(f"artifact_dir: {result.artifact_dir}")
     return 0 if result.status in {"completed", "completed_with_failures"} else 1
