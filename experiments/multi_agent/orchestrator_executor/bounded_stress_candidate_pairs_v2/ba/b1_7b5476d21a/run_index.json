@@ -1,0 +1,228 @@
+[
+  {
+    "run_number": 1,
+    "run_id": "second_model__first_model__cpu_requested_device_none__concurrency_1__run_001",
+    "status": "completed",
+    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v2\\ba\\b1_7b5476d21a\\g001",
+    "trial_artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v2\\ba\\b1_7b5476d21a\\g001\\runs\\trial_001",
+    "workspace_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v2\\ba\\b1_7b5476d21a\\g001\\runs\\trial_001\\workspace",
+    "workspace_path_length": 190,
+    "wall_time_ms_probe": 101702.3616,
+    "return_code": 0,
+    "aggregate": {
+      "trial_count": 1,
+      "completed_trial_count": 1,
+      "failed_trial_count": 0,
+      "mean_pair_quality_score": 0.78125,
+      "std_pair_quality_score": 0.0,
+      "min_pair_quality_score": 0.78125,
+      "max_pair_quality_score": 0.78125,
+      "mean_plan_valid_rate": 1.0,
+      "mean_executor_call_count": 11.0,
+      "mean_final_validation_success_rate": 0.454545,
+      "mean_execution_success_rate": 1.0,
+      "total_safety_violations": 0,
+      "total_errors": 6,
+      "common_failure_modes": {
+        "validation_failed": 6,
+        "write_path_outside_artifact_workspace": 6,
+        "HTTPStatusError": 6
+      },
+      "common_actions": {
+        "create_file": 6,
+        "read_file": 2
+      },
+      "common_action_parameters": {
+        "{\"action\": \"create_file\", \"parameters\": {\"content\": \"This is a safe office note.\", \"path\": \"experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v2/ba/b1_7b5476d21a/g001/runs/trial_001/workspace/office_agent_2_executor_note.md\"}}": 2,
+        "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}": 1,
+        "{\"action\": \"create_file\", \"parameters\": {\"content\": \"local planning note.\", \"path\": \"experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v2/ba/b1_7b5476d21a/g001/runs/trial_001/workspace/office_agent_1_executor_note.md\"}}": 1,
+        "{\"action\": \"create_file\", \"parameters\": {\"content\": \"The local document content is available.\", \"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}": 1,
+        "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}": 1
+      },
+      "mean_wall_time_ms": 101447.387,
+      "mean_orchestrator_latency_ms": 14997.867,
+      "mean_executor_latency_ms": 7854.222091
+    },
+    "trial_index": [
+      {
+        "trial_id": "trial_001",
+        "run_id": "second_model__first_model__cpu_requested_device_none__concurrency_1__run_001_trial_001",
+        "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v2\\ba\\b1_7b5476d21a\\g001\\runs\\trial_001",
+        "status": "completed_with_failures",
+        "trial_status": "completed",
+        "success": false,
+        "plan_valid": true,
+        "executor_calls": 11,
+        "final_validation_success_count": 5,
+        "execution_success_count": 5,
+        "pair_quality_score": 0.78125,
+        "main_errors": "validation_failed: write_path_outside_artifact_workspace; HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:8082/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400; developer_agent_1 validation_failed: write_path_outside_artifact_workspace; developer_agent_1 HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:8082/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400; developer_agent_2 validation_failed: write_path_outside_artifact_workspace; developer_agent_2 HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:8082/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400",
+        "return_code": 0,
+        "error_message": null,
+        "orchestrator_initial_parse_success": true,
+        "orchestrator_repair_attempt_count": 0,
+        "executor_model_calls_attempted": 11,
+        "initial_validation_success_count": 5,
+        "repair_attempt_count": 3,
+        "execution_attempted_count": 5,
+        "safety_violation_count": 0,
+        "error_count": 6,
+        "pair_verdict": "prototype_pass",
+        "wall_time_ms": 101447.387,
+        "orchestrator_latency_ms": 14997.867,
+        "executor_latency_mean_ms": 7854.222091,
+        "repeated_action_count": 6,
+        "dominant_action_parameters": [
+          {
+            "action_parameters": "{\"action\": \"create_file\", \"parameters\": {\"content\": \"This is a safe office note.\", \"path\": \"experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v2/ba/b1_7b5476d21a/g001/runs/trial_001/workspace/office_agent_2_executor_note.md\"}}",
+            "count": 2
+          },
+          {
+            "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}",
+            "count": 1
+          },
+          {
+            "action_parameters": "{\"action\": \"create_file\", \"parameters\": {\"content\": \"local planning note.\", \"path\": \"experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v2/ba/b1_7b5476d21a/g001/runs/trial_001/workspace/office_agent_1_executor_note.md\"}}",
+            "count": 1
+          },
+          {
+            "action_parameters": "{\"action\": \"create_file\", \"parameters\": {\"content\": \"The local document content is available.\", \"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}",
+            "count": 1
+          },
+          {
+            "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}",
+            "count": 1
+          }
+        ],
+        "common_failure_modes": {
+          "validation_failed": 6,
+          "write_path_outside_artifact_workspace": 6,
+          "HTTPStatusError": 6
+        },
+        "common_actions": {
+          "read_file": 2,
+          "create_file": 6
+        },
+        "stopped_reason": null
+      }
+    ],
+    "failure_modes": {
+      "validation_failed": 6,
+      "write_path_outside_artifact_workspace": 6,
+      "HTTPStatusError": 6
+    }
+  },
+  {
+    "run_number": 2,
+    "run_id": "second_model__first_model__cpu_requested_device_none__concurrency_1__run_002",
+    "status": "completed",
+    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v2\\ba\\b1_7b5476d21a\\g002",
+    "trial_artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v2\\ba\\b1_7b5476d21a\\g002\\runs\\trial_001",
+    "workspace_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v2\\ba\\b1_7b5476d21a\\g002\\runs\\trial_001\\workspace",
+    "workspace_path_length": 190,
+    "wall_time_ms_probe": 94840.7686,
+    "return_code": 0,
+    "aggregate": {
+      "trial_count": 1,
+      "completed_trial_count": 1,
+      "failed_trial_count": 0,
+      "mean_pair_quality_score": 0.775,
+      "std_pair_quality_score": 0.0,
+      "min_pair_quality_score": 0.775,
+      "max_pair_quality_score": 0.775,
+      "mean_plan_valid_rate": 1.0,
+      "mean_executor_call_count": 11.0,
+      "mean_final_validation_success_rate": 0.454545,
+      "mean_execution_success_rate": 1.0,
+      "total_safety_violations": 0,
+      "total_errors": 6,
+      "common_failure_modes": {
+        "validation_failed": 6,
+        "write_path_outside_artifact_workspace": 6,
+        "HTTPStatusError": 6
+      },
+      "common_actions": {
+        "create_file": 5,
+        "read_file": 3
+      },
+      "common_action_parameters": {
+        "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}": 2,
+        "{\"action\": \"create_file\", \"parameters\": {\"content\": \"office_agent_2 local group note.\", \"path\": \"experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v2/ba/b1_7b5476d21a/g002/runs/trial_001/workspace/office_agent_2_executor_note.md\"}}": 2,
+        "{\"action\": \"create_file\", \"parameters\": {\"content\": \"Maintenance follow-up context content.\", \"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}": 2,
+        "{\"action\": \"create_file\", \"parameters\": {\"content\": \"The local document content is available.\", \"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}": 1,
+        "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}": 1
+      },
+      "mean_wall_time_ms": 94477.896,
+      "mean_orchestrator_latency_ms": 12299.214,
+      "mean_executor_latency_ms": 7463.313727
+    },
+    "trial_index": [
+      {
+        "trial_id": "trial_001",
+        "run_id": "second_model__first_model__cpu_requested_device_none__concurrency_1__run_002_trial_001",
+        "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v2\\ba\\b1_7b5476d21a\\g002\\runs\\trial_001",
+        "status": "completed_with_failures",
+        "trial_status": "completed",
+        "success": false,
+        "plan_valid": true,
+        "executor_calls": 11,
+        "final_validation_success_count": 5,
+        "execution_success_count": 5,
+        "pair_quality_score": 0.775,
+        "main_errors": "validation_failed: write_path_outside_artifact_workspace; HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:8082/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400; developer_agent_1 validation_failed: write_path_outside_artifact_workspace; developer_agent_1 HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:8082/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400; developer_agent_2 validation_failed: write_path_outside_artifact_workspace; developer_agent_2 HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:8082/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400",
+        "return_code": 0,
+        "error_message": null,
+        "orchestrator_initial_parse_success": true,
+        "orchestrator_repair_attempt_count": 0,
+        "executor_model_calls_attempted": 11,
+        "initial_validation_success_count": 5,
+        "repair_attempt_count": 3,
+        "execution_attempted_count": 5,
+        "safety_violation_count": 0,
+        "error_count": 6,
+        "pair_verdict": "prototype_pass",
+        "wall_time_ms": 94477.896,
+        "orchestrator_latency_ms": 12299.214,
+        "executor_latency_mean_ms": 7463.313727,
+        "repeated_action_count": 6,
+        "dominant_action_parameters": [
+          {
+            "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}",
+            "count": 2
+          },
+          {
+            "action_parameters": "{\"action\": \"create_file\", \"parameters\": {\"content\": \"office_agent_2 local group note.\", \"path\": \"experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v2/ba/b1_7b5476d21a/g002/runs/trial_001/workspace/office_agent_2_executor_note.md\"}}",
+            "count": 2
+          },
+          {
+            "action_parameters": "{\"action\": \"create_file\", \"parameters\": {\"content\": \"Maintenance follow-up context content.\", \"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}",
+            "count": 2
+          },
+          {
+            "action_parameters": "{\"action\": \"create_file\", \"parameters\": {\"content\": \"The local document content is available.\", \"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}",
+            "count": 1
+          },
+          {
+            "action_parameters": "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}",
+            "count": 1
+          }
+        ],
+        "common_failure_modes": {
+          "validation_failed": 6,
+          "write_path_outside_artifact_workspace": 6,
+          "HTTPStatusError": 6
+        },
+        "common_actions": {
+          "read_file": 3,
+          "create_file": 5
+        },
+        "stopped_reason": null
+      }
+    ],
+    "failure_modes": {
+      "validation_failed": 6,
+      "write_path_outside_artifact_workspace": 6,
+      "HTTPStatusError": 6
+    }
+  }
+]

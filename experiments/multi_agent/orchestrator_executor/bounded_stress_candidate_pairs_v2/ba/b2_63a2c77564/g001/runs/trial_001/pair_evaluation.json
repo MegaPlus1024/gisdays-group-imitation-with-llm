@@ -1,0 +1,36 @@
+{
+  "evaluation_id": "orchestrator_executor_pair_evaluation_v1",
+  "orchestrator_model_id": "second_model",
+  "executor_model_ids": [
+    "first_model"
+  ],
+  "metrics": {
+    "orchestrator_plan_valid": false,
+    "task_assignment_valid_rate": 0.0,
+    "executor_initial_validation_rate": 0.0,
+    "executor_final_validation_rate": 0.0,
+    "execution_success_rate": 0.0,
+    "role_fit_mean": 0.0,
+    "diversity_mean": 0.0,
+    "repetition_mean": 0.0,
+    "history_usage_mean": 0.0,
+    "group_coordination_score": 0.0,
+    "task_completion_proxy_score": 0.0,
+    "safety_violation_count": 0,
+    "latency_mean_ms": 25340.8195,
+    "pair_quality_score": 0.0,
+    "metadata": {
+      "status": "failed",
+      "failure_stage": "orchestrator_plan",
+      "failure_reason": "Orchestrator plan failed schema validation: 4 validation errors for OrchestratorPlanPayload\ntasks.0.success_criteria\n  Field required [type=missing, input_value={'task_id': 't1', 'agent_...d_file', 'create_file']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\ntasks.1.success_criteria\n  Field required [type=missing, input_value={'task_id': 't2', 'agent_...d_file', 'create_file']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\ntasks.2.success_criteria\n  Field required [type=missing, input_value={'task_id': 't3', 'agent_...d_file', 'create_file']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\ntasks.3.success_criteria\n  Field required [type=missing, input_value={'task_id': 't4', 'agent_...d_file', 'create_file']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing",
+      "orchestrator_attempt_count": 2,
+      "orchestrator_repair_attempted": true,
+      "prototype_scoring": true
+    }
+  },
+  "verdict": "failed",
+  "notes": [
+    "Orchestrator plan was not valid; executor stage was not reached.",
+    "Diagnostic artifacts preserve prompt, raw output, and parse/validation errors."
+  ]
+}

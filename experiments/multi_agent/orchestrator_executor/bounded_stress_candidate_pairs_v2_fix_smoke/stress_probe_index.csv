@@ -1,0 +1,2 @@
+batch_id,batch_slug,status,pair,profile_id,concurrency_level,artifact_path,failed_stage,failure_reason,missing_path,stability_verdict,server_error
+second_model__first_model__gpu_full_offload__concurrency_1,b1_9c62f0957c,completed,second_model->first_model,gpu_full_offload,1,C:\Users\m\Documents\local-llm-test-gisdays\local-llm-agent-lab\experiments\multi_agent\orchestrator_executor\bounded_stress_candidate_pairs_v2_fix_smoke\ba\b1_9c62f0957c,,,,unstable,

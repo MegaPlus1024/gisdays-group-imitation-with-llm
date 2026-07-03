@@ -20,6 +20,7 @@ Bounded stress artifact:
 
 ```text
 experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v1
+experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v2
 ```
 
 ## Findings
@@ -33,7 +34,7 @@ experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v1
 | Does `scripts/start_llama_server.ps1` support GPU flags? | Yes. It now exposes `-GpuLayers`, `-MainGpu`, `-SplitMode`, `-TensorSplit`, `-BatchSize`, `-UBatchSize`, `-Threads`, `-FlashAttention`, and `-CpuOnly`. |
 | Does `configs/evaluation_models.json` record GPU settings? | No. It records local model/runtime metadata but not GPU layer/device settings. |
 | Was GPU runtime measured? | Yes, as a short N=1 smoke for `second_model -> second_model` on the heavy group scenario. |
-| Was bounded GPU stress attempted? | Yes, under `gpu_full_offload`, but all attempted heavy action-execution batches failed. |
+| Was bounded GPU stress attempted? | Yes. v1 failed due to a harness path-length issue. v2 completed bounded GPU rows, with concurrency 1 stable for `second_model -> second_model` and unstable rows elsewhere. |
 | Is CPU local group runtime measured? | Yes. The runtime probe measured the two candidate pairs on simple and heavy group scenarios. |
 
 ## Hardware Snapshot
@@ -81,7 +82,7 @@ emits:
 --n-gpu-layers all --main-gpu 0 --split-mode none
 ```
 
-The CPU-only dry run maps `-CpuOnly` to:
+The CPU-requested dry run maps `-CpuOnly` to:
 
 ```text
 --device none
@@ -113,10 +114,11 @@ The result proves that explicit wrapper GPU flags can start and complete a short
 - GPU runtime configured: yes, optional wrapper flags implemented.
 - GPU runtime measured: yes, short N=1 smoke only.
 - Bounded multi-agent concurrent stress attempted: yes.
-- Stable multi-agent concurrent capacity measured: no; all bounded stress batches failed before successful group-run completion.
+- Stable multi-agent concurrent capacity measured: partial. Corrected v2 observed stable concurrency 1 for `second_model -> second_model` under both `cpu_requested_device_none` and `gpu_full_offload`; no stable concurrency 2 row was observed.
+- Strict CPU-only status: not verified. The active CPU profile is `cpu_requested_device_none`, not `strict_cpu`, because telemetry is device-level and GPU activity was still observed.
 
 GPU is likely useful for throughput/capacity, but the current bounded stress result is not ready to support a capacity recommendation.
 
 ## Recommended Next Step
 
-Fix or classify the missing workspace-file failure path from the bounded stress artifact, then rerun the same explicit `strict_cpu` and `gpu_full_offload` profiles.
+Investigate the remaining v2 concurrency failure modes: repair `HTTPStatusError`, endpoint-style instability, and quality collapse at GPU concurrency 2.

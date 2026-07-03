@@ -10,6 +10,8 @@ Artifact root:
 experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v1
 ```
 
+Status update: v1 failed due to a stress harness artifact-layout issue on Windows path length, not a valid capacity measurement. See `docs/ai/bounded_stress_failure_analysis_v1.md` and the corrected v2 run in `docs/ai/bounded_stress_candidate_pairs_v2.md`.
+
 ## 2. Candidate pairs
 
 - `second_model -> second_model`
@@ -108,4 +110,4 @@ This does not invalidate the earlier non-concurrent pair-matrix evidence. It mea
 
 ## 10. Next step
 
-Fix or explicitly classify the missing workspace-file failure path in the heavy action-execution scenario, then rerun the same bounded stress probe. Until at least one pair/profile has completed runs at concurrency 1, do not use the GPU/CPU stress result as a preliminary final recommendation.
+This v1 issue has been fixed in the corrected v2 stress probe. Do not use v1 as capacity evidence; use `docs/ai/bounded_stress_candidate_pairs_v2.md` for the corrected bounded stress result.

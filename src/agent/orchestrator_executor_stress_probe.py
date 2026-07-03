@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import math
+import re
 import shutil
 import subprocess
 import sys
@@ -124,6 +126,7 @@ def run_bounded_stress_probe(config: StressProbeConfig) -> dict[str, Any]:
     out_root = _prepare_output_root(config.project_root / config.out_root, force=config.force)
     profiles = load_runtime_profiles(config.project_root, config.runtime_profiles_config_path)
     selected_profiles = select_runtime_profiles(profiles, config.profile_ids)
+    scenario_fixture_status = inspect_scenario_fixtures(config.project_root, config.scenario_path)
     batches: list[dict[str, Any]] = []
     metrics_rows: list[dict[str, Any]] = []
     system_before = collect_system_snapshot()
@@ -159,6 +162,7 @@ def run_bounded_stress_probe(config: StressProbeConfig) -> dict[str, Any]:
         "models_config_path": config.models_config_path,
         "runtime_profiles_config_path": config.runtime_profiles_config_path,
         "scenario_path": config.scenario_path,
+        "scenario_fixture_status": scenario_fixture_status,
         "protocol": _protocol_payload(config),
         "system_before": system_before,
         "system_after": system_after,
@@ -299,6 +303,9 @@ def aggregate_batch_metrics(
     total_errors = sum(_int(item.get("total_errors")) for item in aggregates)
     total_errors += sum(1 for record in failed_records if not record.get("aggregate"))
     timeout_count = sum(1 for record in run_records if record.get("status") == "timeout")
+    failed_stage = _first_non_empty(record.get("failed_stage") for record in failed_records)
+    failure_reason = _first_non_empty(record.get("failure_reason") for record in failed_records)
+    missing_path = _first_non_empty(record.get("missing_path") for record in failed_records)
     endpoint_error_count = _endpoint_error_count(failure_modes, server_error, samples)
     minutes = batch_wall_time_ms / 60000.0 if batch_wall_time_ms > 0 else 0.0
     throughput_runs = round(len(completed_records) / minutes, 6) if minutes > 0 else None
@@ -321,6 +328,9 @@ def aggregate_batch_metrics(
         "runs_completed": len(completed_records),
         "runs_failed": len(failed_records),
         "timeout_count": timeout_count,
+        "failed_stage": failed_stage,
+        "failure_reason": failure_reason,
+        "missing_path": missing_path,
         "mean_wall_time_ms": mean_wall,
         "p95_wall_time_ms": p95_wall,
         "mean_pair_quality_score": mean_quality,
@@ -632,8 +642,10 @@ def _run_stress_batch(
     concurrency_level: int,
 ) -> dict[str, Any]:
     batch_id = f"{pair.pair_id}__{profile.profile_id}__concurrency_{concurrency_level}"
-    batch_dir = out_root / pair.pair_id / profile.profile_id / f"concurrency_{concurrency_level}"
+    batch_slug = _short_batch_slug(pair, profile, concurrency_level)
+    batch_dir = _batch_artifact_dir(out_root, batch_slug)
     batch_dir.mkdir(parents=True, exist_ok=True)
+    fixture_status = inspect_scenario_fixtures(config.project_root, config.scenario_path)
     planned_runs = max(config.runs_per_level, concurrency_level)
     servers: list[ManagedServer] = []
     sampler: StressSampler | None = None
@@ -643,23 +655,27 @@ def _run_stress_batch(
     started_at = time.perf_counter()
 
     try:
-        if config.mode == "local":
-            runtime_config = _runtime_config_for_profile(config, profile, pair)
-            servers = _start_managed_servers(runtime_config, pair)
-            sampler = StressSampler(
-                pids=sorted({pid for server in servers for pid in server.llama_pids}),
-                endpoints={server.role: server.port for server in servers},
-                interval_seconds=config.sample_interval_seconds,
+        missing_fixtures = fixture_status.get("missing_fixture_paths") or []
+        if missing_fixtures:
+            server_error = "Missing scenario fixtures: " + ", ".join(str(item) for item in missing_fixtures)
+        else:
+            if config.mode == "local":
+                runtime_config = _runtime_config_for_profile(config, profile, pair)
+                servers = _start_managed_servers(runtime_config, pair)
+                sampler = StressSampler(
+                    pids=sorted({pid for server in servers for pid in server.llama_pids}),
+                    endpoints={server.role: server.port for server in servers},
+                    interval_seconds=config.sample_interval_seconds,
+                )
+                sampler.start()
+            run_records = _run_group_runs(
+                config=config,
+                batch_dir=batch_dir,
+                batch_id=batch_id,
+                pair=pair,
+                concurrency_level=concurrency_level,
+                planned_runs=planned_runs,
             )
-            sampler.start()
-        run_records = _run_group_runs(
-            config=config,
-            batch_dir=batch_dir,
-            batch_id=batch_id,
-            pair=pair,
-            concurrency_level=concurrency_level,
-            planned_runs=planned_runs,
-        )
     except Exception as exc:
         server_error = str(exc) or exc.__class__.__name__
     finally:
@@ -692,13 +708,20 @@ def _run_stress_batch(
     server_run = _server_run_payload(config, pair, profile, servers, server_error)
     summary = {
         "batch_id": batch_id,
+        "batch_slug": batch_slug,
         "status": status,
         "pair": pair.label,
         "pair_id": pair.pair_id,
         "profile_id": profile.profile_id,
         "concurrency_level": concurrency_level,
         "artifact_path": str(batch_dir),
+        "artifact_layout": "short_batch_slug",
         "planned_runs": planned_runs,
+        "failed_stage": "scenario_fixture_preflight" if fixture_status.get("missing_fixture_paths") else metrics.get("failed_stage"),
+        "failure_reason": "missing_scenario_fixture" if fixture_status.get("missing_fixture_paths") else metrics.get("failure_reason"),
+        "missing_path": _first_non_empty(fixture_status.get("missing_fixture_paths") or []) or metrics.get("missing_path"),
+        "workspace_strategy": _workspace_strategy_payload(config),
+        "fixture_status": fixture_status,
         "server_strategy": _server_strategy(pair, config.mode),
         "server_flags_used": _server_flags_used(servers),
         "server_run": server_run,
@@ -710,7 +733,7 @@ def _run_stress_batch(
     _write_json(batch_dir / "run_index.json", run_records)
     _write_json(batch_dir / "batch_summary.json", summary)
     (batch_dir / "README.md").write_text(_batch_readme(summary), encoding="utf-8")
-    _write_json(out_root / "batches" / f"{batch_id}.json", summary)
+    _write_json(out_root / "batches" / f"{batch_slug}.json", summary)
     return summary
 
 
@@ -818,7 +841,7 @@ def _start_group_run_subprocess(
     run_number: int,
 ) -> dict[str, Any]:
     run_id = f"{batch_id}__run_{run_number:03d}"
-    group_root = batch_dir / "group_runs" / f"run_{run_number:03d}"
+    group_root = _group_artifact_root(batch_dir, run_number)
     group_root.mkdir(parents=True, exist_ok=True)
     command = [
         sys.executable,
@@ -869,6 +892,9 @@ def _start_group_run_subprocess(
         "run_number": run_number,
         "run_id": run_id,
         "group_root": group_root,
+        "trial_artifact_path": _trial_artifact_path(group_root),
+        "workspace_path": _trial_workspace_path(group_root),
+        "workspace_path_length": _path_length(_trial_workspace_path(group_root)),
         "started_at": time.perf_counter(),
         "process": proc,
         "command": command,
@@ -888,17 +914,21 @@ def _subprocess_run_record(state: dict[str, Any]) -> dict[str, Any]:
     aggregate = payload.get("aggregate") or {}
     failed = _int(aggregate.get("failed_trial_count"))
     status = "failed" if failed or proc.returncode not in (0, None) else "completed"
-    return {
+    payload = {
         "run_number": state["run_number"],
         "run_id": state["run_id"],
         "status": status,
         "artifact_path": str(group_root),
+        "trial_artifact_path": str(state.get("trial_artifact_path") or _trial_artifact_path(group_root)),
+        "workspace_path": str(state.get("workspace_path") or _trial_workspace_path(group_root)),
+        "workspace_path_length": state.get("workspace_path_length") or _path_length(_trial_workspace_path(group_root)),
         "wall_time_ms_probe": _elapsed_ms(float(state["started_at"])),
         "return_code": proc.returncode,
         "aggregate": aggregate,
         "trial_index": payload.get("trial_index") or [],
         "failure_modes": payload.get("failure_modes") or aggregate.get("common_failure_modes") or {},
     }
+    return _enrich_run_record_diagnostics(payload)
 
 
 def _timeout_subprocess_run_record(state: dict[str, Any], timeout_seconds: float) -> dict[str, Any]:
@@ -913,11 +943,16 @@ def _timeout_subprocess_run_record(state: dict[str, Any], timeout_seconds: float
         "run_id": state["run_id"],
         "status": "timeout",
         "artifact_path": str(group_root),
+        "trial_artifact_path": str(state.get("trial_artifact_path") or _trial_artifact_path(group_root)),
+        "workspace_path": str(state.get("workspace_path") or _trial_workspace_path(group_root)),
+        "workspace_path_length": state.get("workspace_path_length") or _path_length(_trial_workspace_path(group_root)),
         "timeout_seconds": timeout_seconds,
         "wall_time_ms_probe": _elapsed_ms(float(state["started_at"])),
         "error_type": "TimeoutError",
         "error_message": f"Group run did not finish within {timeout_seconds} seconds.",
         "command": state["command"],
+        "failed_stage": "timeout",
+        "failure_reason": "group_run_timeout",
     }
     _write_json(group_root / "timeout_error.json", payload)
     return payload
@@ -930,12 +965,16 @@ def _failed_subprocess_record(state: dict[str, Any], error_type: str, error_mess
         "run_id": state["run_id"],
         "status": "failed",
         "artifact_path": str(group_root),
+        "trial_artifact_path": str(state.get("trial_artifact_path") or _trial_artifact_path(group_root)),
+        "workspace_path": str(state.get("workspace_path") or _trial_workspace_path(group_root)),
+        "workspace_path_length": state.get("workspace_path_length") or _path_length(_trial_workspace_path(group_root)),
         "wall_time_ms_probe": _elapsed_ms(float(state["started_at"])),
         "return_code": state["process"].returncode,
         "error_type": error_type,
         "error_message": error_message,
         "command": state["command"],
     }
+    payload = _enrich_run_record_diagnostics(payload)
     _write_json(group_root / "run_error.json", payload)
     return payload
 
@@ -950,7 +989,7 @@ def _run_single_group_run(
 ) -> dict[str, Any]:
     started = time.perf_counter()
     run_id = f"{batch_id}__run_{run_number:03d}"
-    group_root = batch_dir / "group_runs" / f"run_{run_number:03d}"
+    group_root = _group_artifact_root(batch_dir, run_number)
     try:
         result = run_repeated_group_trials(
             RepeatedGroupRunConfig(
@@ -977,16 +1016,20 @@ def _run_single_group_run(
         )
         aggregate = result.aggregate.model_dump(mode="json")
         failed = aggregate.get("failed_trial_count") or 0
-        return {
+        payload = {
             "run_number": run_number,
             "run_id": run_id,
             "status": "failed" if failed else "completed",
             "artifact_path": str(group_root),
+            "trial_artifact_path": str(_trial_artifact_path(group_root)),
+            "workspace_path": str(_trial_workspace_path(group_root)),
+            "workspace_path_length": _path_length(_trial_workspace_path(group_root)),
             "wall_time_ms_probe": _elapsed_ms(started),
             "aggregate": aggregate,
             "trial_index": result.trial_index,
             "failure_modes": result.failure_modes,
         }
+        return _enrich_run_record_diagnostics(payload)
     except Exception as exc:
         return _failed_run_record(group_root, batch_id, run_number, exc, started=started)
 
@@ -1006,10 +1049,14 @@ def _failed_run_record(
         "run_id": run_id,
         "status": "failed",
         "artifact_path": str(artifact_root),
+        "trial_artifact_path": str(_trial_artifact_path(artifact_root)),
+        "workspace_path": str(_trial_workspace_path(artifact_root)),
+        "workspace_path_length": _path_length(_trial_workspace_path(artifact_root)),
         "wall_time_ms_probe": _elapsed_ms(started) if started is not None else None,
         "error_type": exc.__class__.__name__,
         "error_message": str(exc) or exc.__class__.__name__,
     }
+    payload = _enrich_run_record_diagnostics(payload)
     _write_json(artifact_root / "run_error.json", payload)
     (artifact_root / "README.md").write_text(
         f"# Failed Stress Group Run\n\nRun id: `{run_id}`\n\nError: `{payload['error_message']}`\n",
@@ -1021,7 +1068,7 @@ def _failed_run_record(
 def _timeout_run_record(
     batch_dir: Path, batch_id: str, run_number: int, timeout_seconds: float
 ) -> dict[str, Any]:
-    artifact_root = batch_dir / "group_runs" / f"run_{run_number:03d}"
+    artifact_root = _group_artifact_root(batch_dir, run_number)
     artifact_root.mkdir(parents=True, exist_ok=True)
     run_id = f"{batch_id}__run_{run_number:03d}"
     payload = {
@@ -1029,9 +1076,14 @@ def _timeout_run_record(
         "run_id": run_id,
         "status": "timeout",
         "artifact_path": str(artifact_root),
+        "trial_artifact_path": str(_trial_artifact_path(artifact_root)),
+        "workspace_path": str(_trial_workspace_path(artifact_root)),
+        "workspace_path_length": _path_length(_trial_workspace_path(artifact_root)),
         "timeout_seconds": timeout_seconds,
         "error_type": "TimeoutError",
         "error_message": f"Group run did not finish within {timeout_seconds} seconds.",
+        "failed_stage": "timeout",
+        "failure_reason": "group_run_timeout",
     }
     _write_json(artifact_root / "timeout_error.json", payload)
     (artifact_root / "README.md").write_text(
@@ -1039,6 +1091,169 @@ def _timeout_run_record(
         encoding="utf-8",
     )
     return payload
+
+
+def _short_batch_slug(pair: PairSpec, profile: RuntimeProfile, concurrency_level: int) -> str:
+    raw = f"{pair.pair_id}|{profile.profile_id}|{concurrency_level}"
+    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:10]
+    return f"b{concurrency_level}_{digest}"
+
+
+def _batch_artifact_dir(out_root: Path, batch_slug: str) -> Path:
+    return out_root / "ba" / batch_slug
+
+
+def _group_artifact_root(batch_dir: Path, run_number: int) -> Path:
+    return batch_dir / f"g{run_number:03d}"
+
+
+def _trial_artifact_path(group_root: Path) -> Path:
+    return group_root / "runs" / "trial_001"
+
+
+def _trial_workspace_path(group_root: Path) -> Path:
+    return _trial_artifact_path(group_root) / "workspace"
+
+
+def _path_length(path: Path | str) -> int:
+    return len(str(path))
+
+
+def inspect_scenario_fixtures(project_root: Path, scenario_path: str | Path) -> dict[str, Any]:
+    path = Path(scenario_path)
+    if not path.is_absolute():
+        path = project_root / path
+    if not path.exists():
+        missing = str(scenario_path)
+        return {
+            "scenario_path": str(path),
+            "fixture_strategy": "shared_read_only_project_root",
+            "write_strategy": "per_run_artifact_workspace",
+            "fixture_paths": [],
+            "fixtures": [],
+            "missing_fixture_paths": [missing],
+            "missing_scenario_path": missing,
+            "all_present": False,
+        }
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    fixture_paths = [
+        str(item)
+        for item in ((payload.get("metadata") or {}).get("fixture_paths") or [])
+    ]
+    rows = []
+    missing = []
+    for fixture in fixture_paths:
+        fixture_path = Path(fixture)
+        resolved = fixture_path if fixture_path.is_absolute() else project_root / fixture_path
+        exists = resolved.exists()
+        rows.append(
+            {
+                "path": fixture,
+                "resolved_path": str(resolved),
+                "exists": exists,
+                "read_only_shared_project_fixture": True,
+            }
+        )
+        if not exists:
+            missing.append(fixture)
+    return {
+        "scenario_path": str(path),
+        "fixture_strategy": "shared_read_only_project_root",
+        "write_strategy": "per_run_artifact_workspace",
+        "fixture_paths": fixture_paths,
+        "fixtures": rows,
+        "missing_fixture_paths": missing,
+        "all_present": not missing,
+    }
+
+
+def _workspace_strategy_payload(config: StressProbeConfig) -> dict[str, Any]:
+    return {
+        "artifact_layout": "short batch/run directories under <out_root>/ba/<batch_slug>/gNNN",
+        "write_strategy": "each repeated group run writes under its own runs/trial_001/workspace directory",
+        "fixture_strategy": "scenario fixtures are shared read-only project files; they are not copied",
+        "relative_path_resolution": "same project_root-relative resolution as repeated_orchestrator_executor_trials",
+        "path_length_guard": "short artifact layout avoids Windows MAX_PATH failures observed in v1",
+        "project_root": str(config.project_root),
+    }
+
+
+def _enrich_run_record_diagnostics(record: dict[str, Any]) -> dict[str, Any]:
+    if record.get("status") == "completed":
+        return record
+    diagnostics = _failure_diagnostics(record)
+    for key, value in diagnostics.items():
+        if value is not None and key not in record:
+            record[key] = value
+    return record
+
+
+def _failure_diagnostics(record: dict[str, Any]) -> dict[str, Any]:
+    error_text = _record_error_text(record)
+    error_type = str(record.get("error_type") or _first_failure_mode(record) or "")
+    missing_path = _extract_missing_path(error_text)
+    missing_path_length = len(missing_path) if missing_path else None
+    failed_stage = None
+    failure_reason = None
+    source_file_line = None
+
+    if record.get("status") == "timeout" or error_type == "TimeoutError":
+        failed_stage = "timeout"
+        failure_reason = "group_run_timeout"
+    elif "filenotfounderror" in error_type.lower() or "No such file or directory" in error_text:
+        failed_stage = "artifact_workspace_write"
+        failure_reason = "missing_path"
+        if missing_path and _is_probable_windows_max_path(missing_path):
+            failure_reason = "windows_max_path_limit"
+        source_file_line = "src/agent/scripts/file_activity.py:create_file/write_text or office_document_activity.py:create_document_stub/write_text"
+    elif error_type:
+        failed_stage = "group_run"
+        failure_reason = error_type
+
+    return {
+        "failed_stage": failed_stage,
+        "failure_reason": failure_reason,
+        "missing_path": missing_path,
+        "missing_path_length": missing_path_length,
+        "source_file_line": source_file_line,
+    }
+
+
+def _record_error_text(record: dict[str, Any]) -> str:
+    parts = [
+        str(record.get("error_message") or ""),
+        str(record.get("main_errors") or ""),
+    ]
+    for trial in record.get("trial_index") or []:
+        if isinstance(trial, dict):
+            parts.append(str(trial.get("main_errors") or ""))
+            parts.append(str(trial.get("error_message") or ""))
+            parts.append(str(trial.get("stopped_reason") or ""))
+    return "\n".join(part for part in parts if part)
+
+
+def _first_failure_mode(record: dict[str, Any]) -> str | None:
+    modes = record.get("failure_modes") or {}
+    if isinstance(modes, dict) and modes:
+        return str(next(iter(modes)))
+    aggregate = record.get("aggregate") or {}
+    modes = aggregate.get("common_failure_modes") or {}
+    if isinstance(modes, dict) and modes:
+        return str(next(iter(modes)))
+    return None
+
+
+def _extract_missing_path(text: str) -> str | None:
+    if not text:
+        return None
+    match = re.search(r"No such file or directory: '([^']+)'", text)
+    if not match:
+        return None
+    return match.group(1).replace("\\\\", "\\")
+
+
+def _is_probable_windows_max_path(path: str) -> bool:
+    return "\\" in path and len(path) >= 260
 
 
 def _runtime_config_for_profile(
@@ -1103,6 +1318,7 @@ def _protocol_payload(config: StressProbeConfig) -> dict[str, Any]:
         "sample_interval_seconds": config.sample_interval_seconds,
         "continue_on_failure": config.continue_on_failure,
         "server_strategy": "two separate llama-server endpoints per pair, including same-model pairs",
+        "artifact_layout": "short batch/run artifact directories avoid Windows MAX_PATH failures",
     }
 
 
@@ -1299,11 +1515,15 @@ def _index_rows(batches: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         {
             "batch_id": batch.get("batch_id"),
+            "batch_slug": batch.get("batch_slug"),
             "status": batch.get("status"),
             "pair": batch.get("pair"),
             "profile_id": batch.get("profile_id"),
             "concurrency_level": batch.get("concurrency_level"),
             "artifact_path": batch.get("artifact_path"),
+            "failed_stage": batch.get("failed_stage"),
+            "failure_reason": batch.get("failure_reason"),
+            "missing_path": batch.get("missing_path"),
             "stability_verdict": (batch.get("metrics") or {}).get("stability_verdict"),
             "server_error": (batch.get("metrics") or {}).get("server_error"),
         }
@@ -1351,7 +1571,7 @@ def _gpu_vs_cpu_markdown(comparison: dict[str, Any]) -> str:
 def _root_readme(result: dict[str, Any]) -> str:
     return "\n".join(
         [
-            "# Bounded Stress Candidate Pairs v1",
+            "# Bounded Stress Candidate Pairs",
             "",
             f"- probe_id: `{result.get('probe_id')}`",
             f"- mode: `{result.get('mode')}`",
@@ -1404,7 +1624,7 @@ def _batch_readme(summary: dict[str, Any]) -> str:
             "- `telemetry_samples.jsonl`",
             "- `run_index.json`",
             "- `batch_summary.json`",
-            "- `group_runs/`",
+            "- `gNNN/` per-run artifacts",
             "",
         ]
     )
@@ -1518,6 +1738,13 @@ def _safe_max(values: list[float | None]) -> float | None:
     return round(max(clean), 6) if clean else None
 
 
+def _first_non_empty(values: Any) -> Any | None:
+    for value in values:
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
 def _percentile(values: list[float | None], percentile: int) -> float | None:
     clean = sorted(value for value in values if value is not None)
     if not clean:
@@ -1531,11 +1758,15 @@ def _percentile(values: list[float | None], percentile: int) -> float | None:
 
 _INDEX_FIELDS = [
     "batch_id",
+    "batch_slug",
     "status",
     "pair",
     "profile_id",
     "concurrency_level",
     "artifact_path",
+    "failed_stage",
+    "failure_reason",
+    "missing_path",
     "stability_verdict",
     "server_error",
 ]
@@ -1550,6 +1781,9 @@ _BATCH_METRIC_FIELDS = [
     "runs_completed",
     "runs_failed",
     "timeout_count",
+    "failed_stage",
+    "failure_reason",
+    "missing_path",
     "mean_wall_time_ms",
     "p95_wall_time_ms",
     "mean_pair_quality_score",

@@ -1,0 +1,97 @@
+{
+  "gpu_before": {
+    "timestamp": "2026-07-03T16:45:55.474556+00:00",
+    "gpu_telemetry_available": true,
+    "gpu_count": 1,
+    "gpus": [
+      {
+        "name": "NVIDIA RTX PRO 4000 Blackwell",
+        "driver_version": "582.16",
+        "total_vram_mb": 24467.0,
+        "used_vram_mb": 1715.0,
+        "gpu_utilization_percent": 13.0,
+        "gpu_memory_utilization_percent": 3.0,
+        "temperature_c": 59.0,
+        "power_draw_w": 36.47
+      }
+    ],
+    "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+    "driver_version": "582.16",
+    "total_vram_mb": 24467.0,
+    "used_vram_mb": 1715.0,
+    "gpu_utilization_percent": 13.0,
+    "gpu_memory_utilization_percent": 3.0,
+    "temperature_c": 59.0,
+    "power_draw_w": 36.47
+  },
+  "gpu_after": {
+    "timestamp": "2026-07-03T17:03:21.258403+00:00",
+    "gpu_telemetry_available": true,
+    "gpu_count": 1,
+    "gpus": [
+      {
+        "name": "NVIDIA RTX PRO 4000 Blackwell",
+        "driver_version": "582.16",
+        "total_vram_mb": 24467.0,
+        "used_vram_mb": 1715.0,
+        "gpu_utilization_percent": 12.0,
+        "gpu_memory_utilization_percent": 3.0,
+        "temperature_c": 65.0,
+        "power_draw_w": 37.07
+      }
+    ],
+    "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+    "driver_version": "582.16",
+    "total_vram_mb": 24467.0,
+    "used_vram_mb": 1715.0,
+    "gpu_utilization_percent": 12.0,
+    "gpu_memory_utilization_percent": 3.0,
+    "temperature_c": 65.0,
+    "power_draw_w": 37.07
+  },
+  "profiles": [
+    {
+      "profile_id": "cpu_requested_device_none",
+      "description": "CPU-requested runtime profile using the local llama-server --device none flag via the wrapper -CpuOnly option; strict CPU-only execution is not proven by device-level telemetry.",
+      "server_params": {
+        "cpu_only": true,
+        "ctx_size": 4096
+      },
+      "expected_gpu_usage": "none",
+      "confidence": "low",
+      "uses_cpu_only_flag": true,
+      "uses_explicit_gpu_offload": false,
+      "strict_cpu_truly_strict": false,
+      "peak_gpu_utilization_percent_observed": 60.0,
+      "peak_vram_mb_observed": 1715.0,
+      "limitations": [
+        "The wrapper emits --device none and rejects GPU placement flags for this profile.",
+        "GPU telemetry is collected at the device level with nvidia-smi, so unrelated desktop or driver activity can still appear in samples.",
+        "A profile run must not be described as truly strict CPU-only unless per-process or server-level evidence proves llama-server did not use GPU resources."
+      ]
+    },
+    {
+      "profile_id": "gpu_full_offload",
+      "description": "GPU runtime profile using explicit full layer offload flags observed in local llama-server help and previous smoke runs.",
+      "server_params": {
+        "gpu_layers": "999",
+        "main_gpu": 0,
+        "split_mode": "none",
+        "ctx_size": 4096
+      },
+      "expected_gpu_usage": "high",
+      "confidence": "medium",
+      "uses_cpu_only_flag": false,
+      "uses_explicit_gpu_offload": true,
+      "strict_cpu_truly_strict": null,
+      "peak_gpu_utilization_percent_observed": 99.0,
+      "peak_vram_mb_observed": 6422.0,
+      "limitations": [
+        "Full offload is requested with --n-gpu-layers 999; the exact placement remains llama-server dependent.",
+        "Flash attention is not enabled in this profile because the previous successful GPU smoke did not require it.",
+        "This profile is for bounded research smoke only, not production sizing."
+      ]
+    }
+  ],
+  "note": "strict_cpu_truly_strict is based on device-level telemetry and may be false if unrelated GPU work was active during sampling."
+}

@@ -1,0 +1,11 @@
+comparison_id: second_model__second_model__cpu_requested_device_none__concurrency_1__run_001
+status: complete
+orchestrator_model_id: second_model
+executor_model_id: second_model
+trial_count: 1
+completed_trial_count: 1
+failed_trial_count: 0
+mean_pair_quality_score: 0.895833
+mean_execution_success_rate: 1.0
+total_errors: 0
+out_root: C:\Users\m\Documents\local-llm-test-gisdays\local-llm-agent-lab\experiments\multi_agent\orchestrator_executor\bounded_stress_candidate_pairs_v2\ba\b1_aa98aca06d\g001

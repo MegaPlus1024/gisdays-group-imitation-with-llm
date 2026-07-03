@@ -1,0 +1,65 @@
+{
+  "runner_id": "orchestrator_executor_pipeline_v1",
+  "run_id": "second_model__first_model__cpu_requested_device_none__concurrency_2__run_001_trial_001",
+  "scenario_id": "office_developer_maintenance_group_heavy_v1",
+  "scenario_path": "configs\\multi_agent_scenarios\\office_developer_maintenance_group_heavy.json",
+  "out_dir": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v2\\ba\\b2_63a2c77564\\g001\\runs\\trial_001",
+  "workspace_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v2\\ba\\b2_63a2c77564\\g001\\runs\\trial_001\\workspace",
+  "workspace_relative_path": "experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v2/ba/b2_63a2c77564/g001/runs/trial_001/workspace/",
+  "workspace_policy": "artifact_workspace_only",
+  "fixture_strategy": "shared_read_only_project_root",
+  "fixture_paths": [
+    "configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md",
+    "configs/multi_agent_fixtures/office_developer_maintenance/maintenance_notes.md",
+    "configs/multi_agent_fixtures/office_developer_maintenance/project_context.md"
+  ],
+  "mode": "local",
+  "status": "failed",
+  "success": false,
+  "orchestrator_model_id": "second_model",
+  "executor_model_id": "first_model",
+  "orchestrator_base_url": "http://127.0.0.1:8081/v1",
+  "executor_base_url": "http://127.0.0.1:8082/v1",
+  "orchestrator_model_name": "second_model.gguf",
+  "executor_model_name": "first_model.gguf",
+  "orchestrator_max_tokens": 1024,
+  "orchestrator_temperature": 0.0,
+  "orchestrator_repair_attempts": 1,
+  "executor_repair_attempts": 1,
+  "orchestrator_model": {
+    "model_id": "second_model",
+    "role": "orchestrator",
+    "base_url": "http://127.0.0.1:8081/v1",
+    "model_name": "second_model.gguf",
+    "temperature": 0.0,
+    "max_tokens": 1024,
+    "timeout_seconds": 120.0
+  },
+  "executor_model": {
+    "model_id": "first_model",
+    "role": "executor",
+    "base_url": "http://127.0.0.1:8082/v1",
+    "model_name": "first_model.gguf",
+    "temperature": 0.0,
+    "max_tokens": 512,
+    "timeout_seconds": 120.0
+  },
+  "runtime_overrides": {
+    "orchestrator_base_url": "http://127.0.0.1:8081/v1",
+    "executor_base_url": "http://127.0.0.1:8082/v1",
+    "orchestrator_model_name": null,
+    "executor_model_name": null,
+    "orchestrator_max_tokens": 1024,
+    "orchestrator_temperature": null
+  },
+  "max_group_steps": 2,
+  "max_steps_per_agent": 1,
+  "execute_actions": true,
+  "started_at": "2026-07-03T17:00:20.553433+00:00",
+  "completed_at": "2026-07-03T17:01:11.236661+00:00",
+  "limitations": [
+    "MVP runner is sequential and not a production scheduler.",
+    "Fake mode does not call llama-server.",
+    "Local mode requires already available compatible runtime endpoint(s)."
+  ]
+}

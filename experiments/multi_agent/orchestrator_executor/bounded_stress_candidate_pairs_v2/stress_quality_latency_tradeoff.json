@@ -1,0 +1,104 @@
+{
+  "rankings": [
+    {
+      "pair": "second_model->second_model",
+      "profile_id": "cpu_requested_device_none",
+      "concurrency_level": 1,
+      "mean_pair_quality_score": 0.895833,
+      "mean_wall_time_ms": 173322.9835,
+      "total_errors": 0,
+      "throughput_runs_per_minute": 0.326452,
+      "stability_verdict": "stable",
+      "quality_latency_score": 0.90054
+    },
+    {
+      "pair": "second_model->second_model",
+      "profile_id": "gpu_full_offload",
+      "concurrency_level": 1,
+      "mean_pair_quality_score": 0.875198,
+      "mean_wall_time_ms": 9134.7655,
+      "total_errors": 4,
+      "throughput_runs_per_minute": 3.053131,
+      "stability_verdict": "stable",
+      "quality_latency_score": 0.893097
+    },
+    {
+      "pair": "second_model->first_model",
+      "profile_id": "gpu_full_offload",
+      "concurrency_level": 1,
+      "mean_pair_quality_score": 0.820153,
+      "mean_wall_time_ms": 7097.973,
+      "total_errors": 12,
+      "throughput_runs_per_minute": 3.473183,
+      "stability_verdict": "unstable",
+      "quality_latency_score": 0.520106
+    },
+    {
+      "pair": "second_model->first_model",
+      "profile_id": "cpu_requested_device_none",
+      "concurrency_level": 2,
+      "mean_pair_quality_score": 0.775,
+      "mean_wall_time_ms": 82547.034,
+      "total_errors": 8,
+      "throughput_runs_per_minute": 0.446756,
+      "stability_verdict": "unstable",
+      "quality_latency_score": 0.452496
+    },
+    {
+      "pair": "second_model->first_model",
+      "profile_id": "cpu_requested_device_none",
+      "concurrency_level": 1,
+      "mean_pair_quality_score": 0.778125,
+      "mean_wall_time_ms": 97962.6415,
+      "total_errors": 12,
+      "throughput_runs_per_minute": 0.554925,
+      "stability_verdict": "unstable",
+      "quality_latency_score": 0.416226
+    },
+    {
+      "pair": "second_model->first_model",
+      "profile_id": "gpu_full_offload",
+      "concurrency_level": 2,
+      "mean_pair_quality_score": 0.146138,
+      "mean_wall_time_ms": 5358.1425,
+      "total_errors": 16,
+      "throughput_runs_per_minute": 4.770196,
+      "stability_verdict": "unstable",
+      "quality_latency_score": -0.169502
+    },
+    {
+      "pair": "second_model->second_model",
+      "profile_id": "gpu_full_offload",
+      "concurrency_level": 2,
+      "mean_pair_quality_score": 0.144059,
+      "mean_wall_time_ms": 7042.8715,
+      "total_errors": 16,
+      "throughput_runs_per_minute": 4.366821,
+      "stability_verdict": "unstable",
+      "quality_latency_score": -0.186776
+    },
+    {
+      "pair": "second_model->second_model",
+      "profile_id": "cpu_requested_device_none",
+      "concurrency_level": 2,
+      "mean_pair_quality_score": null,
+      "mean_wall_time_ms": 72636.735,
+      "total_errors": 3,
+      "throughput_runs_per_minute": 0.0,
+      "stability_verdict": "failed",
+      "quality_latency_score": -0.526558
+    }
+  ],
+  "best_observed_batch": {
+    "pair": "second_model->second_model",
+    "profile_id": "cpu_requested_device_none",
+    "concurrency_level": 1,
+    "mean_pair_quality_score": 0.895833,
+    "mean_wall_time_ms": 173322.9835,
+    "total_errors": 0,
+    "throughput_runs_per_minute": 0.326452,
+    "stability_verdict": "stable",
+    "quality_latency_score": 0.90054
+  },
+  "recommendation_status": "preliminary only"
+}

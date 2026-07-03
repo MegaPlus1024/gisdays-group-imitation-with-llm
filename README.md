@@ -52,14 +52,14 @@ Current evidence:
 - measured local runtime/resource telemetry now exists for the two top completed pairs across simple and heavy group scenarios;
 - optional GPU flags are supported by `scripts/start_llama_server.ps1`, based on observed local `llama-server --help`;
 - a short N=1 GPU smoke completed for `second_model -> second_model` on the heavy group scenario;
-- a bounded concurrent stress smoke now exists for the two candidate pairs under explicit `strict_cpu` and `gpu_full_offload` profiles, but all attempted heavy action-execution batches failed and no stable concurrency was observed.
+- v1 bounded stress failed due to a Windows path-length harness issue; corrected v2 bounded stress now has usable preliminary metrics, with stable concurrency 1 observed for `second_model -> second_model` under `cpu_requested_device_none` and `gpu_full_offload`.
 
 Important limitations:
 
 - not production-ready;
 - production full autonomous agent loop is not implemented;
 - production action execution scheduler/runtime is not implemented;
-- no measured concurrent multi-agent stress test;
+- corrected bounded concurrent multi-agent stress evidence is preliminary only; no stable concurrency 2 row was observed;
 - pair-matrix and runtime-probe evidence covers two short group scenarios so far; no long stress test has been run;
 - GPU smoke is short and not a stress test; first wall-time result was roughly comparable, not a meaningful speedup claim;
 - browser behavior is simulated-only;
@@ -419,10 +419,10 @@ The bounded stress runner executes concurrent heavy group runs against managed l
   --models-config configs\evaluation_models.json `
   --runtime-profiles-config configs\runtime_profiles.json `
   --scenario configs\multi_agent_scenarios\office_developer_maintenance_group_heavy.json `
-  --out-root experiments\multi_agent\orchestrator_executor\bounded_stress_candidate_pairs_v1 `
-  --label bounded_stress_candidate_pairs_v1 `
+  --out-root experiments\multi_agent\orchestrator_executor\bounded_stress_candidate_pairs_v2 `
+  --label bounded_stress_candidate_pairs_v2 `
   --pairs second_model:second_model,second_model:first_model `
-  --profiles strict_cpu,gpu_full_offload `
+  --profiles cpu_requested_device_none,gpu_full_offload `
   --concurrency-levels 1,2 `
   --runs-per-level 2 `
   --base-port 8081 `
@@ -437,10 +437,10 @@ The bounded stress runner executes concurrent heavy group runs against managed l
   --continue-on-failure `
   --force `
   --skipped-concurrency-levels 4 `
-  --skip-reason "Level 4 was skipped to keep the run bounded."
+  --skip-reason "bounded v2 keeps level 4 skipped until levels 1 and 2 are interpreted"
 ```
 
-Latest bounded stress artifact root: `experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v1`. All eight attempted batches failed because the heavy action-execution trials hit missing workspace-file errors; no stable concurrency was observed. See `docs/ai/bounded_stress_candidate_pairs_v1.md`.
+Latest bounded stress artifact root: `experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v2`. v1 failed because the harness created Windows paths that were too long; v2 fixed the artifact layout and produced preliminary stress metrics. Stable concurrency 1 was observed only for `second_model -> second_model`; no stable concurrency 2 row was observed. See `docs/ai/bounded_stress_candidate_pairs_v1.md`, `docs/ai/bounded_stress_failure_analysis_v1.md`, and `docs/ai/bounded_stress_candidate_pairs_v2.md`.
 
 ## 10. Real local single scenario run
 
@@ -534,8 +534,8 @@ The newer orchestrator/executor runtime probe measured short local pair RSS/CPU 
 - doc: `docs/ai/orchestrator_executor_runtime_capacity_v1.md`
 - best preliminary quality/cost pair in the measured probe: `second_model -> second_model`
 - GPU smoke root: `experiments/multi_agent/orchestrator_executor/gpu_smoke_second_to_second_heavy_v1`
-- bounded stress root: `experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v1`
-- still missing: successful stable concurrent multi-agent stress evidence and meaningful GPU speedup/capacity measurement
+- bounded stress root: `experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v2`
+- still missing: stable concurrency 2 evidence and meaningful production GPU speedup/capacity measurement
 
 ## 15. Final reports
 
@@ -618,7 +618,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 ## 18. Limitations
 
 - Research prototype, not production-ready.
-- Bounded concurrent multi-agent stress smoke exists, but no stable concurrency was observed.
+- Corrected bounded concurrent multi-agent stress smoke exists, but no stable concurrency 2 row was observed.
 - Pair-matrix and runtime-probe local orchestrator/executor evidence covers two short group scenarios only.
 - Browser behavior is simulated-only.
 - Office behavior is stub/file-based.

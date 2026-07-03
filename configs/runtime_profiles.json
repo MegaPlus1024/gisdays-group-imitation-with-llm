@@ -1,18 +1,18 @@
 {
   "profiles": [
     {
-      "profile_id": "strict_cpu",
-      "description": "CPU-only runtime profile using the local llama-server --device none flag via the wrapper -CpuOnly option.",
+      "profile_id": "cpu_requested_device_none",
+      "description": "CPU-requested runtime profile using the local llama-server --device none flag via the wrapper -CpuOnly option; strict CPU-only execution is not proven by device-level telemetry.",
       "server_params": {
         "cpu_only": true,
         "ctx_size": 4096
       },
       "expected_gpu_usage": "none",
-      "confidence": "medium",
+      "confidence": "low",
       "limitations": [
         "The wrapper emits --device none and rejects GPU placement flags for this profile.",
         "GPU telemetry is collected at the device level with nvidia-smi, so unrelated desktop or driver activity can still appear in samples.",
-        "A profile run must not be described as truly strict CPU-only if measured GPU utilization clearly appears during the batch."
+        "A profile run must not be described as truly strict CPU-only unless per-process or server-level evidence proves llama-server did not use GPU resources."
       ]
     },
     {

@@ -1,0 +1,58 @@
+[
+  {
+    "pair": "second_model->first_model",
+    "profile_id": "cpu_requested_device_none",
+    "max_stable_concurrency_observed": null,
+    "max_nonfailed_concurrency_observed": null,
+    "best_stable_throughput_runs_per_minute": null,
+    "best_stable_throughput_group_steps_per_minute": null,
+    "bottleneck": "endpoint/server",
+    "confidence": "low",
+    "notes": [
+      "Estimate is based on observed bounded stress levels only.",
+      "Do not extrapolate beyond the maximum tested concurrency."
+    ]
+  },
+  {
+    "pair": "second_model->first_model",
+    "profile_id": "gpu_full_offload",
+    "max_stable_concurrency_observed": null,
+    "max_nonfailed_concurrency_observed": null,
+    "best_stable_throughput_runs_per_minute": null,
+    "best_stable_throughput_group_steps_per_minute": null,
+    "bottleneck": "endpoint/server",
+    "confidence": "low",
+    "notes": [
+      "Estimate is based on observed bounded stress levels only.",
+      "Do not extrapolate beyond the maximum tested concurrency."
+    ]
+  },
+  {
+    "pair": "second_model->second_model",
+    "profile_id": "cpu_requested_device_none",
+    "max_stable_concurrency_observed": 1,
+    "max_nonfailed_concurrency_observed": 1,
+    "best_stable_throughput_runs_per_minute": 0.326452,
+    "best_stable_throughput_group_steps_per_minute": 0.652905,
+    "bottleneck": "CPU",
+    "confidence": "medium",
+    "notes": [
+      "Estimate is based on observed bounded stress levels only.",
+      "Do not extrapolate beyond the maximum tested concurrency."
+    ]
+  },
+  {
+    "pair": "second_model->second_model",
+    "profile_id": "gpu_full_offload",
+    "max_stable_concurrency_observed": 1,
+    "max_nonfailed_concurrency_observed": 1,
+    "best_stable_throughput_runs_per_minute": 3.053131,
+    "best_stable_throughput_group_steps_per_minute": 6.106261,
+    "bottleneck": "endpoint/server",
+    "confidence": "medium",
+    "notes": [
+      "Estimate is based on observed bounded stress levels only.",
+      "Do not extrapolate beyond the maximum tested concurrency."
+    ]
+  }
+]

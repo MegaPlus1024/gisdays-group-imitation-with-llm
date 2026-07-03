@@ -1,0 +1,2 @@
+pair,profile_id,levels_observed,max_stable_concurrency_observed,max_nonfailed_concurrency_observed,quality_degradation_at_concurrency_2,latency_degradation_at_concurrency_2,quality_degradation_at_concurrency_4,latency_degradation_at_concurrency_4,bottleneck,mean_quality_across_levels,max_peak_ram_mb_total,max_peak_vram_mb,max_peak_gpu_utilization_percent,verdicts
+second_model->first_model,gpu_full_offload,[1],,,,,,,endpoint/server,0.820233,3641.304688,5482.0,95.0,"{""1"": ""unstable""}"

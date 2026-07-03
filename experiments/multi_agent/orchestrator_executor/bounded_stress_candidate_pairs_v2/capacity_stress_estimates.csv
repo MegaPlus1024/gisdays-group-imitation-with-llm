@@ -1,0 +1,5 @@
+pair,profile_id,max_stable_concurrency_observed,max_nonfailed_concurrency_observed,best_stable_throughput_runs_per_minute,best_stable_throughput_group_steps_per_minute,bottleneck,confidence,notes
+second_model->first_model,cpu_requested_device_none,,,,,endpoint/server,low,"[""Estimate is based on observed bounded stress levels only."", ""Do not extrapolate beyond the maximum tested concurrency.""]"
+second_model->first_model,gpu_full_offload,,,,,endpoint/server,low,"[""Estimate is based on observed bounded stress levels only."", ""Do not extrapolate beyond the maximum tested concurrency.""]"
+second_model->second_model,cpu_requested_device_none,1,1,0.326452,0.652905,CPU,medium,"[""Estimate is based on observed bounded stress levels only."", ""Do not extrapolate beyond the maximum tested concurrency.""]"
+second_model->second_model,gpu_full_offload,1,1,3.053131,6.106261,endpoint/server,medium,"[""Estimate is based on observed bounded stress levels only."", ""Do not extrapolate beyond the maximum tested concurrency.""]"

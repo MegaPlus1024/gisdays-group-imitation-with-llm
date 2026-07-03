@@ -1,0 +1,23 @@
+[
+  {
+    "pair": "second_model->first_model",
+    "profile_id": "gpu_full_offload",
+    "levels_observed": [
+      1
+    ],
+    "max_stable_concurrency_observed": null,
+    "max_nonfailed_concurrency_observed": null,
+    "quality_degradation_at_concurrency_2": null,
+    "latency_degradation_at_concurrency_2": null,
+    "quality_degradation_at_concurrency_4": null,
+    "latency_degradation_at_concurrency_4": null,
+    "bottleneck": "endpoint/server",
+    "mean_quality_across_levels": 0.820233,
+    "max_peak_ram_mb_total": 3641.304688,
+    "max_peak_vram_mb": 5482.0,
+    "max_peak_gpu_utilization_percent": 95.0,
+    "verdicts": {
+      "1": "unstable"
+    }
+  }
+]

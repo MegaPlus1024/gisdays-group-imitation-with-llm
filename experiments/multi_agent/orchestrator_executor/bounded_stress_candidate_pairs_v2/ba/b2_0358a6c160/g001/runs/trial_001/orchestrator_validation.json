@@ -1,0 +1,5 @@
+{
+  "valid": false,
+  "final_error": "Orchestrator plan failed schema validation: 4 validation errors for OrchestratorPlanPayload\ntasks.0.success_criteria\n  Field required [type=missing, input_value={'task_id': 't1', 'agent_...d_file', 'create_file']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\ntasks.1.success_criteria\n  Field required [type=missing, input_value={'task_id': 't2', 'agent_...d_file', 'create_file']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\ntasks.2.success_criteria\n  Field required [type=missing, input_value={'task_id': 't3', 'agent_...d_file', 'create_file']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\ntasks.3.success_criteria\n  Field required [type=missing, input_value={'task_id': 't4', 'agent_...d_file', 'create_file']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing",
+  "attempt_count": 2
+}

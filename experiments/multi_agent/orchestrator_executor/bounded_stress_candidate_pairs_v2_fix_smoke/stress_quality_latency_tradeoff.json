@@ -1,0 +1,27 @@
+{
+  "rankings": [
+    {
+      "pair": "second_model->first_model",
+      "profile_id": "gpu_full_offload",
+      "concurrency_level": 1,
+      "mean_pair_quality_score": 0.820233,
+      "mean_wall_time_ms": 7032.093,
+      "total_errors": 6,
+      "throughput_runs_per_minute": 2.230079,
+      "stability_verdict": "unstable",
+      "quality_latency_score": 0.568085
+    }
+  ],
+  "best_observed_batch": {
+    "pair": "second_model->first_model",
+    "profile_id": "gpu_full_offload",
+    "concurrency_level": 1,
+    "mean_pair_quality_score": 0.820233,
+    "mean_wall_time_ms": 7032.093,
+    "total_errors": 6,
+    "throughput_runs_per_minute": 2.230079,
+    "stability_verdict": "unstable",
+    "quality_latency_score": 0.568085
+  },
+  "recommendation_status": "preliminary only"
+}

@@ -1,0 +1,109 @@
+{
+  "server_error": null,
+  "server_strategy": "two separate llama-server endpoints on different ports",
+  "profile_id": "gpu_full_offload",
+  "profile_server_params": {
+    "gpu_layers": "999",
+    "main_gpu": 0,
+    "split_mode": "none",
+    "ctx_size": 4096
+  },
+  "ports": {
+    "orchestrator": 8081,
+    "executor": 8082
+  },
+  "servers": [
+    {
+      "role": "orchestrator",
+      "model_id": "second_model",
+      "port": 8081,
+      "wrapper_pid": 50784,
+      "llama_pids": [
+        32164
+      ],
+      "endpoint_ready": true,
+      "endpoint_stopped": true,
+      "startup_time_ms": 2568.3111,
+      "endpoint_before": false,
+      "endpoint_after": false,
+      "error": null,
+      "runtime_flags": [
+        "-CtxSize",
+        "4096",
+        "-GpuLayers",
+        "999",
+        "-MainGpu",
+        "0",
+        "-SplitMode",
+        "none"
+      ],
+      "wrapper_command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".\\scripts\\start_llama_server.ps1",
+        "-ModelId",
+        "second_model",
+        "-ModelsConfig",
+        "configs\\evaluation_models.json",
+        "-Port",
+        "8081",
+        "-CtxSize",
+        "4096",
+        "-GpuLayers",
+        "999",
+        "-MainGpu",
+        "0",
+        "-SplitMode",
+        "none"
+      ]
+    },
+    {
+      "role": "executor",
+      "model_id": "first_model",
+      "port": 8082,
+      "wrapper_pid": 10524,
+      "llama_pids": [
+        24608
+      ],
+      "endpoint_ready": true,
+      "endpoint_stopped": true,
+      "startup_time_ms": 2047.909,
+      "endpoint_before": false,
+      "endpoint_after": false,
+      "error": null,
+      "runtime_flags": [
+        "-CtxSize",
+        "4096",
+        "-GpuLayers",
+        "999",
+        "-MainGpu",
+        "0",
+        "-SplitMode",
+        "none"
+      ],
+      "wrapper_command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".\\scripts\\start_llama_server.ps1",
+        "-ModelId",
+        "first_model",
+        "-ModelsConfig",
+        "configs\\evaluation_models.json",
+        "-Port",
+        "8082",
+        "-CtxSize",
+        "4096",
+        "-GpuLayers",
+        "999",
+        "-MainGpu",
+        "0",
+        "-SplitMode",
+        "none"
+      ]
+    }
+  ]
+}

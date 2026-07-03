@@ -1,0 +1,1 @@
+This is a safe office note.

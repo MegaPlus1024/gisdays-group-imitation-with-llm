@@ -1,0 +1,2 @@
+pair,profile_id,max_stable_concurrency_observed,max_nonfailed_concurrency_observed,best_stable_throughput_runs_per_minute,best_stable_throughput_group_steps_per_minute,bottleneck,confidence,notes
+second_model->first_model,gpu_full_offload,,,,,endpoint/server,low,"[""Estimate is based on observed bounded stress levels only."", ""Do not extrapolate beyond the maximum tested concurrency.""]"

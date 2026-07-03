@@ -1,0 +1,69 @@
+# Repeated Local Orchestrator/Executor Group Trials v1
+
+## 1. Purpose
+
+This repeated run targets the TZ group-agent gap by checking whether one local orchestrator/executor pair can repeat the same short group scenario more than once.
+
+## 2. Model pair
+
+- orchestrator: `second_model` / Qwen2.5 3B Instruct Q4_K_M
+- executor: `first_model` / Qwen2.5 1.5B Instruct Q4_K_M
+
+## 3. Scenario
+
+`office_developer_group_basic_v1`
+
+## 4. Protocol
+
+- N=3 unless the run was interrupted or blocked.
+- `max_group_steps=1`.
+- `max_steps_per_agent=1`.
+- Orchestrator and executor repair attempts are enabled according to the replay command.
+- `execute-actions=true`.
+- Local mode uses two loopback endpoints when server management is enabled.
+
+## 5. Trial summary table
+
+| trial_id | status | success | plan_valid | executor_calls | final_validation_success_count | execution_success_count | pair_quality_score | main_errors |
+|---|---|---|---|---:|---:|---:|---:|---|
+| `trial_001` | `failed` | `False` | `False` | 0 | 0 | 0 | 0.0 | orchestrator_plan_parse_failed: Invalid orchestrator JSON output: Extra data: line 1 column 986 (char 985); orchestrator_plan_validation_failed: Orchestrator plan failed schema validation: 4 validation errors for OrchestratorPlanPayload
+tasks.0.success_criteria
+  Field required [type=missing, input_value={'task_id': 't1', 'agent_...d_file', 'create_file']}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+tasks.1.success_criteria
+  Field required [type=missing, input_value={'task_id': 't2', 'agent_...d_file', 'create_file']}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+tasks.2.success_criteria
+  Field required [type=missing, input_value={'task_id': 't3', 'agent_...d_file', 'create_file']}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+tasks.3.success_criteria
+  Field required [type=missing, input_value={'task_id': 't4', 'agent_...d_file', 'create_file']}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing |
+
+## 6. Aggregate metrics
+
+- mean_pair_quality_score: `0.0`
+- std_pair_quality_score: `0.0`
+- mean_final_validation_success_rate: `0.0`
+- mean_execution_success_rate: `0.0`
+- total_errors: `2`
+- total_safety_violations: `0`
+
+## 7. Failure modes
+
+`{'orchestrator_plan_parse_failed': 1, 'orchestrator_plan_validation_failed': 1}`
+
+## 8. Interpretation
+
+What this proves if trials succeed: the local group pair pipeline is repeatable for this one pair and one scenario.
+
+What it does not prove:
+
+- production readiness;
+- GPU throughput;
+- concurrent capacity;
+- final best pair.
+
+## 9. Next step
+
+If stable, compare more pairs or run a measured GPU/capacity smoke. If unstable, analyze failures and repeat the same protocol.

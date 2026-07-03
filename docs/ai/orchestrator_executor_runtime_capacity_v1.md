@@ -94,34 +94,30 @@ Speedup wall-time ratio was `1.006842`, so the first smoke is a readiness check,
 
 ## 7. Bounded Stress Follow-up
 
-A later bounded stress smoke was run with explicit runtime profiles:
+Two bounded stress artifacts now exist:
 
 ```text
 experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v1
+experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v2
 ```
 
-Profiles:
+v1 is historical only. It failed because the stress harness created artifact paths long enough to hit practical Windows path-length limits. See `docs/ai/bounded_stress_failure_analysis_v1.md`.
 
-- `strict_cpu`: wrapper `-CpuOnly`, emitted `--device none`.
+v2 fixed the artifact layout and reran the candidate pairs under:
+
+- `cpu_requested_device_none`: wrapper `-CpuOnly`, emitted `--device none`; strict CPU-only execution remains unverified.
 - `gpu_full_offload`: emitted `--n-gpu-layers 999 --main-gpu 0 --split-mode none`.
 
-Candidate pairs:
+Corrected v2 stress result:
 
-- `second_model -> second_model`
-- `second_model -> first_model`
+| pair | profile | max stable concurrency observed | note |
+|---|---|---:|---|
+| `second_model -> second_model` | `cpu_requested_device_none` | 1 | concurrency 2 failed with parse/timeout failures |
+| `second_model -> second_model` | `gpu_full_offload` | 1 | concurrency 2 completed but quality collapsed |
+| `second_model -> first_model` | `cpu_requested_device_none` | none | rows completed/partially completed but were unstable |
+| `second_model -> first_model` | `gpu_full_offload` | none | rows completed but were unstable |
 
-Concurrency levels tested: `1`, `2`. Concurrency `4` was skipped with an explicit bounded-smoke reason.
-
-Stress result:
-
-| pair | profile | levels | max stable concurrency observed | verdict |
-|---|---|---|---:|---|
-| `second_model -> second_model` | `strict_cpu` | `1,2` | none | failed |
-| `second_model -> second_model` | `gpu_full_offload` | `1,2` | none | failed |
-| `second_model -> first_model` | `strict_cpu` | `1,2` | none | failed |
-| `second_model -> first_model` | `gpu_full_offload` | `1,2` | none | failed |
-
-The common failure mode was `FileNotFoundError` in heavy action-execution trials, including missing workspace files such as `workspace/office_agent_1_executor_note.md`. Telemetry and server lifecycle artifacts were preserved, but the result does not establish stable concurrent capacity.
+The corrected stress result is usable as preliminary evidence that the v1 harness issue is fixed. It does not support a final capacity recommendation because no stable concurrency 2 row was observed.
 
 ## 8. Server Management
 
@@ -137,14 +133,15 @@ Post-run checks:
 
 Recommendation status: preliminary only.
 
-The measured runtime probe is enough to keep `second_model -> second_model` as the current preliminary quality/cost candidate for the non-concurrent local orchestrator/executor group workflow. It is not enough for a production recommendation because the bounded concurrent stress follow-up observed no stable concurrency.
+The measured runtime probe is enough to keep `second_model -> second_model` as the current preliminary quality/cost candidate for the local orchestrator/executor group workflow. It is not enough for a production recommendation because the corrected bounded concurrent stress follow-up observed no stable concurrency 2 row.
 
 ## 10. Limitations
 
 - N=3 per pair/scenario.
-- The later bounded concurrent stress smoke ran, but every attempted batch failed.
-- CPU local runtime only.
-- GPU hardware was detected and a short GPU smoke completed, but bounded GPU stress did not produce completed group runs.
+- The v1 bounded concurrent stress smoke is invalid as capacity evidence because of a harness path-length issue.
+- Corrected v2 bounded stress produced preliminary metrics, but no stable concurrency 2 row.
+- CPU local runtime measured; CPU strictness is not proven for `cpu_requested_device_none`.
+- GPU hardware was detected, a short GPU smoke completed, and corrected v2 GPU stress completed, but this is not production sizing.
 - Browser behavior remains simulated-only.
 - Office behavior remains stub/file-based.
 - The virtual network is still a controlled local action environment, not a full network simulation.

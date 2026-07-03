@@ -164,13 +164,17 @@ def test_failed_run_is_preserved_without_real_server(tmp_path: Path, monkeypatch
             {
                 "profiles": [
                     {
-                        "profile_id": "strict_cpu",
-                        "description": "CPU only",
+                        "profile_id": "cpu_requested_device_none",
+                        "description": "CPU requested",
                         "server_params": {"cpu_only": True},
                     }
                 ]
             }
         ),
+        encoding="utf-8",
+    )
+    (tmp_path / "scenario.json").write_text(
+        json.dumps({"metadata": {"fixture_paths": []}}),
         encoding="utf-8",
     )
 
@@ -189,19 +193,20 @@ def test_failed_run_is_preserved_without_real_server(tmp_path: Path, monkeypatch
             models_config_path="configs/evaluation_models.json",
             runtime_profiles_config_path=str(profiles_path),
             scenario_path="scenario.json",
-            out_root="stress",
-            label="stress",
-            pairs=[PairSpec("second_model", "first_model")],
-            profile_ids=["strict_cpu"],
-            concurrency_levels=[1],
-            runs_per_level=1,
-            force=True,
+                out_root="stress",
+                label="stress",
+                pairs=[PairSpec("second_model", "first_model")],
+                profile_ids=["cpu_requested_device_none"],
+                concurrency_levels=[1],
+                runs_per_level=1,
+                force=True,
+            )
         )
-    )
 
     batch = result["batches"][0]
-    run_error = Path(batch["artifact_path"]) / "group_runs" / "run_001" / "run_error.json"
+    run_error = Path(batch["artifact_path"]) / "g001" / "run_error.json"
     assert batch["metrics"]["runs_failed"] == 1
+    assert batch["batch_slug"].startswith("b1_")
     assert run_error.exists()
     assert "synthetic stress failure" in run_error.read_text(encoding="utf-8")
 

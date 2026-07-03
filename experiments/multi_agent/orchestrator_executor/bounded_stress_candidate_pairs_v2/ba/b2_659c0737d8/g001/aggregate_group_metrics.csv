@@ -1,0 +1,20 @@
+metric,value
+trial_count,1
+completed_trial_count,1
+failed_trial_count,0
+mean_pair_quality_score,0.144048
+std_pair_quality_score,0.0
+min_pair_quality_score,0.144048
+max_pair_quality_score,0.144048
+mean_plan_valid_rate,1.0
+mean_executor_call_count,8.0
+mean_final_validation_success_rate,0.0
+mean_execution_success_rate,0.0
+total_safety_violations,0
+total_errors,8
+common_failure_modes,"{""HTTPStatusError"": 16}"
+common_actions,{}
+common_action_parameters,{}
+mean_wall_time_ms,7042.881
+mean_orchestrator_latency_ms,2244.983
+mean_executor_latency_ms,595.172625

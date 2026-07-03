@@ -1,0 +1,20 @@
+metric,value
+trial_count,1
+completed_trial_count,1
+failed_trial_count,0
+mean_pair_quality_score,0.82018
+std_pair_quality_score,0.0
+min_pair_quality_score,0.82018
+max_pair_quality_score,0.82018
+mean_plan_valid_rate,1.0
+mean_executor_call_count,11.0
+mean_final_validation_success_rate,0.454545
+mean_execution_success_rate,1.0
+total_safety_violations,0
+total_errors,6
+common_failure_modes,"{""HTTPStatusError"": 6, ""validation_failed"": 6, ""write_path_outside_artifact_workspace"": 6}"
+common_actions,"{""create_file"": 5, ""read_file"": 3}"
+common_action_parameters,"{""{\""action\"": \""create_file\"", \""parameters\"": {\""content\"": \""Maintenance follow-up context content here.\"", \""path\"": \""docs/ai/orchestrator_executor_pair_matrix_v1.md\""}}"": 2, ""{\""action\"": \""create_file\"", \""parameters\"": {\""content\"": \""The local document content is available.\"", \""path\"": \""configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\""}}"": 1, ""{\""action\"": \""create_file\"", \""parameters\"": {\""content\"": \""office_agent_2 local group note.\"", \""path\"": \""experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v2/ba/b1_9c62f0957c/g002/runs/trial_001/workspace/office_agent_2_executor_note.md\""}}"": 2, ""{\""action\"": \""read_file\"", \""parameters\"": {\""path\"": \""configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\""}}"": 1, ""{\""action\"": \""read_file\"", \""parameters\"": {\""path\"": \""configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\""}}"": 2}"
+mean_wall_time_ms,7035.169
+mean_orchestrator_latency_ms,1687.717
+mean_executor_latency_ms,481.991545

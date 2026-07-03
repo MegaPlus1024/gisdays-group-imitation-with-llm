@@ -1,0 +1,26 @@
+trial_id,run_id,artifact_path,status,trial_status,success,plan_valid,executor_calls,final_validation_success_count,execution_success_count,pair_quality_score,main_errors,return_code,error_message
+trial_001,second_model__first_model__cpu_requested_device_none__concurrency_2__run_001_trial_001,C:\Users\m\Documents\local-llm-test-gisdays\local-llm-agent-lab\experiments\multi_agent\orchestrator_executor\bounded_stress_candidate_pairs_v2\ba\b2_63a2c77564\g001\runs\trial_001,failed,failed,False,False,0,0,0,0.0,"orchestrator_plan_parse_failed: Invalid orchestrator JSON output: Extra data: line 1 column 986 (char 985); orchestrator_plan_validation_failed: Orchestrator plan failed schema validation: 4 validation errors for OrchestratorPlanPayload
+tasks.0.success_criteria
+  Field required [type=missing, input_value={'task_id': 't1', 'agent_...d_file', 'create_file']}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+tasks.1.success_criteria
+  Field required [type=missing, input_value={'task_id': 't2', 'agent_...d_file', 'create_file']}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+tasks.2.success_criteria
+  Field required [type=missing, input_value={'task_id': 't3', 'agent_...d_file', 'create_file']}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+tasks.3.success_criteria
+  Field required [type=missing, input_value={'task_id': 't4', 'agent_...d_file', 'create_file']}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing",1,"Orchestrator plan failed schema validation: 4 validation errors for OrchestratorPlanPayload
+tasks.0.success_criteria
+  Field required [type=missing, input_value={'task_id': 't1', 'agent_...d_file', 'create_file']}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+tasks.1.success_criteria
+  Field required [type=missing, input_value={'task_id': 't2', 'agent_...d_file', 'create_file']}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+tasks.2.success_criteria
+  Field required [type=missing, input_value={'task_id': 't3', 'agent_...d_file', 'create_file']}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing
+tasks.3.success_criteria
+  Field required [type=missing, input_value={'task_id': 't4', 'agent_...d_file', 'create_file']}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing"

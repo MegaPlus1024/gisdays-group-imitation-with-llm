@@ -1,0 +1,13 @@
+{
+  "common_actions": {
+    "create_file": 5,
+    "read_file": 3
+  },
+  "common_action_parameters": {
+    "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}": 2,
+    "{\"action\": \"create_file\", \"parameters\": {\"content\": \"office_agent_2 local group note.\", \"path\": \"experiments/multi_agent/orchestrator_executor/bounded_stress_candidate_pairs_v2/ba/b1_9c62f0957c/g001/runs/trial_001/workspace/office_agent_2_executor_note.md\"}}": 2,
+    "{\"action\": \"create_file\", \"parameters\": {\"content\": \"The local document content is available.\", \"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}": 1,
+    "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}": 1,
+    "{\"action\": \"create_file\", \"parameters\": {\"content\": \"Maintenance follow-up context content.\", \"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}": 1
+  }
+}

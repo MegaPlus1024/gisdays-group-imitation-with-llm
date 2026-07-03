@@ -1,0 +1,115 @@
+[
+  {
+    "pair": "second_model->first_model",
+    "profile_id": "cpu_requested_device_none",
+    "levels_observed": [
+      1,
+      2
+    ],
+    "max_stable_concurrency_observed": null,
+    "max_nonfailed_concurrency_observed": null,
+    "quality_degradation_at_concurrency_2": {
+      "absolute": 0.003125,
+      "relative": 0.004016
+    },
+    "latency_degradation_at_concurrency_2": {
+      "ratio": 0.842638,
+      "delta_ms": -15415.6075
+    },
+    "quality_degradation_at_concurrency_4": null,
+    "latency_degradation_at_concurrency_4": null,
+    "bottleneck": "endpoint/server",
+    "mean_quality_across_levels": 0.776563,
+    "max_peak_ram_mb_total": 6225.347656,
+    "max_peak_vram_mb": 1715.0,
+    "max_peak_gpu_utilization_percent": 60.0,
+    "verdicts": {
+      "1": "unstable",
+      "2": "unstable"
+    }
+  },
+  {
+    "pair": "second_model->first_model",
+    "profile_id": "gpu_full_offload",
+    "levels_observed": [
+      1,
+      2
+    ],
+    "max_stable_concurrency_observed": null,
+    "max_nonfailed_concurrency_observed": null,
+    "quality_degradation_at_concurrency_2": {
+      "absolute": 0.674015,
+      "relative": 0.821816
+    },
+    "latency_degradation_at_concurrency_2": {
+      "ratio": 0.754883,
+      "delta_ms": -1739.8305
+    },
+    "quality_degradation_at_concurrency_4": null,
+    "latency_degradation_at_concurrency_4": null,
+    "bottleneck": "endpoint/server",
+    "mean_quality_across_levels": 0.483146,
+    "max_peak_ram_mb_total": 4070.460938,
+    "max_peak_vram_mb": 5482.0,
+    "max_peak_gpu_utilization_percent": 99.0,
+    "verdicts": {
+      "1": "unstable",
+      "2": "unstable"
+    }
+  },
+  {
+    "pair": "second_model->second_model",
+    "profile_id": "cpu_requested_device_none",
+    "levels_observed": [
+      1,
+      2
+    ],
+    "max_stable_concurrency_observed": 1,
+    "max_nonfailed_concurrency_observed": 1,
+    "quality_degradation_at_concurrency_2": null,
+    "latency_degradation_at_concurrency_2": {
+      "ratio": 0.419083,
+      "delta_ms": -100686.2485
+    },
+    "quality_degradation_at_concurrency_4": null,
+    "latency_degradation_at_concurrency_4": null,
+    "bottleneck": "CPU",
+    "mean_quality_across_levels": 0.895833,
+    "max_peak_ram_mb_total": 8092.609374,
+    "max_peak_vram_mb": 1715.0,
+    "max_peak_gpu_utilization_percent": 59.0,
+    "verdicts": {
+      "1": "stable",
+      "2": "failed"
+    }
+  },
+  {
+    "pair": "second_model->second_model",
+    "profile_id": "gpu_full_offload",
+    "levels_observed": [
+      1,
+      2
+    ],
+    "max_stable_concurrency_observed": 1,
+    "max_nonfailed_concurrency_observed": 1,
+    "quality_degradation_at_concurrency_2": {
+      "absolute": 0.731139,
+      "relative": 0.835398
+    },
+    "latency_degradation_at_concurrency_2": {
+      "ratio": 0.770996,
+      "delta_ms": -2091.894
+    },
+    "quality_degradation_at_concurrency_4": null,
+    "latency_degradation_at_concurrency_4": null,
+    "bottleneck": "endpoint/server",
+    "mean_quality_across_levels": 0.509629,
+    "max_peak_ram_mb_total": 5261.96875,
+    "max_peak_vram_mb": 6422.0,
+    "max_peak_gpu_utilization_percent": 99.0,
+    "verdicts": {
+      "1": "stable",
+      "2": "unstable"
+    }
+  }
+]

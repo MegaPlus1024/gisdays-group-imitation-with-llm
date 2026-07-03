@@ -1,0 +1,89 @@
+{
+  "comparison_id": "second_model__first_model__cpu_requested_device_none__concurrency_2__run_001",
+  "generated_at": "2026-07-03T17:01:11.316662+00:00",
+  "status": "partial",
+  "orchestrator_model_id": "second_model",
+  "executor_model_id": "first_model",
+  "trial_index": [
+    {
+      "trial_id": "trial_001",
+      "run_id": "second_model__first_model__cpu_requested_device_none__concurrency_2__run_001_trial_001",
+      "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v2\\ba\\b2_63a2c77564\\g001\\runs\\trial_001",
+      "status": "failed",
+      "trial_status": "failed",
+      "success": false,
+      "plan_valid": false,
+      "executor_calls": 0,
+      "final_validation_success_count": 0,
+      "execution_success_count": 0,
+      "pair_quality_score": 0.0,
+      "main_errors": "orchestrator_plan_parse_failed: Invalid orchestrator JSON output: Extra data: line 1 column 986 (char 985); orchestrator_plan_validation_failed: Orchestrator plan failed schema validation: 4 validation errors for OrchestratorPlanPayload\ntasks.0.success_criteria\n  Field required [type=missing, input_value={'task_id': 't1', 'agent_...d_file', 'create_file']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\ntasks.1.success_criteria\n  Field required [type=missing, input_value={'task_id': 't2', 'agent_...d_file', 'create_file']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\ntasks.2.success_criteria\n  Field required [type=missing, input_value={'task_id': 't3', 'agent_...d_file', 'create_file']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\ntasks.3.success_criteria\n  Field required [type=missing, input_value={'task_id': 't4', 'agent_...d_file', 'create_file']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing",
+      "return_code": 1,
+      "error_message": "Orchestrator plan failed schema validation: 4 validation errors for OrchestratorPlanPayload\ntasks.0.success_criteria\n  Field required [type=missing, input_value={'task_id': 't1', 'agent_...d_file', 'create_file']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\ntasks.1.success_criteria\n  Field required [type=missing, input_value={'task_id': 't2', 'agent_...d_file', 'create_file']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\ntasks.2.success_criteria\n  Field required [type=missing, input_value={'task_id': 't3', 'agent_...d_file', 'create_file']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\ntasks.3.success_criteria\n  Field required [type=missing, input_value={'task_id': 't4', 'agent_...d_file', 'create_file']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing",
+      "orchestrator_initial_parse_success": false,
+      "orchestrator_repair_attempt_count": 1,
+      "executor_model_calls_attempted": 0,
+      "initial_validation_success_count": 0,
+      "repair_attempt_count": 0,
+      "execution_attempted_count": 0,
+      "safety_violation_count": 0,
+      "error_count": 2,
+      "pair_verdict": "failed",
+      "wall_time_ms": 50682.779,
+      "orchestrator_latency_ms": 25340.8195,
+      "executor_latency_mean_ms": null,
+      "repeated_action_count": 0,
+      "dominant_action_parameters": [],
+      "common_failure_modes": {
+        "orchestrator_plan_parse_failed": 1,
+        "orchestrator_plan_validation_failed": 1
+      },
+      "common_actions": {},
+      "stopped_reason": null
+    }
+  ],
+  "aggregate": {
+    "trial_count": 1,
+    "completed_trial_count": 0,
+    "failed_trial_count": 1,
+    "mean_pair_quality_score": 0.0,
+    "std_pair_quality_score": 0.0,
+    "min_pair_quality_score": 0.0,
+    "max_pair_quality_score": 0.0,
+    "mean_plan_valid_rate": 0.0,
+    "mean_executor_call_count": 0.0,
+    "mean_final_validation_success_rate": 0.0,
+    "mean_execution_success_rate": 0.0,
+    "total_safety_violations": 0,
+    "total_errors": 2,
+    "common_failure_modes": {
+      "orchestrator_plan_parse_failed": 1,
+      "orchestrator_plan_validation_failed": 1
+    },
+    "common_actions": {},
+    "common_action_parameters": {},
+    "mean_wall_time_ms": 50682.779,
+    "mean_orchestrator_latency_ms": 25340.8195,
+    "mean_executor_latency_ms": null
+  },
+  "failure_modes": {
+    "orchestrator_plan_parse_failed": 1,
+    "orchestrator_plan_validation_failed": 1
+  },
+  "action_patterns": {
+    "common_actions": {},
+    "common_action_parameters": {}
+  },
+  "limitations": [
+    "Only one orchestrator/executor pair is included.",
+    "Only one scenario is repeated.",
+    "N=3 is a robustness smoke, not a benchmark or final recommendation.",
+    "The runner is sequential and does not measure concurrent capacity.",
+    "No GPU runtime is configured or measured."
+  ],
+  "interpretation": {
+    "closes_group_pair_single_run_gap": false,
+    "recommendation_ready": false,
+    "summary": "Repeated local group trials strengthen evidence for this one pair/scenario, but do not establish production readiness, GPU throughput, concurrent capacity, or a final best pair."
+  }
+}
