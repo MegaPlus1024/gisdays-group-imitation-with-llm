@@ -1,0 +1,73 @@
+{
+  "server_error": null,
+  "servers": [
+    {
+      "role": "orchestrator",
+      "model_id": "second_model",
+      "port": 8081,
+      "wrapper_pid": 25472,
+      "llama_pids": [
+        31852
+      ],
+      "endpoint_ready": true,
+      "endpoint_stopped": true,
+      "startup_time_ms": 2566.7564,
+      "endpoint_before": false,
+      "endpoint_after": false,
+      "error": null,
+      "runtime_flags": [
+        "-CtxSize",
+        "4096"
+      ],
+      "wrapper_command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".\\scripts\\start_llama_server.ps1",
+        "-ModelId",
+        "second_model",
+        "-ModelsConfig",
+        "configs\\evaluation_models.json",
+        "-Port",
+        "8081",
+        "-CtxSize",
+        "4096"
+      ]
+    },
+    {
+      "role": "executor",
+      "model_id": "second_model",
+      "port": 8082,
+      "wrapper_pid": 48116,
+      "llama_pids": [
+        2636
+      ],
+      "endpoint_ready": true,
+      "endpoint_stopped": true,
+      "startup_time_ms": 2541.139401,
+      "endpoint_before": false,
+      "endpoint_after": false,
+      "error": null,
+      "runtime_flags": [
+        "-CtxSize",
+        "4096"
+      ],
+      "wrapper_command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".\\scripts\\start_llama_server.ps1",
+        "-ModelId",
+        "second_model",
+        "-ModelsConfig",
+        "configs\\evaluation_models.json",
+        "-Port",
+        "8082",
+        "-CtxSize",
+        "4096"
+      ]
+    }
+  ]
+}

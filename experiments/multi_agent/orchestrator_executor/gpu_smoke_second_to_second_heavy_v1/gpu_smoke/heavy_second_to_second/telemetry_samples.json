@@ -1,0 +1,818 @@
+[
+  {
+    "timestamp": "2026-07-03T14:22:33.470462+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 10452,
+        "name": "llama-server.exe",
+        "rss_mb": 1996.351562,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 51744,
+        "name": "llama-server.exe",
+        "rss_mb": 1996.179688,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 3992.53125,
+    "pair_cpu_percent": 0.0,
+    "system_cpu_percent": 0.0,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84456.117188,
+    "active_llama_server_processes": 2,
+    "gpu": {
+      "timestamp": "2026-07-03T14:22:33.460461+00:00",
+      "gpu_telemetry_available": true,
+      "gpu_count": 1,
+      "gpus": [
+        {
+          "name": "NVIDIA RTX PRO 4000 Blackwell",
+          "driver_version": "582.16",
+          "total_vram_mb": 24467.0,
+          "used_vram_mb": 6248.0,
+          "gpu_utilization_percent": 11.0,
+          "gpu_memory_utilization_percent": 1.0,
+          "temperature_c": 58.0,
+          "power_draw_w": 44.07
+        }
+      ],
+      "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+      "driver_version": "582.16",
+      "total_vram_mb": 24467.0,
+      "used_vram_mb": 6248.0,
+      "gpu_utilization_percent": 11.0,
+      "gpu_memory_utilization_percent": 1.0,
+      "temperature_c": 58.0,
+      "power_draw_w": 44.07
+    }
+  },
+  {
+    "timestamp": "2026-07-03T14:22:34.026205+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 10452,
+        "name": "llama-server.exe",
+        "rss_mb": 1996.351562,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 51744,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.519531,
+        "cpu_percent": 55.6,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4003.871093,
+    "pair_cpu_percent": 55.6,
+    "system_cpu_percent": 15.2,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84457.492188,
+    "active_llama_server_processes": 2,
+    "gpu": {
+      "timestamp": "2026-07-03T14:22:34.020800+00:00",
+      "gpu_telemetry_available": true,
+      "gpu_count": 1,
+      "gpus": [
+        {
+          "name": "NVIDIA RTX PRO 4000 Blackwell",
+          "driver_version": "582.16",
+          "total_vram_mb": 24467.0,
+          "used_vram_mb": 6264.0,
+          "gpu_utilization_percent": 11.0,
+          "gpu_memory_utilization_percent": 0.0,
+          "temperature_c": 65.0,
+          "power_draw_w": 91.15
+        }
+      ],
+      "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+      "driver_version": "582.16",
+      "total_vram_mb": 24467.0,
+      "used_vram_mb": 6264.0,
+      "gpu_utilization_percent": 11.0,
+      "gpu_memory_utilization_percent": 0.0,
+      "temperature_c": 65.0,
+      "power_draw_w": 91.15
+    }
+  },
+  {
+    "timestamp": "2026-07-03T14:22:34.573546+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 10452,
+        "name": "llama-server.exe",
+        "rss_mb": 1996.351562,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 51744,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.523438,
+        "cpu_percent": 51.4,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4003.875,
+    "pair_cpu_percent": 51.4,
+    "system_cpu_percent": 15.2,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84458.039062,
+    "active_llama_server_processes": 2,
+    "gpu": {
+      "timestamp": "2026-07-03T14:22:34.566545+00:00",
+      "gpu_telemetry_available": true,
+      "gpu_count": 1,
+      "gpus": [
+        {
+          "name": "NVIDIA RTX PRO 4000 Blackwell",
+          "driver_version": "582.16",
+          "total_vram_mb": 24467.0,
+          "used_vram_mb": 6264.0,
+          "gpu_utilization_percent": 91.0,
+          "gpu_memory_utilization_percent": 56.0,
+          "temperature_c": 65.0,
+          "power_draw_w": 140.45
+        }
+      ],
+      "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+      "driver_version": "582.16",
+      "total_vram_mb": 24467.0,
+      "used_vram_mb": 6264.0,
+      "gpu_utilization_percent": 91.0,
+      "gpu_memory_utilization_percent": 56.0,
+      "temperature_c": 65.0,
+      "power_draw_w": 140.45
+    }
+  },
+  {
+    "timestamp": "2026-07-03T14:22:35.127943+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 10452,
+        "name": "llama-server.exe",
+        "rss_mb": 1996.351562,
+        "cpu_percent": 0.0,
+        "status": "running"
+      },
+      {
+        "pid": 51744,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.566406,
+        "cpu_percent": 48.6,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4003.917968,
+    "pair_cpu_percent": 48.6,
+    "system_cpu_percent": 17.2,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84470.011719,
+    "active_llama_server_processes": 2,
+    "gpu": {
+      "timestamp": "2026-07-03T14:22:35.111414+00:00",
+      "gpu_telemetry_available": true,
+      "gpu_count": 1,
+      "gpus": [
+        {
+          "name": "NVIDIA RTX PRO 4000 Blackwell",
+          "driver_version": "582.16",
+          "total_vram_mb": 24467.0,
+          "used_vram_mb": 6264.0,
+          "gpu_utilization_percent": 91.0,
+          "gpu_memory_utilization_percent": 56.0,
+          "temperature_c": 66.0,
+          "power_draw_w": 145.25
+        }
+      ],
+      "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+      "driver_version": "582.16",
+      "total_vram_mb": 24467.0,
+      "used_vram_mb": 6264.0,
+      "gpu_utilization_percent": 91.0,
+      "gpu_memory_utilization_percent": 56.0,
+      "temperature_c": 66.0,
+      "power_draw_w": 145.25
+    }
+  },
+  {
+    "timestamp": "2026-07-03T14:22:35.686985+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 10452,
+        "name": "llama-server.exe",
+        "rss_mb": 2009.03125,
+        "cpu_percent": 25.7,
+        "status": "running"
+      },
+      {
+        "pid": 51744,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.566406,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4016.597656,
+    "pair_cpu_percent": 25.7,
+    "system_cpu_percent": 15.7,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84454.945312,
+    "active_llama_server_processes": 2,
+    "gpu": {
+      "timestamp": "2026-07-03T14:22:35.669983+00:00",
+      "gpu_telemetry_available": true,
+      "gpu_count": 1,
+      "gpus": [
+        {
+          "name": "NVIDIA RTX PRO 4000 Blackwell",
+          "driver_version": "582.16",
+          "total_vram_mb": 24467.0,
+          "used_vram_mb": 6282.0,
+          "gpu_utilization_percent": 98.0,
+          "gpu_memory_utilization_percent": 18.0,
+          "temperature_c": 68.0,
+          "power_draw_w": 137.29
+        }
+      ],
+      "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+      "driver_version": "582.16",
+      "total_vram_mb": 24467.0,
+      "used_vram_mb": 6282.0,
+      "gpu_utilization_percent": 98.0,
+      "gpu_memory_utilization_percent": 18.0,
+      "temperature_c": 68.0,
+      "power_draw_w": 137.29
+    }
+  },
+  {
+    "timestamp": "2026-07-03T14:22:36.247826+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 10452,
+        "name": "llama-server.exe",
+        "rss_mb": 2117.285156,
+        "cpu_percent": 37.8,
+        "status": "running"
+      },
+      {
+        "pid": 51744,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.566406,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4124.851562,
+    "pair_cpu_percent": 37.8,
+    "system_cpu_percent": 15.8,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84346.230469,
+    "active_llama_server_processes": 2,
+    "gpu": {
+      "timestamp": "2026-07-03T14:22:36.241118+00:00",
+      "gpu_telemetry_available": true,
+      "gpu_count": 1,
+      "gpus": [
+        {
+          "name": "NVIDIA RTX PRO 4000 Blackwell",
+          "driver_version": "582.16",
+          "total_vram_mb": 24467.0,
+          "used_vram_mb": 6282.0,
+          "gpu_utilization_percent": 98.0,
+          "gpu_memory_utilization_percent": 18.0,
+          "temperature_c": 67.0,
+          "power_draw_w": 136.48
+        }
+      ],
+      "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+      "driver_version": "582.16",
+      "total_vram_mb": 24467.0,
+      "used_vram_mb": 6282.0,
+      "gpu_utilization_percent": 98.0,
+      "gpu_memory_utilization_percent": 18.0,
+      "temperature_c": 67.0,
+      "power_draw_w": 136.48
+    }
+  },
+  {
+    "timestamp": "2026-07-03T14:22:36.793370+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 10452,
+        "name": "llama-server.exe",
+        "rss_mb": 2119.03125,
+        "cpu_percent": 42.8,
+        "status": "running"
+      },
+      {
+        "pid": 51744,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.566406,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4126.597656,
+    "pair_cpu_percent": 42.8,
+    "system_cpu_percent": 16.0,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84345.402344,
+    "active_llama_server_processes": 2,
+    "gpu": {
+      "timestamp": "2026-07-03T14:22:36.788370+00:00",
+      "gpu_telemetry_available": true,
+      "gpu_count": 1,
+      "gpus": [
+        {
+          "name": "NVIDIA RTX PRO 4000 Blackwell",
+          "driver_version": "582.16",
+          "total_vram_mb": 24467.0,
+          "used_vram_mb": 6282.0,
+          "gpu_utilization_percent": 96.0,
+          "gpu_memory_utilization_percent": 25.0,
+          "temperature_c": 69.0,
+          "power_draw_w": 135.04
+        }
+      ],
+      "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+      "driver_version": "582.16",
+      "total_vram_mb": 24467.0,
+      "used_vram_mb": 6282.0,
+      "gpu_utilization_percent": 96.0,
+      "gpu_memory_utilization_percent": 25.0,
+      "temperature_c": 69.0,
+      "power_draw_w": 135.04
+    }
+  },
+  {
+    "timestamp": "2026-07-03T14:22:37.346402+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 10452,
+        "name": "llama-server.exe",
+        "rss_mb": 2225.628906,
+        "cpu_percent": 22.9,
+        "status": "running"
+      },
+      {
+        "pid": 51744,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.566406,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4233.195312,
+    "pair_cpu_percent": 22.9,
+    "system_cpu_percent": 14.6,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84237.117188,
+    "active_llama_server_processes": 2,
+    "gpu": {
+      "timestamp": "2026-07-03T14:22:37.332402+00:00",
+      "gpu_telemetry_available": true,
+      "gpu_count": 1,
+      "gpus": [
+        {
+          "name": "NVIDIA RTX PRO 4000 Blackwell",
+          "driver_version": "582.16",
+          "total_vram_mb": 24467.0,
+          "used_vram_mb": 6282.0,
+          "gpu_utilization_percent": 96.0,
+          "gpu_memory_utilization_percent": 25.0,
+          "temperature_c": 64.0,
+          "power_draw_w": 124.84
+        }
+      ],
+      "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+      "driver_version": "582.16",
+      "total_vram_mb": 24467.0,
+      "used_vram_mb": 6282.0,
+      "gpu_utilization_percent": 96.0,
+      "gpu_memory_utilization_percent": 25.0,
+      "temperature_c": 64.0,
+      "power_draw_w": 124.84
+    }
+  },
+  {
+    "timestamp": "2026-07-03T14:22:37.894290+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 10452,
+        "name": "llama-server.exe",
+        "rss_mb": 2227.621094,
+        "cpu_percent": 37.1,
+        "status": "running"
+      },
+      {
+        "pid": 51744,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.566406,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4235.1875,
+    "pair_cpu_percent": 37.1,
+    "system_cpu_percent": 13.8,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84230.511719,
+    "active_llama_server_processes": 2,
+    "gpu": {
+      "timestamp": "2026-07-03T14:22:37.883297+00:00",
+      "gpu_telemetry_available": true,
+      "gpu_count": 1,
+      "gpus": [
+        {
+          "name": "NVIDIA RTX PRO 4000 Blackwell",
+          "driver_version": "582.16",
+          "total_vram_mb": 24467.0,
+          "used_vram_mb": 6282.0,
+          "gpu_utilization_percent": 90.0,
+          "gpu_memory_utilization_percent": 56.0,
+          "temperature_c": 69.0,
+          "power_draw_w": 136.16
+        }
+      ],
+      "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+      "driver_version": "582.16",
+      "total_vram_mb": 24467.0,
+      "used_vram_mb": 6282.0,
+      "gpu_utilization_percent": 90.0,
+      "gpu_memory_utilization_percent": 56.0,
+      "temperature_c": 69.0,
+      "power_draw_w": 136.16
+    }
+  },
+  {
+    "timestamp": "2026-07-03T14:22:38.455603+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 10452,
+        "name": "llama-server.exe",
+        "rss_mb": 2372.320312,
+        "cpu_percent": 36.1,
+        "status": "running"
+      },
+      {
+        "pid": 51744,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.566406,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4379.886718,
+    "pair_cpu_percent": 36.1,
+    "system_cpu_percent": 18.6,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 84085.070312,
+    "active_llama_server_processes": 2,
+    "gpu": {
+      "timestamp": "2026-07-03T14:22:38.440591+00:00",
+      "gpu_telemetry_available": true,
+      "gpu_count": 1,
+      "gpus": [
+        {
+          "name": "NVIDIA RTX PRO 4000 Blackwell",
+          "driver_version": "582.16",
+          "total_vram_mb": 24467.0,
+          "used_vram_mb": 6282.0,
+          "gpu_utilization_percent": 90.0,
+          "gpu_memory_utilization_percent": 56.0,
+          "temperature_c": 69.0,
+          "power_draw_w": 140.15
+        }
+      ],
+      "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+      "driver_version": "582.16",
+      "total_vram_mb": 24467.0,
+      "used_vram_mb": 6282.0,
+      "gpu_utilization_percent": 90.0,
+      "gpu_memory_utilization_percent": 56.0,
+      "temperature_c": 69.0,
+      "power_draw_w": 140.15
+    }
+  },
+  {
+    "timestamp": "2026-07-03T14:22:39.032324+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 10452,
+        "name": "llama-server.exe",
+        "rss_mb": 2485.769531,
+        "cpu_percent": 35.1,
+        "status": "running"
+      },
+      {
+        "pid": 51744,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.566406,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4493.335937,
+    "pair_cpu_percent": 35.1,
+    "system_cpu_percent": 17.9,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83976.253906,
+    "active_llama_server_processes": 2,
+    "gpu": {
+      "timestamp": "2026-07-03T14:22:39.024319+00:00",
+      "gpu_telemetry_available": true,
+      "gpu_count": 1,
+      "gpus": [
+        {
+          "name": "NVIDIA RTX PRO 4000 Blackwell",
+          "driver_version": "582.16",
+          "total_vram_mb": 24467.0,
+          "used_vram_mb": 6282.0,
+          "gpu_utilization_percent": 90.0,
+          "gpu_memory_utilization_percent": 56.0,
+          "temperature_c": 65.0,
+          "power_draw_w": 126.35
+        }
+      ],
+      "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+      "driver_version": "582.16",
+      "total_vram_mb": 24467.0,
+      "used_vram_mb": 6282.0,
+      "gpu_utilization_percent": 90.0,
+      "gpu_memory_utilization_percent": 56.0,
+      "temperature_c": 65.0,
+      "power_draw_w": 126.35
+    }
+  },
+  {
+    "timestamp": "2026-07-03T14:22:39.580571+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 10452,
+        "name": "llama-server.exe",
+        "rss_mb": 2487.511719,
+        "cpu_percent": 37.1,
+        "status": "running"
+      },
+      {
+        "pid": 51744,
+        "name": "llama-server.exe",
+        "rss_mb": 2007.566406,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4495.078125,
+    "pair_cpu_percent": 37.1,
+    "system_cpu_percent": 13.2,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83977.542969,
+    "active_llama_server_processes": 2,
+    "gpu": {
+      "timestamp": "2026-07-03T14:22:39.572570+00:00",
+      "gpu_telemetry_available": true,
+      "gpu_count": 1,
+      "gpus": [
+        {
+          "name": "NVIDIA RTX PRO 4000 Blackwell",
+          "driver_version": "582.16",
+          "total_vram_mb": 24467.0,
+          "used_vram_mb": 6282.0,
+          "gpu_utilization_percent": 92.0,
+          "gpu_memory_utilization_percent": 56.0,
+          "temperature_c": 70.0,
+          "power_draw_w": 135.58
+        }
+      ],
+      "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+      "driver_version": "582.16",
+      "total_vram_mb": 24467.0,
+      "used_vram_mb": 6282.0,
+      "gpu_utilization_percent": 92.0,
+      "gpu_memory_utilization_percent": 56.0,
+      "temperature_c": 70.0,
+      "power_draw_w": 135.58
+    }
+  },
+  {
+    "timestamp": "2026-07-03T14:22:40.128267+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 10452,
+        "name": "llama-server.exe",
+        "rss_mb": 2594.933594,
+        "cpu_percent": 31.4,
+        "status": "running"
+      },
+      {
+        "pid": 51744,
+        "name": "llama-server.exe",
+        "rss_mb": 2006.566406,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4601.5,
+    "pair_cpu_percent": 31.4,
+    "system_cpu_percent": 17.1,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83860.171875,
+    "active_llama_server_processes": 2,
+    "gpu": {
+      "timestamp": "2026-07-03T14:22:40.121266+00:00",
+      "gpu_telemetry_available": true,
+      "gpu_count": 1,
+      "gpus": [
+        {
+          "name": "NVIDIA RTX PRO 4000 Blackwell",
+          "driver_version": "582.16",
+          "total_vram_mb": 24467.0,
+          "used_vram_mb": 6282.0,
+          "gpu_utilization_percent": 92.0,
+          "gpu_memory_utilization_percent": 56.0,
+          "temperature_c": 72.0,
+          "power_draw_w": 133.04
+        }
+      ],
+      "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+      "driver_version": "582.16",
+      "total_vram_mb": 24467.0,
+      "used_vram_mb": 6282.0,
+      "gpu_utilization_percent": 92.0,
+      "gpu_memory_utilization_percent": 56.0,
+      "temperature_c": 72.0,
+      "power_draw_w": 133.04
+    }
+  },
+  {
+    "timestamp": "2026-07-03T14:22:40.688081+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 10452,
+        "name": "llama-server.exe",
+        "rss_mb": 2703.960938,
+        "cpu_percent": 44.4,
+        "status": "running"
+      },
+      {
+        "pid": 51744,
+        "name": "llama-server.exe",
+        "rss_mb": 2006.566406,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4710.527344,
+    "pair_cpu_percent": 44.4,
+    "system_cpu_percent": 14.7,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83862.476562,
+    "active_llama_server_processes": 2,
+    "gpu": {
+      "timestamp": "2026-07-03T14:22:40.681079+00:00",
+      "gpu_telemetry_available": true,
+      "gpu_count": 1,
+      "gpus": [
+        {
+          "name": "NVIDIA RTX PRO 4000 Blackwell",
+          "driver_version": "582.16",
+          "total_vram_mb": 24467.0,
+          "used_vram_mb": 6282.0,
+          "gpu_utilization_percent": 92.0,
+          "gpu_memory_utilization_percent": 56.0,
+          "temperature_c": 70.0,
+          "power_draw_w": 135.82
+        }
+      ],
+      "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+      "driver_version": "582.16",
+      "total_vram_mb": 24467.0,
+      "used_vram_mb": 6282.0,
+      "gpu_utilization_percent": 92.0,
+      "gpu_memory_utilization_percent": 56.0,
+      "temperature_c": 70.0,
+      "power_draw_w": 135.82
+    }
+  },
+  {
+    "timestamp": "2026-07-03T14:22:41.251878+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 10452,
+        "name": "llama-server.exe",
+        "rss_mb": 2706.238281,
+        "cpu_percent": 33.4,
+        "status": "running"
+      },
+      {
+        "pid": 51744,
+        "name": "llama-server.exe",
+        "rss_mb": 2006.566406,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4712.804687,
+    "pair_cpu_percent": 33.4,
+    "system_cpu_percent": 18.3,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83754.621094,
+    "active_llama_server_processes": 2,
+    "gpu": {
+      "timestamp": "2026-07-03T14:22:41.238873+00:00",
+      "gpu_telemetry_available": true,
+      "gpu_count": 1,
+      "gpus": [
+        {
+          "name": "NVIDIA RTX PRO 4000 Blackwell",
+          "driver_version": "582.16",
+          "total_vram_mb": 24467.0,
+          "used_vram_mb": 6282.0,
+          "gpu_utilization_percent": 92.0,
+          "gpu_memory_utilization_percent": 56.0,
+          "temperature_c": 73.0,
+          "power_draw_w": 140.35
+        }
+      ],
+      "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+      "driver_version": "582.16",
+      "total_vram_mb": 24467.0,
+      "used_vram_mb": 6282.0,
+      "gpu_utilization_percent": 92.0,
+      "gpu_memory_utilization_percent": 56.0,
+      "temperature_c": 73.0,
+      "power_draw_w": 140.35
+    }
+  },
+  {
+    "timestamp": "2026-07-03T14:22:41.822767+00:00",
+    "psutil_available": true,
+    "processes": [
+      {
+        "pid": 10452,
+        "name": "llama-server.exe",
+        "rss_mb": 2708.054688,
+        "cpu_percent": 43.3,
+        "status": "running"
+      },
+      {
+        "pid": 51744,
+        "name": "llama-server.exe",
+        "rss_mb": 2006.566406,
+        "cpu_percent": 0.0,
+        "status": "running"
+      }
+    ],
+    "pair_rss_mb": 4714.621094,
+    "pair_cpu_percent": 43.3,
+    "system_cpu_percent": 15.3,
+    "system_ram_total_mb": 130436.710938,
+    "system_ram_available_mb": 83754.0625,
+    "active_llama_server_processes": 2,
+    "gpu": {
+      "timestamp": "2026-07-03T14:22:41.814259+00:00",
+      "gpu_telemetry_available": true,
+      "gpu_count": 1,
+      "gpus": [
+        {
+          "name": "NVIDIA RTX PRO 4000 Blackwell",
+          "driver_version": "582.16",
+          "total_vram_mb": 24467.0,
+          "used_vram_mb": 6282.0,
+          "gpu_utilization_percent": 67.0,
+          "gpu_memory_utilization_percent": 39.0,
+          "temperature_c": 71.0,
+          "power_draw_w": 135.34
+        }
+      ],
+      "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+      "driver_version": "582.16",
+      "total_vram_mb": 24467.0,
+      "used_vram_mb": 6282.0,
+      "gpu_utilization_percent": 67.0,
+      "gpu_memory_utilization_percent": 39.0,
+      "temperature_c": 71.0,
+      "power_draw_w": 135.34
+    }
+  }
+]

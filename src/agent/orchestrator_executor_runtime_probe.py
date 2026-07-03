@@ -59,6 +59,8 @@ class ManagedServer:
     endpoint_before: bool = False
     endpoint_after: bool | None = None
     error: str | None = None
+    wrapper_command: list[str] = field(default_factory=list)
+    runtime_flags: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -81,11 +83,24 @@ class RuntimeProbeConfig:
     sample_interval_seconds: float = 0.5
     continue_on_pair_failure: bool = True
     force: bool = False
+    orchestrator_gpu_layers: str | None = None
+    executor_gpu_layers: str | None = None
+    orchestrator_main_gpu: int | None = None
+    executor_main_gpu: int | None = None
+    split_mode: str | None = None
+    tensor_split: str | None = None
+    threads: int | None = None
+    ctx_size: int | None = None
+    batch_size: int | None = None
+    ubatch_size: int | None = None
+    flash_attention: str | None = None
+    cpu_only: bool = False
 
 
 def run_runtime_probe(config: RuntimeProbeConfig) -> dict[str, Any]:
     out_root = _prepare_output_root(config.project_root / config.out_root, force=config.force)
     system_before = collect_system_snapshot()
+    gpu_before = collect_gpu_telemetry()
     rows: list[dict[str, Any]] = []
     pair_runs: list[dict[str, Any]] = []
 
@@ -108,6 +123,7 @@ def run_runtime_probe(config: RuntimeProbeConfig) -> dict[str, Any]:
                 break
 
     system_after = collect_system_snapshot()
+    gpu_after = collect_gpu_telemetry()
     capacity = estimate_capacity(rows, system_after)
     tradeoff = build_quality_cost_tradeoff(rows, capacity)
     result = {
@@ -115,8 +131,11 @@ def run_runtime_probe(config: RuntimeProbeConfig) -> dict[str, Any]:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "mode": config.mode,
         "models_config_path": config.models_config_path,
+        "runtime_flag_config": _runtime_flag_config(config),
         "system_before": system_before,
         "system_after": system_after,
+        "gpu_before": gpu_before,
+        "gpu_after": gpu_after,
         "runs": pair_runs,
         "runtime_metrics_by_pair_scenario": rows,
         "capacity_estimates": capacity,
@@ -130,6 +149,88 @@ def run_runtime_probe(config: RuntimeProbeConfig) -> dict[str, Any]:
     }
     write_runtime_probe_outputs(result, out_root, config)
     return result
+
+
+def collect_gpu_telemetry() -> dict[str, Any]:
+    if shutil.which("nvidia-smi") is None:
+        return {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "gpu_telemetry_available": False,
+            "reason": "nvidia-smi not found on PATH",
+        }
+
+    query = (
+        "name,driver_version,memory.total,memory.used,utilization.gpu,"
+        "utilization.memory,temperature.gpu,power.draw"
+    )
+    try:
+        completed = subprocess.run(
+            [
+                "nvidia-smi",
+                f"--query-gpu={query}",
+                "--format=csv,noheader,nounits",
+            ],
+            text=True,
+            capture_output=True,
+            timeout=8,
+            check=False,
+        )
+    except Exception as exc:
+        return {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "gpu_telemetry_available": False,
+            "error": str(exc) or exc.__class__.__name__,
+        }
+    if completed.returncode != 0:
+        return {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "gpu_telemetry_available": False,
+            "error": (completed.stderr or completed.stdout).strip(),
+        }
+
+    gpus = []
+    for line in completed.stdout.splitlines():
+        if not line.strip():
+            continue
+        parts = [part.strip() for part in line.split(",")]
+        if len(parts) < 8:
+            continue
+        gpus.append(
+            {
+                "name": parts[0],
+                "driver_version": parts[1],
+                "total_vram_mb": _parse_float(parts[2]),
+                "used_vram_mb": _parse_float(parts[3]),
+                "gpu_utilization_percent": _parse_float(parts[4]),
+                "gpu_memory_utilization_percent": _parse_float(parts[5]),
+                "temperature_c": _parse_float(parts[6]),
+                "power_draw_w": _parse_float(parts[7]),
+            }
+        )
+
+    if not gpus:
+        return {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "gpu_telemetry_available": False,
+            "error": "nvidia-smi returned no parseable GPU rows",
+        }
+
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "gpu_telemetry_available": True,
+        "gpu_count": len(gpus),
+        "gpus": gpus,
+        "gpu_name": gpus[0].get("name"),
+        "driver_version": gpus[0].get("driver_version"),
+        "total_vram_mb": _safe_sum([_number(gpu.get("total_vram_mb")) for gpu in gpus]),
+        "used_vram_mb": _safe_sum([_number(gpu.get("used_vram_mb")) for gpu in gpus]),
+        "gpu_utilization_percent": _safe_max([_number(gpu.get("gpu_utilization_percent")) for gpu in gpus]),
+        "gpu_memory_utilization_percent": _safe_max(
+            [_number(gpu.get("gpu_memory_utilization_percent")) for gpu in gpus]
+        ),
+        "temperature_c": _safe_max([_number(gpu.get("temperature_c")) for gpu in gpus]),
+        "power_draw_w": _safe_sum([_number(gpu.get("power_draw_w")) for gpu in gpus]),
+    }
 
 
 def _run_pair_scenario_probe(
@@ -213,6 +314,7 @@ def _run_pair_scenario_probe(
         "server_error": server_error,
         "servers": [_server_payload(server) for server in servers],
         "server_strategy": _server_strategy(config, pair),
+        "server_flags_used": _server_flags_used(servers),
         "aggregate": metrics,
         "telemetry": telemetry,
         "mean_group_step_time_ms": _mean_group_step_time_ms(metrics, scenario.max_group_steps),
@@ -255,6 +357,7 @@ class ProcessSampler:
                     continue
             while not self._stop.is_set():
                 vm = psutil.virtual_memory()
+                gpu = collect_gpu_telemetry()
                 process_rows = []
                 for process in list(processes):
                     try:
@@ -280,6 +383,7 @@ class ProcessSampler:
                         "system_ram_total_mb": _mb(vm.total),
                         "system_ram_available_mb": _mb(vm.available),
                         "active_llama_server_processes": len([row for row in process_rows if not row.get("error")]),
+                        "gpu": gpu,
                     }
                 )
                 self._stop.wait(self.interval_seconds)
@@ -299,6 +403,8 @@ def summarize_samples(samples: list[dict[str, Any]]) -> dict[str, Any]:
     pair_cpu = [_number(sample.get("pair_cpu_percent")) for sample in samples]
     system_available = [_number(sample.get("system_ram_available_mb")) for sample in samples]
     active_processes = [_number(sample.get("active_llama_server_processes")) for sample in samples]
+    gpu_samples = [sample.get("gpu") or {} for sample in samples]
+    gpu_available = [gpu for gpu in gpu_samples if gpu.get("gpu_telemetry_available") is True]
     return {
         "sample_count": len(samples),
         "psutil_available": any(sample.get("psutil_available") is True for sample in samples),
@@ -308,6 +414,23 @@ def summarize_samples(samples: list[dict[str, Any]]) -> dict[str, Any]:
         "mean_cpu_percent_pair": _safe_mean(pair_cpu),
         "min_system_ram_available_mb": _safe_min(system_available),
         "max_active_llama_server_processes": int(_safe_max(active_processes) or 0),
+        "gpu_telemetry_available": bool(gpu_available),
+        "gpu_name": (gpu_available[0].get("gpu_name") if gpu_available else None),
+        "gpu_driver_version": (gpu_available[0].get("driver_version") if gpu_available else None),
+        "gpu_total_vram_mb": _safe_max([_number(gpu.get("total_vram_mb")) for gpu in gpu_available]),
+        "gpu_peak_vram_mb": _safe_max([_number(gpu.get("used_vram_mb")) for gpu in gpu_available]),
+        "gpu_mean_vram_mb": _safe_mean([_number(gpu.get("used_vram_mb")) for gpu in gpu_available]),
+        "gpu_peak_utilization_percent": _safe_max(
+            [_number(gpu.get("gpu_utilization_percent")) for gpu in gpu_available]
+        ),
+        "gpu_mean_utilization_percent": _safe_mean(
+            [_number(gpu.get("gpu_utilization_percent")) for gpu in gpu_available]
+        ),
+        "gpu_peak_memory_utilization_percent": _safe_max(
+            [_number(gpu.get("gpu_memory_utilization_percent")) for gpu in gpu_available]
+        ),
+        "gpu_peak_temperature_c": _safe_max([_number(gpu.get("temperature_c")) for gpu in gpu_available]),
+        "gpu_peak_power_draw_w": _safe_max([_number(gpu.get("power_draw_w")) for gpu in gpu_available]),
     }
 
 
@@ -391,13 +514,14 @@ def write_runtime_probe_outputs(result: dict[str, Any], out_root: Path, config: 
     capacity = result["capacity_estimates"]
     tradeoff = result["quality_cost_tradeoff"]
     _write_json(out_root / "runtime_probe_index.json", result["runs"])
+    _write_json(out_root / "runtime_probe_manifest.json", _runtime_probe_manifest(result, config))
     _write_index_csv(result["runs"], out_root / "runtime_probe_index.csv")
     _write_json(out_root / "runtime_metrics_by_pair_scenario.json", rows)
     _write_metrics_csv(rows, out_root / "runtime_metrics_by_pair_scenario.csv")
     _write_json(out_root / "capacity_estimates.json", capacity)
     _write_capacity_csv(capacity, out_root / "capacity_estimates.csv")
     _write_json(out_root / "quality_cost_tradeoff.json", tradeoff)
-    _write_json(out_root / "gpu_runtime_status.json", _gpu_runtime_status_placeholder())
+    _write_json(out_root / "gpu_runtime_status.json", _gpu_runtime_status(result, config))
     (out_root / "quality_cost_tradeoff.md").write_text(_tradeoff_markdown(tradeoff), encoding="utf-8")
     (out_root / "runtime_capacity_report.md").write_text(_runtime_report(result), encoding="utf-8")
     (out_root / "README.md").write_text(_readme(result), encoding="utf-8")
@@ -441,11 +565,12 @@ def _start_managed_servers(config: RuntimeProbeConfig, pair: PairSpec) -> list[M
         ManagedServer("executor", pair.executor_model_id, config.base_executor_port),
     ]
     before = set(_llama_server_pids(config.project_root))
-    for server in servers:
-        server.endpoint_before = _endpoint_json(server.port) is not None
-        started = time.perf_counter()
-        proc = subprocess.Popen(
-            [
+    try:
+        for server in servers:
+            server.endpoint_before = _endpoint_json(server.port) is not None
+            started = time.perf_counter()
+            runtime_args = _server_runtime_args(config, server.role)
+            command = [
                 "powershell",
                 "-ExecutionPolicy",
                 "Bypass",
@@ -457,22 +582,60 @@ def _start_managed_servers(config: RuntimeProbeConfig, pair: PairSpec) -> list[M
                 config.models_config_path,
                 "-Port",
                 str(server.port),
-            ],
-            cwd=config.project_root,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            text=True,
-        )
-        server.wrapper_pid = proc.pid
-        if not _wait_endpoint(server.port, 75):
-            server.error = f"endpoint on port {server.port} did not become ready"
-            raise RuntimeError(server.error)
-        server.startup_time_ms = _elapsed_ms(started)
-        server.endpoint_ready = True
-        after = set(_llama_server_pids(config.project_root))
-        server.llama_pids = sorted(after - before)
-        before = after
+            ]
+            command.extend(runtime_args)
+            server.runtime_flags = runtime_args
+            server.wrapper_command = command
+            proc = subprocess.Popen(
+                command,
+                cwd=config.project_root,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+            server.wrapper_pid = proc.pid
+            if not _wait_endpoint(server.port, 75):
+                server.error = f"endpoint on port {server.port} did not become ready"
+                raise RuntimeError(server.error)
+            server.startup_time_ms = _elapsed_ms(started)
+            server.endpoint_ready = True
+            after = set(_llama_server_pids(config.project_root))
+            server.llama_pids = sorted(after - before)
+            before = after
+    except Exception:
+        _stop_managed_servers(servers)
+        raise
     return servers
+
+
+def _server_runtime_args(config: RuntimeProbeConfig, role: str) -> list[str]:
+    args: list[str] = []
+    if config.ctx_size is not None:
+        args.extend(["-CtxSize", str(config.ctx_size)])
+    if config.cpu_only:
+        args.append("-CpuOnly")
+
+    gpu_layers = config.orchestrator_gpu_layers if role == "orchestrator" else config.executor_gpu_layers
+    if gpu_layers:
+        args.extend(["-GpuLayers", str(gpu_layers)])
+
+    main_gpu = config.orchestrator_main_gpu if role == "orchestrator" else config.executor_main_gpu
+    if main_gpu is not None:
+        args.extend(["-MainGpu", str(main_gpu)])
+
+    if config.tensor_split:
+        args.extend(["-TensorSplit", config.tensor_split])
+    if config.split_mode:
+        args.extend(["-SplitMode", config.split_mode])
+    if config.batch_size is not None:
+        args.extend(["-BatchSize", str(config.batch_size)])
+    if config.ubatch_size is not None:
+        args.extend(["-UBatchSize", str(config.ubatch_size)])
+    if config.threads is not None:
+        args.extend(["-Threads", str(config.threads)])
+    if config.flash_attention:
+        args.extend(["-FlashAttention", config.flash_attention])
+    return args
 
 
 def _stop_managed_servers(servers: list[ManagedServer]) -> None:
@@ -567,7 +730,16 @@ def _metrics_row(summary: dict[str, Any]) -> dict[str, Any]:
         "peak_ram_mb_pair": telemetry.get("peak_ram_mb_pair"),
         "peak_cpu_percent_pair": telemetry.get("peak_cpu_percent_pair"),
         "sample_count": telemetry.get("sample_count"),
+        "gpu_telemetry_available": telemetry.get("gpu_telemetry_available"),
+        "gpu_name": telemetry.get("gpu_name"),
+        "gpu_total_vram_mb": telemetry.get("gpu_total_vram_mb"),
+        "gpu_peak_vram_mb": telemetry.get("gpu_peak_vram_mb"),
+        "gpu_peak_utilization_percent": telemetry.get("gpu_peak_utilization_percent"),
+        "gpu_peak_memory_utilization_percent": telemetry.get("gpu_peak_memory_utilization_percent"),
+        "gpu_peak_temperature_c": telemetry.get("gpu_peak_temperature_c"),
+        "gpu_peak_power_draw_w": telemetry.get("gpu_peak_power_draw_w"),
         "server_strategy": summary.get("server_strategy"),
+        "server_flags_used": summary.get("server_flags_used"),
         "artifact_path": summary.get("artifact_path"),
     }
 
@@ -657,7 +829,13 @@ def _server_payload(server: ManagedServer) -> dict[str, Any]:
         "endpoint_before": server.endpoint_before,
         "endpoint_after": server.endpoint_after,
         "error": server.error,
+        "runtime_flags": server.runtime_flags,
+        "wrapper_command": server.wrapper_command,
     }
+
+
+def _server_flags_used(servers: list[ManagedServer]) -> dict[str, list[str]]:
+    return {server.role: server.runtime_flags for server in servers}
 
 
 def _write_server_run(run_root: Path, servers: list[ManagedServer], server_error: str | None) -> None:
@@ -676,6 +854,12 @@ def _write_index_csv(rows: list[dict[str, Any]], path: Path) -> None:
 
 
 def _write_metrics_csv(rows: list[dict[str, Any]], path: Path) -> None:
+    csv_rows = []
+    for row in rows:
+        csv_row = dict(row)
+        if isinstance(csv_row.get("server_flags_used"), dict):
+            csv_row["server_flags_used"] = json.dumps(csv_row["server_flags_used"], ensure_ascii=False)
+        csv_rows.append(csv_row)
     fieldnames = [
         "pair",
         "scenario",
@@ -690,8 +874,17 @@ def _write_metrics_csv(rows: list[dict[str, Any]], path: Path) -> None:
         "mean_executor_latency_ms",
         "peak_ram_mb_pair",
         "peak_cpu_percent_pair",
+        "gpu_telemetry_available",
+        "gpu_name",
+        "gpu_total_vram_mb",
+        "gpu_peak_vram_mb",
+        "gpu_peak_utilization_percent",
+        "gpu_peak_memory_utilization_percent",
+        "gpu_peak_temperature_c",
+        "gpu_peak_power_draw_w",
+        "server_flags_used",
     ]
-    _write_csv(rows, path, fieldnames)
+    _write_csv(csv_rows, path, fieldnames)
 
 
 def _write_capacity_csv(rows: list[dict[str, Any]], path: Path) -> None:
@@ -725,8 +918,19 @@ def _write_capacity_csv(rows: list[dict[str, Any]], path: Path) -> None:
 
 
 def _write_samples_csv(samples: list[dict[str, Any]], path: Path) -> None:
+    flat_samples = []
+    for sample in samples:
+        row = dict(sample)
+        gpu = row.get("gpu") if isinstance(row.get("gpu"), dict) else {}
+        row["gpu_telemetry_available"] = gpu.get("gpu_telemetry_available")
+        row["gpu_used_vram_mb"] = gpu.get("used_vram_mb")
+        row["gpu_utilization_percent"] = gpu.get("gpu_utilization_percent")
+        row["gpu_memory_utilization_percent"] = gpu.get("gpu_memory_utilization_percent")
+        row["gpu_temperature_c"] = gpu.get("temperature_c")
+        row["gpu_power_draw_w"] = gpu.get("power_draw_w")
+        flat_samples.append(row)
     _write_csv(
-        samples,
+        flat_samples,
         path,
         [
             "timestamp",
@@ -737,6 +941,12 @@ def _write_samples_csv(samples: list[dict[str, Any]], path: Path) -> None:
             "system_ram_total_mb",
             "system_ram_available_mb",
             "active_llama_server_processes",
+            "gpu_telemetry_available",
+            "gpu_used_vram_mb",
+            "gpu_utilization_percent",
+            "gpu_memory_utilization_percent",
+            "gpu_temperature_c",
+            "gpu_power_draw_w",
             "error",
         ],
     )
@@ -858,11 +1068,100 @@ def _readme(result: dict[str, Any]) -> str:
         "- capacity is estimated from short local probes, not a stress test.\n\n"
         "Primary files:\n\n"
         "- `runtime_capacity_report.md`\n"
+        "- `runtime_probe_manifest.json`\n"
         "- `runtime_metrics_by_pair_scenario.json`\n"
         "- `capacity_estimates.json`\n"
         "- `quality_cost_tradeoff.md`\n"
         "- `gpu_runtime_status.json`\n"
     )
+
+
+def _runtime_flag_config(config: RuntimeProbeConfig) -> dict[str, Any]:
+    return {
+        "orchestrator_gpu_layers": config.orchestrator_gpu_layers,
+        "executor_gpu_layers": config.executor_gpu_layers,
+        "orchestrator_main_gpu": config.orchestrator_main_gpu,
+        "executor_main_gpu": config.executor_main_gpu,
+        "split_mode": config.split_mode,
+        "tensor_split": config.tensor_split,
+        "threads": config.threads,
+        "ctx_size": config.ctx_size,
+        "batch_size": config.batch_size,
+        "ubatch_size": config.ubatch_size,
+        "flash_attention": config.flash_attention,
+        "cpu_only": config.cpu_only,
+    }
+
+
+def _runtime_probe_manifest(result: dict[str, Any], config: RuntimeProbeConfig) -> dict[str, Any]:
+    return {
+        "probe_id": result.get("probe_id"),
+        "generated_at": result.get("generated_at"),
+        "mode": result.get("mode"),
+        "models_config_path": result.get("models_config_path"),
+        "pairs": [pair.label for pair in config.pairs],
+        "scenarios": [
+            {
+                "label": scenario.label,
+                "path": scenario.path,
+                "max_group_steps": scenario.max_group_steps,
+                "orchestrator_max_tokens": scenario.orchestrator_max_tokens,
+            }
+            for scenario in config.scenarios
+        ],
+        "trials": config.trials,
+        "server_ports": {
+            "orchestrator": config.base_orchestrator_port,
+            "executor": config.base_executor_port,
+        },
+        "manage_servers": config.manage_servers,
+        "runtime_flag_config": _runtime_flag_config(config),
+    }
+
+
+def _gpu_runtime_status(result: dict[str, Any], config: RuntimeProbeConfig) -> dict[str, Any]:
+    rows = result.get("runtime_metrics_by_pair_scenario") or []
+    before = result.get("gpu_before") or {}
+    after = result.get("gpu_after") or {}
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "gpu_telemetry_available": bool(before.get("gpu_telemetry_available") or after.get("gpu_telemetry_available")),
+        "gpu_name": before.get("gpu_name") or after.get("gpu_name"),
+        "driver_version": before.get("driver_version") or after.get("driver_version"),
+        "total_vram_mb": before.get("total_vram_mb") or after.get("total_vram_mb"),
+        "used_vram_mb_before": before.get("used_vram_mb"),
+        "used_vram_mb_after": after.get("used_vram_mb"),
+        "peak_vram_mb_during_probe": _safe_max([_number(row.get("gpu_peak_vram_mb")) for row in rows]),
+        "peak_gpu_utilization_percent_during_probe": _safe_max(
+            [_number(row.get("gpu_peak_utilization_percent")) for row in rows]
+        ),
+        "peak_gpu_memory_utilization_percent_during_probe": _safe_max(
+            [_number(row.get("gpu_peak_memory_utilization_percent")) for row in rows]
+        ),
+        "peak_gpu_temperature_c_during_probe": _safe_max([_number(row.get("gpu_peak_temperature_c")) for row in rows]),
+        "peak_gpu_power_draw_w_during_probe": _safe_max([_number(row.get("gpu_peak_power_draw_w")) for row in rows]),
+        "gpu_runtime_measured": bool(
+            config.orchestrator_gpu_layers
+            or config.executor_gpu_layers
+            or config.orchestrator_main_gpu is not None
+            or config.executor_main_gpu is not None
+            or config.split_mode
+            or config.tensor_split
+        )
+        and not config.cpu_only,
+        "cpu_only_requested": config.cpu_only,
+        "orchestrator_gpu_layers": config.orchestrator_gpu_layers,
+        "executor_gpu_layers": config.executor_gpu_layers,
+        "orchestrator_main_gpu": config.orchestrator_main_gpu,
+        "executor_main_gpu": config.executor_main_gpu,
+        "split_mode": config.split_mode,
+        "tensor_split": config.tensor_split,
+        "threads": config.threads,
+        "ctx_size": config.ctx_size,
+        "batch_size": config.batch_size,
+        "ubatch_size": config.ubatch_size,
+        "flash_attention": config.flash_attention,
+    }
 
 
 def _gpu_runtime_status_placeholder() -> dict[str, Any]:
@@ -879,7 +1178,7 @@ def _replay_command(config: RuntimeProbeConfig) -> str:
     scenarios = ",".join(f"{scenario.label}={scenario.path}" for scenario in config.scenarios)
     action_flag = "--execute-actions" if config.execute_actions else "--no-execute-actions"
     server_flag = "--manage-servers" if config.manage_servers else "--no-manage-servers"
-    return (
+    command = (
         "python scripts\\probe_orchestrator_executor_runtime.py "
         f"--mode {config.mode} "
         f"--models-config {config.models_config_path} "
@@ -898,6 +1197,25 @@ def _replay_command(config: RuntimeProbeConfig) -> str:
         f"--sample-interval-seconds {config.sample_interval_seconds} "
         "--continue-on-pair-failure"
     )
+    optional_flags = {
+        "--orchestrator-gpu-layers": config.orchestrator_gpu_layers,
+        "--executor-gpu-layers": config.executor_gpu_layers,
+        "--orchestrator-main-gpu": config.orchestrator_main_gpu,
+        "--executor-main-gpu": config.executor_main_gpu,
+        "--split-mode": config.split_mode,
+        "--tensor-split": config.tensor_split,
+        "--threads": config.threads,
+        "--ctx-size": config.ctx_size,
+        "--batch-size": config.batch_size,
+        "--ubatch-size": config.ubatch_size,
+        "--flash-attention": config.flash_attention,
+    }
+    for flag, value in optional_flags.items():
+        if value is not None and str(value).strip():
+            command += f" {flag} {value}"
+    if config.cpu_only:
+        command += " --cpu-only"
+    return command
 
 
 def _prepare_output_root(out_root: Path, *, force: bool) -> Path:
@@ -948,6 +1266,16 @@ def _number(value: Any) -> float | None:
     return None
 
 
+def _parse_float(value: str) -> float | None:
+    try:
+        cleaned = value.strip()
+        if not cleaned or cleaned.upper() == "N/A":
+            return None
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
 def _safe_mean(values: list[float | None]) -> float | None:
     clean = [value for value in values if value is not None]
     if not clean:
@@ -963,3 +1291,8 @@ def _safe_min(values: list[float | None]) -> float | None:
 def _safe_max(values: list[float | None]) -> float | None:
     clean = [value for value in values if value is not None]
     return round(max(clean), 6) if clean else None
+
+
+def _safe_sum(values: list[float | None]) -> float | None:
+    clean = [value for value in values if value is not None]
+    return round(sum(clean), 6) if clean else None

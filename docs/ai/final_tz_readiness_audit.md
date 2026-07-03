@@ -26,7 +26,7 @@ This audit checks the repository against that target without running models, sta
 - The heavy scenario errors were analyzed separately in `docs/ai/heavy_scenario_error_analysis_v1.md`; the workspace write rejections are legitimate safety/behavior penalties, while executor repair HTTP 400 remains a diagnostic/runtime observability gap.
 - A measured local runtime/resource probe now covers `second_model -> first_model` and `second_model -> second_model` across the simple and heavy group scenarios. The probe measured pair RSS/CPU and writes capacity estimates under `experiments/multi_agent/orchestrator_executor/runtime_probe_candidate_pairs_v1`.
 - The runtime/capacity probe gives `second_model -> second_model` the best preliminary quality/cost score, while `second_model -> first_model` remains lighter in RAM.
-- GPU hardware was detected and `llama-server` GPU flags are available, but the project wrapper still does not configure GPU offload and no GPU model run was measured.
+- GPU hardware was detected, `llama-server` GPU flags are available, the start wrapper now exposes observed GPU/runtime flags, and a short N=1 GPU smoke completed for `second_model -> second_model` on the heavy group scenario.
 - Final reports exist, but they explicitly do not make a production recommendation.
 
 ## 3. Requirement Coverage Matrix
@@ -43,10 +43,10 @@ This audit checks the repository against that target without running models, sta
 | multiple models | `first_model`, `second_model`, alias support, repeated comparisons, default orchestrator/executor pair, pair matrices | partially complete | Only two model candidates; pair matrices cover two short group scenarios only. | Add more scenario diversity and measured resource/capacity probes. |
 | repeated trials | N=3 per model per scenario | complete | Small sample size. | Increase N only after scenario/path policy is stable. |
 | group of agents | `MultiAgentOrchestratorSmoke`, multi-agent scenario configs, orchestrator/executor artifacts | partially complete / MVP implemented | Sequential fake-mode and local pair-matrix evidence exist for short group scenarios; no measured concurrency. | Run measured capacity smoke and add more realistic scenario variants. |
-| orchestrator/executor pair | `src/agent/orchestrator_executor_pipeline.py`, `scripts/run_orchestrator_executor_group.py`, repeated local artifacts, pair matrices, `docs/ai/heavy_scenario_error_analysis_v1.md`, `docs/ai/orchestrator_executor_runtime_capacity_v1.md` | partially complete | Pair comparison covers two group scenarios and one short runtime/resource probe; still N=3, short-horizon, CPU-only, and not concurrent. | Add scenario diversity, GPU smoke, and a real concurrency stress test. |
+| orchestrator/executor pair | `src/agent/orchestrator_executor_pipeline.py`, `scripts/run_orchestrator_executor_group.py`, repeated local artifacts, pair matrices, `docs/ai/heavy_scenario_error_analysis_v1.md`, `docs/ai/orchestrator_executor_runtime_capacity_v1.md`, `docs/ai/gpu_smoke_second_to_second_heavy_v1.md` | partially complete | Pair comparison covers two group scenarios, one short runtime/resource probe, and one GPU smoke; still N=3 or N=1, short-horizon, and not concurrent. | Add scenario diversity and a real bounded concurrency stress test. |
 | virtual network simulation | Controlled filesystem/action environment and constraints | partially complete | No real virtual network, host topology, or network traffic simulation. | Define minimal virtual network abstraction or narrow the claim. |
 | CPU-only runtime | CPU-oriented local runs and resource observations | complete | Evidence is short single-agent only. | Keep CPU-only as demonstrated for short demos, not capacity claims. |
-| GPU runtime | GPU audit detected `NVIDIA RTX PRO 4000 Blackwell`; `llama-server --help` exposes GPU flags | partially complete | GPU runtime configured: no; GPU runtime measured: no. | Add GPU runtime config and perform measured GPU smoke. |
+| GPU runtime | GPU audit detected `NVIDIA RTX PRO 4000 Blackwell`; `llama-server --help` exposes GPU flags; wrapper flags and N=1 GPU smoke exist | partially complete | GPU runtime configured: yes; GPU runtime measured: yes, short smoke only. Meaningful speedup/capacity is not established. | Run controlled bounded stress with explicit GPU monitoring. |
 | multi-agent capacity | Formula estimate exists; runtime probe measured pair RSS/CPU and produced RAM-based capacity estimates | estimated only / partially measured | No concurrent stress test; capacity remains derived from short sequential telemetry. | Add controlled concurrent stress test after GPU/CPU runtime profiles are explicit. |
 | final recommended configuration | Final reports state not ready | missing | Evidence is insufficient for final production recommendation. | Produce recommendation only after stronger behavior and measured capacity evidence. |
 
@@ -57,11 +57,11 @@ This audit checks the repository against that target without running models, sta
 - Multiple executor model comparison: partially complete.
 - Group of agents: partially complete; sequential fake-mode and local repeated/matrix evidence now exist, including a four-agent heavy scenario, but no measured concurrency.
 - Orchestrator/executor pair comparison: partially complete for two group scenarios plus one short runtime/resource probe. The current preliminary quality/cost winner is `second_model -> second_model`, while `second_model -> first_model` remains lighter.
-- GPU runtime: hardware detected and llama-server flags available, but not configured/measured in the project wrapper.
+- GPU runtime: hardware detected, wrapper flags implemented, and one short GPU smoke completed. Stress readiness is preliminary because the first smoke did not show meaningful speedup and was not concurrent.
 - Measured multi-agent capacity: partially measured for short sequential pair telemetry, but concurrent capacity is still estimated only.
 - Virtual computer network: partially simulated, not a full network.
 - Final production recommendation: not ready.
 
 ## 5. Next Audit-Based Direction
 
-The next implementation should not add more reports first. The minimal orchestrator/executor experiment path, fake-mode proof, local repeated pair proof, basic pair matrix, heavy pair matrix, cross-scenario pair comparison, heavy error analysis, and short measured runtime/resource probe now exist. The next step is either a reviewed GPU runtime profile smoke or a controlled concurrent stress test, followed by additional scenario diversity.
+The next implementation should not add more reports first. The minimal orchestrator/executor experiment path, fake-mode proof, local repeated pair proof, basic pair matrix, heavy pair matrix, cross-scenario pair comparison, heavy error analysis, short measured runtime/resource probe, and GPU smoke now exist. The next step is a controlled concurrent stress test with explicit CPU/GPU runtime profiles, followed by additional scenario diversity.

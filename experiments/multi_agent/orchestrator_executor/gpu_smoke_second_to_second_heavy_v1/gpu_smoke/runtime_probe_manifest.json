@@ -1,0 +1,37 @@
+{
+  "probe_id": "gpu_smoke",
+  "generated_at": "2026-07-03T14:22:48.561029+00:00",
+  "mode": "local",
+  "models_config_path": "configs\\evaluation_models.json",
+  "pairs": [
+    "second_model->second_model"
+  ],
+  "scenarios": [
+    {
+      "label": "heavy",
+      "path": "configs\\multi_agent_scenarios\\office_developer_maintenance_group_heavy.json",
+      "max_group_steps": 2,
+      "orchestrator_max_tokens": 1024
+    }
+  ],
+  "trials": 1,
+  "server_ports": {
+    "orchestrator": 8081,
+    "executor": 8082
+  },
+  "manage_servers": true,
+  "runtime_flag_config": {
+    "orchestrator_gpu_layers": "all",
+    "executor_gpu_layers": "all",
+    "orchestrator_main_gpu": 0,
+    "executor_main_gpu": 0,
+    "split_mode": "none",
+    "tensor_split": null,
+    "threads": null,
+    "ctx_size": 4096,
+    "batch_size": null,
+    "ubatch_size": null,
+    "flash_attention": null,
+    "cpu_only": false
+  }
+}

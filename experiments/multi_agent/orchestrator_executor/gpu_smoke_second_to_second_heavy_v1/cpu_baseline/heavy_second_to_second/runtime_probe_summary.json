@@ -1,0 +1,146 @@
+{
+  "run_label": "heavy_second_to_second",
+  "status": "completed",
+  "scenario_label": "heavy",
+  "scenario_path": "configs\\multi_agent_scenarios\\office_developer_maintenance_group_heavy.json",
+  "pair": "second_model->second_model",
+  "pair_id": "second_model__second_model",
+  "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\gpu_smoke_second_to_second_heavy_v1\\cpu_baseline\\heavy_second_to_second",
+  "wall_time_ms_probe": 28781.4085,
+  "server_error": null,
+  "servers": [
+    {
+      "role": "orchestrator",
+      "model_id": "second_model",
+      "port": 8081,
+      "wrapper_pid": 25472,
+      "llama_pids": [
+        31852
+      ],
+      "endpoint_ready": true,
+      "endpoint_stopped": true,
+      "startup_time_ms": 2566.7564,
+      "endpoint_before": false,
+      "endpoint_after": false,
+      "error": null,
+      "runtime_flags": [
+        "-CtxSize",
+        "4096"
+      ],
+      "wrapper_command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".\\scripts\\start_llama_server.ps1",
+        "-ModelId",
+        "second_model",
+        "-ModelsConfig",
+        "configs\\evaluation_models.json",
+        "-Port",
+        "8081",
+        "-CtxSize",
+        "4096"
+      ]
+    },
+    {
+      "role": "executor",
+      "model_id": "second_model",
+      "port": 8082,
+      "wrapper_pid": 48116,
+      "llama_pids": [
+        2636
+      ],
+      "endpoint_ready": true,
+      "endpoint_stopped": true,
+      "startup_time_ms": 2541.139401,
+      "endpoint_before": false,
+      "endpoint_after": false,
+      "error": null,
+      "runtime_flags": [
+        "-CtxSize",
+        "4096"
+      ],
+      "wrapper_command": [
+        "powershell",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        ".\\scripts\\start_llama_server.ps1",
+        "-ModelId",
+        "second_model",
+        "-ModelsConfig",
+        "configs\\evaluation_models.json",
+        "-Port",
+        "8082",
+        "-CtxSize",
+        "4096"
+      ]
+    }
+  ],
+  "server_strategy": "two separate llama-server endpoints for the same model on different ports",
+  "server_flags_used": {
+    "orchestrator": [
+      "-CtxSize",
+      "4096"
+    ],
+    "executor": [
+      "-CtxSize",
+      "4096"
+    ]
+  },
+  "aggregate": {
+    "trial_count": 1,
+    "completed_trial_count": 1,
+    "failed_trial_count": 0,
+    "mean_pair_quality_score": 0.875562,
+    "std_pair_quality_score": 0.0,
+    "min_pair_quality_score": 0.875562,
+    "max_pair_quality_score": 0.875562,
+    "mean_plan_valid_rate": 1.0,
+    "mean_executor_call_count": 9.0,
+    "mean_final_validation_success_rate": 0.777778,
+    "mean_execution_success_rate": 1.0,
+    "total_safety_violations": 0,
+    "total_errors": 2,
+    "common_failure_modes": {
+      "NextActionValidationError": 2,
+      "NextActionJSONError": 2
+    },
+    "common_actions": {
+      "read_file": 7
+    },
+    "common_action_parameters": {
+      "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}": 2,
+      "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/maintenance_notes.md\"}}": 2,
+      "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}": 2,
+      "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}": 1
+    },
+    "mean_wall_time_ms": 8775.802,
+    "mean_orchestrator_latency_ms": 1729.918,
+    "mean_executor_latency_ms": 777.152222
+  },
+  "telemetry": {
+    "sample_count": 16,
+    "psutil_available": true,
+    "peak_ram_mb_pair": 4712.328125,
+    "mean_ram_mb_pair": 4290.608399,
+    "peak_cpu_percent_pair": 49.9,
+    "mean_cpu_percent_pair": 34.3375,
+    "min_system_ram_available_mb": 83748.929688,
+    "max_active_llama_server_processes": 2,
+    "gpu_telemetry_available": true,
+    "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+    "gpu_driver_version": "582.16",
+    "gpu_total_vram_mb": 24467.0,
+    "gpu_peak_vram_mb": 6282.0,
+    "gpu_mean_vram_mb": 6276.5,
+    "gpu_peak_utilization_percent": 99.0,
+    "gpu_mean_utilization_percent": 75.625,
+    "gpu_peak_memory_utilization_percent": 56.0,
+    "gpu_peak_temperature_c": 69.0,
+    "gpu_peak_power_draw_w": 145.07
+  },
+  "mean_group_step_time_ms": 4387.901,
+  "mean_repair_latency_ms": 294.44
+}

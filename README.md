@@ -50,6 +50,8 @@ Current evidence:
 - cross-scenario pair comparison now exists, but the best observed pair changes by scenario and remains preliminary only;
 - heavy-scenario validation and repair errors are analyzed in `docs/ai/heavy_scenario_error_analysis_v1.md`;
 - measured local runtime/resource telemetry now exists for the two top completed pairs across simple and heavy group scenarios;
+- optional GPU flags are supported by `scripts/start_llama_server.ps1`, based on observed local `llama-server --help`;
+- a short N=1 GPU smoke completed for `second_model -> second_model` on the heavy group scenario;
 - resource/capacity evaluation exists, but multi-agent capacity is still not concurrent stress-tested.
 
 Important limitations:
@@ -59,6 +61,7 @@ Important limitations:
 - production action execution scheduler/runtime is not implemented;
 - no measured concurrent multi-agent stress test;
 - pair-matrix and runtime-probe evidence covers two short group scenarios so far; no long stress test has been run;
+- GPU smoke is short and not a stress test; first wall-time result was roughly comparable, not a meaningful speedup claim;
 - browser behavior is simulated-only;
 - office behavior is stub/file-based;
 - no git/mail actions are included;
@@ -87,6 +90,7 @@ Important limitations:
 - Orchestrator/executor pair matrix comparison and prototype pair ranking.
 - Heavy four-agent group scenario and cross-scenario pair matrix comparison.
 - Heavy scenario error analysis and measured orchestrator/executor runtime/capacity probe.
+- Optional GPU wrapper flags and a short GPU smoke comparison.
 - Final evaluation reports.
 
 ## 4. Project structure
@@ -134,7 +138,7 @@ Run the test suite:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests. After the heavy multi-agent scenario and cross-scenario pair comparison, the full suite passed with 703 tests. After the runtime/capacity candidate-pair probe, the full suite passed with 710 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit added repository publication checks, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests. After the heavy multi-agent scenario and cross-scenario pair comparison, the full suite passed with 703 tests. After the runtime/capacity candidate-pair probe, the full suite passed with 710 tests. After GPU wrapper/smoke support, the full suite passed with 716 tests.
 
 ## 7. Model setup
 
@@ -368,6 +372,43 @@ The runtime probe measures short local RSS/CPU telemetry for selected orchestrat
 
 Latest runtime artifact root: `experiments/multi_agent/orchestrator_executor/runtime_probe_candidate_pairs_v1`. In this probe, `second_model -> second_model` had the best preliminary quality/cost score (`0.687916`) and fewer heavy-scenario errors, while `second_model -> first_model` used less RAM and was slightly faster in the short run. See `docs/ai/orchestrator_executor_runtime_capacity_v1.md`.
 
+## GPU runtime configuration and smoke
+
+The start wrapper now supports optional GPU/runtime flags observed in the local `llama-server --help` output. Existing commands without GPU parameters still work.
+
+Dry-run GPU command:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start_llama_server.ps1 `
+  -ModelId second_model `
+  -Port 8081 `
+  -GpuLayers all `
+  -MainGpu 0 `
+  -SplitMode none `
+  -DryRun
+```
+
+GPU smoke command:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_gpu_smoke_orchestrator_executor.py `
+  --models-config configs\evaluation_models.json `
+  --scenario configs\multi_agent_scenarios\office_developer_maintenance_group_heavy.json `
+  --out-root experiments\multi_agent\orchestrator_executor\gpu_smoke_second_to_second_heavy_v1 `
+  --pair second_model:second_model `
+  --trials 1 `
+  --gpu-layers all `
+  --main-gpu 0 `
+  --split-mode none `
+  --ctx-size 4096 `
+  --max-group-steps 2 `
+  --max-steps-per-agent 1 `
+  --orchestrator-max-tokens 1024 `
+  --execute-actions
+```
+
+Latest GPU smoke artifact root: `experiments/multi_agent/orchestrator_executor/gpu_smoke_second_to_second_heavy_v1`. Both baseline and GPU smoke completed. Wall-time ratio was `1.006842`, so this is a readiness check, not a speedup claim. See `docs/ai/gpu_runtime_configuration_v1.md`, `docs/ai/llama_server_gpu_flags_observed.md`, and `docs/ai/gpu_smoke_second_to_second_heavy_v1.md`.
+
 ## 10. Real local single scenario run
 
 Start `llama-server` first, then run:
@@ -459,7 +500,8 @@ The newer orchestrator/executor runtime probe measured short local pair RSS/CPU 
 - artifact root: `experiments/multi_agent/orchestrator_executor/runtime_probe_candidate_pairs_v1`
 - doc: `docs/ai/orchestrator_executor_runtime_capacity_v1.md`
 - best preliminary quality/cost pair in the measured probe: `second_model -> second_model`
-- still missing: true concurrent multi-agent stress test and GPU-enabled runtime measurement
+- GPU smoke root: `experiments/multi_agent/orchestrator_executor/gpu_smoke_second_to_second_heavy_v1`
+- still missing: true concurrent multi-agent stress test and meaningful GPU speedup/capacity measurement
 
 ## 15. Final reports
 
@@ -486,7 +528,7 @@ Final summary:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests. After the heavy multi-agent scenario and cross-scenario pair comparison, the full suite passed with 703 tests. After the runtime/capacity candidate-pair probe, the full suite passed with 710 tests.
+At the time of the final experiment report, the full suite passed with 636 tests. After the publication consistency audit, the full suite passed with 644 tests. After the orchestrator/executor group MVP, the full suite passed with 664 tests. After the local orchestrator/executor runtime configuration work, the full suite passed with 670 tests. After orchestrator plan hardening, the full suite passed with 675 tests. After executor prompt/repair hardening, the full suite passed with 679 tests. After repeated group-trials hardening, the full suite passed with 685 tests. After pair-matrix comparison, the full suite passed with 693 tests. After publication security docs, the full suite passed with 696 tests. After the heavy multi-agent scenario and cross-scenario pair comparison, the full suite passed with 703 tests. After the runtime/capacity candidate-pair probe, the full suite passed with 710 tests. After GPU wrapper/smoke support, the full suite passed with 716 tests.
 
 ## 17. Publishing to GitHub
 

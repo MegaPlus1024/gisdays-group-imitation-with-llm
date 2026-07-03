@@ -29,6 +29,9 @@ def test_research_readiness_docs_exist() -> None:
         "docs/ai/orchestrator_executor_pipeline_v1.md",
         "docs/ai/orchestrator_executor_quality_spec.md",
         "docs/ai/gpu_runtime_readiness_audit.md",
+        "docs/ai/llama_server_gpu_flags_observed.md",
+        "docs/ai/gpu_runtime_configuration_v1.md",
+        "docs/ai/gpu_smoke_second_to_second_heavy_v1.md",
         "docs/ai/next_implementation_plan_orchestrator_executor.md",
     ]:
         assert (PROJECT_ROOT / relative_path).exists(), relative_path
@@ -39,6 +42,8 @@ def test_readme_links_research_model_metadata() -> None:
 
     assert "docs/ai/model_research_metadata.md" in readme
     assert "docs/ai/orchestrator_executor_runtime_capacity_v1.md" in readme
+    assert "docs/ai/gpu_runtime_configuration_v1.md" in readme
+    assert "docs/ai/gpu_smoke_second_to_second_heavy_v1.md" in readme
 
 
 def test_evaluation_model_registry_has_current_models_and_legacy_alias() -> None:
@@ -85,15 +90,16 @@ def test_final_tz_readiness_audit_names_critical_statuses() -> None:
         assert required in text
 
 
-def test_gpu_audit_is_explicit_about_unmeasured_gpu_runtime() -> None:
+def test_gpu_audit_records_wrapper_and_smoke_status() -> None:
     text = _read("docs/ai/gpu_runtime_readiness_audit.md").lower()
 
     assert "gpu detected: yes" in text
     assert "llama-server gpu flags available: yes" in text
-    assert "gpu runtime configured: no" in text
-    assert "gpu runtime measured: no" in text
+    assert "gpu runtime configured: yes" in text
+    assert "gpu runtime measured: yes" in text
     assert "cpu-only short single-agent runs demonstrated: yes" in text
     assert "gpu is likely useful for throughput/capacity" in text
+    assert "1.006842" in text
 
 
 def test_orchestrator_executor_quality_spec_names_prototype_status() -> None:
@@ -270,6 +276,51 @@ def test_orchestrator_executor_runtime_capacity_doc_records_probe() -> None:
         "estimated_concurrent_pairs_by_ram",
         "quality/cost winner",
         "GPU detected: yes",
+        "GPU smoke artifact",
         "preliminary only",
+    ]:
+        assert required in text
+
+
+def test_gpu_runtime_configuration_docs_record_observed_flags() -> None:
+    observed = _read("docs/ai/llama_server_gpu_flags_observed.md")
+    config = _read("docs/ai/gpu_runtime_configuration_v1.md")
+
+    for required in [
+        "--n-gpu-layers",
+        "--main-gpu",
+        "--split-mode",
+        "--tensor-split",
+        "--flash-attn",
+        "--device none",
+        "version: 9264",
+    ]:
+        assert required in observed
+
+    for required in [
+        "GPU Runtime Configuration v1",
+        "-GpuLayers",
+        "-MainGpu",
+        "-SplitMode",
+        "-CpuOnly",
+        "GpuLayers all",
+    ]:
+        assert required in config
+
+
+def test_gpu_smoke_doc_records_result_and_caveats() -> None:
+    text = _read("docs/ai/gpu_smoke_second_to_second_heavy_v1.md")
+
+    for required in [
+        "GPU Smoke Second-to-Second Heavy v1",
+        "gpu_smoke_second_to_second_heavy_v1",
+        "second_model -> second_model",
+        "0.875562",
+        "0.875545",
+        "8775.802",
+        "8716.17",
+        "1.006842",
+        "not the same as strict `--device none`",
+        "not evidence of meaningful acceleration",
     ]:
         assert required in text

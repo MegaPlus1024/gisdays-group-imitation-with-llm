@@ -29,6 +29,17 @@ def test_telemetry_aggregation_from_fake_samples() -> None:
             "pair_cpu_percent": 12.5,
             "system_ram_available_mb": 1000.0,
             "active_llama_server_processes": 2,
+            "gpu": {
+                "gpu_telemetry_available": True,
+                "gpu_name": "Test GPU",
+                "driver_version": "1.0",
+                "total_vram_mb": 24000.0,
+                "used_vram_mb": 1000.0,
+                "gpu_utilization_percent": 10.0,
+                "gpu_memory_utilization_percent": 5.0,
+                "temperature_c": 40.0,
+                "power_draw_w": 20.0,
+            },
         },
         {
             "psutil_available": True,
@@ -36,6 +47,17 @@ def test_telemetry_aggregation_from_fake_samples() -> None:
             "pair_cpu_percent": 25.0,
             "system_ram_available_mb": 900.0,
             "active_llama_server_processes": 2,
+            "gpu": {
+                "gpu_telemetry_available": True,
+                "gpu_name": "Test GPU",
+                "driver_version": "1.0",
+                "total_vram_mb": 24000.0,
+                "used_vram_mb": 1250.0,
+                "gpu_utilization_percent": 33.0,
+                "gpu_memory_utilization_percent": 8.0,
+                "temperature_c": 42.0,
+                "power_draw_w": 30.0,
+            },
         },
     ]
 
@@ -45,6 +67,10 @@ def test_telemetry_aggregation_from_fake_samples() -> None:
     assert summary["peak_ram_mb_pair"] == 150.0
     assert summary["peak_cpu_percent_pair"] == 25.0
     assert summary["min_system_ram_available_mb"] == 900.0
+    assert summary["gpu_telemetry_available"] is True
+    assert summary["gpu_name"] == "Test GPU"
+    assert summary["gpu_peak_vram_mb"] == 1250.0
+    assert summary["gpu_peak_utilization_percent"] == 33.0
 
 
 def test_capacity_estimate_formula_uses_pair_peak_ram() -> None:

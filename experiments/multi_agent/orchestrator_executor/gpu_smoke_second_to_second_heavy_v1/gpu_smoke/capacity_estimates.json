@@ -1,0 +1,31 @@
+[
+  {
+    "pair": "second_model->second_model",
+    "peak_ram_mb_pair": 4714.621094,
+    "peak_cpu_percent_pair": 55.6,
+    "mean_wall_time_per_trial_ms": 8716.17,
+    "mean_group_step_time_ms": 4358.085,
+    "estimated_throughput_group_steps_per_hour": 826.050892,
+    "max_agents_per_pair": 4,
+    "estimates_by_reserve_mb": {
+      "4096": {
+        "reserve_ram_mb": 4096.0,
+        "available_for_models_mb": 126340.710938,
+        "estimated_concurrent_pairs_by_ram": 26,
+        "estimated_agents_by_ram": 104
+      },
+      "8192": {
+        "reserve_ram_mb": 8192.0,
+        "available_for_models_mb": 122244.710938,
+        "estimated_concurrent_pairs_by_ram": 25,
+        "estimated_agents_by_ram": 100
+      }
+    },
+    "bottleneck": "unknown",
+    "confidence": "medium",
+    "notes": [
+      "Capacity is estimated from short sequential local probes.",
+      "No concurrent stress test was run."
+    ]
+  }
+]

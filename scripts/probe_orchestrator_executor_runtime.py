@@ -36,6 +36,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--execute-actions", dest="execute_actions", action="store_true", default=True)
     parser.add_argument("--no-execute-actions", dest="execute_actions", action="store_false")
     parser.add_argument("--sample-interval-seconds", type=float, default=0.5)
+    parser.add_argument("--orchestrator-gpu-layers", default=None)
+    parser.add_argument("--executor-gpu-layers", default=None)
+    parser.add_argument("--orchestrator-main-gpu", type=int, default=None)
+    parser.add_argument("--executor-main-gpu", type=int, default=None)
+    parser.add_argument("--split-mode", choices=["none", "layer", "row", "tensor"], default=None)
+    parser.add_argument("--tensor-split", default=None)
+    parser.add_argument("--threads", type=int, default=None)
+    parser.add_argument("--ctx-size", type=int, default=None)
+    parser.add_argument("--batch-size", type=int, default=None)
+    parser.add_argument("--ubatch-size", type=int, default=None)
+    parser.add_argument("--flash-attention", choices=["on", "off", "auto"], default=None)
+    parser.add_argument("--cpu-only", action="store_true")
     parser.add_argument("--continue-on-pair-failure", action="store_true")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--json-only", action="store_true")
@@ -78,6 +90,18 @@ def main(argv: list[str] | None = None) -> int:
                 sample_interval_seconds=args.sample_interval_seconds,
                 continue_on_pair_failure=args.continue_on_pair_failure,
                 force=args.force,
+                orchestrator_gpu_layers=args.orchestrator_gpu_layers,
+                executor_gpu_layers=args.executor_gpu_layers,
+                orchestrator_main_gpu=args.orchestrator_main_gpu,
+                executor_main_gpu=args.executor_main_gpu,
+                split_mode=args.split_mode,
+                tensor_split=args.tensor_split,
+                threads=args.threads,
+                ctx_size=args.ctx_size,
+                batch_size=args.batch_size,
+                ubatch_size=args.ubatch_size,
+                flash_attention=args.flash_attention,
+                cpu_only=args.cpu_only,
             )
         )
     except FileExistsError as exc:
@@ -98,7 +122,8 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"{row['scenario']} {row['pair']} completed={row['completed_trials']} "
             f"errors={row['total_errors']} peak_ram_mb={row['peak_ram_mb_pair']} "
-            f"peak_cpu_percent={row['peak_cpu_percent_pair']}"
+            f"peak_cpu_percent={row['peak_cpu_percent_pair']} "
+            f"peak_vram_mb={row.get('gpu_peak_vram_mb')}"
         )
     print(f"out_root: {PROJECT_ROOT / args.out_root}")
     return 0

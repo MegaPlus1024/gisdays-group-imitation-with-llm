@@ -68,16 +68,29 @@ This is capacity by RAM only. It does not prove that 22 or 28 concurrent pairs w
 
 ## 6. GPU Readiness
 
-GPU was audited but not used for the runtime measurements.
+GPU was audited after the runtime measurements, and a later N=1 GPU smoke was run for `second_model -> second_model` on the heavy scenario.
 
 Findings:
 
 - GPU detected: yes, `NVIDIA RTX PRO 4000 Blackwell`.
 - `nvidia-smi`: available, driver `582.16`, CUDA `13.0`, total VRAM `24467 MiB`.
 - Installed `llama-server --help` exposes GPU flags including `--device`, `--list-devices`, `--gpu-layers`, `--n-gpu-layers`, `-ngl`, `--tensor-split`, and `--main-gpu`.
-- `scripts/start_llama_server.ps1` dry-run currently passes model path, host, port, and `--ctx-size 4096`; it does not expose GPU flags yet.
+- `scripts/start_llama_server.ps1` now exposes optional GPU/runtime flags. Existing commands without GPU parameters remain compatible.
+- GPU smoke artifact: `experiments/multi_agent/orchestrator_executor/gpu_smoke_second_to_second_heavy_v1`.
+- GPU smoke doc: `docs/ai/gpu_smoke_second_to_second_heavy_v1.md`.
 
 GPU is likely useful for throughput/capacity, but current CPU local group evidence is already functional.
+
+CPU/GPU smoke summary:
+
+| metric | CPU baseline | GPU smoke |
+|---|---:|---:|
+| status | `completed` | `completed` |
+| pair quality | `0.875562` | `0.875545` |
+| wall time ms | `8775.802` | `8716.17` |
+| peak VRAM MB | `6282.0` | `6282.0` |
+
+Speedup wall-time ratio was `1.006842`, so the first smoke is a readiness check, not evidence of meaningful acceleration.
 
 ## 7. Server Management
 
@@ -100,7 +113,7 @@ The measured probe is enough to update the prototype default candidate to `secon
 - N=3 per pair/scenario.
 - Sequential runner; no true concurrent multi-agent stress test.
 - CPU local runtime only.
-- GPU hardware was detected but not used.
+- GPU hardware was detected and a short GPU smoke completed, but no concurrent GPU stress test was run.
 - Browser behavior remains simulated-only.
 - Office behavior remains stub/file-based.
 - The virtual network is still a controlled local action environment, not a full network simulation.

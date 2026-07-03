@@ -7,18 +7,31 @@ param(
   [string]$HostAlias,
   [int]$Port = 8080,
   [int]$CtxSize = 4096,
+  [Alias("NGpuLayers")]
+  [string]$GpuLayers,
+  [System.Nullable[int]]$MainGpu,
+  [string]$TensorSplit,
+  [ValidateSet("none", "layer", "row", "tensor")]
+  [string]$SplitMode,
+  [System.Nullable[int]]$BatchSize,
+  [System.Nullable[int]]$UBatchSize,
+  [System.Nullable[int]]$Threads,
+  [ValidateSet("on", "off", "auto")]
+  [string]$FlashAttention,
+  [switch]$CpuOnly,
   [string]$ServerPath,
   [switch]$DryRun,
   [switch]$Help
 )
 
 $ErrorActionPreference = "Stop"
+$WrapperBoundParameters = $PSBoundParameters
 
 function Show-Usage {
   $scriptName = Split-Path -Leaf $PSCommandPath
   @"
 Usage:
-  .\scripts\$scriptName [-ModelId <id>] [-ModelsConfig <path>] [-ModelPath <path>] [-Host <host>] [-Port <port>] [-CtxSize <tokens>] [-ServerPath <path>] [-DryRun]
+  .\scripts\$scriptName [-ModelId <id>] [-ModelsConfig <path>] [-ModelPath <path>] [-Host <host>] [-Port <port>] [-CtxSize <tokens>] [-GpuLayers <n|all|auto>] [-MainGpu <index>] [-SplitMode <none|layer|row|tensor>] [-TensorSplit <weights>] [-BatchSize <n>] [-UBatchSize <n>] [-Threads <n>] [-FlashAttention <on|off|auto>] [-CpuOnly] [-ServerPath <path>] [-DryRun]
   .\scripts\$scriptName -Help
 
 Defaults:
@@ -27,6 +40,7 @@ Defaults:
   -Host          127.0.0.1
   -Port          8080
   -CtxSize       4096
+  GPU offload is not forced by this wrapper unless GPU parameters are provided.
 
 Examples:
   .\scripts\$scriptName
@@ -36,12 +50,15 @@ Examples:
   .\scripts\$scriptName -ModelPath "C:\path\to\model.gguf"
   .\scripts\$scriptName -ServerPath "C:\path\to\llama-server.exe"
   .\scripts\$scriptName -ModelId first_model -DryRun
+  .\scripts\$scriptName -ModelId second_model -GpuLayers all -MainGpu 0 -SplitMode none -DryRun
+  .\scripts\$scriptName -ModelId second_model -CpuOnly -DryRun
 
 Notes:
   The Python virtual environment is only for Python dependencies.
   It does not add llama-server.exe to PATH.
   GGUF files are local runtime assets and must not be committed.
   If llama-server.exe is not in PATH, this wrapper searches common Windows install/extract locations.
+  GPU-related arguments are mapped only to flags observed in the local llama-server --help output.
 "@
 }
 
@@ -165,6 +182,110 @@ Fix options:
 "@
 }
 
+function Quote-CommandPart {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Value
+  )
+
+  if ($Value -match '[\s"]') {
+    return '"' + ($Value -replace '"', '\"') + '"'
+  }
+  return $Value
+}
+
+function Format-CommandLine {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Executable,
+    [Parameter(Mandatory = $true)]
+    [string[]]$Arguments
+  )
+
+  $parts = @("&", (Quote-CommandPart -Value $Executable))
+  foreach ($arg in $Arguments) {
+    $parts += (Quote-CommandPart -Value $arg)
+  }
+  return ($parts -join " ")
+}
+
+function Add-OptionalArgument {
+  param(
+    [Parameter(Mandatory = $true)]
+    [System.Collections.Generic.List[string]]$Arguments,
+    [Parameter(Mandatory = $true)]
+    [string]$Flag,
+    [object]$Value
+  )
+
+  if ($null -eq $Value) {
+    return
+  }
+  $stringValue = [string]$Value
+  if ([string]::IsNullOrWhiteSpace($stringValue)) {
+    return
+  }
+  $Arguments.Add($Flag)
+  $Arguments.Add($stringValue)
+}
+
+function Build-LlamaServerArgs {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$ModelPathValue,
+    [Parameter(Mandatory = $true)]
+    [string]$HostValue,
+    [Parameter(Mandatory = $true)]
+    [int]$PortValue,
+    [Parameter(Mandatory = $true)]
+    [int]$CtxSizeValue
+  )
+
+  if ($CpuOnly -and (
+      $WrapperBoundParameters.ContainsKey("GpuLayers") -or
+      $WrapperBoundParameters.ContainsKey("MainGpu") -or
+      $WrapperBoundParameters.ContainsKey("TensorSplit") -or
+      $WrapperBoundParameters.ContainsKey("SplitMode")
+    )) {
+    throw "-CpuOnly cannot be combined with GPU placement options."
+  }
+
+  $argsList = [System.Collections.Generic.List[string]]::new()
+  $argsList.Add("-m")
+  $argsList.Add($ModelPathValue)
+  $argsList.Add("--host")
+  $argsList.Add($HostValue)
+  # DryRun command still emits: --port $Port
+  $argsList.Add("--port")
+  $argsList.Add([string]$PortValue)
+  $argsList.Add("--ctx-size")
+  $argsList.Add([string]$CtxSizeValue)
+
+  if ($CpuOnly) {
+    $argsList.Add("--device")
+    $argsList.Add("none")
+  }
+
+  Add-OptionalArgument -Arguments $argsList -Flag "--n-gpu-layers" -Value $GpuLayers
+  if ($WrapperBoundParameters.ContainsKey("MainGpu")) {
+    Add-OptionalArgument -Arguments $argsList -Flag "--main-gpu" -Value $MainGpu
+  }
+  Add-OptionalArgument -Arguments $argsList -Flag "--tensor-split" -Value $TensorSplit
+  Add-OptionalArgument -Arguments $argsList -Flag "--split-mode" -Value $SplitMode
+  if ($WrapperBoundParameters.ContainsKey("BatchSize")) {
+    Add-OptionalArgument -Arguments $argsList -Flag "--batch-size" -Value $BatchSize
+  }
+  if ($WrapperBoundParameters.ContainsKey("UBatchSize")) {
+    Add-OptionalArgument -Arguments $argsList -Flag "--ubatch-size" -Value $UBatchSize
+  }
+  if ($WrapperBoundParameters.ContainsKey("Threads")) {
+    Add-OptionalArgument -Arguments $argsList -Flag "--threads" -Value $Threads
+  }
+  Add-OptionalArgument -Arguments $argsList -Flag "--flash-attn" -Value $FlashAttention
+
+  return $argsList.ToArray()
+}
+
 if ($Help) {
   Show-Usage
   exit 0
@@ -228,17 +349,40 @@ Write-Host "Model path:    $ResolvedModelPath"
 Write-Host "Server path:   $ResolvedServerPath"
 Write-Host "Host/port:     $HostAddress`:$Port"
 Write-Host "Ctx size:      $CtxSize"
+Write-Host "GPU config:    $(if ($CpuOnly) { 'cpu-only (--device none)' } elseif ($GpuLayers -or $PSBoundParameters.ContainsKey('MainGpu') -or $TensorSplit -or $SplitMode) { 'explicit GPU/runtime flags requested' } else { 'default llama-server behavior; no wrapper GPU flags' })"
+if ($GpuLayers) {
+  Write-Host "GPU layers:    $GpuLayers"
+}
+if ($PSBoundParameters.ContainsKey("MainGpu")) {
+  Write-Host "Main GPU:      $MainGpu"
+}
+if ($SplitMode) {
+  Write-Host "Split mode:    $SplitMode"
+}
+if ($TensorSplit) {
+  Write-Host "Tensor split:  $TensorSplit"
+}
+if ($PSBoundParameters.ContainsKey("BatchSize")) {
+  Write-Host "Batch size:    $BatchSize"
+}
+if ($PSBoundParameters.ContainsKey("UBatchSize")) {
+  Write-Host "UBatch size:   $UBatchSize"
+}
+if ($PSBoundParameters.ContainsKey("Threads")) {
+  Write-Host "Threads:       $Threads"
+}
+if ($FlashAttention) {
+  Write-Host "Flash attn:    $FlashAttention"
+}
 Write-Host ""
+
+$CommandArgs = Build-LlamaServerArgs -ModelPathValue $ResolvedModelPath -HostValue $HostAddress -PortValue $Port -CtxSizeValue $CtxSize
 
 if ($DryRun) {
   Write-Host "Dry run: server was not started."
   Write-Host "Command:"
-  Write-Host "& `"$ResolvedServerPath`" -m `"$ResolvedModelPath`" --host $HostAddress --port $Port --ctx-size $CtxSize"
+  Write-Host (Format-CommandLine -Executable $ResolvedServerPath -Arguments $CommandArgs)
   exit 0
 }
 
-& $ResolvedServerPath `
-  -m $ResolvedModelPath `
-  --host $HostAddress `
-  --port $Port `
-  --ctx-size $CtxSize
+& $ResolvedServerPath @CommandArgs

@@ -2,12 +2,18 @@
 
 ## Scope
 
-This audit checks the local GPU/runtime readiness after the measured orchestrator/executor runtime probe. It does not run a GPU-enabled model. It records whether the hardware, installed `llama-server`, and project wrapper are ready for a future measured GPU run.
+This audit checks the local GPU/runtime readiness after the measured orchestrator/executor runtime probe and the first GPU smoke. It records whether the hardware, installed `llama-server`, and project wrapper are ready for a future controlled stress run.
 
 Runtime probe artifact:
 
 ```text
 experiments/multi_agent/orchestrator_executor/runtime_probe_candidate_pairs_v1/gpu_runtime_status.json
+```
+
+GPU smoke artifact:
+
+```text
+experiments/multi_agent/orchestrator_executor/gpu_smoke_second_to_second_heavy_v1
 ```
 
 ## Findings
@@ -17,10 +23,10 @@ experiments/multi_agent/orchestrator_executor/runtime_probe_candidate_pairs_v1/g
 | Is an NVIDIA GPU detected? | Yes. `nvidia-smi` reports `NVIDIA RTX PRO 4000 Blackwell`. |
 | Driver/CUDA reported by `nvidia-smi` | Driver `582.16`, CUDA `13.0`. |
 | Total VRAM reported by `nvidia-smi` | `24467 MiB`. |
-| Does installed `llama-server --help` expose GPU flags? | Yes: `--device`, `--list-devices`, `--gpu-layers`, `--n-gpu-layers`, `-ngl`, `--tensor-split`, `--main-gpu`, `--fit`, `--op-offload`. |
-| Does `scripts/start_llama_server.ps1` support GPU flags? | No explicit GPU flags are exposed. Dry-run passes model path, host, port, and `--ctx-size 4096`. |
+| Does installed `llama-server --help` expose GPU flags? | Yes: `--device`, `--list-devices`, `--gpu-layers`, `--n-gpu-layers`, `-ngl`, `--split-mode`, `--tensor-split`, `--main-gpu`, `--fit`, `--op-offload`. |
+| Does `scripts/start_llama_server.ps1` support GPU flags? | Yes. It now exposes `-GpuLayers`, `-MainGpu`, `-SplitMode`, `-TensorSplit`, `-BatchSize`, `-UBatchSize`, `-Threads`, `-FlashAttention`, and `-CpuOnly`. |
 | Does `configs/evaluation_models.json` record GPU settings? | No. It records local model/runtime metadata but not GPU layer/device settings. |
-| Was GPU runtime measured? | No. The runtime/capacity probe used the existing CPU-oriented wrapper configuration. |
+| Was GPU runtime measured? | Yes, as a short N=1 smoke for `second_model -> second_model` on the heavy group scenario. |
 | Is CPU local group runtime measured? | Yes. The runtime probe measured the two candidate pairs on simple and heavy group scenarios. |
 
 ## Hardware Snapshot
@@ -56,7 +62,40 @@ resolved `llama-server.exe` and produced this effective command shape:
 llama-server -m <second_model.gguf> --host 127.0.0.1 --port 8081 --ctx-size 4096
 ```
 
-No GPU offload flags are passed by the wrapper today.
+The GPU dry run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start_llama_server.ps1 -ModelId second_model -Port 8081 -GpuLayers all -MainGpu 0 -SplitMode none -DryRun
+```
+
+emits:
+
+```text
+--n-gpu-layers all --main-gpu 0 --split-mode none
+```
+
+The CPU-only dry run maps `-CpuOnly` to:
+
+```text
+--device none
+```
+
+## GPU Smoke Result
+
+| metric | CPU baseline | GPU smoke |
+|---|---:|---:|
+| status | `completed` | `completed` |
+| pair quality | `0.875562` | `0.875545` |
+| execution success | `1.0` | `1.0` |
+| total errors | 2 | 2 |
+| wall time ms | `8775.802` | `8716.17` |
+| peak RAM MB | `4712.328125` | `4714.621094` |
+| peak VRAM MB | `6282.0` | `6282.0` |
+| peak GPU utilization percent | `99.0` | `98.0` |
+
+Speedup wall-time ratio: `1.006842`.
+
+The result proves that explicit wrapper GPU flags can start and complete a short local group run. It does not prove meaningful speedup because the baseline was "no explicit wrapper GPU flags", not strict `--device none`, and local GPU telemetry was active in both conditions.
 
 ## Status
 
@@ -64,12 +103,12 @@ No GPU offload flags are passed by the wrapper today.
 - CPU local group runtime measured: yes.
 - GPU detected: yes.
 - llama-server GPU flags available: yes.
-- GPU runtime configured: no.
-- GPU runtime measured: no.
+- GPU runtime configured: yes, optional wrapper flags implemented.
+- GPU runtime measured: yes, short N=1 smoke only.
 - Multi-agent concurrent capacity measured: no; current capacity is estimated from short measured telemetry.
 
 GPU is likely useful for throughput/capacity, but current CPU local group evidence is already functional.
 
 ## Recommended Next Step
 
-Add reviewed runtime profile fields and wrapper flags for GPU offload, starting with a dry-run-only change. Then run a small CPU-vs-GPU smoke on the same pair/scenario protocol before any larger stress test.
+Run a controlled bounded stress smoke only after deciding whether the baseline should be strict `-CpuOnly` or the existing no-explicit-GPU-flags baseline. Keep the GPU idle where possible and continue preserving blocker artifacts on any failure.

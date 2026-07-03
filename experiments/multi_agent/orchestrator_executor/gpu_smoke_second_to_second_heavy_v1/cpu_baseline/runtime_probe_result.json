@@ -1,0 +1,335 @@
+{
+  "probe_id": "cpu_baseline",
+  "generated_at": "2026-07-03T14:22:19.583002+00:00",
+  "mode": "local",
+  "models_config_path": "configs\\evaluation_models.json",
+  "runtime_flag_config": {
+    "orchestrator_gpu_layers": null,
+    "executor_gpu_layers": null,
+    "orchestrator_main_gpu": null,
+    "executor_main_gpu": null,
+    "split_mode": null,
+    "tensor_split": null,
+    "threads": null,
+    "ctx_size": 4096,
+    "batch_size": null,
+    "ubatch_size": null,
+    "flash_attention": null,
+    "cpu_only": false
+  },
+  "system_before": {
+    "timestamp": "2026-07-03T14:21:50.521615+00:00",
+    "psutil_available": true,
+    "total_ram_mb": 130436.710938,
+    "available_ram_mb": 86731.429688,
+    "cpu_count_logical": 24,
+    "cpu_count_physical": 24,
+    "system_cpu_percent": 12.0
+  },
+  "system_after": {
+    "timestamp": "2026-07-03T14:22:19.440730+00:00",
+    "psutil_available": true,
+    "total_ram_mb": 130436.710938,
+    "available_ram_mb": 86681.511719,
+    "cpu_count_logical": 24,
+    "cpu_count_physical": 24,
+    "system_cpu_percent": 19.2
+  },
+  "gpu_before": {
+    "timestamp": "2026-07-03T14:21:50.658038+00:00",
+    "gpu_telemetry_available": true,
+    "gpu_count": 1,
+    "gpus": [
+      {
+        "name": "NVIDIA RTX PRO 4000 Blackwell",
+        "driver_version": "582.16",
+        "total_vram_mb": 24467.0,
+        "used_vram_mb": 1576.0,
+        "gpu_utilization_percent": 36.0,
+        "gpu_memory_utilization_percent": 5.0,
+        "temperature_c": 53.0,
+        "power_draw_w": 30.78
+      }
+    ],
+    "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+    "driver_version": "582.16",
+    "total_vram_mb": 24467.0,
+    "used_vram_mb": 1576.0,
+    "gpu_utilization_percent": 36.0,
+    "gpu_memory_utilization_percent": 5.0,
+    "temperature_c": 53.0,
+    "power_draw_w": 30.78
+  },
+  "gpu_after": {
+    "timestamp": "2026-07-03T14:22:19.583002+00:00",
+    "gpu_telemetry_available": true,
+    "gpu_count": 1,
+    "gpus": [
+      {
+        "name": "NVIDIA RTX PRO 4000 Blackwell",
+        "driver_version": "582.16",
+        "total_vram_mb": 24467.0,
+        "used_vram_mb": 1576.0,
+        "gpu_utilization_percent": 10.0,
+        "gpu_memory_utilization_percent": 0.0,
+        "temperature_c": 60.0,
+        "power_draw_w": 32.54
+      }
+    ],
+    "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+    "driver_version": "582.16",
+    "total_vram_mb": 24467.0,
+    "used_vram_mb": 1576.0,
+    "gpu_utilization_percent": 10.0,
+    "gpu_memory_utilization_percent": 0.0,
+    "temperature_c": 60.0,
+    "power_draw_w": 32.54
+  },
+  "runs": [
+    {
+      "run_label": "heavy_second_to_second",
+      "status": "completed",
+      "scenario_label": "heavy",
+      "scenario_path": "configs\\multi_agent_scenarios\\office_developer_maintenance_group_heavy.json",
+      "pair": "second_model->second_model",
+      "pair_id": "second_model__second_model",
+      "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\gpu_smoke_second_to_second_heavy_v1\\cpu_baseline\\heavy_second_to_second",
+      "wall_time_ms_probe": 28781.4085,
+      "server_error": null,
+      "servers": [
+        {
+          "role": "orchestrator",
+          "model_id": "second_model",
+          "port": 8081,
+          "wrapper_pid": 25472,
+          "llama_pids": [
+            31852
+          ],
+          "endpoint_ready": true,
+          "endpoint_stopped": true,
+          "startup_time_ms": 2566.7564,
+          "endpoint_before": false,
+          "endpoint_after": false,
+          "error": null,
+          "runtime_flags": [
+            "-CtxSize",
+            "4096"
+          ],
+          "wrapper_command": [
+            "powershell",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            ".\\scripts\\start_llama_server.ps1",
+            "-ModelId",
+            "second_model",
+            "-ModelsConfig",
+            "configs\\evaluation_models.json",
+            "-Port",
+            "8081",
+            "-CtxSize",
+            "4096"
+          ]
+        },
+        {
+          "role": "executor",
+          "model_id": "second_model",
+          "port": 8082,
+          "wrapper_pid": 48116,
+          "llama_pids": [
+            2636
+          ],
+          "endpoint_ready": true,
+          "endpoint_stopped": true,
+          "startup_time_ms": 2541.139401,
+          "endpoint_before": false,
+          "endpoint_after": false,
+          "error": null,
+          "runtime_flags": [
+            "-CtxSize",
+            "4096"
+          ],
+          "wrapper_command": [
+            "powershell",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            ".\\scripts\\start_llama_server.ps1",
+            "-ModelId",
+            "second_model",
+            "-ModelsConfig",
+            "configs\\evaluation_models.json",
+            "-Port",
+            "8082",
+            "-CtxSize",
+            "4096"
+          ]
+        }
+      ],
+      "server_strategy": "two separate llama-server endpoints for the same model on different ports",
+      "server_flags_used": {
+        "orchestrator": [
+          "-CtxSize",
+          "4096"
+        ],
+        "executor": [
+          "-CtxSize",
+          "4096"
+        ]
+      },
+      "aggregate": {
+        "trial_count": 1,
+        "completed_trial_count": 1,
+        "failed_trial_count": 0,
+        "mean_pair_quality_score": 0.875562,
+        "std_pair_quality_score": 0.0,
+        "min_pair_quality_score": 0.875562,
+        "max_pair_quality_score": 0.875562,
+        "mean_plan_valid_rate": 1.0,
+        "mean_executor_call_count": 9.0,
+        "mean_final_validation_success_rate": 0.777778,
+        "mean_execution_success_rate": 1.0,
+        "total_safety_violations": 0,
+        "total_errors": 2,
+        "common_failure_modes": {
+          "NextActionValidationError": 2,
+          "NextActionJSONError": 2
+        },
+        "common_actions": {
+          "read_file": 7
+        },
+        "common_action_parameters": {
+          "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md\"}}": 2,
+          "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/maintenance_notes.md\"}}": 2,
+          "{\"action\": \"read_file\", \"parameters\": {\"path\": \"docs/ai/orchestrator_executor_pair_matrix_v1.md\"}}": 2,
+          "{\"action\": \"read_file\", \"parameters\": {\"path\": \"configs/multi_agent_fixtures/office_developer_maintenance/project_context.md\"}}": 1
+        },
+        "mean_wall_time_ms": 8775.802,
+        "mean_orchestrator_latency_ms": 1729.918,
+        "mean_executor_latency_ms": 777.152222
+      },
+      "telemetry": {
+        "sample_count": 16,
+        "psutil_available": true,
+        "peak_ram_mb_pair": 4712.328125,
+        "mean_ram_mb_pair": 4290.608399,
+        "peak_cpu_percent_pair": 49.9,
+        "mean_cpu_percent_pair": 34.3375,
+        "min_system_ram_available_mb": 83748.929688,
+        "max_active_llama_server_processes": 2,
+        "gpu_telemetry_available": true,
+        "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+        "gpu_driver_version": "582.16",
+        "gpu_total_vram_mb": 24467.0,
+        "gpu_peak_vram_mb": 6282.0,
+        "gpu_mean_vram_mb": 6276.5,
+        "gpu_peak_utilization_percent": 99.0,
+        "gpu_mean_utilization_percent": 75.625,
+        "gpu_peak_memory_utilization_percent": 56.0,
+        "gpu_peak_temperature_c": 69.0,
+        "gpu_peak_power_draw_w": 145.07
+      },
+      "mean_group_step_time_ms": 4387.901,
+      "mean_repair_latency_ms": 294.44
+    }
+  ],
+  "runtime_metrics_by_pair_scenario": [
+    {
+      "pair": "second_model->second_model",
+      "pair_id": "second_model__second_model",
+      "scenario": "heavy",
+      "scenario_path": "configs\\multi_agent_scenarios\\office_developer_maintenance_group_heavy.json",
+      "scenario_agent_count": 4,
+      "status": "completed",
+      "completed_trials": 1,
+      "failed_trials": 0,
+      "mean_pair_quality_score": 0.875562,
+      "mean_execution_success_rate": 1.0,
+      "total_errors": 2,
+      "common_failure_modes": {
+        "NextActionValidationError": 2,
+        "NextActionJSONError": 2
+      },
+      "mean_wall_time_ms": 8775.802,
+      "mean_group_step_time_ms": 4387.901,
+      "mean_orchestrator_latency_ms": 1729.918,
+      "mean_executor_latency_ms": 777.152222,
+      "mean_repair_latency_ms": 294.44,
+      "peak_ram_mb_pair": 4712.328125,
+      "peak_cpu_percent_pair": 49.9,
+      "sample_count": 16,
+      "gpu_telemetry_available": true,
+      "gpu_name": "NVIDIA RTX PRO 4000 Blackwell",
+      "gpu_total_vram_mb": 24467.0,
+      "gpu_peak_vram_mb": 6282.0,
+      "gpu_peak_utilization_percent": 99.0,
+      "gpu_peak_memory_utilization_percent": 56.0,
+      "gpu_peak_temperature_c": 69.0,
+      "gpu_peak_power_draw_w": 145.07,
+      "server_strategy": "two separate llama-server endpoints for the same model on different ports",
+      "server_flags_used": {
+        "orchestrator": [
+          "-CtxSize",
+          "4096"
+        ],
+        "executor": [
+          "-CtxSize",
+          "4096"
+        ]
+      },
+      "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\gpu_smoke_second_to_second_heavy_v1\\cpu_baseline\\heavy_second_to_second"
+    }
+  ],
+  "capacity_estimates": [
+    {
+      "pair": "second_model->second_model",
+      "peak_ram_mb_pair": 4712.328125,
+      "peak_cpu_percent_pair": 49.9,
+      "mean_wall_time_per_trial_ms": 8775.802,
+      "mean_group_step_time_ms": 4387.901,
+      "estimated_throughput_group_steps_per_hour": 820.437836,
+      "max_agents_per_pair": 4,
+      "estimates_by_reserve_mb": {
+        "4096": {
+          "reserve_ram_mb": 4096.0,
+          "available_for_models_mb": 126340.710938,
+          "estimated_concurrent_pairs_by_ram": 26,
+          "estimated_agents_by_ram": 104
+        },
+        "8192": {
+          "reserve_ram_mb": 8192.0,
+          "available_for_models_mb": 122244.710938,
+          "estimated_concurrent_pairs_by_ram": 25,
+          "estimated_agents_by_ram": 100
+        }
+      },
+      "bottleneck": "unknown",
+      "confidence": "medium",
+      "notes": [
+        "Capacity is estimated from short sequential local probes.",
+        "No concurrent stress test was run."
+      ]
+    }
+  ],
+  "quality_cost_tradeoff": {
+    "rankings": [
+      {
+        "pair": "second_model->second_model",
+        "mean_quality": 0.875562,
+        "total_errors": 2,
+        "peak_ram_mb_pair": 4712.328125,
+        "mean_wall_time_ms": 8775.802,
+        "quality_cost_score": 0.710526
+      }
+    ],
+    "preliminary_quality_winner": "second_model->second_model",
+    "preliminary_resource_balanced_winner": "second_model->second_model",
+    "recommendation_status": "preliminary only"
+  },
+  "limitations": [
+    "Short local runtime probe, not a production stress test.",
+    "No external network, real browser automation, or real office automation was used.",
+    "Capacity is estimated from measured short-run telemetry, not measured concurrency.",
+    "GPU was audited separately but not used for these local measurements."
+  ]
+}
