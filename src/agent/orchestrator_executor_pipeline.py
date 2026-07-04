@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import platform
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1752,11 +1753,17 @@ def _scenario_action_constraint_issue(
     }
 
 
+_ARTIFACT_WORKSPACE_FALLBACK = "experiments/multi_agent/orchestrator_executor/workspace"
+_SAFE_ARTIFACT_ROOTS = ("docs/", "configs/", "experiments/", "tests/")
+
+
 def _safe_relative_workspace_root(project_root: Path, out_dir: Path) -> str:
     try:
         value = (out_dir / "workspace").resolve().relative_to(project_root.resolve()).as_posix()
     except ValueError:
-        value = "experiments/multi_agent/orchestrator_executor/workspace"
+        value = _ARTIFACT_WORKSPACE_FALLBACK
+    if not _is_safe_relative_artifact_path(value):
+        value = _ARTIFACT_WORKSPACE_FALLBACK
     if not value.endswith("/"):
         value += "/"
     return value
@@ -2316,9 +2323,21 @@ def _runtime_warnings(
 
 def _safe_relative_artifact_path(project_root: Path, path: Path) -> str:
     try:
-        return path.resolve().relative_to(project_root.resolve()).as_posix()
+        value = path.resolve().relative_to(project_root.resolve()).as_posix()
     except ValueError:
-        return "experiments/multi_agent/orchestrator_executor/workspace/office_agent_summary.md"
+        return f"{_ARTIFACT_WORKSPACE_FALLBACK}/office_agent_summary.md"
+    if not _is_safe_relative_artifact_path(value):
+        return f"{_ARTIFACT_WORKSPACE_FALLBACK}/office_agent_summary.md"
+    return value
+
+
+def _is_safe_relative_artifact_path(value: str) -> bool:
+    normalized = value.replace("\\", "/")
+    if not normalized or normalized.startswith("/") or ".." in normalized.split("/"):
+        return False
+    if re.match(r"^[a-zA-Z]:", normalized):
+        return False
+    return normalized.startswith(_SAFE_ARTIFACT_ROOTS)
 
 
 def _prepare_output_dir(out_dir: Path, *, force: bool) -> None:
