@@ -6,7 +6,7 @@
   "pair_id": "second_model__first_model",
   "profile_id": "gpu_full_offload",
   "concurrency_level": 1,
-  "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v2_fix_smoke\\ba\\b1_9c62f0957c",
+  "artifact_path": "<repo>\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v2_fix_smoke\\ba\\b1_9c62f0957c",
   "artifact_layout": "short_batch_slug",
   "planned_runs": 1,
   "failed_stage": null,
@@ -18,10 +18,10 @@
     "fixture_strategy": "scenario fixtures are shared read-only project files; they are not copied",
     "relative_path_resolution": "same project_root-relative resolution as repeated_orchestrator_executor_trials",
     "path_length_guard": "short artifact layout avoids Windows MAX_PATH failures observed in v1",
-    "project_root": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab"
+    "project_root": "<repo>"
   },
   "fixture_status": {
-    "scenario_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\configs\\multi_agent_scenarios\\office_developer_maintenance_group_heavy.json",
+    "scenario_path": "<repo>\\configs\\multi_agent_scenarios\\office_developer_maintenance_group_heavy.json",
     "fixture_strategy": "shared_read_only_project_root",
     "write_strategy": "per_run_artifact_workspace",
     "fixture_paths": [
@@ -32,19 +32,19 @@
     "fixtures": [
       {
         "path": "configs/multi_agent_fixtures/office_developer_maintenance/team_brief.md",
-        "resolved_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\configs\\multi_agent_fixtures\\office_developer_maintenance\\team_brief.md",
+        "resolved_path": "<repo>\\configs\\multi_agent_fixtures\\office_developer_maintenance\\team_brief.md",
         "exists": true,
         "read_only_shared_project_fixture": true
       },
       {
         "path": "configs/multi_agent_fixtures/office_developer_maintenance/maintenance_notes.md",
-        "resolved_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\configs\\multi_agent_fixtures\\office_developer_maintenance\\maintenance_notes.md",
+        "resolved_path": "<repo>\\configs\\multi_agent_fixtures\\office_developer_maintenance\\maintenance_notes.md",
         "exists": true,
         "read_only_shared_project_fixture": true
       },
       {
         "path": "configs/multi_agent_fixtures/office_developer_maintenance/project_context.md",
-        "resolved_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\configs\\multi_agent_fixtures\\office_developer_maintenance\\project_context.md",
+        "resolved_path": "<repo>\\configs\\multi_agent_fixtures\\office_developer_maintenance\\project_context.md",
         "exists": true,
         "read_only_shared_project_fixture": true
       }

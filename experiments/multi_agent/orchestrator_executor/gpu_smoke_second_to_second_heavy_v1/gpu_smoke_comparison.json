@@ -1,6 +1,6 @@
 {
   "generated_at": "2026-07-03T14:22:48.564029+00:00",
-  "artifact_root": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\gpu_smoke_second_to_second_heavy_v1",
+  "artifact_root": "<repo>\\experiments\\multi_agent\\orchestrator_executor\\gpu_smoke_second_to_second_heavy_v1",
   "pair": "second_model->second_model",
   "scenario": "configs\\multi_agent_scenarios\\office_developer_maintenance_group_heavy.json",
   "cpu_label": "cpu_baseline",

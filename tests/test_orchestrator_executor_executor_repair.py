@@ -144,7 +144,7 @@ class AbsolutePathThenRepairExecutor:
                     {
                         "action": "create_file",
                         "parameters": {
-                            "path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\docs\\ai\\bad.txt",
+                            "path": "C:\\Temp\\outside_workspace\\bad.txt",
                             "content": "unsafe absolute path",
                         },
                         "reason": "Create a file with a Windows path.",
@@ -225,6 +225,6 @@ def test_executor_absolute_windows_path_is_repaired_to_relative_safe_path(tmp_pa
 
     repair_call = executor.repair_calls[0]
     assert "C:" in repair_call["previous_raw_output"]
-    assert "Users" in repair_call["previous_raw_output"]
+    assert "outside_workspace" in repair_call["previous_raw_output"]
     assert "docs/" in repair_call["hints"]["safe_path_roots"]
     assert all(not path.startswith("C:") for path in repair_call["hints"]["safe_existing_read_paths"])

@@ -135,11 +135,11 @@ Results:
 | model_id | `qwen2_5_3b_instruct_q4_k_m` |
 | model_name | `qwen2.5-3b-instruct-q4_k_m.gguf` |
 | gguf_path | `models/gguf/second_model.gguf` |
-| resolved model path | `C:\Users\m\Documents\local-llm-test-gisdays\local-llm-agent-lab\models\gguf\second_model.gguf` |
+| resolved model path | `<repo>\models\gguf\second_model.gguf` |
 | base_url | `http://127.0.0.1:8080/v1` |
 | ctx_size | 4096 |
 | runtime | `llama.cpp / llama-server` |
-| server path | `C:\Users\m\AppData\Local\Microsoft\WinGet\Packages\ggml.llamacpp_Microsoft.Winget.Source_8wekyb3d8bbwe\llama-server.exe` |
+| server path | `<local_appdata>\Microsoft\WinGet\Packages\ggml.llamacpp_Microsoft.Winget.Source_8wekyb3d8bbwe\llama-server.exe` |
 | wrapper PID | 14060 |
 | llama-server PID | 25584 |
 | server ownership | started by Codex for this run |

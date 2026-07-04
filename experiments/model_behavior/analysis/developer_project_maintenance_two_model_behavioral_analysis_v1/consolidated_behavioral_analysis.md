@@ -6,7 +6,7 @@ The repeated-trials artifacts show stable differences: first_model is repair-dep
 
 ## Evidence Base
 
-- `trials_root`: `C:\Users\m\Documents\local-llm-test-gisdays\local-llm-agent-lab\experiments\model_behavior\repeated_trials\developer_project_maintenance_two_model_repair_n3_v1`
+- `trials_root`: `<repo>\experiments\model_behavior\repeated_trials\developer_project_maintenance_two_model_repair_n3_v1`
 - `model_count`: `2`
 - `trials_per_model`: `{'first_model': 3, 'qwen2_5_3b_instruct_q4_k_m': 3}`
 - `scenario_path`: `configs\evaluation_scenarios\developer_project_maintenance.json`

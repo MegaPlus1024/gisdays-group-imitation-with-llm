@@ -2,7 +2,7 @@
   {
     "trial_id": "trial_001",
     "run_id": "heavy_second_to_second_trial_001",
-    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\heavy_second_to_second\\runs\\trial_001",
+    "artifact_path": "<repo>\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\heavy_second_to_second\\runs\\trial_001",
     "status": "completed_with_failures",
     "trial_status": "completed",
     "success": false,
@@ -57,7 +57,7 @@
   {
     "trial_id": "trial_002",
     "run_id": "heavy_second_to_second_trial_002",
-    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\heavy_second_to_second\\runs\\trial_002",
+    "artifact_path": "<repo>\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\heavy_second_to_second\\runs\\trial_002",
     "status": "completed_with_failures",
     "trial_status": "completed",
     "success": false,
@@ -112,7 +112,7 @@
   {
     "trial_id": "trial_003",
     "run_id": "heavy_second_to_second_trial_003",
-    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\heavy_second_to_second\\runs\\trial_003",
+    "artifact_path": "<repo>\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\heavy_second_to_second\\runs\\trial_003",
     "status": "completed_with_failures",
     "trial_status": "completed",
     "success": false,

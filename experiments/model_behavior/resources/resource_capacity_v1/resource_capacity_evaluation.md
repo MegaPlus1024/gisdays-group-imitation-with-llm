@@ -6,9 +6,9 @@ This evaluation addresses the TZ resource questions: CPU/RAM needs, CPU-only fea
 
 ## 2. Inputs
 
-- `office_worker`: `C:\Users\m\Documents\local-llm-test-gisdays\local-llm-agent-lab\experiments\model_behavior\repeated_trials\office_worker_two_model_repair_n3_v1`
-- `developer_project_maintenance`: `C:\Users\m\Documents\local-llm-test-gisdays\local-llm-agent-lab\experiments\model_behavior\repeated_trials\developer_project_maintenance_two_model_repair_n3_v1`
-- cross-scenario analysis: `C:\Users\m\Documents\local-llm-test-gisdays\local-llm-agent-lab\experiments\model_behavior\cross_scenario\office_worker_developer_two_model_cross_scenario_v1`
+- `office_worker`: `<repo>\experiments\model_behavior\repeated_trials\office_worker_two_model_repair_n3_v1`
+- `developer_project_maintenance`: `<repo>\experiments\model_behavior\repeated_trials\developer_project_maintenance_two_model_repair_n3_v1`
+- cross-scenario analysis: `<repo>\experiments\model_behavior\cross_scenario\office_worker_developer_two_model_cross_scenario_v1`
 
 ## 3. System Snapshot
 

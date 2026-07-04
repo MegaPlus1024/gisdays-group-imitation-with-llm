@@ -1,7 +1,7 @@
 # Project Structure Audit for Report
 
 Audit date: 2026-06-22  
-Project path: `C:\Users\m\Documents\local-llm-test-gisdays\local-llm-agent-lab`  
+Project path: `<repo>`  
 Scope: strict technical audit against the curator/TZ requirements for a prototype that simulates normal user activity with a group of local LLM agents.  
 Important boundary: this audit did not run `llama-server`, local models, browsers, network calls, or state-changing runtime benchmark commands.
 

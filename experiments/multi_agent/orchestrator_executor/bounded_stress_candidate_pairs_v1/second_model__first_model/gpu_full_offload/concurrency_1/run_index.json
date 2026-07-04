@@ -3,7 +3,7 @@
     "run_number": 1,
     "run_id": "second_model__first_model__gpu_full_offload__concurrency_1__run_001",
     "status": "failed",
-    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v1\\second_model__first_model\\gpu_full_offload\\concurrency_1\\group_runs\\run_001",
+    "artifact_path": "<repo>\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v1\\second_model__first_model\\gpu_full_offload\\concurrency_1\\group_runs\\run_001",
     "wall_time_ms_probe": 2810.4827,
     "return_code": 0,
     "aggregate": {
@@ -33,7 +33,7 @@
       {
         "trial_id": "trial_001",
         "run_id": "second_model__first_model__gpu_full_offload__concurrency_1__run_001_trial_001",
-        "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v1\\second_model__first_model\\gpu_full_offload\\concurrency_1\\group_runs\\run_001\\runs\\trial_001",
+        "artifact_path": "<repo>\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v1\\second_model__first_model\\gpu_full_offload\\concurrency_1\\group_runs\\run_001\\runs\\trial_001",
         "status": "failed",
         "trial_status": "failed",
         "success": false,
@@ -74,7 +74,7 @@
     "run_number": 2,
     "run_id": "second_model__first_model__gpu_full_offload__concurrency_1__run_002",
     "status": "failed",
-    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v1\\second_model__first_model\\gpu_full_offload\\concurrency_1\\group_runs\\run_002",
+    "artifact_path": "<repo>\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v1\\second_model__first_model\\gpu_full_offload\\concurrency_1\\group_runs\\run_002",
     "wall_time_ms_probe": 2809.3516,
     "return_code": 0,
     "aggregate": {
@@ -104,7 +104,7 @@
       {
         "trial_id": "trial_001",
         "run_id": "second_model__first_model__gpu_full_offload__concurrency_1__run_002_trial_001",
-        "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v1\\second_model__first_model\\gpu_full_offload\\concurrency_1\\group_runs\\run_002\\runs\\trial_001",
+        "artifact_path": "<repo>\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v1\\second_model__first_model\\gpu_full_offload\\concurrency_1\\group_runs\\run_002\\runs\\trial_001",
         "status": "failed",
         "trial_status": "failed",
         "success": false,

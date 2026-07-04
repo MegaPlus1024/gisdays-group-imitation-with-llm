@@ -21,7 +21,7 @@
     "peak_cpu_percent_pair": 51.5,
     "sample_count": 12,
     "server_strategy": "two separate llama-server endpoints on different ports",
-    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\simple_second_to_first"
+    "artifact_path": "<repo>\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\simple_second_to_first"
   },
   {
     "pair": "second_model->second_model",
@@ -45,7 +45,7 @@
     "peak_cpu_percent_pair": 57.1,
     "sample_count": 15,
     "server_strategy": "two separate llama-server endpoints for the same model on different ports",
-    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\simple_second_to_second"
+    "artifact_path": "<repo>\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\simple_second_to_second"
   },
   {
     "pair": "second_model->first_model",
@@ -73,7 +73,7 @@
     "peak_cpu_percent_pair": 60.6,
     "sample_count": 40,
     "server_strategy": "two separate llama-server endpoints on different ports",
-    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\heavy_second_to_first"
+    "artifact_path": "<repo>\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\heavy_second_to_first"
   },
   {
     "pair": "second_model->second_model",
@@ -100,6 +100,6 @@
     "peak_cpu_percent_pair": 51.5,
     "sample_count": 51,
     "server_strategy": "two separate llama-server endpoints for the same model on different ports",
-    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\heavy_second_to_second"
+    "artifact_path": "<repo>\\experiments\\multi_agent\\orchestrator_executor\\runtime_probe_candidate_pairs_v1\\heavy_second_to_second"
   }
 ]

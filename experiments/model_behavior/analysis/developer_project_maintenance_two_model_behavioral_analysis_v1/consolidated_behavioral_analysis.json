@@ -1,13 +1,13 @@
 {
   "analysis_id": "developer_project_maintenance_two_model_behavioral_analysis_v1",
   "generated_at": "2026-07-01T21:15:50.741310+00:00",
-  "trials_root": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\repeated_trials\\developer_project_maintenance_two_model_repair_n3_v1",
+  "trials_root": "<repo>\\experiments\\model_behavior\\repeated_trials\\developer_project_maintenance_two_model_repair_n3_v1",
   "model_ids": [
     "first_model",
     "qwen2_5_3b_instruct_q4_k_m"
   ],
   "evidence_base": {
-    "trials_root": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\repeated_trials\\developer_project_maintenance_two_model_repair_n3_v1",
+    "trials_root": "<repo>\\experiments\\model_behavior\\repeated_trials\\developer_project_maintenance_two_model_repair_n3_v1",
     "model_count": 2,
     "trials_per_model": {
       "first_model": 3,

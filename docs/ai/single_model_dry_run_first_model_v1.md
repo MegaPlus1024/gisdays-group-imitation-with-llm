@@ -82,10 +82,10 @@ Results: `10 passed` for `test_experiment_scenario_runner.py`, `10 passed` for `
 | model_id | `first_model` |
 | model_name | `first_model.gguf` |
 | gguf_path | `models/gguf/first_model.gguf` |
-| resolved model path | `C:\Users\m\Documents\local-llm-test-gisdays\local-llm-agent-lab\models\gguf\first_model.gguf` |
+| resolved model path | `<repo>\models\gguf\first_model.gguf` |
 | base_url | `http://127.0.0.1:8080/v1` |
 | ctx_size | `4096` |
-| server path | `C:\Users\m\AppData\Local\Microsoft\WinGet\Packages\ggml.llamacpp_Microsoft.Winget.Source_8wekyb3d8bbwe\llama-server.exe` |
+| server path | `<local_appdata>\Microsoft\WinGet\Packages\ggml.llamacpp_Microsoft.Winget.Source_8wekyb3d8bbwe\llama-server.exe` |
 | wrapper PID | `29980` |
 | llama-server PID | `26212` |
 | server ownership | Started by Codex for this dry run |

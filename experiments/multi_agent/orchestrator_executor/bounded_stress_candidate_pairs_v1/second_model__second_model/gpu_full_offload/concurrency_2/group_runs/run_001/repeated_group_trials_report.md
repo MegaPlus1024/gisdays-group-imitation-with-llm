@@ -26,7 +26,7 @@ This repeated run targets the TZ group-agent gap by checking whether one local o
 
 | trial_id | status | success | plan_valid | executor_calls | final_validation_success_count | execution_success_count | pair_quality_score | main_errors |
 |---|---|---|---|---:|---:|---:|---:|---|
-| `trial_001` | `failed` | `False` | `False` | 0 | 0 | 0 | None | FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v1\\second_model__second_model\\gpu_full_offload\\concurrency_2\\group_runs\\run_001\\runs\\trial_001\\orchestrator_prompt.json' |
+| `trial_001` | `failed` | `False` | `False` | 0 | 0 | 0 | None | FileNotFoundError: [Errno 2] No such file or directory: '<repo>\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v1\\second_model__second_model\\gpu_full_offload\\concurrency_2\\group_runs\\run_001\\runs\\trial_001\\orchestrator_prompt.json' |
 
 ## 6. Aggregate metrics
 

@@ -2,8 +2,8 @@
   "comparison_id": "office_worker_two_model_repair_v1",
   "generated_at": "2026-07-01T19:31:24.787940+00:00",
   "input_artifact_paths": {
-    "first": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\results\\office_worker_first_model_run_002_repair_v1",
-    "second": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\results\\office_worker_qwen2_5_3b_run_001_repair_v1"
+    "first": "<repo>\\experiments\\model_behavior\\results\\office_worker_first_model_run_002_repair_v1",
+    "second": "<repo>\\experiments\\model_behavior\\results\\office_worker_qwen2_5_3b_run_001_repair_v1"
   },
   "status": "complete",
   "protocol_compatible": true,
@@ -63,7 +63,7 @@
       "model_id": "first_model",
       "model_name": "first_model.gguf",
       "run_id": "office_worker_first_model_run_002_repair_v1",
-      "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\results\\office_worker_first_model_run_002_repair_v1",
+      "artifact_path": "<repo>\\experiments\\model_behavior\\results\\office_worker_first_model_run_002_repair_v1",
       "scenario_path": "configs\\evaluation_scenarios\\office_worker_basic_session.json",
       "scenario_id": "office_worker_basic_session_v1",
       "repair_enabled": true,
@@ -127,7 +127,7 @@
       "model_id": "qwen2_5_3b_instruct_q4_k_m",
       "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
       "run_id": "office_worker_qwen2_5_3b_run_001_repair_v1",
-      "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\results\\office_worker_qwen2_5_3b_run_001_repair_v1",
+      "artifact_path": "<repo>\\experiments\\model_behavior\\results\\office_worker_qwen2_5_3b_run_001_repair_v1",
       "scenario_path": "configs\\evaluation_scenarios\\office_worker_basic_session.json",
       "scenario_id": "office_worker_basic_session_v1",
       "repair_enabled": true,

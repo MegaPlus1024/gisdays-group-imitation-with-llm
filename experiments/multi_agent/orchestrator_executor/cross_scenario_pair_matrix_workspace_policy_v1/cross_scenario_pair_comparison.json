@@ -1,8 +1,8 @@
 {
   "comparison_id": "cross_scenario_pair_matrix_workspace_policy_v1",
   "generated_at": "2026-07-03T12:46:52.446830+00:00",
-  "simple_matrix_root": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_office_developer_group_n3_v1",
-  "heavy_matrix_root": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_heavy_group_n3_workspace_policy_v1",
+  "simple_matrix_root": "<repo>\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_office_developer_group_n3_v1",
+  "heavy_matrix_root": "<repo>\\experiments\\multi_agent\\orchestrator_executor\\pair_matrix_heavy_group_n3_workspace_policy_v1",
   "simple_scenario_best_pair": "second_model->first_model",
   "heavy_scenario_best_pair": "second_model->second_model",
   "best_observed_pair_across_tested_scenarios": "second_model->second_model",

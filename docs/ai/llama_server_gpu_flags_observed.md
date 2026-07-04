@@ -9,7 +9,7 @@ This file records the local `llama-server --help` facts used to implement wrappe
 Resolved executable:
 
 ```text
-C:\Users\m\AppData\Local\Microsoft\WinGet\Packages\ggml.llamacpp_Microsoft.Winget.Source_8wekyb3d8bbwe\llama-server.exe
+<local_appdata>\Microsoft\WinGet\Packages\ggml.llamacpp_Microsoft.Winget.Source_8wekyb3d8bbwe\llama-server.exe
 ```
 
 Version command:

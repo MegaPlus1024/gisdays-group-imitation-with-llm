@@ -12,7 +12,7 @@
     "model_id": "first_model",
     "model_name": "first_model.gguf",
     "gguf_path": "models/gguf/first_model.gguf",
-    "resolved_model_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\models\\gguf\\first_model.gguf",
+    "resolved_model_path": "<repo>\\models\\gguf\\first_model.gguf",
     "runtime": "llama.cpp / llama-server",
     "base_url": "http://127.0.0.1:8080/v1",
     "quantization": "Q4_K_M",

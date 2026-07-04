@@ -8,4 +8,4 @@ failed_trial_count: 1
 mean_pair_quality_score: None
 mean_execution_success_rate: 0.0
 total_errors: 1
-out_root: C:\Users\m\Documents\local-llm-test-gisdays\local-llm-agent-lab\experiments\multi_agent\orchestrator_executor\bounded_stress_candidate_pairs_v1\second_model__first_model\gpu_full_offload\concurrency_2\group_runs\run_002
+out_root: <repo>\experiments\multi_agent\orchestrator_executor\bounded_stress_candidate_pairs_v1\second_model__first_model\gpu_full_offload\concurrency_2\group_runs\run_002

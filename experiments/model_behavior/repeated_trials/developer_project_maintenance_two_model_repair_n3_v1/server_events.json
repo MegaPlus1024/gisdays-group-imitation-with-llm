@@ -8,7 +8,7 @@
     ],
     "started_by_cli": true,
     "already_running": false,
-    "logs_dir": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\repeated_trials\\developer_project_maintenance_two_model_repair_n3_v1\\server_logs\\first_model"
+    "logs_dir": "<repo>\\experiments\\model_behavior\\repeated_trials\\developer_project_maintenance_two_model_repair_n3_v1\\server_logs\\first_model"
   },
   {
     "event": "stopped",
@@ -19,7 +19,7 @@
     ],
     "started_by_cli": true,
     "already_running": false,
-    "logs_dir": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\repeated_trials\\developer_project_maintenance_two_model_repair_n3_v1\\server_logs\\first_model"
+    "logs_dir": "<repo>\\experiments\\model_behavior\\repeated_trials\\developer_project_maintenance_two_model_repair_n3_v1\\server_logs\\first_model"
   },
   {
     "event": "ready",
@@ -30,7 +30,7 @@
     ],
     "started_by_cli": true,
     "already_running": false,
-    "logs_dir": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\repeated_trials\\developer_project_maintenance_two_model_repair_n3_v1\\server_logs\\qwen2_5_3b_instruct_q4_k_m"
+    "logs_dir": "<repo>\\experiments\\model_behavior\\repeated_trials\\developer_project_maintenance_two_model_repair_n3_v1\\server_logs\\qwen2_5_3b_instruct_q4_k_m"
   },
   {
     "event": "stopped",
@@ -41,6 +41,6 @@
     ],
     "started_by_cli": true,
     "already_running": false,
-    "logs_dir": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\model_behavior\\repeated_trials\\developer_project_maintenance_two_model_repair_n3_v1\\server_logs\\qwen2_5_3b_instruct_q4_k_m"
+    "logs_dir": "<repo>\\experiments\\model_behavior\\repeated_trials\\developer_project_maintenance_two_model_repair_n3_v1\\server_logs\\qwen2_5_3b_instruct_q4_k_m"
   }
 ]

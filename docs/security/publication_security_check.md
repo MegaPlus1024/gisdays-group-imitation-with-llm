@@ -2,7 +2,7 @@
 
 Date: 2026-07-03
 
-Scope: pre-push security/secrets audit for the repository at `C:\Users\m\Documents\local-llm-test-gisdays\local-llm-agent-lab`.
+Scope: pre-push security/secrets audit for the repository at `<repo>`.
 
 ## 1. What Was Checked
 

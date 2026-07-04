@@ -12,7 +12,7 @@
     "model_id": "qwen2_5_3b_instruct_q4_k_m",
     "model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
     "gguf_path": "models/gguf/second_model.gguf",
-    "resolved_model_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\models\\gguf\\second_model.gguf",
+    "resolved_model_path": "<repo>\\models\\gguf\\second_model.gguf",
     "runtime": "llama.cpp / llama-server",
     "base_url": "http://127.0.0.1:8080/v1",
     "quantization": "Q4_K_M",

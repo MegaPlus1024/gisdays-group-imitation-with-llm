@@ -60,7 +60,7 @@ def validate_shell_command(command: str, config: ShellCommandActivityConfig) -> 
     normalized = normalize_command(command)
     lower = normalized.lower()
 
-    blocked_tokens = [
+    blocked_fragments = [
         "powershell",
         "pwsh",
         "cmd /c",
@@ -76,9 +76,9 @@ def validate_shell_command(command: str, config: ShellCommandActivityConfig) -> 
         "reboot ",
         "mkfs",
     ]
-    for token in blocked_tokens:
-        if token in lower:
-            raise ValueError(f"Command contains blocked token: {token.strip()}")
+    for fragment in blocked_fragments:
+        if fragment in lower:
+            raise ValueError(f"Command contains blocked fragment: {fragment.strip()}")
 
     allowed = {normalize_command(cmd) for cmd in config.allowed_commands}
     if normalized not in allowed:

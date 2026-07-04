@@ -8,7 +8,7 @@
     {
       "trial_id": "trial_001",
       "run_id": "second_model__first_model__gpu_full_offload__concurrency_2__run_002_trial_001",
-      "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v2\\ba\\b2_42fa36d2b3\\g002\\runs\\trial_001",
+      "artifact_path": "<repo>\\experiments\\multi_agent\\orchestrator_executor\\bounded_stress_candidate_pairs_v2\\ba\\b2_42fa36d2b3\\g002\\runs\\trial_001",
       "status": "completed_with_failures",
       "trial_status": "completed",
       "success": false,

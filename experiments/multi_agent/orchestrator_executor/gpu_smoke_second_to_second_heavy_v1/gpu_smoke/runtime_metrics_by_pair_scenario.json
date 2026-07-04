@@ -54,6 +54,6 @@
         "none"
       ]
     },
-    "artifact_path": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\local-llm-agent-lab\\experiments\\multi_agent\\orchestrator_executor\\gpu_smoke_second_to_second_heavy_v1\\gpu_smoke\\heavy_second_to_second"
+    "artifact_path": "<repo>\\experiments\\multi_agent\\orchestrator_executor\\gpu_smoke_second_to_second_heavy_v1\\gpu_smoke\\heavy_second_to_second"
   }
 ]

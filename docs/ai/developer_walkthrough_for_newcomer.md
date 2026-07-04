@@ -5,7 +5,7 @@ This walkthrough is for a developer who wants to understand the project manually
 Assumed working directory:
 
 ```powershell
-cd C:\Users\m\Documents\local-llm-test-gisdays\local-llm-agent-lab
+cd <repo>
 ```
 
 Use the project virtualenv when running snippets:
