@@ -54,6 +54,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Also write normality_comparison_preview.md for quick offline inspection.",
     )
     parser.add_argument(
+        "--model-catalog",
+        default=None,
+        help="Optional model_catalog.example.json path for comparison-mode metadata enrichment.",
+    )
+    parser.add_argument(
         "--output-dir",
         required=True,
         help="Directory where normality_judge_summary.json will be written.",
@@ -112,6 +117,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             comparison = compare_normality_batch_summaries(
                 compare_paths,
                 project_root=Path.cwd(),
+                model_catalog=args.model_catalog,
             )
             write_normality_comparison_summary(
                 comparison,
@@ -120,6 +126,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _print_json(_comparison_stdout_payload(comparison))
             return _comparison_exit_code(comparison.status)
+        if args.model_catalog:
+            _print_json(_invalid_payload("model_catalog_requires_comparison_mode"))
+            return 2
         if args.input_manifest and input_paths:
             _print_json(_invalid_payload("input_manifest_cannot_combine_with_input"))
             return 2
@@ -259,6 +268,7 @@ def _comparison_stdout_payload(result: object) -> dict[str, object]:
         "failed_entries": getattr(result, "failed_entries", 0),
         "top_model_pair": top_model_pair,
         "comparison_summary_path": getattr(result, "comparison_summary_path_relative", None),
+        "model_catalog_used": getattr(result, "model_catalog_used", False),
     }
 
 

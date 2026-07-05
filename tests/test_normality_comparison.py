@@ -17,6 +17,7 @@ from src.agent.normality_evaluation_cli import main
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+CATALOG_PATH = PROJECT_ROOT / "configs" / "model_catalog.example.json"
 
 
 def _entry(
@@ -457,3 +458,247 @@ def test_comparison_does_not_include_raw_event_previews(tmp_path: Path) -> None:
     text = (tmp_path / "out" / NORMALITY_COMPARISON_SUMMARY_FILENAME).read_text(encoding="utf-8")
 
     assert raw_marker not in text
+
+
+def test_comparison_without_catalog_remains_backward_compatible(tmp_path: Path) -> None:
+    path = _write_json(tmp_path / "summary.json", _summary([_entry()]))
+
+    result = compare_normality_batch_summaries([path], project_root=tmp_path)
+    group = result.groups["by_model_pair"]["second_model->first_model"]
+
+    assert result.model_catalog_used is False
+    assert "catalog_metadata" not in group
+    assert "catalog_metadata" not in result.leaderboard[0]
+
+
+def test_comparison_with_catalog_enriches_known_model_pair(tmp_path: Path) -> None:
+    path = _write_json(tmp_path / "summary.json", _summary([_entry()]))
+
+    result = compare_normality_batch_summaries(
+        [path],
+        project_root=tmp_path,
+        model_catalog=CATALOG_PATH,
+    )
+    catalog = result.groups["by_model_pair"]["second_model->first_model"]["catalog_metadata"]
+
+    assert result.model_catalog_used is True
+    assert catalog["known_catalog_pair"] is True
+    assert catalog["pair_id"] == "second_model__to__first_model"
+    assert catalog["orchestrator"]["model_id"] == "second_model"
+    assert catalog["executor"]["model_id"] == "first_model"
+    assert catalog["warnings"] == []
+
+
+def test_catalog_metadata_includes_expected_model_fields(tmp_path: Path) -> None:
+    path = _write_json(tmp_path / "summary.json", _summary([_entry()]))
+
+    result = compare_normality_batch_summaries(
+        [path],
+        project_root=tmp_path,
+        model_catalog=CATALOG_PATH,
+    )
+    catalog = result.groups["by_model_pair"]["second_model->first_model"]["catalog_metadata"]
+    orchestrator = catalog["orchestrator"]
+    executor = catalog["executor"]
+
+    assert orchestrator["upstream_name"] == "qwen2.5-3b-instruct-q4_k_m.gguf"
+    assert orchestrator["family"] == "qwen2.5"
+    assert orchestrator["parameter_count_b"] == pytest.approx(3.0)
+    assert orchestrator["quantization"] == "Q4_K_M"
+    assert orchestrator["roles"]["orchestrator_candidate"] is True
+    assert "local" in orchestrator["tags"]
+    assert executor["upstream_name"] == "qwen2.5-1.5b-instruct-q4_k_m.gguf"
+
+
+def test_catalog_alias_in_summary_resolves_to_canonical_model(tmp_path: Path) -> None:
+    alias = "qwen2_5_3b_instruct_q4_k_m"
+    path = _write_json(
+        tmp_path / "summary.json",
+        _summary([_entry(orchestrator=alias, executor="first_model")]),
+    )
+
+    result = compare_normality_batch_summaries(
+        [path],
+        project_root=tmp_path,
+        model_catalog=CATALOG_PATH,
+    )
+    catalog = result.groups["by_model_pair"][f"{alias}->first_model"]["catalog_metadata"]
+
+    assert catalog["pair_id"] == "second_model__to__first_model"
+    assert catalog["orchestrator"]["model_id"] == "second_model"
+    assert catalog["orchestrator"]["requested_model_id"] == alias
+    assert catalog["orchestrator"]["resolved_from_alias"] == alias
+
+
+def test_unknown_catalog_model_adds_warning_but_comparison_succeeds(tmp_path: Path) -> None:
+    path = _write_json(
+        tmp_path / "summary.json",
+        _summary([_entry(orchestrator="unknown_model", executor="first_model")]),
+    )
+
+    result = compare_normality_batch_summaries(
+        [path],
+        project_root=tmp_path,
+        model_catalog=CATALOG_PATH,
+    )
+    catalog = result.groups["by_model_pair"]["unknown_model->first_model"]["catalog_metadata"]
+
+    assert result.status == "ok"
+    assert catalog["known_catalog_pair"] is False
+    assert catalog["orchestrator"] is None
+    assert "model_catalog_entry_missing" in catalog["warnings"]
+    assert any("model_catalog_entry_missing" in warning for warning in result.warnings)
+
+
+def test_role_mismatch_adds_warning_without_changing_score(tmp_path: Path) -> None:
+    path = _write_json(
+        tmp_path / "summary.json",
+        _summary([_entry(orchestrator="first_model", executor="first_model", overall_score=0.73)]),
+    )
+
+    result = compare_normality_batch_summaries(
+        [path],
+        project_root=tmp_path,
+        model_catalog=CATALOG_PATH,
+    )
+    group = result.groups["by_model_pair"]["first_model->first_model"]
+    catalog = group["catalog_metadata"]
+
+    assert group["mean_overall_score"] == pytest.approx(0.73)
+    assert catalog["known_catalog_pair"] is True
+    assert "orchestrator_role_not_catalog_candidate" in catalog["warnings"]
+    assert any("orchestrator_role_not_catalog_candidate" in warning for warning in result.warnings)
+
+
+def test_leaderboard_includes_catalog_metadata_when_catalog_provided(tmp_path: Path) -> None:
+    path = _write_json(tmp_path / "summary.json", _summary([_entry()]))
+
+    result = compare_normality_batch_summaries(
+        [path],
+        project_root=tmp_path,
+        model_catalog=CATALOG_PATH,
+    )
+    row = result.leaderboard[0]
+
+    assert row["pair_label"] == "second_model->first_model"
+    assert row["catalog_metadata"]["pair_id"] == "second_model__to__first_model"
+    assert row["catalog_metadata"]["executor"]["family"] == "qwen2.5"
+
+
+def test_cli_comparison_mode_accepts_model_catalog(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    summary = _write_json(tmp_path / "summary.json", _summary([_entry()]))
+
+    code, payload, stderr = _run_cli(
+        tmp_path,
+        capsys,
+        summaries=[summary],
+        extra_args=["--model-catalog", str(CATALOG_PATH)],
+    )
+    comparison = _comparison_summary(tmp_path / "out")
+
+    assert code == 0
+    assert stderr == ""
+    assert payload["model_catalog_used"] is True
+    assert comparison["model_catalog_used"] is True
+    assert comparison["leaderboard"][0]["catalog_metadata"]["known_catalog_pair"] is True
+
+
+def test_cli_rejects_model_catalog_outside_comparison_mode(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    input_path = _write_json(tmp_path / "events.json", [])
+
+    code = main(
+        [
+            "--input",
+            str(input_path),
+            "--model-catalog",
+            str(CATALOG_PATH),
+            "--output-dir",
+            str(tmp_path / "out"),
+        ]
+    )
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert code == 2
+    assert payload["status"] == "invalid_input"
+    assert payload["error"] == "model_catalog_requires_comparison_mode"
+
+
+def test_catalog_enriched_summary_does_not_leak_absolute_paths(tmp_path: Path) -> None:
+    windows_path = "\\".join(["C:", "Users", "Example", "outside_workspace", "private.docx"])
+    path = _write_json(
+        tmp_path / "summary.json",
+        _summary([_entry(findings=[f"found {windows_path}"])]),
+    )
+    result = compare_normality_batch_summaries(
+        [path],
+        project_root=tmp_path,
+        model_catalog=CATALOG_PATH,
+    )
+
+    write_normality_comparison_summary(result, tmp_path / "out")
+    text = (tmp_path / "out" / NORMALITY_COMPARISON_SUMMARY_FILENAME).read_text(encoding="utf-8")
+    summary = _comparison_summary(tmp_path / "out")
+    catalog = summary["groups"]["by_model_pair"]["second_model->first_model"]["catalog_metadata"]
+
+    assert windows_path not in text
+    assert "C:" not in text
+    assert catalog["orchestrator"]["local_path"] == "models/gguf/second_model.gguf"
+    assert not Path(catalog["orchestrator"]["local_path"]).is_absolute()
+
+
+def test_catalog_enrichment_does_not_probe_gguf_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = _write_json(tmp_path / "summary.json", _summary([_entry()]))
+    original_exists = Path.exists
+    original_read_text = Path.read_text
+
+    def forbid_gguf_exists(self: Path) -> bool:
+        if self.suffix.lower() == ".gguf":
+            raise AssertionError(f"unexpected GGUF exists check: {self}")
+        return original_exists(self)
+
+    def forbid_gguf_read_text(self: Path, *args: object, **kwargs: object) -> str:
+        if self.suffix.lower() == ".gguf":
+            raise AssertionError(f"unexpected GGUF read: {self}")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "exists", forbid_gguf_exists)
+    monkeypatch.setattr(Path, "read_text", forbid_gguf_read_text)
+
+    result = compare_normality_batch_summaries(
+        [path],
+        project_root=tmp_path,
+        model_catalog=CATALOG_PATH,
+    )
+
+    assert result.status == "ok"
+
+
+def test_catalog_markdown_preview_includes_light_metadata(tmp_path: Path) -> None:
+    path = _write_json(tmp_path / "summary.json", _summary([_entry()]))
+    result = compare_normality_batch_summaries(
+        [path],
+        project_root=tmp_path,
+        model_catalog=CATALOG_PATH,
+    )
+
+    _, markdown_path = write_normality_comparison_summary(
+        result,
+        tmp_path / "out",
+        write_markdown=True,
+    )
+    assert markdown_path is not None
+    markdown = markdown_path.read_text(encoding="utf-8")
+
+    assert "Catalog metadata is descriptive only and not a production recommendation." in markdown
+    assert "qwen2.5/3.0B/Q4_K_M -> qwen2.5/1.5B/Q4_K_M" in markdown
+    assert "catalog_warnings=0" in markdown
