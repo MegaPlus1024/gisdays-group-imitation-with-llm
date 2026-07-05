@@ -11,3 +11,8 @@ requires-python = ">=3.11"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+markers = [
+  "browser: optional tests that may use browser automation",
+  "playwright: optional tests for Playwright integration",
+  "optional_browser: optional browser backend tests",
+]
