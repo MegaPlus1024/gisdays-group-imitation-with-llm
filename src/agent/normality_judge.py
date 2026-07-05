@@ -142,6 +142,28 @@ class NormalityJudgeLLMClient(Protocol):
 NormalityJudgeLLMCallable = Callable[[str], str]
 
 
+class LocalLLMNormalityJudgeClientAdapter:
+    """Adapter for already constructed local/fake clients; it never creates runtime clients."""
+
+    def __init__(self, client: Any) -> None:
+        self.client = client
+
+    def complete(self, prompt: str, *, timeout_s: float | None = None) -> str:
+        complete = getattr(self.client, "complete", None)
+        if callable(complete):
+            return _extract_llm_response_text(
+                _call_with_optional_timeout(complete, prompt, timeout_s=timeout_s)
+            )
+        chat = getattr(self.client, "chat", None)
+        if callable(chat):
+            return _extract_llm_response_text(
+                _call_with_optional_timeout(chat, prompt, timeout_s=timeout_s)
+            )
+        if callable(self.client):
+            return _extract_llm_response_text(self.client(prompt))
+        raise TypeError("preconstructed client must be callable or expose complete/chat.")
+
+
 class DeterministicNormalityJudgeProvider:
     provider_name = "deterministic_normality_judge"
 
@@ -340,6 +362,72 @@ def _call_injected_llm_client(
     if callable(llm_client):
         return llm_client(prompt)
     raise TypeError("injected LLM client must be callable or expose complete().")
+
+
+def _call_with_optional_timeout(
+    method: Callable[..., Any],
+    prompt: str,
+    *,
+    timeout_s: float | None,
+) -> Any:
+    try:
+        return method(prompt, timeout_s=timeout_s)
+    except TypeError:
+        return method(prompt)
+
+
+def _extract_llm_response_text(response: Any) -> str:
+    if isinstance(response, str):
+        return response
+    if isinstance(response, dict):
+        text = _extract_text_from_mapping(response)
+        if text is not None:
+            return text
+    text = _extract_text_from_object(response)
+    if text is not None:
+        return text
+    raise TypeError("preconstructed client response did not contain text.")
+
+
+def _extract_text_from_mapping(response: dict[str, Any]) -> str | None:
+    for key in ("content", "text", "output_text", "response"):
+        value = response.get(key)
+        if isinstance(value, str):
+            return value
+    message = response.get("message")
+    if isinstance(message, dict) and isinstance(message.get("content"), str):
+        return message["content"]
+    choices = response.get("choices")
+    if isinstance(choices, list) and choices:
+        first = choices[0]
+        if isinstance(first, dict):
+            if isinstance(first.get("text"), str):
+                return first["text"]
+            first_message = first.get("message")
+            if isinstance(first_message, dict) and isinstance(first_message.get("content"), str):
+                return first_message["content"]
+    return None
+
+
+def _extract_text_from_object(response: Any) -> str | None:
+    for attr in ("content", "text", "output_text", "response"):
+        value = getattr(response, attr, None)
+        if isinstance(value, str):
+            return value
+    choices = getattr(response, "choices", None)
+    if isinstance(choices, list) and choices:
+        first = choices[0]
+        text = _extract_text_from_object(first)
+        if text is not None:
+            return text
+        if isinstance(first, dict):
+            return _extract_text_from_mapping(first)
+    message = getattr(response, "message", None)
+    if isinstance(message, dict):
+        return _extract_text_from_mapping(message)
+    if message is not None:
+        return _extract_text_from_object(message)
+    return None
 
 
 def _llm_injected_error_result(
