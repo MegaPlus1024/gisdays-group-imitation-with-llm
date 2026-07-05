@@ -14,6 +14,8 @@ from src.agent.normality_judge import (
     NormalityJudgeProvider,
     NormalityJudgeResult,
     aggregate_normality_results,
+    build_normality_judge_prompt,
+    parse_llm_normality_judge_output,
     run_normality_judge,
     sanitize_judge_text,
 )
@@ -21,6 +23,7 @@ from src.agent.normality_judge import (
 
 NORMALITY_EVALUATION_RUNNER_SCHEMA_VERSION = "normality_evaluation_runner_v1"
 NORMALITY_EVALUATION_SUMMARY_FILENAME = "normality_judge_summary.json"
+NORMALITY_JUDGE_PROMPT_PREVIEW_FILENAME = "normality_judge_prompt_preview.txt"
 
 NormalityEvaluationRunStatus = Literal[
     "ok",
@@ -84,6 +87,9 @@ class NormalityEvaluationRunResult(BaseModel):
     redactions_applied: list[str] = Field(default_factory=list)
     judge_mode: str | None = None
     judge_provider: str | None = None
+    model_called: bool = False
+    raw_response_path_relative: str | None = None
+    prompt_preview_path_relative: str | None = None
     event_preview: list[dict[str, Any]] = Field(default_factory=list)
     judge_result: NormalityJudgeResult | None = None
     aggregation: dict[str, Any] | None = None
@@ -144,12 +150,8 @@ def run_normality_evaluation_from_file(
     if not config.enabled or not config.judge_enabled:
         return _disabled_result(config)
 
-    load_result = load_normality_events_from_file(
-        config.input_path,
-        project_root=config.project_root,
-        max_input_bytes=config.max_input_bytes,
-    )
-    if load_result.status != "ok":
+    load_result, judge_input = build_normality_judge_input_from_file(config)
+    if load_result.status != "ok" or judge_input is None:
         return NormalityEvaluationRunResult(
             status=load_result.status,
             input_path_relative=load_result.input_path_relative,
@@ -157,11 +159,6 @@ def run_normality_evaluation_from_file(
             warnings=load_result.warnings,
         )
 
-    judge_input = _judge_input_from_records(
-        records=load_result.records,
-        metadata=load_result.payload_metadata,
-        config=config,
-    )
     judge_config = _judge_config(config)
     judge_result = run_normality_judge(judge_input, judge_config, provider=provider)
     status: NormalityEvaluationRunStatus = "ok"
@@ -179,6 +176,139 @@ def run_normality_evaluation_from_file(
         judge_result=judge_result,
         warnings=load_result.warnings,
     )
+    if config.output_dir and config.write_summary:
+        result.summary_path_relative = _summary_path_relative(config)
+        try:
+            write_normality_evaluation_summary(result, config.resolve_project_path(config.output_dir))
+        except OSError:
+            result.status = "write_failed"
+            result.warnings = sorted(set([*result.warnings, "summary_write_failed"]))
+    return result
+
+
+def build_normality_judge_input_from_file(
+    config: NormalityEvaluationRunConfig,
+) -> tuple[NormalityEventsLoadResult, NormalityJudgeInput | None]:
+    load_result = load_normality_events_from_file(
+        config.input_path,
+        project_root=config.project_root,
+        max_input_bytes=config.max_input_bytes,
+    )
+    if load_result.status != "ok":
+        return load_result, None
+    return (
+        load_result,
+        _judge_input_from_records(
+            records=load_result.records,
+            metadata=load_result.payload_metadata,
+            config=config,
+        ),
+    )
+
+
+def write_normality_judge_prompt_preview(
+    judge_input: NormalityJudgeInput,
+    output_dir: str | Path,
+    *,
+    config: NormalityJudgeConfig | NormalityEvaluationRunConfig | None = None,
+) -> Path:
+    judge_config = (
+        _judge_config(config)
+        if isinstance(config, NormalityEvaluationRunConfig)
+        else config or NormalityJudgeConfig(enabled=True, mode="llm", judge_provider="llm")
+    )
+    prompt = build_normality_judge_prompt(judge_input, judge_config)
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / NORMALITY_JUDGE_PROMPT_PREVIEW_FILENAME
+    path.write_text(
+        "\n".join(
+            [
+                "OFFLINE_NORMALITY_JUDGE_PROMPT_PREVIEW",
+                "No model was called.",
+                "Expected response: strict JSON only.",
+                "",
+                prompt,
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def write_normality_judge_prompt_preview_from_file(
+    config: NormalityEvaluationRunConfig,
+) -> tuple[Path | None, list[str]]:
+    if not config.output_dir:
+        return None, ["output_dir_missing"]
+    load_result, judge_input = build_normality_judge_input_from_file(config)
+    if load_result.status != "ok" or judge_input is None:
+        return None, load_result.warnings
+    try:
+        path = write_normality_judge_prompt_preview(
+            judge_input,
+            config.resolve_project_path(config.output_dir),
+            config=config,
+        )
+    except OSError:
+        return None, ["prompt_preview_write_failed"]
+    return path, []
+
+
+def run_normality_evaluation_from_saved_llm_response(
+    config: NormalityEvaluationRunConfig,
+    raw_response_path: str | Path,
+) -> NormalityEvaluationRunResult:
+    load_result, judge_input = build_normality_judge_input_from_file(config)
+    if load_result.status != "ok" or judge_input is None:
+        return NormalityEvaluationRunResult(
+            status=load_result.status,
+            input_path_relative=load_result.input_path_relative,
+            output_dir_relative=_output_dir_relative(config),
+            warnings=load_result.warnings,
+        )
+
+    raw_path = config.resolve_project_path(raw_response_path)
+    raw_relative = _safe_relative(raw_path, config.project_root)
+    raw_text, raw_warnings = _read_raw_response_text(raw_path, config.max_input_bytes)
+    if raw_text is None:
+        return NormalityEvaluationRunResult(
+            status="invalid_input",
+            scenario_id=judge_input.scenario_id,
+            input_path_relative=load_result.input_path_relative,
+            output_dir_relative=_output_dir_relative(config),
+            event_count=len(judge_input.events),
+            judge_mode="llm_saved_response",
+            judge_provider="llm",
+            model_called=False,
+            raw_response_path_relative=raw_relative,
+            warnings=raw_warnings,
+        )
+
+    judge_config = NormalityJudgeConfig(
+        enabled=True,
+        mode="llm",
+        judge_provider="llm",
+        max_events=config.max_events,
+        max_text_chars=config.max_text_chars,
+        include_raw_outputs=config.include_raw_outputs,
+        redact_paths=config.redact_paths,
+    )
+    judge_result = parse_llm_normality_judge_output(raw_text, judge_config)
+    result = _result_from_judge(
+        status="ok" if judge_result.status == "ok" else "invalid_input",
+        load_result=load_result,
+        output_dir_relative=_output_dir_relative(config),
+        judge_input=judge_input,
+        judge_config=judge_config,
+        judge_result=judge_result,
+        warnings=raw_warnings,
+    )
+    result.judge_mode = "llm_saved_response"
+    result.judge_provider = "llm"
+    result.model_called = False
+    result.raw_response_path_relative = raw_relative
     if config.output_dir and config.write_summary:
         result.summary_path_relative = _summary_path_relative(config)
         try:
@@ -774,6 +904,19 @@ def _summary_path_relative(config: NormalityEvaluationRunConfig) -> str | None:
         config.resolve_project_path(config.output_dir) / NORMALITY_EVALUATION_SUMMARY_FILENAME,
         config.project_root,
     )
+
+
+def _read_raw_response_text(path: Path, max_input_bytes: int) -> tuple[str | None, list[str]]:
+    if not path.exists() or not path.is_file():
+        return None, ["raw_response_file_missing"]
+    try:
+        if path.stat().st_size > max_input_bytes:
+            return None, ["raw_response_file_too_large"]
+        return path.read_text(encoding="utf-8"), []
+    except OSError:
+        return None, ["raw_response_file_unreadable"]
+    except UnicodeDecodeError:
+        return None, ["raw_response_file_not_utf8_text"]
 
 
 def _safe_artifact_path(path: str) -> str:

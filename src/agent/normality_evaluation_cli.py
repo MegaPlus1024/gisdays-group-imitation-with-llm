@@ -9,7 +9,10 @@ from typing import Sequence
 from src.agent.normality_evaluation_runner import (
     NORMALITY_EVALUATION_SUMMARY_FILENAME,
     NormalityEvaluationRunConfig,
+    run_normality_evaluation_from_saved_llm_response,
     run_normality_evaluation_from_file,
+    write_normality_evaluation_summary,
+    write_normality_judge_prompt_preview_from_file,
 )
 
 
@@ -46,7 +49,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--prompt-preview",
         action="store_true",
-        help="Accepted for future compatibility; no prompt preview is written by this offline CLI.",
+        help="Deprecated alias for --write-prompt-preview.",
+    )
+    parser.add_argument(
+        "--write-prompt-preview",
+        action="store_true",
+        help="Write normality_judge_prompt_preview.txt to the output directory.",
+    )
+    parser.add_argument(
+        "--raw-judge-response",
+        default=None,
+        help="Path to a saved raw LLM judge response to parse offline.",
     )
     return parser
 
@@ -69,7 +82,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             include_raw_outputs=args.include_raw_outputs,
             redact_paths=not args.no_redact_paths,
         )
-        result = run_normality_evaluation_from_file(config)
+        if args.raw_judge_response and args.judge_provider == "llm":
+            result = run_normality_evaluation_from_saved_llm_response(
+                config,
+                args.raw_judge_response,
+            )
+        else:
+            result = run_normality_evaluation_from_file(config)
+        if args.write_prompt_preview or args.prompt_preview:
+            prompt_path, warnings = write_normality_judge_prompt_preview_from_file(config)
+            if prompt_path is not None:
+                result.prompt_preview_path_relative = _display_path(prompt_path, config.output_dir)
+                if config.output_dir and config.write_summary and result.event_count:
+                    write_normality_evaluation_summary(result, config.resolve_project_path(config.output_dir))
+            elif warnings:
+                result.warnings = sorted(set([*getattr(result, "warnings", []), *warnings]))
     except (OSError, ValueError) as exc:
         _print_json(
             {
@@ -79,6 +106,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "overall_score": None,
                 "event_count": 0,
                 "judge_provider": None,
+                "model_called": False,
+                "prompt_preview_path": None,
                 "error": exc.__class__.__name__,
             }
         )
@@ -93,8 +122,6 @@ def _stdout_payload(result: object) -> dict[str, object]:
     summary_path = getattr(result, "summary_path_relative", None)
     if summary_path is None and status in {"ok", "judge_disabled"}:
         summary_path = NORMALITY_EVALUATION_SUMMARY_FILENAME
-    if summary_path is None and status == "invalid_input" and getattr(result, "event_count", 0):
-        summary_path = NORMALITY_EVALUATION_SUMMARY_FILENAME
     return {
         "status": status,
         "summary_path": summary_path,
@@ -102,6 +129,8 @@ def _stdout_payload(result: object) -> dict[str, object]:
         "overall_score": getattr(result, "overall_score", None),
         "event_count": getattr(result, "event_count", 0),
         "judge_provider": getattr(result, "judge_provider", None),
+        "model_called": getattr(result, "model_called", False),
+        "prompt_preview_path": getattr(result, "prompt_preview_path_relative", None),
     }
 
 
@@ -113,6 +142,15 @@ def _exit_code(status: str) -> int:
 
 def _print_json(payload: dict[str, object]) -> None:
     print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+
+
+def _display_path(path: Path, output_dir: str | None) -> str:
+    if output_dir:
+        try:
+            return path.resolve(strict=False).relative_to(Path(output_dir).resolve(strict=False)).as_posix()
+        except (OSError, ValueError):
+            return path.name
+    return path.name
 
 
 if __name__ == "__main__":

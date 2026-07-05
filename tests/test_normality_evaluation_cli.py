@@ -106,6 +106,8 @@ def test_cli_stdout_is_concise_json(tmp_path: Path, capsys: pytest.CaptureFixtur
         "judge_provider",
         "label",
         "overall_score",
+        "model_called",
+        "prompt_preview_path",
         "status",
         "summary_path",
     }
