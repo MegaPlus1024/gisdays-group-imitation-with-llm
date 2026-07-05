@@ -298,7 +298,7 @@ def test_xlsx_result_does_not_include_absolute_artifact_root(tmp_path: Path) -> 
     _assert_no_absolute_root(result, tmp_path)
 
 
-def test_pptx_actions_remain_not_implemented(tmp_path: Path) -> None:
+def test_pptx_action_uses_separate_optional_dependency(tmp_path: Path) -> None:
     result = run_office_real_document_activity(
         "office_create_pptx",
         {"path": "artifacts/deck.pptx"},
@@ -307,4 +307,4 @@ def test_pptx_actions_remain_not_implemented(tmp_path: Path) -> None:
     )
 
     assert result.success is False
-    assert result.error_type == "office_backend_not_implemented"
+    assert result.error_type == "office_dependency_missing"

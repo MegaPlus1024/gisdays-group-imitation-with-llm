@@ -51,6 +51,14 @@ XLSX_ACTIONS = frozenset(
     }
 )
 
+PPTX_ACTIONS = frozenset(
+    {
+        "office_create_pptx",
+        "office_add_pptx_slide",
+        "office_extract_pptx_text",
+    }
+)
+
 MACRO_ENABLED_EXTENSIONS = frozenset({".docm", ".xlsm", ".pptm"})
 FORMULA_PREFIXES = ("=", "+", "-", "@")
 INVALID_SHEET_NAME_CHARS = frozenset("[]:*?/\\")
@@ -100,6 +108,9 @@ class OfficeRealDocumentActivityConfig(BaseModel):
     max_xlsx_cell_chars: int = 5_000
     max_xlsx_preview_rows: int = 10
     max_xlsx_preview_columns: int = 8
+    max_pptx_slides: int = 50
+    max_pptx_bullets: int = 20
+    max_pptx_text_chars: int = 5_000
     allow_formulas: bool = False
     allowed_extensions: tuple[str, ...] = (".docx", ".xlsx", ".pptx")
     forbidden_roots: tuple[str, ...] = (
@@ -146,6 +157,9 @@ class OfficeRealDocumentActivityConfig(BaseModel):
         "max_xlsx_cell_chars",
         "max_xlsx_preview_rows",
         "max_xlsx_preview_columns",
+        "max_pptx_slides",
+        "max_pptx_bullets",
+        "max_pptx_text_chars",
     )
     @classmethod
     def validate_positive_limits(cls, value: int) -> int:
@@ -252,10 +266,31 @@ def run_office_real_document_activity(
             )
         return _run_xlsx_action(normalized_action, params, cfg, openpyxl_module)
 
+    if normalized_action in PPTX_ACTIONS:
+        try:
+            pptx_module = _load_pptx_dependency(dependency_loader)
+        except ImportError as exc:
+            return _error(
+                normalized_action,
+                "office_dependency_missing",
+                "Optional python-pptx dependency is not installed.",
+                cfg,
+                dependency_error_type=exc.__class__.__name__,
+            )
+        except Exception as exc:
+            return _error(
+                normalized_action,
+                "office_dependency_missing",
+                "Optional python-pptx dependency is unavailable.",
+                cfg,
+                dependency_error_type=exc.__class__.__name__,
+            )
+        return _run_pptx_action(normalized_action, params, cfg, pptx_module)
+
     return _error(
         normalized_action,
         "office_backend_not_implemented",
-        "Real PPTX document operations are scaffolded but not implemented.",
+        "Office document action is not implemented.",
         cfg,
     )
 
@@ -308,6 +343,29 @@ def load_xlsx_document_dependency() -> Any:
         return __import__("openpyxl")
     except ImportError as exc:
         raise OfficeDependencyMissingError("openpyxl") from exc
+
+
+def _load_pptx_dependency(
+    dependency_loader: Callable[[], dict[str, Any]] | None,
+) -> Any:
+    if dependency_loader is None:
+        return load_pptx_document_dependency()
+
+    loaded = dependency_loader()
+    if isinstance(loaded, dict):
+        pptx_module = loaded.get("pptx")
+    else:
+        pptx_module = getattr(loaded, "pptx", loaded)
+    if pptx_module is None or not hasattr(pptx_module, "Presentation"):
+        raise OfficeDependencyMissingError("python-pptx")
+    return pptx_module
+
+
+def load_pptx_document_dependency() -> Any:
+    try:
+        return __import__("pptx")
+    except ImportError as exc:
+        raise OfficeDependencyMissingError("python-pptx") from exc
 
 
 def load_office_document_dependencies() -> dict[str, Any]:
@@ -486,7 +544,7 @@ def _extract_docx_text(
     if isinstance(resolution, OfficeRealDocumentActionResult):
         return resolution
 
-    preview_limit_result = _preview_limit(parameters.get("max_chars"), config)
+    preview_limit_result = _preview_limit(action, parameters.get("max_chars"), config)
     if isinstance(preview_limit_result, OfficeRealDocumentActionResult):
         return preview_limit_result
     preview_limit = preview_limit_result
@@ -541,6 +599,179 @@ def _run_xlsx_action(
         "office_backend_not_implemented",
         "XLSX action is not implemented.",
         config,
+    )
+
+
+def _run_pptx_action(
+    action: str,
+    parameters: dict[str, Any],
+    config: OfficeRealDocumentActivityConfig,
+    pptx_module: Any,
+) -> OfficeRealDocumentActionResult:
+    if action == "office_create_pptx":
+        return _create_pptx(parameters, config, pptx_module)
+    if action == "office_add_pptx_slide":
+        return _add_pptx_slide(parameters, config, pptx_module)
+    if action == "office_extract_pptx_text":
+        return _extract_pptx_text(parameters, config, pptx_module)
+    return _error(
+        action,
+        "office_backend_not_implemented",
+        "PPTX action is not implemented.",
+        config,
+    )
+
+
+def _create_pptx(
+    parameters: dict[str, Any],
+    config: OfficeRealDocumentActivityConfig,
+    pptx_module: Any,
+) -> OfficeRealDocumentActionResult:
+    action = "office_create_pptx"
+    resolution = _resolve_action_pptx_path(action, parameters, config)
+    if isinstance(resolution, OfficeRealDocumentActionResult):
+        return resolution
+
+    title_result = _optional_pptx_text(action, parameters.get("title"), "title", config)
+    if isinstance(title_result, OfficeRealDocumentActionResult):
+        return title_result
+    subtitle_result = _optional_pptx_text(action, parameters.get("subtitle"), "subtitle", config)
+    if isinstance(subtitle_result, OfficeRealDocumentActionResult):
+        return subtitle_result
+
+    slides_result = _pptx_slide_specs(action, parameters.get("slides"), config)
+    if isinstance(slides_result, OfficeRealDocumentActionResult):
+        return slides_result
+    slides = slides_result
+
+    metadata = parameters.get("metadata")
+    if metadata is not None and not isinstance(metadata, dict):
+        return _error(action, "invalid_parameter", "metadata must be a dict when provided.", config)
+
+    title_slide_count = 1 if title_result or subtitle_result else 0
+    if title_slide_count + len(slides) > config.max_pptx_slides:
+        return _error(action, "office_pptx_too_many_slides", "PPTX exceeds max_pptx_slides.", config)
+
+    presentation = pptx_module.Presentation()
+    if title_result or subtitle_result:
+        _add_pptx_title_slide(presentation, title_result or "", subtitle_result or "")
+    for slide in slides:
+        _add_pptx_content_slide(presentation, slide["title"], slide["bullets"])
+
+    try:
+        _save_pptx_atomically(presentation, resolution.resolved_path, config)
+    except OfficeRealDocumentPathError as exc:
+        return _error(action, exc.code, str(exc), config, path_relative=resolution.relative_path)
+    except Exception as exc:
+        return _error(
+            action,
+            "office_pptx_write_failed",
+            "PPTX presentation could not be written.",
+            config,
+            error_class=exc.__class__.__name__,
+        )
+
+    text = _presentation_text(presentation)
+    return _pptx_success(
+        action,
+        config,
+        resolution,
+        text,
+        slide_count=_presentation_slide_count(presentation),
+        file_size_bytes=resolution.resolved_path.stat().st_size,
+    )
+
+
+def _add_pptx_slide(
+    parameters: dict[str, Any],
+    config: OfficeRealDocumentActivityConfig,
+    pptx_module: Any,
+) -> OfficeRealDocumentActionResult:
+    action = "office_add_pptx_slide"
+    resolution = _resolve_existing_pptx_path(action, parameters, config)
+    if isinstance(resolution, OfficeRealDocumentActionResult):
+        return resolution
+
+    presentation_result = _load_existing_pptx_presentation(action, resolution, config, pptx_module)
+    if isinstance(presentation_result, OfficeRealDocumentActionResult):
+        return presentation_result
+    presentation = presentation_result
+
+    if _presentation_slide_count(presentation) + 1 > config.max_pptx_slides:
+        return _error(
+            action,
+            "office_pptx_too_many_slides",
+            "Adding slide would exceed max_pptx_slides.",
+            config,
+            path_relative=resolution.relative_path,
+        )
+
+    slide_result = _pptx_slide_spec_from_parameters(action, parameters, config)
+    if isinstance(slide_result, OfficeRealDocumentActionResult):
+        return slide_result
+    _add_pptx_content_slide(presentation, slide_result["title"], slide_result["bullets"])
+
+    try:
+        _save_pptx_atomically(presentation, resolution.resolved_path, config)
+    except OfficeRealDocumentPathError as exc:
+        return _error(action, exc.code, str(exc), config, path_relative=resolution.relative_path)
+    except Exception as exc:
+        return _error(
+            action,
+            "office_pptx_write_failed",
+            "PPTX presentation could not be written.",
+            config,
+            path_relative=resolution.relative_path,
+            error_class=exc.__class__.__name__,
+        )
+
+    text = _presentation_text(presentation)
+    return _pptx_success(
+        action,
+        config,
+        resolution,
+        text,
+        slide_count=_presentation_slide_count(presentation),
+        added_slide_title=slide_result["title"],
+        added_bullet_count=len(slide_result["bullets"]),
+        file_size_bytes=resolution.resolved_path.stat().st_size,
+    )
+
+
+def _extract_pptx_text(
+    parameters: dict[str, Any],
+    config: OfficeRealDocumentActivityConfig,
+    pptx_module: Any,
+) -> OfficeRealDocumentActionResult:
+    action = "office_extract_pptx_text"
+    resolution = _resolve_existing_pptx_path(action, parameters, config)
+    if isinstance(resolution, OfficeRealDocumentActionResult):
+        return resolution
+
+    preview_limit_result = _preview_limit(action, parameters.get("max_chars"), config)
+    if isinstance(preview_limit_result, OfficeRealDocumentActionResult):
+        return preview_limit_result
+
+    presentation_result = _load_existing_pptx_presentation(action, resolution, config, pptx_module)
+    if isinstance(presentation_result, OfficeRealDocumentActionResult):
+        return presentation_result
+
+    text = _presentation_text(presentation_result)
+    preview, truncated = _preview_with_limit(text, preview_limit_result)
+    return OfficeRealDocumentActionResult(
+        action=action,
+        success=True,
+        output=preview,
+        metadata={
+            "document_type": "pptx",
+            "path_relative": resolution.relative_path,
+            "slide_count": _presentation_slide_count(presentation_result),
+            "character_count": len(text),
+            "text_preview": preview,
+            "truncated": truncated,
+            "file_size_bytes": resolution.resolved_path.stat().st_size,
+            **_success_metadata(config),
+        },
     )
 
 
@@ -1257,6 +1488,345 @@ def _close_workbook(workbook: Any) -> None:
         close()
 
 
+def _resolve_action_pptx_path(
+    action: str,
+    parameters: dict[str, Any],
+    config: OfficeRealDocumentActivityConfig,
+) -> OfficeDocumentPathResolution | OfficeRealDocumentActionResult:
+    path = parameters.get("path")
+    if path is None:
+        return _error(action, "missing_parameter", "Missing required parameter: path.", config)
+    if not isinstance(path, str):
+        return _error(action, "invalid_parameter", "path must be a string.", config)
+    try:
+        resolution = resolve_safe_office_real_document_path(path, config)
+    except OfficeRealDocumentPathError as exc:
+        return _error(action, exc.code, str(exc), config)
+    if Path(resolution.normalized_path).suffix.lower() != ".pptx":
+        return _error(action, "office_extension_denied", "PPTX action requires a .pptx path.", config)
+    return resolution
+
+
+def _resolve_existing_pptx_path(
+    action: str,
+    parameters: dict[str, Any],
+    config: OfficeRealDocumentActivityConfig,
+) -> OfficeDocumentPathResolution | OfficeRealDocumentActionResult:
+    resolution = _resolve_action_pptx_path(action, parameters, config)
+    if isinstance(resolution, OfficeRealDocumentActionResult):
+        return resolution
+    if not resolution.resolved_path.exists() or not resolution.resolved_path.is_file():
+        return _error(
+            action,
+            "office_pptx_file_missing",
+            "PPTX presentation does not exist.",
+            config,
+            path_relative=resolution.relative_path,
+        )
+    size = resolution.resolved_path.stat().st_size
+    if size > config.max_file_bytes:
+        return _error(
+            action,
+            "office_pptx_file_too_large",
+            "PPTX presentation exceeds max_file_bytes.",
+            config,
+            path_relative=resolution.relative_path,
+            file_size_bytes=size,
+            max_file_bytes=config.max_file_bytes,
+        )
+    return resolution
+
+
+def _load_existing_pptx_presentation(
+    action: str,
+    resolution: OfficeDocumentPathResolution,
+    config: OfficeRealDocumentActivityConfig,
+    pptx_module: Any,
+) -> Any | OfficeRealDocumentActionResult:
+    try:
+        presentation = pptx_module.Presentation(str(resolution.resolved_path))
+    except Exception as exc:
+        return _error(
+            action,
+            "office_pptx_read_failed",
+            "PPTX presentation could not be read.",
+            config,
+            path_relative=resolution.relative_path,
+            error_class=exc.__class__.__name__,
+        )
+    slide_count = _presentation_slide_count(presentation)
+    if slide_count > config.max_pptx_slides:
+        return _error(
+            action,
+            "office_pptx_too_many_slides",
+            "PPTX presentation exceeds max_pptx_slides.",
+            config,
+            path_relative=resolution.relative_path,
+            slide_count=slide_count,
+            max_pptx_slides=config.max_pptx_slides,
+        )
+    return presentation
+
+
+def _save_pptx_atomically(
+    presentation: Any,
+    destination: Path,
+    config: OfficeRealDocumentActivityConfig,
+) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=destination.parent,
+            prefix=f".{destination.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp:
+            temp_path = Path(tmp.name)
+        presentation.save(str(temp_path))
+        if temp_path.stat().st_size > config.max_file_bytes:
+            raise OfficeRealDocumentPathError(
+                "office_pptx_file_too_large",
+                "PPTX presentation exceeds max_file_bytes.",
+            )
+        os.replace(temp_path, destination)
+        temp_path = None
+    finally:
+        if temp_path is not None and temp_path.exists():
+            temp_path.unlink()
+
+
+def _pptx_slide_specs(
+    action: str,
+    value: Any,
+    config: OfficeRealDocumentActivityConfig,
+) -> list[dict[str, Any]] | OfficeRealDocumentActionResult:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        return _error(action, "invalid_parameter", "slides must be a list.", config)
+    if len(value) > config.max_pptx_slides:
+        return _error(action, "office_pptx_too_many_slides", "slides exceeds max_pptx_slides.", config)
+
+    slides: list[dict[str, Any]] = []
+    for slide in value:
+        if not isinstance(slide, dict):
+            return _error(action, "invalid_parameter", "slides must contain objects.", config)
+        slide_result = _pptx_slide_spec_from_parameters(action, slide, config)
+        if isinstance(slide_result, OfficeRealDocumentActionResult):
+            return slide_result
+        slides.append(slide_result)
+    return slides
+
+
+def _pptx_slide_spec_from_parameters(
+    action: str,
+    parameters: dict[str, Any],
+    config: OfficeRealDocumentActivityConfig,
+) -> dict[str, Any] | OfficeRealDocumentActionResult:
+    title_result = _optional_pptx_text(action, parameters.get("title"), "title", config)
+    if isinstance(title_result, OfficeRealDocumentActionResult):
+        return title_result
+
+    bullets_result = _pptx_bullet_list(action, parameters.get("bullets"), "bullets", config)
+    if isinstance(bullets_result, OfficeRealDocumentActionResult):
+        return bullets_result
+    bullets = list(bullets_result)
+
+    body_result = _optional_pptx_text(action, parameters.get("body"), "body", config)
+    if isinstance(body_result, OfficeRealDocumentActionResult):
+        return body_result
+    if body_result:
+        bullets.insert(0, body_result)
+
+    paragraphs_result = _pptx_bullet_list(action, parameters.get("paragraphs"), "paragraphs", config)
+    if isinstance(paragraphs_result, OfficeRealDocumentActionResult):
+        return paragraphs_result
+    bullets.extend(paragraphs_result)
+
+    notes_result = _optional_pptx_text(action, parameters.get("notes"), "notes", config)
+    if isinstance(notes_result, OfficeRealDocumentActionResult):
+        return notes_result
+
+    if len(bullets) > config.max_pptx_bullets:
+        return _error(action, "office_pptx_too_many_bullets", "bullets exceeds max_pptx_bullets.", config)
+
+    return {"title": title_result or "", "bullets": bullets}
+
+
+def _pptx_bullet_list(
+    action: str,
+    value: Any,
+    field_name: str,
+    config: OfficeRealDocumentActivityConfig,
+) -> list[str] | OfficeRealDocumentActionResult:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        return _error(action, "invalid_parameter", f"{field_name} must be a list.", config)
+    if len(value) > config.max_pptx_bullets:
+        return _error(
+            action,
+            "office_pptx_too_many_bullets",
+            f"{field_name} exceeds max_pptx_bullets.",
+            config,
+        )
+
+    bullets: list[str] = []
+    for item in value:
+        text_result = _pptx_text_or_error(action, item, field_name, config)
+        if isinstance(text_result, OfficeRealDocumentActionResult):
+            return text_result
+        bullets.append(text_result)
+    return bullets
+
+
+def _optional_pptx_text(
+    action: str,
+    value: Any,
+    field_name: str,
+    config: OfficeRealDocumentActivityConfig,
+) -> str | None | OfficeRealDocumentActionResult:
+    if value is None:
+        return None
+    return _pptx_text_or_error(action, value, field_name, config)
+
+
+def _pptx_text_or_error(
+    action: str,
+    value: Any,
+    field_name: str,
+    config: OfficeRealDocumentActivityConfig,
+) -> str | OfficeRealDocumentActionResult:
+    if not isinstance(value, str):
+        return _error(action, "invalid_parameter", f"{field_name} must contain strings only.", config)
+    if "\x00" in value:
+        return _error(
+            action,
+            "office_pptx_invalid_content",
+            f"{field_name} must not contain NUL characters.",
+            config,
+        )
+    if len(value) > config.max_pptx_text_chars:
+        return _error(
+            action,
+            "office_pptx_invalid_content",
+            f"{field_name} exceeds max_pptx_text_chars.",
+            config,
+        )
+    return value
+
+
+def _add_pptx_title_slide(presentation: Any, title: str, subtitle: str) -> None:
+    slide = presentation.slides.add_slide(_pptx_slide_layout(presentation, 0))
+    title_shape = getattr(slide.shapes, "title", None)
+    if title_shape is not None:
+        title_shape.text = title
+    elif title:
+        _add_pptx_textbox(slide, title, left=0.8, top=0.7, width=8.4, height=1.0)
+
+    subtitle_shape = _pptx_placeholder(slide, 1)
+    if subtitle_shape is not None:
+        subtitle_shape.text = subtitle
+    elif subtitle:
+        _add_pptx_textbox(slide, subtitle, left=1.0, top=2.0, width=8.0, height=1.0)
+
+
+def _add_pptx_content_slide(presentation: Any, title: str, bullets: list[str]) -> None:
+    slide = presentation.slides.add_slide(_pptx_slide_layout(presentation, 1))
+    title_shape = getattr(slide.shapes, "title", None)
+    if title_shape is not None:
+        title_shape.text = title
+    elif title:
+        _add_pptx_textbox(slide, title, left=0.7, top=0.4, width=8.6, height=0.8)
+
+    body_shape = _pptx_placeholder(slide, 1)
+    if body_shape is not None and getattr(body_shape, "has_text_frame", False):
+        text_frame = body_shape.text_frame
+        text_frame.clear()
+        for index, bullet in enumerate(bullets):
+            paragraph = text_frame.paragraphs[0] if index == 0 else text_frame.add_paragraph()
+            paragraph.text = bullet
+            paragraph.level = 0
+    elif bullets:
+        _add_pptx_textbox(slide, "\n".join(bullets), left=0.9, top=1.5, width=8.2, height=4.5)
+
+
+def _pptx_slide_layout(presentation: Any, index: int) -> Any:
+    try:
+        return presentation.slide_layouts[index]
+    except Exception:
+        return presentation.slide_layouts[0]
+
+
+def _pptx_placeholder(slide: Any, index: int) -> Any | None:
+    try:
+        return slide.placeholders[index]
+    except Exception:
+        return None
+
+
+def _add_pptx_textbox(
+    slide: Any,
+    text: str,
+    *,
+    left: float,
+    top: float,
+    width: float,
+    height: float,
+) -> None:
+    inches = _pptx_inches()
+    textbox = slide.shapes.add_textbox(inches(left), inches(top), inches(width), inches(height))
+    textbox.text = text
+
+
+def _pptx_inches() -> Any:
+    try:
+        util_module = __import__("pptx.util", fromlist=["Inches"])
+        return util_module.Inches
+    except Exception:
+        return lambda value: int(float(value) * 914400)
+
+
+def _presentation_text(presentation: Any) -> str:
+    pieces: list[str] = []
+    for slide in presentation.slides:
+        for shape in slide.shapes:
+            if getattr(shape, "has_text_frame", False):
+                text = getattr(shape, "text", "")
+                if text:
+                    pieces.append(text)
+    return "\n".join(pieces)
+
+
+def _presentation_slide_count(presentation: Any) -> int:
+    return len(presentation.slides)
+
+
+def _pptx_success(
+    action: str,
+    config: OfficeRealDocumentActivityConfig,
+    resolution: OfficeDocumentPathResolution,
+    text: str,
+    **metadata: Any,
+) -> OfficeRealDocumentActionResult:
+    preview, truncated = _preview_with_limit(text, config.max_text_preview_chars)
+    return OfficeRealDocumentActionResult(
+        action=action,
+        success=True,
+        output=preview,
+        metadata={
+            "document_type": "pptx",
+            "path_relative": resolution.relative_path,
+            "slide_count": metadata.pop("slide_count"),
+            "text_preview": preview,
+            "truncated": truncated,
+            **metadata,
+            **_success_metadata(config),
+        },
+    )
+
+
 def _resolve_action_docx_path(
     action: str,
     parameters: dict[str, Any],
@@ -1412,6 +1982,7 @@ def _text_or_error(
 
 
 def _preview_limit(
+    action: str,
     value: Any,
     config: OfficeRealDocumentActivityConfig,
 ) -> int | OfficeRealDocumentActionResult:
@@ -1419,7 +1990,7 @@ def _preview_limit(
         return config.max_text_preview_chars
     if not isinstance(value, int) or value <= 0:
         return _error(
-            "office_extract_docx_text",
+            action,
             "invalid_parameter",
             "max_chars must be a positive integer.",
             config,

@@ -77,7 +77,7 @@ def test_enabled_with_missing_dependency_returns_controlled_error(tmp_path: Path
     assert result.metadata["real_office_document_automation"] is False
 
 
-def test_enabled_pptx_action_returns_not_implemented(tmp_path: Path) -> None:
+def test_enabled_pptx_action_with_missing_dependency_returns_controlled_error(tmp_path: Path) -> None:
     result = run_office_real_document_activity(
         "office_create_pptx",
         {"path": "artifacts/deck.pptx"},
@@ -86,7 +86,7 @@ def test_enabled_pptx_action_returns_not_implemented(tmp_path: Path) -> None:
     )
 
     assert result.success is False
-    assert result.error_type == "office_backend_not_implemented"
+    assert result.error_type == "office_dependency_missing"
 
 
 def test_supported_action_names_are_recognized(tmp_path: Path) -> None:
