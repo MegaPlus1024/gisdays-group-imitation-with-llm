@@ -1,0 +1,75 @@
+{
+  "schema_version": "model_catalog_v1",
+  "models": [
+    {
+      "model_id": "first_model",
+      "display_name": "first_model",
+      "upstream_name": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+      "local_path": "models/gguf/first_model.gguf",
+      "family": "qwen2.5",
+      "parameter_count_b": 1.5,
+      "quantization": "Q4_K_M",
+      "context_window_tokens": null,
+      "enabled": true,
+      "roles": {
+        "orchestrator_candidate": false,
+        "executor_candidate": true,
+        "judge_candidate": false
+      },
+      "historical_aliases": [],
+      "historical_observations": [
+        "executor candidate in existing local experiments",
+        "not suitable as orchestrator in current evidence because of orchestrator_plan_parse_failed observations"
+      ],
+      "resource_profile": {
+        "expected_vram_gb": null,
+        "expected_ram_gb": null,
+        "observed_vram_gb": null,
+        "observed_ram_gb": null,
+        "notes": "Metadata placeholder only; no production capacity claim."
+      },
+      "tags": [
+        "local",
+        "gguf",
+        "qwen2.5",
+        "small"
+      ]
+    },
+    {
+      "model_id": "second_model",
+      "display_name": "second_model",
+      "upstream_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
+      "local_path": "models/gguf/second_model.gguf",
+      "family": "qwen2.5",
+      "parameter_count_b": 3.0,
+      "quantization": "Q4_K_M",
+      "context_window_tokens": null,
+      "enabled": true,
+      "roles": {
+        "orchestrator_candidate": true,
+        "executor_candidate": true,
+        "judge_candidate": true
+      },
+      "historical_aliases": [
+        "qwen2_5_3b_instruct_q4_k_m"
+      ],
+      "historical_observations": [
+        "strongest orchestrator candidate in existing local experiments",
+        "quality-focused executor candidate in existing controlled group evidence"
+      ],
+      "resource_profile": {
+        "expected_vram_gb": null,
+        "expected_ram_gb": null,
+        "observed_vram_gb": null,
+        "observed_ram_gb": null,
+        "notes": "Metadata placeholder only; no production capacity claim."
+      },
+      "tags": [
+        "local",
+        "gguf",
+        "qwen2.5",
+        "small"
+      ]
+    }
+  ]
+}
