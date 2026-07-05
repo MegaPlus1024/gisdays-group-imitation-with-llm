@@ -4,8 +4,9 @@ import json
 import platform
 import re
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Literal, Protocol
 
 import httpx
@@ -54,6 +55,12 @@ from .state import (
     ActionSpec,
     AgentState,
     load_agent_state,
+)
+from .virtual_network import (
+    VirtualHostSpec,
+    VirtualNetworkSpec,
+    VirtualNetworkValidationError,
+    load_virtual_network_spec,
 )
 
 
@@ -106,6 +113,41 @@ class GroupAgentSpec(BaseModel):
         if not value.strip():
             raise ValueError("GroupAgentSpec text fields must be non-empty.")
         return value
+
+
+class ScenarioVirtualNetworkConfig(BaseModel):
+    spec_path: str
+    agent_host_map: dict[str, str] = Field(default_factory=dict)
+    default_host_id: str | None = None
+
+    @field_validator("spec_path")
+    @classmethod
+    def validate_spec_path(cls, value: str) -> str:
+        return _safe_relative_config_reference(value, "virtual_network.spec_path")
+
+    @field_validator("agent_host_map")
+    @classmethod
+    def validate_agent_host_map(cls, value: dict[str, str]) -> dict[str, str]:
+        out: dict[str, str] = {}
+        for agent_id, host_id in value.items():
+            if not agent_id.strip() or not host_id.strip():
+                raise ValueError("virtual_network.agent_host_map keys and values must be non-empty.")
+            out[agent_id] = host_id
+        return out
+
+    @field_validator("default_host_id")
+    @classmethod
+    def validate_default_host_id(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("virtual_network.default_host_id must be non-empty when provided.")
+        return value
+
+
+@dataclass(frozen=True)
+class LoadedVirtualNetworkBinding:
+    config: ScenarioVirtualNetworkConfig
+    spec: VirtualNetworkSpec
+    agent_host_map: dict[str, str]
 
 
 class OrchestratorPlanTask(BaseModel):
@@ -224,6 +266,7 @@ class OrchestratorExecutorRunResult(BaseModel):
     group_history: list[GroupHistoryRecord]
     quality_metrics: OrchestratorExecutorQualityMetrics
     pair_evaluation: OrchestratorExecutorPairEvaluationResult
+    virtual_network: dict[str, Any] | None = None
     artifact_dir: str | None = None
     warnings: list[str] = Field(default_factory=list)
     errors: list[dict[str, Any]] = Field(default_factory=list)
@@ -240,6 +283,7 @@ class OrchestratorExecutorScenario(BaseModel):
     execute_actions: bool = True
     expected_group_behavior: str
     agents: list[GroupAgentSpec]
+    virtual_network: ScenarioVirtualNetworkConfig | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("scenario_id", "description", "orchestrator_model_id", "executor_model_id", "expected_group_behavior")
@@ -677,6 +721,8 @@ class OrchestratorExecutorRunner:
 
         scenario = load_orchestrator_executor_scenario(self.config.project_path(self.config.scenario_path))
         scenario = _apply_config_overrides(scenario, self.config)
+        virtual_network_binding = _load_scenario_virtual_network(self.config, scenario)
+        virtual_network_summary = _virtual_network_summary(virtual_network_binding)
         models_config = load_evaluation_models_config(self.config.project_path(self.config.models_config_path))
         registry = EvaluationModelRegistry(models_config)
         orchestrator_model = _orchestrator_model_config(registry.require(scenario.orchestrator_model_id))
@@ -728,6 +774,7 @@ class OrchestratorExecutorRunner:
                 attempts=orchestrator_attempts,
                 errors=orchestrator_errors,
                 out_dir=out_dir,
+                virtual_network_summary=virtual_network_summary,
             )
             _write_orchestrator_failure_artifacts(
                 out_dir=out_dir,
@@ -765,6 +812,7 @@ class OrchestratorExecutorRunner:
                 script_registry,
                 assignments[agent.agent_id],
                 out_dir,
+                virtual_network_context=_agent_virtual_network_context(virtual_network_binding, agent.agent_id),
             )
             for agent in scenario.agents
         }
@@ -825,7 +873,15 @@ class OrchestratorExecutorRunner:
                 trajectory.attempts.extend(attempts)
                 final_attempt = attempts[-1]
                 _update_state_history(state, final_attempt)
-                group_history.append(_history_from_attempt(final_attempt))
+                group_history.append(
+                    _history_from_attempt(
+                        final_attempt,
+                        virtual_network_metadata=_agent_history_virtual_network_metadata(
+                            virtual_network_binding,
+                            agent.agent_id,
+                        ),
+                    )
+                )
                 for attempt in attempts:
                     if attempt.error_type:
                         errors.append(
@@ -880,6 +936,7 @@ class OrchestratorExecutorRunner:
             group_history=group_history,
             quality_metrics=quality,
             pair_evaluation=pair_eval,
+            virtual_network=virtual_network_summary,
             artifact_dir=str(out_dir),
             warnings=_runtime_warnings(self.config.mode, orchestrator_model, executor_model),
             errors=errors,
@@ -1062,6 +1119,7 @@ def _failed_orchestrator_result(
     attempts: list[OrchestratorPlanAttempt],
     errors: list[dict[str, Any]],
     out_dir: Path,
+    virtual_network_summary: dict[str, Any] | None,
 ) -> OrchestratorExecutorRunResult:
     reason = _final_orchestrator_error(attempts)
     plan = OrchestratorPlan(
@@ -1096,6 +1154,7 @@ def _failed_orchestrator_result(
         group_history=[],
         quality_metrics=metrics,
         pair_evaluation=pair_eval,
+        virtual_network=virtual_network_summary,
         artifact_dir=str(out_dir),
         warnings=_runtime_warnings(config.mode, orchestrator_model, executor_model),
         errors=errors,
@@ -1125,6 +1184,139 @@ def _apply_config_overrides(
     if config.execute_actions is not None:
         payload["execute_actions"] = config.execute_actions
     return OrchestratorExecutorScenario.model_validate(payload)
+
+
+def _load_scenario_virtual_network(
+    config: OrchestratorExecutorRunConfig,
+    scenario: OrchestratorExecutorScenario,
+) -> LoadedVirtualNetworkBinding | None:
+    if scenario.virtual_network is None:
+        return None
+
+    spec = load_virtual_network_spec(config.project_path(scenario.virtual_network.spec_path))
+    known_agent_ids = {agent.agent_id for agent in scenario.agents}
+    agent_host_map = dict(scenario.virtual_network.agent_host_map)
+
+    if scenario.virtual_network.default_host_id is not None:
+        default_host_id = scenario.virtual_network.default_host_id
+        if spec.get_host(default_host_id) is None:
+            raise VirtualNetworkValidationError(
+                f"virtual_network.default_host_id references unknown host_id '{default_host_id}'."
+            )
+        for agent_id in known_agent_ids:
+            agent_host_map.setdefault(agent_id, default_host_id)
+
+    for agent_id, host_id in agent_host_map.items():
+        if agent_id not in known_agent_ids:
+            raise VirtualNetworkValidationError(
+                f"virtual_network.agent_host_map references unknown agent_id '{agent_id}'."
+            )
+        if spec.get_host(host_id) is None:
+            raise VirtualNetworkValidationError(
+                f"virtual_network.agent_host_map for agent_id '{agent_id}' references unknown host_id '{host_id}'."
+            )
+
+    return LoadedVirtualNetworkBinding(
+        config=scenario.virtual_network,
+        spec=spec,
+        agent_host_map=agent_host_map,
+    )
+
+
+def _virtual_network_summary(binding: LoadedVirtualNetworkBinding | None) -> dict[str, Any] | None:
+    if binding is None:
+        return None
+    used_host_ids = sorted(dict.fromkeys(binding.agent_host_map.values()))
+    return {
+        "network_id": binding.spec.network_id,
+        "spec_path": binding.config.spec_path,
+        "metadata_only": True,
+        "real_network_actions_recorded": False,
+        "agent_host_map": dict(sorted(binding.agent_host_map.items())),
+        "hosts_used": [
+            _virtual_host_summary(host)
+            for host_id in used_host_ids
+            if (host := binding.spec.get_host(host_id)) is not None
+        ],
+        "services_available": [
+            {
+                "service_id": service.service_id,
+                "kind": service.kind,
+                "display_name": service.display_name,
+                "base_url": service.base_url,
+                "root_path": service.root_path,
+                "allowed_actions": list(service.allowed_actions),
+            }
+            for service in binding.spec.services
+        ],
+    }
+
+
+def _agent_virtual_network_context(
+    binding: LoadedVirtualNetworkBinding | None,
+    agent_id: str,
+) -> dict[str, Any] | None:
+    if binding is None:
+        return None
+    host_id = binding.agent_host_map.get(agent_id)
+    base = {
+        "network_id": binding.spec.network_id,
+        "spec_path": binding.config.spec_path,
+        "metadata_only": True,
+        "host_bound": host_id is not None,
+    }
+    if host_id is None:
+        return base
+    host = binding.spec.get_host(host_id)
+    if host is None:
+        return base
+    return {
+        **base,
+        **_virtual_host_summary(host),
+    }
+
+
+def _agent_history_virtual_network_metadata(
+    binding: LoadedVirtualNetworkBinding | None,
+    agent_id: str,
+) -> dict[str, Any] | None:
+    context = _agent_virtual_network_context(binding, agent_id)
+    if context is None:
+        return None
+    return {
+        "network_id": context["network_id"],
+        "host_id": context.get("host_id"),
+        "host_bound": context.get("host_bound", False),
+        "metadata_only": True,
+    }
+
+
+def _virtual_host_summary(host: VirtualHostSpec) -> dict[str, Any]:
+    return {
+        "host_id": host.host_id,
+        "host_display_name": host.display_name,
+        "host_role": host.role,
+        "workspace_root": host.workspace_root,
+        "allowed_service_ids": list(host.allowed_service_ids),
+        "allowed_url_prefixes": list(host.allowed_url_prefixes),
+    }
+
+
+def _safe_relative_config_reference(value: str, field_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field_name} must be non-empty.")
+    raw = value.strip().replace("\\", "/")
+    codex_fragment = "." + "codex"
+    lowered = raw.lower()
+    if "://" in raw:
+        raise ValueError(f"{field_name} must be a relative local config path, not a URL.")
+    if PureWindowsPath(value).is_absolute() or PurePosixPath(raw).is_absolute():
+        raise ValueError(f"{field_name} must be relative.")
+    if any(part == ".." for part in PurePosixPath(raw).parts):
+        raise ValueError(f"{field_name} must not contain path traversal.")
+    if "auth.json" in lowered or codex_fragment in lowered:
+        raise ValueError(f"{field_name} must not reference private local files.")
+    return raw
 
 
 def _orchestrator_model_config(spec: EvaluationModelSpec) -> OrchestratorModelConfig:
@@ -1214,6 +1406,8 @@ def _build_agent_state(
     registry: ScriptRegistry,
     assignment: AgentAssignment,
     out_dir: Path,
+    *,
+    virtual_network_context: dict[str, Any] | None = None,
 ) -> AgentState:
     if agent.initial_state_path:
         state = load_agent_state(project_root / agent.initial_state_path)
@@ -1244,6 +1438,8 @@ def _build_agent_state(
     payload["objective"]["success_criteria"] = list(
         dict.fromkeys([*payload["objective"].get("success_criteria", []), assignment.success_criteria])
     )
+    if virtual_network_context is not None:
+        _attach_virtual_network_context(payload, virtual_network_context)
     payload["metadata"] = {
         **payload.get("metadata", {}),
         **agent.state_override,
@@ -1260,6 +1456,55 @@ def _build_agent_state(
         ),
     }
     return AgentState.model_validate(payload)
+
+
+def _attach_virtual_network_context(payload: dict[str, Any], context: dict[str, Any]) -> None:
+    environment = dict(payload.get("environment") or {})
+    resources = dict(payload.get("resources") or {})
+    metadata = dict(payload.get("metadata") or {})
+
+    environment["network_allowed"] = False
+    environment["virtual_network"] = {
+        "network_id": context.get("network_id"),
+        "host_id": context.get("host_id"),
+        "host_display_name": context.get("host_display_name"),
+        "host_role": context.get("host_role"),
+        "workspace_root": context.get("workspace_root"),
+        "metadata_only": True,
+    }
+    environment["notes"] = _append_unique_text(
+        environment.get("notes"),
+        "Virtual network binding is metadata-only; no real services are started by this runner.",
+    )
+
+    allowed_url_prefixes = _string_values(context.get("allowed_url_prefixes"))
+    resources["endpoints"] = sorted(dict.fromkeys([*_string_values(resources.get("endpoints")), *allowed_url_prefixes]))
+    resources["virtual_network"] = {
+        "network_id": context.get("network_id"),
+        "host_id": context.get("host_id"),
+        "allowed_service_ids": _string_values(context.get("allowed_service_ids")),
+        "allowed_url_prefixes": allowed_url_prefixes,
+        "workspace_root": context.get("workspace_root"),
+        "metadata_only": True,
+    }
+
+    metadata["virtual_network"] = dict(context)
+    payload["environment"] = environment
+    payload["resources"] = resources
+    payload["metadata"] = metadata
+
+
+def _append_unique_text(value: Any, item: str) -> list[str]:
+    values = _string_values(value)
+    if item not in values:
+        values.append(item)
+    return values
+
+
+def _string_values(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
 
 
 def _action_spec_from_descriptor(descriptor: Any) -> ActionSpec:
@@ -1836,7 +2081,11 @@ def _update_state_history(state: AgentState, attempt: ExecutorActionAttempt) -> 
     state.current_step = max(entry.step for entry in state.history) + 1
 
 
-def _history_from_attempt(attempt: ExecutorActionAttempt) -> GroupHistoryRecord:
+def _history_from_attempt(
+    attempt: ExecutorActionAttempt,
+    *,
+    virtual_network_metadata: dict[str, Any] | None = None,
+) -> GroupHistoryRecord:
     status: Literal["success", "failure", "skipped"]
     if attempt.error_type is None:
         status = "success"
@@ -1844,6 +2093,13 @@ def _history_from_attempt(attempt: ExecutorActionAttempt) -> GroupHistoryRecord:
         status = "failure"
     else:
         status = "skipped"
+    metadata: dict[str, Any] = {
+        "validation_accepted": attempt.validation_accepted,
+        "execution_attempted": attempt.execution_attempted,
+        "execution_success": attempt.execution_success,
+    }
+    if virtual_network_metadata is not None:
+        metadata["virtual_network"] = virtual_network_metadata
     return GroupHistoryRecord(
         group_step_index=attempt.group_step_index,
         agent_id=attempt.agent_id,
@@ -1851,11 +2107,7 @@ def _history_from_attempt(attempt: ExecutorActionAttempt) -> GroupHistoryRecord:
         action=attempt.action,
         status=status,
         summary=attempt.error_message or "Executor step completed.",
-        metadata={
-            "validation_accepted": attempt.validation_accepted,
-            "execution_attempted": attempt.execution_attempted,
-            "execution_success": attempt.execution_success,
-        },
+        metadata=metadata,
     )
 
 
@@ -2070,6 +2322,8 @@ def _write_artifacts(
     wall_time_seconds: float,
 ) -> None:
     _write_json(out_dir / "manifest.json", _manifest(result, config, scenario, orchestrator_model, executor_model, started_at))
+    if result.virtual_network is not None:
+        _write_json(out_dir / "virtual_network_summary.json", result.virtual_network)
     _write_json(out_dir / "orchestrator_prompt.json", {"messages": provider_result.prompt_messages})
     _write_json(out_dir / "orchestrator_raw_output.json", {"raw_model_output": provider_result.raw_model_output, "metadata": provider_result.metadata})
     _write_jsonl(
@@ -2144,6 +2398,8 @@ def _write_orchestrator_failure_artifacts(
 ) -> None:
     latest = attempts[-1] if attempts else None
     _write_json(out_dir / "manifest.json", _manifest(result, config, scenario, orchestrator_model, executor_model, started_at))
+    if result.virtual_network is not None:
+        _write_json(out_dir / "virtual_network_summary.json", result.virtual_network)
     _write_json(out_dir / "orchestrator_prompt.json", {"messages": latest.prompt if latest else [], "attempt_count": len(attempts)})
     _write_json(
         out_dir / "orchestrator_raw_output.json",
@@ -2205,6 +2461,7 @@ def _manifest(
         "workspace_policy": scenario.metadata.get("write_path_policy"),
         "fixture_strategy": "shared_read_only_project_root",
         "fixture_paths": list(scenario.metadata.get("fixture_paths") or []),
+        "virtual_network": result.virtual_network,
         "mode": config.mode,
         "status": result.status,
         "success": result.success,

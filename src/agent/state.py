@@ -38,6 +38,7 @@ class AgentEnvironment(BaseModel):
     runtime: str | None = None
     network_allowed: bool = False
     notes: list[str] = Field(default_factory=list)
+    virtual_network: dict[str, Any] = Field(default_factory=dict)
 
 
 class AgentResources(BaseModel):
@@ -45,6 +46,7 @@ class AgentResources(BaseModel):
     directories: list[str] = Field(default_factory=list)
     endpoints: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
+    virtual_network: dict[str, Any] = Field(default_factory=dict)
 
 
 class AgentConstraints(BaseModel):
