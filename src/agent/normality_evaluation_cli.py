@@ -7,8 +7,10 @@ from pathlib import Path
 from typing import Sequence
 
 from src.agent.normality_evaluation_runner import (
+    NORMALITY_BATCH_SUMMARY_FILENAME,
     NORMALITY_EVALUATION_SUMMARY_FILENAME,
     NormalityEvaluationRunConfig,
+    run_batch_normality_evaluation,
     run_normality_evaluation_from_saved_llm_response,
     run_normality_evaluation_from_file,
     write_normality_evaluation_summary,
@@ -20,7 +22,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run offline normality evaluation for a local JSON/JSONL artifact.",
     )
-    parser.add_argument("--input", required=True, help="Path to a JSON or JSONL event file.")
+    parser.add_argument(
+        "--input",
+        action="append",
+        required=True,
+        help="Path to a JSON or JSONL event file. Repeat for offline batch evaluation.",
+    )
     parser.add_argument(
         "--output-dir",
         required=True,
@@ -68,10 +75,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     try:
         args = parser.parse_args(list(argv) if argv is not None else None)
+        input_paths = list(args.input or [])
+        if len(input_paths) > 1 and args.raw_judge_response:
+            _print_json(_invalid_payload("raw_judge_response_batch_unsupported"))
+            return 2
+        if len(input_paths) > 1 and (args.write_prompt_preview or args.prompt_preview):
+            _print_json(_invalid_payload("prompt_preview_batch_unsupported"))
+            return 2
         judge_mode = args.judge_provider if args.judge_provider in {"deterministic", "fake"} else "deterministic"
         config = NormalityEvaluationRunConfig(
             project_root=Path.cwd(),
-            input_path=args.input,
+            input_path=input_paths[0] if input_paths else None,
             output_dir=args.output_dir,
             scenario_id=args.scenario_id,
             task_summary=args.task_summary,
@@ -82,6 +96,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             include_raw_outputs=args.include_raw_outputs,
             redact_paths=not args.no_redact_paths,
         )
+        if len(input_paths) > 1:
+            batch_result = run_batch_normality_evaluation(config, input_paths)
+            _print_json(_batch_stdout_payload(batch_result))
+            return _batch_exit_code(batch_result.status)
         if args.raw_judge_response and args.judge_provider == "llm":
             result = run_normality_evaluation_from_saved_llm_response(
                 config,
@@ -117,6 +135,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     return _exit_code(result.status)
 
 
+def _invalid_payload(error: str) -> dict[str, object]:
+    return {
+        "status": "invalid_input",
+        "summary_path": None,
+        "label": None,
+        "overall_score": None,
+        "event_count": 0,
+        "judge_provider": None,
+        "model_called": False,
+        "prompt_preview_path": None,
+        "error": error,
+    }
+
+
 def _stdout_payload(result: object) -> dict[str, object]:
     status = getattr(result, "status", "invalid_input")
     summary_path = getattr(result, "summary_path_relative", None)
@@ -134,7 +166,31 @@ def _stdout_payload(result: object) -> dict[str, object]:
     }
 
 
+def _batch_stdout_payload(result: object) -> dict[str, object]:
+    aggregation = getattr(result, "aggregation", {}) or {}
+    status = getattr(result, "status", "invalid_input")
+    batch_path = getattr(result, "batch_summary_path_relative", None)
+    if batch_path is None and status != "write_failed":
+        batch_path = NORMALITY_BATCH_SUMMARY_FILENAME
+    return {
+        "status": status,
+        "input_count": getattr(result, "input_count", 0),
+        "evaluated_count": getattr(result, "evaluated_count", 0),
+        "failed_count": getattr(result, "failed_count", 0),
+        "mean_overall_score": aggregation.get("mean_overall_score"),
+        "label_counts": aggregation.get("label_counts", {}),
+        "batch_summary_path": batch_path,
+        "judge_provider": getattr(result, "judge_provider", None),
+    }
+
+
 def _exit_code(status: str) -> int:
+    if status in {"ok", "judge_disabled"}:
+        return 0
+    return 2
+
+
+def _batch_exit_code(status: str) -> int:
     if status in {"ok", "judge_disabled"}:
         return 0
     return 2

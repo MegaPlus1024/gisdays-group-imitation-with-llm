@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Any, Literal
 
@@ -23,6 +24,7 @@ from src.agent.normality_judge import (
 
 NORMALITY_EVALUATION_RUNNER_SCHEMA_VERSION = "normality_evaluation_runner_v1"
 NORMALITY_EVALUATION_SUMMARY_FILENAME = "normality_judge_summary.json"
+NORMALITY_BATCH_SUMMARY_FILENAME = "normality_judge_batch_summary.json"
 NORMALITY_JUDGE_PROMPT_PREVIEW_FILENAME = "normality_judge_prompt_preview.txt"
 
 NormalityEvaluationRunStatus = Literal[
@@ -93,6 +95,37 @@ class NormalityEvaluationRunResult(BaseModel):
     event_preview: list[dict[str, Any]] = Field(default_factory=list)
     judge_result: NormalityJudgeResult | None = None
     aggregation: dict[str, Any] | None = None
+    warnings: list[str] = Field(default_factory=list)
+    schema_version: str = NORMALITY_EVALUATION_RUNNER_SCHEMA_VERSION
+
+
+class NormalityBatchEvaluationEntry(BaseModel):
+    input_path_display: str | None = None
+    input_path_relative: str | None = None
+    status: str
+    label: str | None = None
+    overall_score: float | None = None
+    event_count: int = 0
+    summary_path_relative: str | None = None
+    judge_mode: str | None = None
+    judge_provider: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+    findings: list[str] = Field(default_factory=list)
+    redactions_applied: list[str] = Field(default_factory=list)
+    event_preview: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class NormalityBatchEvaluationResult(BaseModel):
+    status: str
+    input_count: int
+    evaluated_count: int
+    failed_count: int
+    judge_mode: str | None = None
+    judge_provider: str | None = None
+    output_dir_relative: str | None = None
+    batch_summary_path_relative: str | None = None
+    aggregation: dict[str, Any] = Field(default_factory=dict)
+    entries: list[NormalityBatchEvaluationEntry] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     schema_version: str = NORMALITY_EVALUATION_RUNNER_SCHEMA_VERSION
 
@@ -184,6 +217,69 @@ def run_normality_evaluation_from_file(
             result.status = "write_failed"
             result.warnings = sorted(set([*result.warnings, "summary_write_failed"]))
     return result
+
+
+def run_batch_normality_evaluation(
+    config: NormalityEvaluationRunConfig,
+    input_paths: list[str | Path],
+    *,
+    provider: NormalityJudgeProvider | None = None,
+) -> NormalityBatchEvaluationResult:
+    entries: list[NormalityBatchEvaluationEntry] = []
+    if not input_paths:
+        result = NormalityBatchEvaluationResult(
+            status="invalid_input",
+            input_count=0,
+            evaluated_count=0,
+            failed_count=0,
+            judge_mode=config.judge_mode,
+            judge_provider=config.judge_provider,
+            output_dir_relative=_output_dir_relative(config),
+            aggregation=_batch_aggregation(entries),
+            warnings=["input_paths_missing"],
+        )
+        return _write_batch_result_if_requested(result, config)
+
+    for input_path in input_paths:
+        item_config = config.model_copy(
+            update={
+                "input_path": str(input_path),
+                "write_summary": False,
+            }
+        )
+        item_result = run_normality_evaluation_from_file(item_config, provider=provider)
+        entries.append(_batch_entry_from_result(input_path, item_result, config))
+
+    evaluated_count = sum(1 for entry in entries if entry.status in {"ok", "judge_disabled"})
+    failed_count = len(entries) - evaluated_count
+    status = _batch_status(entries, evaluated_count)
+    result = NormalityBatchEvaluationResult(
+        status=status,
+        input_count=len(entries),
+        evaluated_count=evaluated_count,
+        failed_count=failed_count,
+        judge_mode=config.judge_mode,
+        judge_provider=_batch_judge_provider(entries, config.judge_provider),
+        output_dir_relative=_output_dir_relative(config),
+        aggregation=_batch_aggregation(entries),
+        entries=entries,
+        warnings=_batch_warnings(entries),
+    )
+    return _write_batch_result_if_requested(result, config)
+
+
+def write_batch_normality_evaluation_summary(
+    result: NormalityBatchEvaluationResult,
+    output_dir: str | Path,
+) -> Path:
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = out_dir / NORMALITY_BATCH_SUMMARY_FILENAME
+    summary_path.write_text(
+        json.dumps(result.model_dump(mode="json"), ensure_ascii=False, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    return summary_path
 
 
 def build_normality_judge_input_from_file(
@@ -904,6 +1000,112 @@ def _summary_path_relative(config: NormalityEvaluationRunConfig) -> str | None:
         config.resolve_project_path(config.output_dir) / NORMALITY_EVALUATION_SUMMARY_FILENAME,
         config.project_root,
     )
+
+
+def _batch_summary_path_relative(config: NormalityEvaluationRunConfig) -> str | None:
+    if not config.output_dir:
+        return None
+    return _safe_relative(
+        config.resolve_project_path(config.output_dir) / NORMALITY_BATCH_SUMMARY_FILENAME,
+        config.project_root,
+    )
+
+
+def _batch_entry_from_result(
+    input_path: str | Path,
+    result: NormalityEvaluationRunResult,
+    config: NormalityEvaluationRunConfig,
+) -> NormalityBatchEvaluationEntry:
+    return NormalityBatchEvaluationEntry(
+        input_path_display=_input_path_display(input_path, config),
+        input_path_relative=result.input_path_relative,
+        status=result.status,
+        label=result.label,
+        overall_score=result.overall_score,
+        event_count=result.event_count,
+        summary_path_relative=result.summary_path_relative,
+        judge_mode=result.judge_mode,
+        judge_provider=result.judge_provider,
+        warnings=result.warnings,
+        findings=result.findings,
+        redactions_applied=result.redactions_applied,
+        event_preview=result.event_preview,
+    )
+
+
+def _batch_status(entries: list[NormalityBatchEvaluationEntry], evaluated_count: int) -> str:
+    if not entries or evaluated_count == 0:
+        return "invalid_input"
+    if all(entry.status == "judge_disabled" for entry in entries):
+        return "judge_disabled"
+    return "ok"
+
+
+def _batch_judge_provider(entries: list[NormalityBatchEvaluationEntry], fallback: str | None) -> str | None:
+    for entry in entries:
+        if entry.judge_provider:
+            return entry.judge_provider
+    return fallback
+
+
+def _batch_warnings(entries: list[NormalityBatchEvaluationEntry]) -> list[str]:
+    warnings: set[str] = set()
+    for entry in entries:
+        warnings.update(entry.warnings)
+    return sorted(warnings)
+
+
+def _batch_aggregation(entries: list[NormalityBatchEvaluationEntry]) -> dict[str, Any]:
+    successful = [
+        NormalityJudgeResult(
+            status="ok",
+            label=entry.label,
+            overall_score=entry.overall_score,
+            judge_mode="deterministic",
+            provider_name=None,
+            findings=entry.findings,
+        )
+        for entry in entries
+        if entry.status == "ok" and entry.label is not None and entry.overall_score is not None
+    ]
+    aggregation = aggregate_normality_results(successful)
+    status_counts = Counter(entry.status for entry in entries)
+    finding_counts: Counter[str] = Counter()
+    for entry in entries:
+        finding_counts.update(entry.findings)
+    aggregation["status_counts"] = dict(status_counts)
+    aggregation["finding_counts"] = dict(finding_counts)
+    return aggregation
+
+
+def _input_path_display(input_path: str | Path, config: NormalityEvaluationRunConfig) -> str | None:
+    path = config.resolve_project_path(input_path)
+    relative = _safe_relative(path, config.project_root)
+    if relative is not None:
+        return relative
+    text = str(input_path)
+    if config.redact_paths and _is_absolute_path(text):
+        return "<absolute_path>"
+    safe, _ = sanitize_judge_text(text, _judge_config(config))
+    return safe or None
+
+
+def _write_batch_result_if_requested(
+    result: NormalityBatchEvaluationResult,
+    config: NormalityEvaluationRunConfig,
+) -> NormalityBatchEvaluationResult:
+    if not config.output_dir or not config.write_summary:
+        return result
+    result.batch_summary_path_relative = _batch_summary_path_relative(config)
+    try:
+        write_batch_normality_evaluation_summary(
+            result,
+            config.resolve_project_path(config.output_dir),
+        )
+    except OSError:
+        result.status = "write_failed"
+        result.warnings = sorted(set([*result.warnings, "batch_summary_write_failed"]))
+    return result
 
 
 def _read_raw_response_text(path: Path, max_input_bytes: int) -> tuple[str | None, list[str]]:
