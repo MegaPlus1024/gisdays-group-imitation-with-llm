@@ -6,6 +6,10 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+from src.agent.normality_comparison import (
+    compare_normality_batch_summaries,
+    write_normality_comparison_summary,
+)
 from src.agent.normality_evaluation_runner import (
     NORMALITY_BATCH_SUMMARY_FILENAME,
     NORMALITY_EVALUATION_SUMMARY_FILENAME,
@@ -32,6 +36,22 @@ def build_parser() -> argparse.ArgumentParser:
         "--input-manifest",
         default=None,
         help="Path to an explicit normality batch manifest JSON file.",
+    )
+    parser.add_argument(
+        "--compare-batch-summary",
+        action="append",
+        default=[],
+        help="Path to a normality_judge_batch_summary.json file. Repeat for comparison.",
+    )
+    parser.add_argument(
+        "--comparison-output-dir",
+        default=None,
+        help="Directory for normality comparison outputs. Defaults to --output-dir.",
+    )
+    parser.add_argument(
+        "--write-comparison-markdown",
+        action="store_true",
+        help="Also write normality_comparison_preview.md for quick offline inspection.",
     )
     parser.add_argument(
         "--output-dir",
@@ -81,6 +101,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         args = parser.parse_args(list(argv) if argv is not None else None)
         input_paths = list(args.input or [])
+        compare_paths = list(args.compare_batch_summary or [])
+        if compare_paths:
+            if input_paths or args.input_manifest or args.raw_judge_response:
+                _print_json(_invalid_payload("comparison_mode_incompatible_args"))
+                return 2
+            if args.write_prompt_preview or args.prompt_preview:
+                _print_json(_invalid_payload("comparison_mode_prompt_preview_unsupported"))
+                return 2
+            comparison = compare_normality_batch_summaries(
+                compare_paths,
+                project_root=Path.cwd(),
+            )
+            write_normality_comparison_summary(
+                comparison,
+                args.comparison_output_dir or args.output_dir,
+                write_markdown=args.write_comparison_markdown,
+            )
+            _print_json(_comparison_stdout_payload(comparison))
+            return _comparison_exit_code(comparison.status)
         if args.input_manifest and input_paths:
             _print_json(_invalid_payload("input_manifest_cannot_combine_with_input"))
             return 2
@@ -209,6 +248,20 @@ def _batch_stdout_payload(result: object) -> dict[str, object]:
     }
 
 
+def _comparison_stdout_payload(result: object) -> dict[str, object]:
+    leaderboard = getattr(result, "leaderboard", []) or []
+    top_model_pair = leaderboard[0].get("pair_label") if leaderboard else None
+    return {
+        "status": getattr(result, "status", "invalid_input"),
+        "input_summary_count": getattr(result, "input_summary_count", 0),
+        "total_entries": getattr(result, "total_entries", 0),
+        "evaluated_entries": getattr(result, "evaluated_entries", 0),
+        "failed_entries": getattr(result, "failed_entries", 0),
+        "top_model_pair": top_model_pair,
+        "comparison_summary_path": getattr(result, "comparison_summary_path_relative", None),
+    }
+
+
 def _exit_code(status: str) -> int:
     if status in {"ok", "judge_disabled"}:
         return 0
@@ -217,6 +270,12 @@ def _exit_code(status: str) -> int:
 
 def _batch_exit_code(status: str) -> int:
     if status in {"ok", "judge_disabled"}:
+        return 0
+    return 2
+
+
+def _comparison_exit_code(status: str) -> int:
+    if status == "ok":
         return 0
     return 2
 
