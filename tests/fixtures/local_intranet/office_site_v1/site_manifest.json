@@ -1,0 +1,16 @@
+{
+  "site_id": "office_site_v1",
+  "fixture_root": ".",
+  "base_url_prefixes": [
+    "http://localhost:8088",
+    "http://127.0.0.1:8088",
+    "http://local-intranet.test"
+  ],
+  "routes": {
+    "/": "index.html",
+    "/tickets": "tickets/index.html",
+    "/tickets/1": "tickets/1.html",
+    "/docs/policy": "docs/policy.html",
+    "/team/status": "team/status.html"
+  }
+}

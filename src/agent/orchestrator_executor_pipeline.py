@@ -735,6 +735,10 @@ class OrchestratorExecutorRunner:
             self.config,
         )
         script_registry = load_script_registry(self.config.project_path(scenario.registry_path))
+        browser_fixture_manifest_path, browser_fixture_prefixes = _browser_fixture_config(
+            scenario,
+            virtual_network_binding,
+        )
 
         role_templates = {
             agent.agent_id: load_role_template(self.config.project_path(agent.role_template_path))
@@ -825,6 +829,8 @@ class OrchestratorExecutorRunner:
                 validate_with_registry=True,
                 normalize_result=True,
                 write_history=False,
+                browser_fixture_manifest_path=browser_fixture_manifest_path,
+                browser_fixture_allowed_url_prefixes=browser_fixture_prefixes,
             ),
             registry=script_registry,
         )
@@ -1254,6 +1260,29 @@ def _virtual_network_summary(binding: LoadedVirtualNetworkBinding | None) -> dic
             for service in binding.spec.services
         ],
     }
+
+
+def _browser_fixture_config(
+    scenario: OrchestratorExecutorScenario,
+    binding: LoadedVirtualNetworkBinding | None,
+) -> tuple[str | None, list[str]]:
+    manifest = scenario.metadata.get("browser_fixture_manifest_path")
+    if not isinstance(manifest, str) or not manifest.strip():
+        return None, []
+
+    prefixes: list[str] = []
+    raw_prefixes = scenario.metadata.get("browser_fixture_allowed_url_prefixes")
+    if isinstance(raw_prefixes, list):
+        prefixes.extend(item for item in raw_prefixes if isinstance(item, str) and item.strip())
+
+    if binding is not None:
+        for host in binding.spec.hosts:
+            prefixes.extend(host.allowed_url_prefixes)
+        for service in binding.spec.services:
+            if service.base_url:
+                prefixes.append(service.base_url)
+
+    return manifest.strip(), sorted(dict.fromkeys(prefixes))
 
 
 def _agent_virtual_network_context(

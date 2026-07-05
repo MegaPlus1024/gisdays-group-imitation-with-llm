@@ -263,6 +263,15 @@ def test_fake_group_run_with_allowed_url_writes_network_policy_metadata(tmp_path
     assert office_history["metadata"]["virtual_network_policy"]["code"] == "virtual_network_policy_allowed"
     assert office_action["execution_attempted"] is True
     assert office_action["execution_success"] is True
+    metadata = office_action["execution_result"]["raw_result"]["metadata"]
+    assert metadata["fixture_source"] is True
+    assert metadata["fixture_site_id"] == "office_site_v1"
+    assert metadata["fixture_route"] == "/tickets/1"
+    assert metadata["fixture_path_relative"] == "tickets/1.html"
+    assert metadata["browser_opened"] is False
+    assert metadata["network_used"] is False
+    assert metadata["real_network_traffic"] is False
+    assert "Quarterly Access Review" in metadata["extracted_text_preview"]
     assert network_events[0]["status"] == "policy_allowed"
     assert network_events[0]["target_url"] == "http://localhost:8088"
     assert network_events[0]["real_network_traffic"] is False

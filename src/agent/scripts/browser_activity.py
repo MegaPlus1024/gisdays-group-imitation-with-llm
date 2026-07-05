@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from ..browser_fixture_resolver import (
+    BrowserFixtureResolverError,
+    resolve_browser_fixture_url,
+)
 from .results import ScriptExecutionResult
 
 
@@ -24,11 +29,19 @@ class BrowserActivityConfig(BaseModel):
     allowed_schemes: list[str] = Field(default_factory=lambda: ["http", "https"])
     allowed_hosts: list[str] = Field(default_factory=lambda: ["localhost", "127.0.0.1"])
     forbidden_hosts: list[str] = Field(default_factory=list)
+    fixture_allowed_url_prefixes: list[str] = Field(default_factory=list)
+    fixture_manifest_path: str | None = None
+    project_root: Path = Path(".")
     allow_external_hosts: bool = False
     allow_file_urls: bool = False
     max_url_length: int = 2048
     max_query_length: int = 500
     simulated_only: bool = True
+
+    @field_validator("project_root")
+    @classmethod
+    def validate_project_root(cls, value: Path) -> Path:
+        return value.resolve()
 
     @field_validator("max_url_length", "max_query_length")
     @classmethod
@@ -45,6 +58,8 @@ class BrowserActivityConfig(BaseModel):
             raise ValueError("allowed_hosts must not contain duplicates.")
         if len(self.forbidden_hosts) != len(set(self.forbidden_hosts)):
             raise ValueError("forbidden_hosts must not contain duplicates.")
+        if len(self.fixture_allowed_url_prefixes) != len(set(self.fixture_allowed_url_prefixes)):
+            raise ValueError("fixture_allowed_url_prefixes must not contain duplicates.")
         if not self.simulated_only:
             raise ValueError("BrowserActivityConfig v1 supports simulated_only=True only.")
         return self
@@ -86,7 +101,10 @@ def validate_browser_url(url: str, config: BrowserActivityConfig) -> str:
             raise UnsafeBrowserUrlError(f"Host '{host}' is forbidden.")
         if not config.allow_external_hosts:
             allowed = {h.lower() for h in config.allowed_hosts}
-            if host_lower not in allowed:
+            if host_lower not in allowed and not _matches_allowed_fixture_prefix(
+                normalized,
+                config.fixture_allowed_url_prefixes,
+            ):
                 raise UnsafeBrowserUrlError(f"External host '{host}' is not allowed.")
 
     return normalized
@@ -105,6 +123,25 @@ def _error(action: str, error_type: str, error_message: str, **metadata: Any) ->
 def open_url(url: str, config: BrowserActivityConfig) -> ScriptExecutionResult:
     action = "open_url"
     validated = validate_browser_url(url, config)
+    if config.fixture_manifest_path:
+        resolution = resolve_browser_fixture_url(
+            validated,
+            config.fixture_manifest_path,
+            project_root=config.project_root,
+            allowed_url_prefixes=config.fixture_allowed_url_prefixes,
+        )
+        return ScriptExecutionResult(
+            action=action,
+            success=True,
+            output="Navigation request validated against a local HTML fixture. No browser was opened and no network request was made.",
+            metadata={
+                "url": validated,
+                "simulated": True,
+                "browser_opened": False,
+                "network_used": False,
+                **resolution.to_metadata(),
+            },
+        )
     return ScriptExecutionResult(
         action=action,
         success=True,
@@ -214,3 +251,32 @@ def run_browser_activity(
             "invalid_parameter",
             str(exc),
         )
+    except BrowserFixtureResolverError as exc:
+        return _error(
+            action if isinstance(action, str) and action.strip() else "unknown",
+            "fixture_resolution_failed",
+            str(exc),
+        )
+
+
+def _matches_allowed_fixture_prefix(url: str, prefixes: list[str]) -> bool:
+    parsed = urlparse(url)
+    for prefix in prefixes:
+        if not isinstance(prefix, str) or not prefix.strip():
+            continue
+        prefix_parsed = urlparse(prefix.strip())
+        if prefix_parsed.scheme not in {"http", "https"} or not prefix_parsed.hostname:
+            continue
+        if parsed.scheme.lower() != prefix_parsed.scheme.lower():
+            continue
+        if (parsed.hostname or "").lower() != prefix_parsed.hostname.lower():
+            continue
+        if parsed.port != prefix_parsed.port:
+            continue
+        prefix_path = prefix_parsed.path.rstrip("/")
+        if not prefix_path:
+            return True
+        path = parsed.path.rstrip("/")
+        if path == prefix_path or path.startswith(f"{prefix_path}/"):
+            return True
+    return False

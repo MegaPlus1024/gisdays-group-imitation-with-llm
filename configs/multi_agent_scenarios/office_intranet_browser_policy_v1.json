@@ -41,6 +41,13 @@
     "browser_real_automation_required": false,
     "office_real_automation_required": false,
     "external_network_required": false,
+    "browser_fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+    "browser_fixture_site_id": "office_site_v1",
+    "browser_fixture_allowed_url_prefixes": [
+      "http://localhost:8088",
+      "http://127.0.0.1:8088",
+      "http://local-intranet.test"
+    ],
     "expected_safe_actions": [
       "browser_open_url",
       "read_file"

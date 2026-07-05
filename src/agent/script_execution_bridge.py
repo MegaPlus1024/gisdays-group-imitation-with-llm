@@ -41,6 +41,8 @@ class ScriptExecutionBridgeConfig(BaseModel):
     validate_with_registry: bool = True
     normalize_result: bool = True
     write_history: bool = False
+    browser_fixture_manifest_path: str | None = None
+    browser_fixture_allowed_url_prefixes: list[str] = Field(default_factory=list)
 
     @field_validator("project_root")
     @classmethod
@@ -165,7 +167,11 @@ class ScriptExecutionBridge:
             result = run_browser_activity(
                 "open_url",
                 params,
-                BrowserActivityConfig(),
+                BrowserActivityConfig(
+                    project_root=project_root,
+                    fixture_manifest_path=self.config.browser_fixture_manifest_path,
+                    fixture_allowed_url_prefixes=self.config.browser_fixture_allowed_url_prefixes,
+                ),
             )
             return result, True
 
