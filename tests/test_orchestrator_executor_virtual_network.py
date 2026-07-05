@@ -25,22 +25,28 @@ VIRTUAL_NETWORK_SCENARIO = (
 )
 
 
-def _config(tmp_path: Path, scenario_path: str | Path = VIRTUAL_NETWORK_SCENARIO) -> OrchestratorExecutorRunConfig:
-    return OrchestratorExecutorRunConfig(
-        project_root=PROJECT_ROOT,
-        mode="fake",
-        models_config_path="configs/evaluation_models.json",
-        scenario_path=str(scenario_path),
-        out_dir=str(tmp_path / "group_artifacts"),
-        run_id="test_virtual_network_group",
-        orchestrator_model_id="second_model",
-        executor_model_id="first_model",
-        max_group_steps=2,
-        max_steps_per_agent=2,
-        repair_attempts=1,
-        execute_actions=False,
-        force=True,
-    )
+def _config(
+    tmp_path: Path,
+    scenario_path: str | Path = VIRTUAL_NETWORK_SCENARIO,
+    **overrides: Any,
+) -> OrchestratorExecutorRunConfig:
+    payload: dict[str, Any] = {
+        "project_root": PROJECT_ROOT,
+        "mode": "fake",
+        "models_config_path": "configs/evaluation_models.json",
+        "scenario_path": str(scenario_path),
+        "out_dir": str(tmp_path / "group_artifacts"),
+        "run_id": "test_virtual_network_group",
+        "orchestrator_model_id": "second_model",
+        "executor_model_id": "first_model",
+        "max_group_steps": 2,
+        "max_steps_per_agent": 2,
+        "repair_attempts": 1,
+        "execute_actions": False,
+        "force": True,
+    }
+    payload.update(overrides)
+    return OrchestratorExecutorRunConfig.model_validate(payload)
 
 
 def _json(path: Path) -> dict[str, Any]:
@@ -78,6 +84,68 @@ class CapturingExecutorProvider:
             raw_model_output=json.dumps(action, ensure_ascii=False),
             metadata={"provider": "capturing_executor"},
         )
+
+
+class StaticBrowserActionExecutorProvider:
+    def __init__(self, office_url: str) -> None:
+        self.office_url = office_url
+
+    def next_action(
+        self,
+        *,
+        agent: GroupAgentSpec,
+        task: OrchestratorPlanTask,
+        state: AgentState,
+        group_step_index: int,
+        agent_step_index: int,
+        out_dir: Path,
+        project_root: Path,
+    ) -> ExecutorProviderResult:
+        del task, state, group_step_index, agent_step_index, out_dir, project_root
+        if agent.agent_id == "office_agent":
+            action = {
+                "action": "browser_open_url",
+                "parameters": {"url": self.office_url},
+                "reason": "Validate a URL-bearing action against virtual network policy.",
+                "expected_result": "The URL action is accepted or denied by metadata policy.",
+            }
+        else:
+            action = {
+                "action": "read_file",
+                "parameters": {"path": "docs/ai/model_research_metadata.md"},
+                "reason": "Read safe local metadata for the developer task.",
+                "expected_result": "The local metadata is available.",
+            }
+        return ExecutorProviderResult(
+            raw_model_output=json.dumps(action, ensure_ascii=False),
+            metadata={"provider": "static_browser_action_executor"},
+        )
+
+
+def _browser_policy_scenario_path(tmp_path: Path) -> Path:
+    scenario_payload = _json(PROJECT_ROOT / VIRTUAL_NETWORK_SCENARIO)
+    role_payload = _json(PROJECT_ROOT / "configs/roles/office_worker.example.json")
+    role_payload["constraints"]["allowed_action_names"] = [
+        "browser_open_url",
+        "create_file",
+        "read_file",
+    ]
+    role_payload["resources"]["tools"] = [
+        "browser_open_url",
+        "create_file",
+        "read_file",
+    ]
+
+    role_path = tmp_path / "office_worker_browser_policy_role.json"
+    role_path.write_text(json.dumps(role_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    scenario_payload["agents"][0]["role_template_path"] = str(role_path)
+    scenario_payload["max_group_steps"] = 1
+    scenario_payload["max_steps_per_agent"] = 1
+    scenario_payload["execute_actions"] = True
+    scenario_path = tmp_path / "office_developer_group_basic_virtual_network_policy.json"
+    scenario_path.write_text(json.dumps(scenario_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return scenario_path
 
 
 def test_virtual_network_scenario_loads_spec_and_agent_host_map() -> None:
@@ -176,3 +244,70 @@ def test_agent_state_contains_virtual_network_metadata_when_bound(tmp_path: Path
     assert office_environment["metadata_only"] is True
     assert office_resources["host_id"] == "office_user_host"
     assert developer_state["metadata"]["virtual_network"]["host_id"] == "developer_host"
+
+
+def test_fake_group_run_with_allowed_url_writes_network_policy_metadata(tmp_path: Path) -> None:
+    scenario_path = _browser_policy_scenario_path(tmp_path)
+    executor_provider = StaticBrowserActionExecutorProvider("http://localhost:8088/tickets/1")
+
+    result = OrchestratorExecutorRunner(
+        _config(
+            tmp_path,
+            scenario_path=scenario_path,
+            repair_attempts=0,
+            execute_actions=True,
+        ),
+        executor_provider=executor_provider,
+    ).run()
+    out_dir = Path(result.artifact_dir or "")
+    history = _jsonl(out_dir / "group_history.jsonl")
+    network_events = _jsonl(out_dir / "network_events.jsonl")
+    actions = _jsonl(out_dir / "per_agent_actions.jsonl")
+
+    office_history = next(row for row in history if row["agent_id"] == "office_agent")
+    office_action = next(row for row in actions if row["agent_id"] == "office_agent")
+
+    assert result.status == "completed"
+    assert result.success is True
+    assert office_history["metadata"]["virtual_network_policy"]["allowed"] is True
+    assert office_history["metadata"]["virtual_network_policy"]["code"] == "virtual_network_policy_allowed"
+    assert office_action["execution_attempted"] is True
+    assert office_action["execution_success"] is True
+    assert network_events[0]["status"] == "policy_allowed"
+    assert network_events[0]["target_url"] == "http://localhost:8088"
+    assert network_events[0]["real_network_traffic"] is False
+
+
+def test_fake_group_run_with_denied_url_records_policy_denial(tmp_path: Path) -> None:
+    scenario_path = _browser_policy_scenario_path(tmp_path)
+    executor_provider = StaticBrowserActionExecutorProvider("https://example.com/report")
+
+    result = OrchestratorExecutorRunner(
+        _config(
+            tmp_path,
+            scenario_path=scenario_path,
+            repair_attempts=0,
+            execute_actions=True,
+        ),
+        executor_provider=executor_provider,
+    ).run()
+    out_dir = Path(result.artifact_dir or "")
+    history = _jsonl(out_dir / "group_history.jsonl")
+    network_events = _jsonl(out_dir / "network_events.jsonl")
+    errors = _jsonl(out_dir / "errors.jsonl")
+    actions = _jsonl(out_dir / "per_agent_actions.jsonl")
+
+    office_history = next(row for row in history if row["agent_id"] == "office_agent")
+    office_action = next(row for row in actions if row["agent_id"] == "office_agent")
+
+    assert result.status == "completed_with_failures"
+    assert result.success is False
+    assert office_history["status"] == "failure"
+    assert office_history["metadata"]["virtual_network_policy"]["allowed"] is False
+    assert office_history["metadata"]["virtual_network_policy"]["code"] == "virtual_network_url_denied"
+    assert office_action["error_type"] == "virtual_network_policy_denied"
+    assert office_action["execution_attempted"] is False
+    assert any(row["error_type"] == "virtual_network_policy_denied" for row in errors)
+    assert network_events[0]["status"] == "policy_denied"
+    assert network_events[0]["target_url"] == "https://example.com"
+    assert network_events[0]["real_network_traffic"] is False

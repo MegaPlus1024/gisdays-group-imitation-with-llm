@@ -62,6 +62,7 @@ from .virtual_network import (
     VirtualNetworkValidationError,
     load_virtual_network_spec,
 )
+from .virtual_network_policy import evaluate_virtual_network_action_policy
 
 
 GroupRunMode = Literal["fake", "local"]
@@ -182,6 +183,7 @@ class ExecutorActionAttempt(BaseModel):
     next_action: dict[str, Any] | None = None
     validation_accepted: bool | None = None
     validation_issues: list[dict[str, Any]] = Field(default_factory=list)
+    virtual_network_policy: dict[str, Any] | None = None
     execution_attempted: bool = False
     execution_success: bool | None = None
     execution_result: dict[str, Any] | None = None
@@ -869,6 +871,7 @@ class OrchestratorExecutorRunner:
                     out_dir=out_dir,
                     project_root=self.config.project_root,
                     repair_attempts=self.config.repair_attempts,
+                    virtual_network_spec=virtual_network_binding.spec if virtual_network_binding else None,
                 )
                 trajectory.attempts.extend(attempts)
                 final_attempt = attempts[-1]
@@ -896,6 +899,7 @@ class OrchestratorExecutorRunner:
                                 "error_type": attempt.error_type,
                                 "error_message": attempt.error_message,
                                 "validation_issues": attempt.validation_issues,
+                                "virtual_network_policy": attempt.virtual_network_policy,
                             }
                         )
 
@@ -1805,6 +1809,7 @@ def _run_executor_step(
     out_dir: Path,
     project_root: Path,
     repair_attempts: int,
+    virtual_network_spec: VirtualNetworkSpec | None = None,
 ) -> list[ExecutorActionAttempt]:
     agent_step_index = state.current_step
     attempts: list[ExecutorActionAttempt] = []
@@ -1863,6 +1868,7 @@ def _run_executor_step(
             attempt_type=attempt_type,
             agent=agent,
             task=task,
+            state=state,
             role_template=role_template,
             registry=registry,
             bridge=bridge,
@@ -1873,6 +1879,7 @@ def _run_executor_step(
             out_dir=out_dir,
             project_root=project_root,
             latency_ms=_elapsed_ms(started),
+            virtual_network_spec=virtual_network_spec,
         )
         attempts.append(attempt)
         if attempt.error_type is None:
@@ -1893,6 +1900,7 @@ def _executor_attempt_from_result(
     attempt_type: Literal["initial", "repair"],
     agent: GroupAgentSpec,
     task: OrchestratorPlanTask,
+    state: AgentState,
     role_template: RoleTemplate,
     registry: ScriptRegistry,
     bridge: ScriptExecutionBridge,
@@ -1903,6 +1911,7 @@ def _executor_attempt_from_result(
     out_dir: Path,
     project_root: Path,
     latency_ms: float,
+    virtual_network_spec: VirtualNetworkSpec | None = None,
 ) -> ExecutorActionAttempt:
     attempt = ExecutorActionAttempt(
         group_step_index=group_step_index,
@@ -1943,6 +1952,29 @@ def _executor_attempt_from_result(
         attempt.validation_issues.append(scenario_issue)
         attempt.error_type = "validation_failed"
         attempt.error_message = str(scenario_issue["code"])
+        return attempt
+
+    virtual_network_policy = evaluate_virtual_network_action_policy(
+        action_name=next_action.action,
+        parameters=next_action.parameters,
+        agent_id=agent.agent_id,
+        state=state,
+        virtual_network_spec=virtual_network_spec,
+    )
+    if virtual_network_policy.applied:
+        attempt.virtual_network_policy = virtual_network_policy.to_dict()
+    if not virtual_network_policy.allowed:
+        attempt.validation_accepted = False
+        attempt.validation_issues.append(
+            {
+                "code": virtual_network_policy.code,
+                "message": virtual_network_policy.message,
+                "layer": "safety_policy",
+                "metadata": virtual_network_policy.details,
+            }
+        )
+        attempt.error_type = "virtual_network_policy_denied"
+        attempt.error_message = virtual_network_policy.code
         return attempt
 
     if execute_actions:
@@ -2100,6 +2132,8 @@ def _history_from_attempt(
     }
     if virtual_network_metadata is not None:
         metadata["virtual_network"] = virtual_network_metadata
+    if attempt.virtual_network_policy is not None:
+        metadata["virtual_network_policy"] = attempt.virtual_network_policy
     return GroupHistoryRecord(
         group_step_index=attempt.group_step_index,
         agent_id=attempt.agent_id,
@@ -2296,12 +2330,51 @@ def _per_agent_attempt_rows(result: OrchestratorExecutorRunResult) -> list[dict[
                     "parsed_action": attempt.next_action,
                     "validation_accepted": attempt.validation_accepted,
                     "validation_issues": attempt.validation_issues,
+                    "virtual_network_policy": attempt.virtual_network_policy,
                     "execution_attempted": attempt.execution_attempted,
                     "execution_success": attempt.execution_success,
                     "execution_result": attempt.execution_result,
                     "error_type": attempt.error_type,
                     "error_message": attempt.error_message,
                     "latency_ms": attempt.selection_latency_ms,
+                }
+            )
+    return rows
+
+
+def _network_policy_event_rows(result: OrchestratorExecutorRunResult) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for trajectory in result.per_agent_results:
+        for attempt in trajectory.attempts:
+            policy = attempt.virtual_network_policy
+            if not policy:
+                continue
+            details = policy.get("details") if isinstance(policy.get("details"), dict) else {}
+            checked_urls = details.get("checked_url_params")
+            checked_services = details.get("checked_service_params")
+            url_checks = checked_urls if isinstance(checked_urls, list) else []
+            service_checks = checked_services if isinstance(checked_services, list) else []
+            first_url = next((item for item in url_checks if isinstance(item, dict)), {})
+            first_service = next((item for item in service_checks if isinstance(item, dict)), {})
+            rows.append(
+                {
+                    "timestamp_utc": _utc_now(),
+                    "event_type": "virtual_network_policy",
+                    "network_id": policy.get("network_id"),
+                    "agent_id": attempt.agent_id,
+                    "host_id": policy.get("host_id"),
+                    "action": attempt.action,
+                    "allowed": bool(policy.get("allowed")),
+                    "status": "policy_allowed" if policy.get("allowed") else "policy_denied",
+                    "code": policy.get("code"),
+                    "target_service_id": first_service.get("service_id"),
+                    "target_url": first_url.get("origin"),
+                    "metadata_only": True,
+                    "real_network_traffic": False,
+                    "details": {
+                        "url_checks": url_checks,
+                        "service_checks": service_checks,
+                    },
                 }
             )
     return rows
@@ -2338,6 +2411,9 @@ def _write_artifacts(
     _write_json(out_dir / "resource_summary.json", _resource_summary(started_at, wall_time_seconds))
     _write_jsonl(out_dir / "group_steps.jsonl", [item.model_dump(mode="json") for item in result.group_history])
     _write_jsonl(out_dir / "group_history.jsonl", [item.model_dump(mode="json") for item in result.group_history])
+    network_events = _network_policy_event_rows(result)
+    if network_events:
+        _write_jsonl(out_dir / "network_events.jsonl", network_events)
     _write_jsonl(
         out_dir / "per_agent_actions.jsonl",
         [
