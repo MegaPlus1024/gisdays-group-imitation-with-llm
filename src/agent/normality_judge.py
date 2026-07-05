@@ -189,12 +189,17 @@ class StaticNormalityJudgeProvider:
 class LLMNormalityJudgeProvider:
     provider_name = "llm_normality_judge_placeholder"
 
+    def __init__(self, raw_response: str | None = None) -> None:
+        self.raw_response = raw_response
+
     def evaluate(
         self,
         judge_input: NormalityJudgeInput,
         config: NormalityJudgeConfig,
     ) -> NormalityJudgeResult:
         del judge_input
+        if self.raw_response is not None:
+            return parse_llm_normality_judge_output(self.raw_response, config)
         return NormalityJudgeResult(
             status="invalid_input",
             label="not_evaluated",
@@ -282,6 +287,195 @@ def _run_deterministic_normality_judge(
         judge_mode=cfg.mode,
         provider_name=provider_name,
     )
+
+
+def parse_llm_normality_judge_output(
+    raw_text: str,
+    config: NormalityJudgeConfig | None = None,
+) -> NormalityJudgeResult:
+    cfg = config or NormalityJudgeConfig(enabled=True, mode="llm", judge_provider="llm")
+    payload = _extract_llm_json_payload(raw_text)
+    if payload is None:
+        return _llm_parse_error_result("llm_judge_parse_failed", cfg)
+    if not isinstance(payload, dict):
+        return _llm_parse_error_result("llm_judge_schema_invalid", cfg)
+
+    if "label" not in payload:
+        return _llm_parse_error_result("llm_judge_schema_invalid", cfg)
+    label = payload.get("label")
+    if label not in {"normal", "suspicious", "abnormal", "not_evaluated"}:
+        return _llm_parse_error_result("llm_judge_unknown_label", cfg)
+
+    dimension_payload = payload.get("dimension_scores")
+    if not isinstance(dimension_payload, dict):
+        return _llm_parse_error_result("llm_judge_schema_invalid", cfg)
+    missing_dimensions = [name for name in NORMALITY_DIMENSIONS if name not in dimension_payload]
+    if missing_dimensions:
+        return _llm_parse_error_result("llm_judge_dimension_missing", cfg)
+
+    parse_findings: list[str] = []
+    redactions: set[str] = set(_reported_redactions(payload.get("redactions_applied")))
+    overall_score = _coerce_llm_score(payload.get("overall_score"), parse_findings)
+    if overall_score is None:
+        return _llm_parse_error_result("llm_judge_schema_invalid", cfg)
+
+    scores: dict[str, NormalityJudgeDimensionScore] = {}
+    for dimension in NORMALITY_DIMENSIONS:
+        item = dimension_payload.get(dimension)
+        if not isinstance(item, dict):
+            return _llm_parse_error_result("llm_judge_schema_invalid", cfg)
+        score = _coerce_llm_score(item.get("score"), parse_findings)
+        if score is None:
+            return _llm_parse_error_result("llm_judge_schema_invalid", cfg)
+        rationale, found = sanitize_judge_text(_as_optional_string(item.get("rationale")), cfg)
+        redactions.update(found)
+        if not rationale.strip():
+            return _llm_parse_error_result("llm_judge_schema_invalid", cfg)
+        findings, found = _safe_llm_findings(item.get("findings"), cfg)
+        redactions.update(found)
+        scores[dimension] = NormalityJudgeDimensionScore(
+            score=score,
+            rationale=rationale,
+            findings=findings,
+        )
+
+    findings, found = _safe_llm_findings(payload.get("findings"), cfg)
+    redactions.update(found)
+    findings = sorted(dict.fromkeys([*findings, *parse_findings]))
+    return NormalityJudgeResult(
+        status="ok",
+        label=label,
+        overall_score=overall_score,
+        dimension_scores=scores,
+        findings=findings,
+        redactions_applied=sorted(redactions),
+        judge_mode="llm",
+        provider_name="llm_normality_judge_parser",
+    )
+
+
+def _llm_parse_error_result(code: str, config: NormalityJudgeConfig) -> NormalityJudgeResult:
+    return NormalityJudgeResult(
+        status="invalid_input",
+        label="not_evaluated",
+        overall_score=0.0,
+        findings=[code],
+        judge_mode="llm",
+        provider_name="llm_normality_judge_parser",
+    )
+
+
+def _extract_llm_json_payload(raw_text: str) -> Any | None:
+    text = raw_text.strip()
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    for block in re.findall(r"```(?:json)?\s*(.*?)```", text, flags=re.IGNORECASE | re.DOTALL):
+        candidate = block.strip()
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            balanced = _extract_balanced_json_object(candidate)
+            if balanced is not None:
+                try:
+                    return json.loads(balanced)
+                except json.JSONDecodeError:
+                    continue
+
+    balanced = _extract_balanced_json_object(text)
+    if balanced is None:
+        return None
+    try:
+        return json.loads(balanced)
+    except json.JSONDecodeError:
+        return None
+
+
+def _extract_balanced_json_object(text: str) -> str | None:
+    for start in [index for index, char in enumerate(text) if char == "{"]:
+        depth = 0
+        in_string = False
+        escaped = False
+        for index in range(start, len(text)):
+            char = text[index]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+            if char == '"':
+                in_string = True
+                continue
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start : index + 1]
+    return None
+
+
+def _coerce_llm_score(value: Any, findings: list[str]) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        score = float(value)
+    elif isinstance(value, str):
+        try:
+            score = float(value.strip())
+        except ValueError:
+            return None
+    else:
+        return None
+    clamped = _clamp01(score)
+    if clamped != score:
+        findings.append("score_clamped")
+    return clamped
+
+
+def _safe_llm_findings(
+    value: Any,
+    config: NormalityJudgeConfig,
+) -> tuple[list[str], list[str]]:
+    if value is None:
+        return [], []
+    if isinstance(value, str):
+        items = [value]
+    elif isinstance(value, list):
+        items = [str(item) for item in value if item is not None]
+    else:
+        items = [str(value)]
+    out: list[str] = []
+    redactions: list[str] = []
+    for item in items:
+        safe, found = sanitize_judge_text(item, config)
+        if safe:
+            out.append(safe)
+        redactions.extend(found)
+    return out, sorted(set(redactions))
+
+
+def _reported_redactions(value: Any) -> list[str]:
+    if value is True:
+        return ["llm_reported_redactions"]
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        return [str(item) for item in value if item is not None]
+    return []
+
+
+def _as_optional_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    return str(value)
 
 
 def build_normality_judge_prompt(
