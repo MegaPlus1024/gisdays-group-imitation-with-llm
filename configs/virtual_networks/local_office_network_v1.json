@@ -1,0 +1,187 @@
+{
+  "network_id": "local_office_network_v1",
+  "description": "Controlled local virtual office network for the research prototype. The spec describes hosts, workspaces, and local/internal services only; it does not require servers to exist.",
+  "hosts": [
+    {
+      "host_id": "office_user_host",
+      "display_name": "Office user workstation",
+      "role": "office_worker",
+      "workspace_root": "experiments/virtual_network/local_office_network_v1/hosts/office_user_host",
+      "allowed_service_ids": [
+        "local_intranet",
+        "shared_docs",
+        "ticket_board"
+      ],
+      "allowed_url_prefixes": [
+        "http://127.0.0.1",
+        "http://localhost",
+        "http://local-intranet.test"
+      ],
+      "metadata": {
+        "intended_actions": [
+          "browser_navigate",
+          "browser_extract_text",
+          "office_document_update"
+        ]
+      }
+    },
+    {
+      "host_id": "developer_host",
+      "display_name": "Developer workstation",
+      "role": "developer",
+      "workspace_root": "experiments/virtual_network/local_office_network_v1/hosts/developer_host",
+      "allowed_service_ids": [
+        "local_intranet",
+        "shared_docs",
+        "ticket_board"
+      ],
+      "allowed_url_prefixes": [
+        "http://127.0.0.1",
+        "http://localhost",
+        "http://local-intranet.test"
+      ],
+      "metadata": {
+        "intended_actions": [
+          "read_project_docs",
+          "inspect_ticket_board"
+        ]
+      }
+    },
+    {
+      "host_id": "analyst_host",
+      "display_name": "Analyst workstation",
+      "role": "student_researcher",
+      "workspace_root": "experiments/virtual_network/local_office_network_v1/hosts/analyst_host",
+      "allowed_service_ids": [
+        "local_intranet",
+        "shared_docs"
+      ],
+      "allowed_url_prefixes": [
+        "http://127.0.0.1",
+        "http://localhost",
+        "http://local-intranet.test"
+      ],
+      "metadata": {
+        "intended_actions": [
+          "read_shared_docs",
+          "prepare_research_notes"
+        ]
+      }
+    },
+    {
+      "host_id": "maintenance_host",
+      "display_name": "Maintenance workstation",
+      "role": "developer",
+      "workspace_root": "experiments/virtual_network/local_office_network_v1/hosts/maintenance_host",
+      "allowed_service_ids": [
+        "shared_docs"
+      ],
+      "allowed_url_prefixes": [
+        "http://127.0.0.1",
+        "http://localhost"
+      ],
+      "metadata": {
+        "intended_actions": [
+          "read_shared_docs",
+          "write_maintenance_note"
+        ]
+      }
+    }
+  ],
+  "services": [
+    {
+      "service_id": "local_intranet",
+      "kind": "http",
+      "display_name": "Local intranet placeholder",
+      "base_url": "http://local-intranet.test",
+      "root_path": "configs/virtual_network_fixtures/local_office_network_v1/intranet",
+      "allowed_actions": [
+        "browser_navigate",
+        "browser_extract_text"
+      ],
+      "metadata": {
+        "requires_running_server": false,
+        "external_network": false
+      }
+    },
+    {
+      "service_id": "shared_docs",
+      "kind": "workspace",
+      "display_name": "Shared local documents workspace",
+      "base_url": null,
+      "root_path": "experiments/virtual_network/local_office_network_v1/shared_docs",
+      "allowed_actions": [
+        "read_file",
+        "create_file",
+        "append_file",
+        "list_directory",
+        "office_create_document_stub"
+      ],
+      "metadata": {
+        "external_network": false
+      }
+    },
+    {
+      "service_id": "ticket_board",
+      "kind": "http",
+      "display_name": "Local ticket board placeholder",
+      "base_url": "http://localhost:8088/tickets",
+      "root_path": "configs/virtual_network_fixtures/local_office_network_v1/ticket_board",
+      "allowed_actions": [
+        "browser_navigate",
+        "browser_extract_text",
+        "browser_fill"
+      ],
+      "metadata": {
+        "requires_running_server": false,
+        "external_network": false
+      }
+    }
+  ],
+  "shared_workspaces": [
+    {
+      "mount_id": "shared_docs_global",
+      "host_id": null,
+      "root_path": "experiments/virtual_network/local_office_network_v1/shared_docs",
+      "mode": "read_write",
+      "metadata": {
+        "purpose": "Common bounded document workspace for virtual hosts."
+      }
+    },
+    {
+      "mount_id": "office_user_workspace",
+      "host_id": "office_user_host",
+      "root_path": "experiments/virtual_network/local_office_network_v1/hosts/office_user_host",
+      "mode": "read_write",
+      "metadata": {}
+    },
+    {
+      "mount_id": "developer_workspace",
+      "host_id": "developer_host",
+      "root_path": "experiments/virtual_network/local_office_network_v1/hosts/developer_host",
+      "mode": "read_write",
+      "metadata": {}
+    },
+    {
+      "mount_id": "analyst_workspace",
+      "host_id": "analyst_host",
+      "root_path": "experiments/virtual_network/local_office_network_v1/hosts/analyst_host",
+      "mode": "read_write",
+      "metadata": {}
+    },
+    {
+      "mount_id": "maintenance_workspace",
+      "host_id": "maintenance_host",
+      "root_path": "experiments/virtual_network/local_office_network_v1/hosts/maintenance_host",
+      "mode": "read_write",
+      "metadata": {}
+    }
+  ],
+  "metadata": {
+    "schema_version": "virtual_network_spec_v1",
+    "real_network_required": false,
+    "docker_required": false,
+    "playwright_required": false,
+    "external_urls_allowed": false
+  }
+}
