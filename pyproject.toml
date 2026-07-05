@@ -15,4 +15,6 @@ markers = [
   "browser: optional tests that may use browser automation",
   "playwright: optional tests for Playwright integration",
   "optional_browser: optional browser backend tests",
+  "office: tests for office document activity",
+  "optional_office: optional office document backend tests",
 ]
