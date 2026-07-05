@@ -12,6 +12,7 @@ from src.agent.normality_judge import (
     DeterministicNormalityJudgeProvider,
     DisabledNormalityJudgeProvider,
     LLMNormalityJudgeProvider,
+    NORMALITY_DIMENSIONS,
     NormalityJudgeConfig,
     NormalityJudgeEvent,
     NormalityJudgeInput,
@@ -48,6 +49,41 @@ def _judge_input() -> NormalityJudgeInput:
             )
         ],
     )
+
+
+def _llm_dimension(score: float = 0.91, rationale: str = "Dimension is plausible.") -> dict[str, object]:
+    return {"score": score, "rationale": rationale, "findings": []}
+
+
+def _llm_payload(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "label": "normal",
+        "overall_score": 0.91,
+        "dimension_scores": {
+            name: _llm_dimension(0.91, f"{name} is plausible.")
+            for name in NORMALITY_DIMENSIONS
+        },
+        "findings": [],
+        "redactions_applied": [],
+    }
+    payload.update(overrides)
+    return payload
+
+
+class FakeLLMClient:
+    def __init__(self, response: str) -> None:
+        self.response = response
+        self.calls: list[tuple[str, float | None]] = []
+
+    def complete(self, prompt: str, *, timeout_s: float | None = None) -> str:
+        self.calls.append((prompt, timeout_s))
+        return self.response
+
+
+class RaisingLLMClient:
+    def complete(self, prompt: str, *, timeout_s: float | None = None) -> str:
+        del prompt, timeout_s
+        raise RuntimeError("sensitive details should not be included")
 
 
 def _write_events(path: Path) -> None:
@@ -145,6 +181,177 @@ def test_llm_placeholder_returns_controlled_not_configured_result() -> None:
     assert result.label == "not_evaluated"
     assert result.provider_name == "llm_normality_judge_placeholder"
     assert result.findings == ["llm_judge_provider_not_configured"]
+
+
+def test_llm_provider_with_raw_response_still_uses_parser() -> None:
+    provider = LLMNormalityJudgeProvider(raw_response=json.dumps(_llm_payload(label="suspicious")))
+
+    result = provider.evaluate(_judge_input(), _enabled_config(mode="llm", judge_provider="llm"))
+
+    assert result.status == "ok"
+    assert result.label == "suspicious"
+    assert result.provider_name == "llm_normality_judge_parser"
+    assert result.judge_mode == "llm"
+
+
+def test_llm_provider_with_fake_injected_client_calls_client_once() -> None:
+    client = FakeLLMClient(json.dumps(_llm_payload()))
+    provider = LLMNormalityJudgeProvider(llm_client=client, timeout_s=2.5)
+
+    result = provider.evaluate(_judge_input(), _enabled_config(mode="llm", judge_provider="llm"))
+
+    assert result.status == "ok"
+    assert result.label == "normal"
+    assert result.provider_name == "llm_normality_judge_injected_client"
+    assert result.judge_mode == "llm_injected_client"
+    assert "llm_judge_injected_client_used" in result.findings
+    assert "external_model_runtime_false" in result.findings
+    assert len(client.calls) == 1
+    assert client.calls[0][1] == 2.5
+
+
+def test_fake_injected_client_receives_prompt_contract_and_dimensions() -> None:
+    client = FakeLLMClient(json.dumps(_llm_payload()))
+
+    LLMNormalityJudgeProvider(llm_client=client).evaluate(
+        _judge_input(),
+        _enabled_config(mode="llm", judge_provider="llm"),
+    )
+    prompt = client.calls[0][0]
+
+    assert "NORMALITY_JUDGE_PROMPT_CONTRACT" in prompt
+    assert "OUTPUT_JSON_CONTRACT" in prompt
+    assert "FINAL_RESPONSE_RULE" in prompt
+    assert all(name in prompt for name in NORMALITY_DIMENSIONS)
+
+
+def test_injected_callable_response_parses_to_result() -> None:
+    calls: list[str] = []
+
+    def fake_callable(prompt: str) -> str:
+        calls.append(prompt)
+        return json.dumps(_llm_payload(overall_score=0.77))
+
+    result = LLMNormalityJudgeProvider(llm_client=fake_callable).evaluate(
+        _judge_input(),
+        _enabled_config(mode="llm", judge_provider="llm"),
+    )
+
+    assert result.status == "ok"
+    assert result.overall_score == 0.77
+    assert len(calls) == 1
+
+
+def test_injected_client_markdown_fenced_json_parses() -> None:
+    raw = "```json\n" + json.dumps(_llm_payload(label="suspicious")) + "\n```"
+    client = FakeLLMClient(raw)
+
+    result = LLMNormalityJudgeProvider(llm_client=client).evaluate(
+        _judge_input(),
+        _enabled_config(mode="llm", judge_provider="llm"),
+    )
+
+    assert result.status == "ok"
+    assert result.label == "suspicious"
+    assert result.judge_mode == "llm_injected_client"
+
+
+def test_injected_client_malformed_json_returns_controlled_invalid_result() -> None:
+    client = FakeLLMClient("{not json")
+
+    result = LLMNormalityJudgeProvider(llm_client=client).evaluate(
+        _judge_input(),
+        _enabled_config(mode="llm", judge_provider="llm"),
+    )
+
+    assert result.status == "invalid_input"
+    assert "llm_judge_parse_failed" in result.findings
+    assert result.provider_name == "llm_normality_judge_injected_client"
+
+
+def test_injected_client_exception_returns_controlled_invalid_result() -> None:
+    result = LLMNormalityJudgeProvider(llm_client=RaisingLLMClient()).evaluate(
+        _judge_input(),
+        _enabled_config(mode="llm", judge_provider="llm"),
+    )
+
+    assert result.status == "invalid_input"
+    assert "llm_judge_client_failed" in result.findings
+    assert "llm_judge_client_error:RuntimeError" in result.findings
+    assert all("sensitive" not in finding for finding in result.findings)
+
+
+def test_injected_client_empty_string_returns_controlled_invalid_result() -> None:
+    result = LLMNormalityJudgeProvider(llm_client=FakeLLMClient("  ")).evaluate(
+        _judge_input(),
+        _enabled_config(mode="llm", judge_provider="llm"),
+    )
+
+    assert result.status == "invalid_input"
+    assert result.findings == ["external_model_runtime_false", "llm_judge_empty_response"]
+
+
+def test_prompt_sent_to_injected_client_is_redacted_and_truncated() -> None:
+    posix_path = "/home/example/outside_workspace/outside.docx"
+    long_text = f"Created {posix_path} " + ("A" * 240)
+    judge_input = NormalityJudgeInput(
+        scenario_id="office_document_file_workflow_basic_v1",
+        task_summary="Evaluate local offline activity.",
+        events=[
+            NormalityJudgeEvent(
+                agent_id="office_agent",
+                role="office document worker",
+                action="office_create_docx",
+                status="success",
+                result_summary=long_text,
+                artifact_paths=[posix_path],
+            )
+        ],
+    )
+    client = FakeLLMClient(json.dumps(_llm_payload()))
+
+    LLMNormalityJudgeProvider(llm_client=client).evaluate(
+        judge_input,
+        _enabled_config(mode="llm", judge_provider="llm", max_text_chars=45),
+    )
+    prompt = client.calls[0][0]
+
+    assert posix_path not in prompt
+    assert "A" * 240 not in prompt
+    assert "<absolute_path>" in prompt
+    assert "...[truncated]" in prompt
+
+
+def test_injected_client_path_does_not_create_runtime_imports(monkeypatch) -> None:
+    original_import = __import__
+
+    def forbidden_import(name: str, *args: object, **kwargs: object) -> object:
+        if name in {"httpx", "openai", "playwright", "docx", "openpyxl", "pptx"}:
+            raise AssertionError("injected LLM judge path must stay offline")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", forbidden_import)
+    result = LLMNormalityJudgeProvider(llm_client=FakeLLMClient(json.dumps(_llm_payload()))).evaluate(
+        _judge_input(),
+        _enabled_config(mode="llm", judge_provider="llm"),
+    )
+
+    assert result.status == "ok"
+
+
+def test_provider_factory_can_construct_llm_provider_with_injected_client() -> None:
+    client = FakeLLMClient(json.dumps(_llm_payload(label="suspicious")))
+    provider = create_normality_judge_provider(
+        _enabled_config(mode="llm", judge_provider="llm"),
+        llm_client=client,
+    )
+
+    result = provider.evaluate(_judge_input(), _enabled_config(mode="llm", judge_provider="llm"))
+
+    assert isinstance(provider, LLMNormalityJudgeProvider)
+    assert result.status == "ok"
+    assert result.label == "suspicious"
+    assert len(client.calls) == 1
 
 
 def test_injected_static_provider_is_used_by_runner(tmp_path: Path) -> None:

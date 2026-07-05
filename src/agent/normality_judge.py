@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from collections import Counter
 from statistics import mean
 from typing import Any, Literal, Protocol
@@ -12,7 +13,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 NORMALITY_JUDGE_SCHEMA_VERSION = "normality_judge_v1"
 NormalityJudgeStatus = Literal["ok", "invalid_input", "disabled"]
 NormalityJudgeLabel = Literal["normal", "suspicious", "abnormal", "not_evaluated"]
-NormalityJudgeMode = Literal["fake", "deterministic", "disabled", "static", "llm"]
+NormalityJudgeMode = Literal["fake", "deterministic", "disabled", "static", "llm", "llm_injected_client"]
 NormalityJudgeProviderName = Literal["fake", "deterministic", "disabled", "static", "llm"]
 
 NORMALITY_DIMENSIONS = (
@@ -133,6 +134,14 @@ class NormalityJudgeProvider(Protocol):
         ...
 
 
+class NormalityJudgeLLMClient(Protocol):
+    def complete(self, prompt: str, *, timeout_s: float | None = None) -> str:
+        ...
+
+
+NormalityJudgeLLMCallable = Callable[[str], str]
+
+
 class DeterministicNormalityJudgeProvider:
     provider_name = "deterministic_normality_judge"
 
@@ -189,17 +198,31 @@ class StaticNormalityJudgeProvider:
 class LLMNormalityJudgeProvider:
     provider_name = "llm_normality_judge_placeholder"
 
-    def __init__(self, raw_response: str | None = None) -> None:
+    def __init__(
+        self,
+        raw_response: str | None = None,
+        llm_client: NormalityJudgeLLMClient | NormalityJudgeLLMCallable | None = None,
+        *,
+        timeout_s: float | None = None,
+    ) -> None:
         self.raw_response = raw_response
+        self.llm_client = llm_client
+        self.timeout_s = timeout_s
 
     def evaluate(
         self,
         judge_input: NormalityJudgeInput,
         config: NormalityJudgeConfig,
     ) -> NormalityJudgeResult:
-        del judge_input
         if self.raw_response is not None:
             return parse_llm_normality_judge_output(self.raw_response, config)
+        if self.llm_client is not None:
+            return _evaluate_with_injected_llm_client(
+                judge_input,
+                config,
+                self.llm_client,
+                timeout_s=self.timeout_s,
+            )
         return NormalityJudgeResult(
             status="invalid_input",
             label="not_evaluated",
@@ -222,6 +245,10 @@ class DeterministicNormalityJudge:
 def create_normality_judge_provider(
     config: NormalityJudgeConfig | None = None,
     provider: NormalityJudgeProvider | None = None,
+    *,
+    raw_response: str | None = None,
+    llm_client: NormalityJudgeLLMClient | NormalityJudgeLLMCallable | None = None,
+    timeout_s: float | None = None,
 ) -> NormalityJudgeProvider:
     if provider is not None:
         return provider
@@ -232,9 +259,17 @@ def create_normality_judge_provider(
     if provider_name in {"fake", "deterministic"}:
         return DeterministicNormalityJudgeProvider()
     if provider_name == "llm":
-        return LLMNormalityJudgeProvider()
+        return LLMNormalityJudgeProvider(
+            raw_response=raw_response,
+            llm_client=llm_client,
+            timeout_s=timeout_s,
+        )
     if provider_name == "static":
-        return LLMNormalityJudgeProvider()
+        return LLMNormalityJudgeProvider(
+            raw_response=raw_response,
+            llm_client=llm_client,
+            timeout_s=timeout_s,
+        )
     return DeterministicNormalityJudgeProvider()
 
 
@@ -247,6 +282,79 @@ def run_normality_judge(
     cfg = config or NormalityJudgeConfig()
     selected_provider = create_normality_judge_provider(cfg, provider=provider)
     return selected_provider.evaluate(judge_input, cfg)
+
+
+def _evaluate_with_injected_llm_client(
+    judge_input: NormalityJudgeInput,
+    config: NormalityJudgeConfig,
+    llm_client: NormalityJudgeLLMClient | NormalityJudgeLLMCallable,
+    *,
+    timeout_s: float | None,
+) -> NormalityJudgeResult:
+    prompt = build_normality_judge_prompt(judge_input, config)
+    try:
+        raw_text = _call_injected_llm_client(
+            llm_client,
+            prompt,
+            timeout_s=timeout_s,
+        )
+    except Exception as exc:
+        return _llm_injected_error_result(
+            ["llm_judge_client_failed", f"llm_judge_client_error:{exc.__class__.__name__}"],
+            config,
+        )
+    if not isinstance(raw_text, str):
+        return _llm_injected_error_result(["llm_judge_invalid_response_type"], config)
+    if not raw_text.strip():
+        return _llm_injected_error_result(["llm_judge_empty_response"], config)
+
+    parser_config = config.model_copy(update={"mode": "llm", "judge_provider": "llm"})
+    parsed = parse_llm_normality_judge_output(raw_text, parser_config)
+    findings = sorted(
+        dict.fromkeys(
+            [
+                *parsed.findings,
+                "llm_judge_injected_client_used",
+                "external_model_runtime_false",
+            ]
+        )
+    )
+    return parsed.model_copy(
+        update={
+            "findings": findings,
+            "judge_mode": "llm_injected_client",
+            "provider_name": "llm_normality_judge_injected_client",
+        }
+    )
+
+
+def _call_injected_llm_client(
+    llm_client: NormalityJudgeLLMClient | NormalityJudgeLLMCallable,
+    prompt: str,
+    *,
+    timeout_s: float | None,
+) -> str:
+    complete = getattr(llm_client, "complete", None)
+    if callable(complete):
+        return complete(prompt, timeout_s=timeout_s)
+    if callable(llm_client):
+        return llm_client(prompt)
+    raise TypeError("injected LLM client must be callable or expose complete().")
+
+
+def _llm_injected_error_result(
+    findings: list[str],
+    config: NormalityJudgeConfig,
+) -> NormalityJudgeResult:
+    del config
+    return NormalityJudgeResult(
+        status="invalid_input",
+        label="not_evaluated",
+        overall_score=0.0,
+        findings=sorted(dict.fromkeys([*findings, "external_model_runtime_false"])),
+        judge_mode="llm_injected_client",
+        provider_name="llm_normality_judge_injected_client",
+    )
 
 
 def _run_deterministic_normality_judge(
@@ -516,7 +624,7 @@ def normality_judge_output_contract() -> dict[str, Any]:
         },
         "findings": ["string"],
         "redactions_applied": ["string"],
-        "judge_mode": "fake | deterministic | disabled | static | llm",
+        "judge_mode": "fake | deterministic | disabled | static | llm | llm_injected_client",
         "provider_name": "string | null",
         "schema_version": NORMALITY_JUDGE_SCHEMA_VERSION,
     }
