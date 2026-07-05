@@ -94,6 +94,56 @@ def test_user_message_contains_executor_action_guidance_from_metadata() -> None:
     assert "docs/ai/model_research_metadata.md" in user
 
 
+def test_user_message_without_virtual_network_has_no_policy_block() -> None:
+    user = PromptBuilder().build_messages(_example_state())[1]["content"]
+
+    assert "VIRTUAL_NETWORK_POLICY_CONSTRAINTS" not in user
+    assert "Virtual network policy constraints" not in user
+
+
+def test_user_message_contains_virtual_network_policy_guidance() -> None:
+    state = _example_state()
+    state.metadata["virtual_network"] = {
+        "network_id": "local_office_network_v1",
+        "host_id": "office_user_host",
+        "host_display_name": "Office user workstation",
+        "host_role": "office_worker",
+        "metadata_only": True,
+        "allowed_service_ids": ["local_intranet", "shared_docs"],
+        "allowed_url_prefixes": ["http://localhost", "http://local-intranet.test"],
+    }
+
+    user = PromptBuilder().build_messages(state)[1]["content"]
+
+    assert "VIRTUAL_NETWORK_POLICY_CONSTRAINTS" in user
+    assert "Virtual network policy constraints" in user
+    assert '"network_id": "local_office_network_v1"' in user
+    assert '"host_id": "office_user_host"' in user
+    assert '"host_display_name": "Office user workstation"' in user
+    assert '"host_role": "office_worker"' in user
+    assert '"local_intranet"' in user
+    assert '"http://localhost"' in user
+    assert "metadata-only local virtual network" in user
+
+
+def test_user_message_virtual_network_guidance_denies_external_file_and_credentials() -> None:
+    state = _example_state()
+    state.metadata["virtual_network"] = {
+        "network_id": "local_office_network_v1",
+        "host_id": "office_user_host",
+        "allowed_service_ids": ["local_intranet"],
+        "allowed_url_prefixes": ["http://localhost"],
+    }
+
+    user = PromptBuilder().build_messages(state)[1]["content"]
+
+    assert "External URLs are denied unless they are explicitly allowlisted." in user
+    assert "file:// URLs are denied." in user
+    assert "URLs with credentials are denied." in user
+    assert "Do not use external URLs unless explicitly allowed" in user
+    assert "Do not use file:// URLs or URLs containing credentials." in user
+
+
 def test_history_is_limited_by_include_history_limit() -> None:
     state = _example_state()
     state.history = state.history + [

@@ -120,6 +120,13 @@ class PromptBuilder:
         if isinstance(metadata, dict) and isinstance(metadata.get("executor_prompt_hints"), dict):
             guidance = metadata["executor_prompt_hints"]
         guidance_json = json.dumps(guidance, ensure_ascii=False, sort_keys=True, indent=2)
+        virtual_network_guidance = _virtual_network_policy_guidance(normalized)
+        virtual_network_guidance_json = json.dumps(
+            virtual_network_guidance,
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=2,
+        )
 
         lines = [
             f"PROMPT_CONTRACT_ID: {self.config.contract_id}",
@@ -130,12 +137,27 @@ class PromptBuilder:
             "Use EXECUTOR_ACTION_GUIDANCE for the assigned task, required parameters, safe roots, and examples.",
             "All file paths in parameters must be relative project paths with forward slashes.",
             "Never return absolute paths, drive-prefixed paths, leading slashes, or '..' traversal.",
-            "AGENT_STATE_DATA:",
-            state_json,
-            "AVAILABLE_ACTION_NAMES:",
-            action_names_json,
-            f"CURRENT_STEP: {state.get('current_step')}",
         ]
+        if virtual_network_guidance:
+            lines.extend(
+                [
+                    "VIRTUAL_NETWORK_POLICY_CONSTRAINTS:",
+                    virtual_network_guidance_json,
+                    "Use only allowed local services and URL prefixes for the current host.",
+                    "Do not use external URLs unless explicitly allowed by the virtual network policy.",
+                    "Do not use file:// URLs or URLs containing credentials.",
+                    "This is a metadata-only local virtual network; do not claim real network traffic.",
+                ]
+            )
+        lines.extend(
+            [
+                "AGENT_STATE_DATA:",
+                state_json,
+                "AVAILABLE_ACTION_NAMES:",
+                action_names_json,
+                f"CURRENT_STEP: {state.get('current_step')}",
+            ]
+        )
 
         if self.config.injection_warning_enabled:
             lines.extend(
@@ -173,3 +195,35 @@ class PromptBuilder:
             {"role": "system", "content": prompt_messages.system},
             {"role": "user", "content": prompt_messages.user},
         ]
+
+
+def _virtual_network_policy_guidance(state: dict[str, Any]) -> dict[str, Any]:
+    metadata = state.get("metadata")
+    if not isinstance(metadata, dict):
+        return {}
+    virtual_network = metadata.get("virtual_network")
+    if not isinstance(virtual_network, dict) or not virtual_network.get("network_id"):
+        return {}
+    return {
+        "title": "Virtual network policy constraints",
+        "network_id": virtual_network.get("network_id"),
+        "host_id": virtual_network.get("host_id"),
+        "host_display_name": virtual_network.get("host_display_name"),
+        "host_role": virtual_network.get("host_role"),
+        "metadata_only": True,
+        "allowed_service_ids": _string_list(virtual_network.get("allowed_service_ids")),
+        "allowed_url_prefixes": _string_list(virtual_network.get("allowed_url_prefixes")),
+        "rules": [
+            "Use only service_id or target_service_id values allowed for the current host.",
+            "Use only URL prefixes allowed for the current host.",
+            "External URLs are denied unless they are explicitly allowlisted.",
+            "file:// URLs are denied.",
+            "URLs with credentials are denied.",
+        ],
+    }
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]

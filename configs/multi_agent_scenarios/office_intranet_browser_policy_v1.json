@@ -1,0 +1,49 @@
+{
+  "scenario_id": "office_intranet_browser_policy_v1",
+  "description": "Offline metadata-only virtual-network scenario for validating simulated browser URL policy against a local intranet service.",
+  "orchestrator_model_id": "second_model",
+  "executor_model_id": "first_model",
+  "registry_path": "configs/script_registry.example.json",
+  "max_group_steps": 1,
+  "max_steps_per_agent": 1,
+  "execute_actions": true,
+  "expected_group_behavior": "The office agent selects a simulated browser_open_url action for an allowlisted local intranet URL. The run records policy validation metadata only; no real browser, server, or external network is required.",
+  "agents": [
+    {
+      "agent_id": "office_agent",
+      "role_template_path": "configs/roles/office_intranet_browser_worker.example.json",
+      "activity_profile_path": "configs/activity_profiles/office_worker.json",
+      "assigned_goal": "Open an allowlisted local intranet URL through the simulated browser action.",
+      "executor_model_id": "first_model",
+      "state_override": {
+        "scenario_hint": "Use browser_open_url with an allowlisted local intranet URL such as http://localhost:8088/tickets."
+      }
+    },
+    {
+      "agent_id": "developer_agent",
+      "role_template_path": "configs/roles/developer.example.json",
+      "activity_profile_path": "configs/activity_profiles/developer.json",
+      "assigned_goal": "Read local project metadata to provide a safe companion action for the group run.",
+      "executor_model_id": "first_model"
+    }
+  ],
+  "virtual_network": {
+    "spec_path": "configs/virtual_networks/local_office_network_v1.json",
+    "agent_host_map": {
+      "office_agent": "office_user_host",
+      "developer_agent": "developer_host"
+    }
+  },
+  "metadata": {
+    "schema_version": "orchestrator_executor_group_scenario_v1",
+    "network_required": false,
+    "virtual_network_metadata_only": true,
+    "browser_real_automation_required": false,
+    "office_real_automation_required": false,
+    "external_network_required": false,
+    "expected_safe_actions": [
+      "browser_open_url",
+      "read_file"
+    ]
+  }
+}

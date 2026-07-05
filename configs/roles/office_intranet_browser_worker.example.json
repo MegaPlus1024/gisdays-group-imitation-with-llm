@@ -1,0 +1,80 @@
+{
+  "role_id": "office_intranet_browser_worker",
+  "name": "Office intranet browser worker",
+  "description": "Uses simulated browser actions only against allowlisted local virtual-network services.",
+  "primary_goals": [
+    "Open local intranet resources through metadata-only browser policy validation.",
+    "Keep all browser-like activity inside allowlisted local virtual-network boundaries."
+  ],
+  "success_criteria": [
+    "Use only allowed local service URL prefixes.",
+    "Avoid external URLs, file URLs, and credential URLs.",
+    "Do not require a real browser or a running server."
+  ],
+  "resources": {
+    "directories": [
+      "docs/",
+      "configs/",
+      "experiments/"
+    ],
+    "endpoints": [
+      "http://localhost",
+      "http://local-intranet.test"
+    ],
+    "tools": [
+      "browser_open_url",
+      "create_file",
+      "read_file"
+    ],
+    "notes": [
+      "Browser activity is simulated and policy-validated only."
+    ]
+  },
+  "constraints": {
+    "no_internet": true,
+    "no_model_download": true,
+    "no_action_execution": true,
+    "allowed_file_roots": [
+      "docs/",
+      "configs/",
+      "experiments/"
+    ],
+    "forbidden_file_roots": [
+      "models/gguf/",
+      ".venv/",
+      "src/"
+    ],
+    "allowed_action_names": [
+      "browser_open_url",
+      "create_file",
+      "read_file"
+    ],
+    "forbidden_action_names": [
+      "run_shell_command"
+    ],
+    "forbidden_behaviors": [
+      "Do not use external network URLs.",
+      "Do not use file:// URLs.",
+      "Do not include URL credentials.",
+      "Do not require real browser automation."
+    ],
+    "safety_notes": [
+      "Virtual network checks are metadata-only policy validation."
+    ]
+  },
+  "allowed_activity_scenarios": [
+    {
+      "name": "open_local_intranet_stub",
+      "description": "Validate a local intranet URL through simulated browser action policy."
+    },
+    {
+      "name": "read_local_context",
+      "description": "Read safe local project context if browser-like action is not needed."
+    }
+  ],
+  "metadata": {
+    "schema_version": "role_template_v1",
+    "real_browser_required": false,
+    "external_network_required": false
+  }
+}

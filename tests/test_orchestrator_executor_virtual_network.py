@@ -23,6 +23,9 @@ BASELINE_SCENARIO = "configs/multi_agent_scenarios/office_developer_group_basic.
 VIRTUAL_NETWORK_SCENARIO = (
     "configs/multi_agent_scenarios/office_developer_group_basic_virtual_network_v1.json"
 )
+INTRANET_BROWSER_POLICY_SCENARIO = (
+    "configs/multi_agent_scenarios/office_intranet_browser_policy_v1.json"
+)
 
 
 def _config(
@@ -122,32 +125,6 @@ class StaticBrowserActionExecutorProvider:
         )
 
 
-def _browser_policy_scenario_path(tmp_path: Path) -> Path:
-    scenario_payload = _json(PROJECT_ROOT / VIRTUAL_NETWORK_SCENARIO)
-    role_payload = _json(PROJECT_ROOT / "configs/roles/office_worker.example.json")
-    role_payload["constraints"]["allowed_action_names"] = [
-        "browser_open_url",
-        "create_file",
-        "read_file",
-    ]
-    role_payload["resources"]["tools"] = [
-        "browser_open_url",
-        "create_file",
-        "read_file",
-    ]
-
-    role_path = tmp_path / "office_worker_browser_policy_role.json"
-    role_path.write_text(json.dumps(role_payload, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    scenario_payload["agents"][0]["role_template_path"] = str(role_path)
-    scenario_payload["max_group_steps"] = 1
-    scenario_payload["max_steps_per_agent"] = 1
-    scenario_payload["execute_actions"] = True
-    scenario_path = tmp_path / "office_developer_group_basic_virtual_network_policy.json"
-    scenario_path.write_text(json.dumps(scenario_payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    return scenario_path
-
-
 def test_virtual_network_scenario_loads_spec_and_agent_host_map() -> None:
     scenario = load_orchestrator_executor_scenario(PROJECT_ROOT / VIRTUAL_NETWORK_SCENARIO)
 
@@ -163,6 +140,20 @@ def test_virtual_network_scenario_loads_spec_and_agent_host_map() -> None:
     assert spec.network_id == "local_office_network_v1"
     assert spec.get_host("office_user_host") is not None
     assert spec.get_host("developer_host") is not None
+
+
+def test_intranet_browser_policy_scenario_is_offline_and_network_aware() -> None:
+    scenario = load_orchestrator_executor_scenario(PROJECT_ROOT / INTRANET_BROWSER_POLICY_SCENARIO)
+
+    assert scenario.scenario_id == "office_intranet_browser_policy_v1"
+    assert scenario.virtual_network is not None
+    assert scenario.virtual_network.spec_path == "configs/virtual_networks/local_office_network_v1.json"
+    assert scenario.virtual_network.agent_host_map["office_agent"] == "office_user_host"
+    assert scenario.metadata["virtual_network_metadata_only"] is True
+    assert scenario.metadata["browser_real_automation_required"] is False
+    assert scenario.metadata["external_network_required"] is False
+    assert "browser_open_url" in scenario.metadata["expected_safe_actions"]
+    assert scenario.agents[0].role_template_path == "configs/roles/office_intranet_browser_worker.example.json"
 
 
 def test_fake_group_run_writes_virtual_network_artifacts_and_history(tmp_path: Path) -> None:
@@ -247,13 +238,12 @@ def test_agent_state_contains_virtual_network_metadata_when_bound(tmp_path: Path
 
 
 def test_fake_group_run_with_allowed_url_writes_network_policy_metadata(tmp_path: Path) -> None:
-    scenario_path = _browser_policy_scenario_path(tmp_path)
     executor_provider = StaticBrowserActionExecutorProvider("http://localhost:8088/tickets/1")
 
     result = OrchestratorExecutorRunner(
         _config(
             tmp_path,
-            scenario_path=scenario_path,
+            scenario_path=INTRANET_BROWSER_POLICY_SCENARIO,
             repair_attempts=0,
             execute_actions=True,
         ),
@@ -279,13 +269,12 @@ def test_fake_group_run_with_allowed_url_writes_network_policy_metadata(tmp_path
 
 
 def test_fake_group_run_with_denied_url_records_policy_denial(tmp_path: Path) -> None:
-    scenario_path = _browser_policy_scenario_path(tmp_path)
     executor_provider = StaticBrowserActionExecutorProvider("https://example.com/report")
 
     result = OrchestratorExecutorRunner(
         _config(
             tmp_path,
-            scenario_path=scenario_path,
+            scenario_path=INTRANET_BROWSER_POLICY_SCENARIO,
             repair_attempts=0,
             execute_actions=True,
         ),
