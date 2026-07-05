@@ -223,9 +223,8 @@ def test_docx_result_does_not_include_absolute_artifact_root(tmp_path: Path) -> 
     _assert_no_absolute_root(result, tmp_path)
 
 
-def test_xlsx_and_pptx_actions_remain_not_implemented(tmp_path: Path) -> None:
+def test_pptx_action_remains_not_implemented(tmp_path: Path) -> None:
     for action, path in [
-        ("office_create_xlsx", "artifacts/book.xlsx"),
         ("office_create_pptx", "artifacts/deck.pptx"),
     ]:
         result = run_office_real_document_activity(

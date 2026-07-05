@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -41,8 +42,19 @@ DOCX_ACTIONS = frozenset(
     }
 )
 
+XLSX_ACTIONS = frozenset(
+    {
+        "office_create_xlsx",
+        "office_update_xlsx_cell",
+        "office_append_xlsx_row",
+        "office_read_xlsx_summary",
+    }
+)
+
 MACRO_ENABLED_EXTENSIONS = frozenset({".docm", ".xlsm", ".pptm"})
 FORMULA_PREFIXES = ("=", "+", "-", "@")
+INVALID_SHEET_NAME_CHARS = frozenset("[]:*?/\\")
+CELL_COORDINATE_RE = re.compile(r"^[A-Za-z]{1,3}[1-9][0-9]{0,6}$")
 
 
 class OfficeRealDocumentActivityError(Exception):
@@ -83,6 +95,11 @@ class OfficeRealDocumentActivityConfig(BaseModel):
     max_text_preview_chars: int = 500
     max_paragraphs: int = 100
     max_paragraph_chars: int = 5_000
+    max_xlsx_rows: int = 1_000
+    max_xlsx_columns: int = 50
+    max_xlsx_cell_chars: int = 5_000
+    max_xlsx_preview_rows: int = 10
+    max_xlsx_preview_columns: int = 8
     allow_formulas: bool = False
     allowed_extensions: tuple[str, ...] = (".docx", ".xlsx", ".pptx")
     forbidden_roots: tuple[str, ...] = (
@@ -124,6 +141,11 @@ class OfficeRealDocumentActivityConfig(BaseModel):
         "max_text_preview_chars",
         "max_paragraphs",
         "max_paragraph_chars",
+        "max_xlsx_rows",
+        "max_xlsx_columns",
+        "max_xlsx_cell_chars",
+        "max_xlsx_preview_rows",
+        "max_xlsx_preview_columns",
     )
     @classmethod
     def validate_positive_limits(cls, value: int) -> int:
@@ -209,10 +231,31 @@ def run_office_real_document_activity(
             )
         return _run_docx_action(normalized_action, params, cfg, docx_module)
 
+    if normalized_action in XLSX_ACTIONS:
+        try:
+            openpyxl_module = _load_xlsx_dependency(dependency_loader)
+        except ImportError as exc:
+            return _error(
+                normalized_action,
+                "office_dependency_missing",
+                "Optional openpyxl dependency is not installed.",
+                cfg,
+                dependency_error_type=exc.__class__.__name__,
+            )
+        except Exception as exc:
+            return _error(
+                normalized_action,
+                "office_dependency_missing",
+                "Optional openpyxl dependency is unavailable.",
+                cfg,
+                dependency_error_type=exc.__class__.__name__,
+            )
+        return _run_xlsx_action(normalized_action, params, cfg, openpyxl_module)
+
     return _error(
         normalized_action,
         "office_backend_not_implemented",
-        "Real XLSX/PPTX document operations are scaffolded but not implemented.",
+        "Real PPTX document operations are scaffolded but not implemented.",
         cfg,
     )
 
@@ -238,6 +281,33 @@ def load_docx_document_dependency() -> Any:
         return __import__("docx")
     except ImportError as exc:
         raise OfficeDependencyMissingError("python-docx") from exc
+
+
+def _load_xlsx_dependency(
+    dependency_loader: Callable[[], dict[str, Any]] | None,
+) -> Any:
+    if dependency_loader is None:
+        return load_xlsx_document_dependency()
+
+    loaded = dependency_loader()
+    if isinstance(loaded, dict):
+        openpyxl_module = loaded.get("openpyxl")
+    else:
+        openpyxl_module = getattr(loaded, "openpyxl", loaded)
+    if (
+        openpyxl_module is None
+        or not hasattr(openpyxl_module, "Workbook")
+        or not hasattr(openpyxl_module, "load_workbook")
+    ):
+        raise OfficeDependencyMissingError("openpyxl")
+    return openpyxl_module
+
+
+def load_xlsx_document_dependency() -> Any:
+    try:
+        return __import__("openpyxl")
+    except ImportError as exc:
+        raise OfficeDependencyMissingError("openpyxl") from exc
 
 
 def load_office_document_dependencies() -> dict[str, Any]:
@@ -450,6 +520,741 @@ def _extract_docx_text(
             **_success_metadata(config),
         },
     )
+
+
+def _run_xlsx_action(
+    action: str,
+    parameters: dict[str, Any],
+    config: OfficeRealDocumentActivityConfig,
+    openpyxl_module: Any,
+) -> OfficeRealDocumentActionResult:
+    if action == "office_create_xlsx":
+        return _create_xlsx(parameters, config, openpyxl_module)
+    if action == "office_update_xlsx_cell":
+        return _update_xlsx_cell(parameters, config, openpyxl_module)
+    if action == "office_append_xlsx_row":
+        return _append_xlsx_row(parameters, config, openpyxl_module)
+    if action == "office_read_xlsx_summary":
+        return _read_xlsx_summary(parameters, config, openpyxl_module)
+    return _error(
+        action,
+        "office_backend_not_implemented",
+        "XLSX action is not implemented.",
+        config,
+    )
+
+
+def _create_xlsx(
+    parameters: dict[str, Any],
+    config: OfficeRealDocumentActivityConfig,
+    openpyxl_module: Any,
+) -> OfficeRealDocumentActionResult:
+    action = "office_create_xlsx"
+    resolution = _resolve_action_xlsx_path(action, parameters, config)
+    if isinstance(resolution, OfficeRealDocumentActionResult):
+        return resolution
+
+    sheet_result = _sheet_name(action, parameters.get("sheet_name"), config)
+    if isinstance(sheet_result, OfficeRealDocumentActionResult):
+        return sheet_result
+    sheet_name = sheet_result
+
+    headers_result = _xlsx_row(action, parameters.get("headers", []), "headers", config)
+    if isinstance(headers_result, OfficeRealDocumentActionResult):
+        return headers_result
+    headers = headers_result
+
+    rows_result = _xlsx_rows(action, parameters.get("rows", []), config)
+    if isinstance(rows_result, OfficeRealDocumentActionResult):
+        return rows_result
+    rows = rows_result
+
+    metadata = parameters.get("metadata")
+    if metadata is not None and not isinstance(metadata, dict):
+        return _error(action, "invalid_parameter", "metadata must be a dict when provided.", config)
+
+    shape_result = _validate_xlsx_shape(action, headers, rows, config)
+    if shape_result is not None:
+        return shape_result
+
+    workbook = openpyxl_module.Workbook()
+    worksheet = workbook.active
+    worksheet.title = sheet_name
+    if headers:
+        worksheet.append(headers)
+    for row in rows:
+        worksheet.append(row)
+
+    try:
+        _save_xlsx_atomically(workbook, resolution.resolved_path, config)
+    except OfficeRealDocumentPathError as exc:
+        _close_workbook(workbook)
+        return _error(
+            action,
+            exc.code,
+            str(exc),
+            config,
+            path_relative=resolution.relative_path,
+        )
+    except Exception as exc:
+        _close_workbook(workbook)
+        return _error(
+            action,
+            "office_xlsx_write_failed",
+            "XLSX workbook could not be written.",
+            config,
+            error_class=exc.__class__.__name__,
+        )
+
+    summary = _worksheet_summary(worksheet, config)
+    _close_workbook(workbook)
+    return _xlsx_success(
+        action,
+        config,
+        resolution,
+        sheet_name=sheet_name,
+        row_count=summary["row_count"],
+        column_count=summary["column_count"],
+        table_preview=summary["table_preview"],
+        truncated=summary["truncated"],
+        file_size_bytes=resolution.resolved_path.stat().st_size,
+    )
+
+
+def _update_xlsx_cell(
+    parameters: dict[str, Any],
+    config: OfficeRealDocumentActivityConfig,
+    openpyxl_module: Any,
+) -> OfficeRealDocumentActionResult:
+    action = "office_update_xlsx_cell"
+    resolution = _resolve_existing_xlsx_path(action, parameters, config)
+    if isinstance(resolution, OfficeRealDocumentActionResult):
+        return resolution
+
+    cell_result = _xlsx_cell_coordinate(parameters.get("cell"), config)
+    if isinstance(cell_result, OfficeRealDocumentActionResult):
+        return cell_result
+    cell = cell_result
+
+    if "value" not in parameters:
+        return _error(action, "missing_parameter", "Missing required parameter: value.", config)
+    value_result = _xlsx_cell_value(action, parameters["value"], config)
+    if isinstance(value_result, OfficeRealDocumentActionResult):
+        return value_result
+
+    workbook_result = _load_existing_xlsx_workbook(action, resolution, config, openpyxl_module)
+    if isinstance(workbook_result, OfficeRealDocumentActionResult):
+        return workbook_result
+    workbook = workbook_result
+
+    worksheet_result = _worksheet_for_action(action, workbook, parameters.get("sheet_name"), config)
+    if isinstance(worksheet_result, OfficeRealDocumentActionResult):
+        _close_workbook(workbook)
+        return worksheet_result
+    worksheet = worksheet_result
+
+    worksheet[cell] = value_result
+    try:
+        _save_xlsx_atomically(workbook, resolution.resolved_path, config)
+    except OfficeRealDocumentPathError as exc:
+        _close_workbook(workbook)
+        return _error(action, exc.code, str(exc), config, path_relative=resolution.relative_path)
+    except Exception as exc:
+        _close_workbook(workbook)
+        return _error(
+            action,
+            "office_xlsx_write_failed",
+            "XLSX workbook could not be written.",
+            config,
+            path_relative=resolution.relative_path,
+            error_class=exc.__class__.__name__,
+        )
+
+    summary = _worksheet_summary(worksheet, config)
+    sheet_name = worksheet.title
+    _close_workbook(workbook)
+    return _xlsx_success(
+        action,
+        config,
+        resolution,
+        sheet_name=sheet_name,
+        updated_cell=cell.upper(),
+        row_count=summary["row_count"],
+        column_count=summary["column_count"],
+        table_preview=summary["table_preview"],
+        truncated=summary["truncated"],
+        file_size_bytes=resolution.resolved_path.stat().st_size,
+    )
+
+
+def _append_xlsx_row(
+    parameters: dict[str, Any],
+    config: OfficeRealDocumentActivityConfig,
+    openpyxl_module: Any,
+) -> OfficeRealDocumentActionResult:
+    action = "office_append_xlsx_row"
+    resolution = _resolve_existing_xlsx_path(action, parameters, config)
+    if isinstance(resolution, OfficeRealDocumentActionResult):
+        return resolution
+
+    row_result = _xlsx_row(action, parameters.get("values"), "values", config)
+    if isinstance(row_result, OfficeRealDocumentActionResult):
+        return row_result
+    if not row_result:
+        return _error(action, "office_xlsx_invalid_content", "values must not be empty.", config)
+    if len(row_result) > config.max_xlsx_columns:
+        return _error(
+            action,
+            "office_xlsx_too_many_columns",
+            "values exceeds max_xlsx_columns.",
+            config,
+        )
+
+    workbook_result = _load_existing_xlsx_workbook(action, resolution, config, openpyxl_module)
+    if isinstance(workbook_result, OfficeRealDocumentActionResult):
+        return workbook_result
+    workbook = workbook_result
+
+    worksheet_result = _worksheet_for_action(action, workbook, parameters.get("sheet_name"), config)
+    if isinstance(worksheet_result, OfficeRealDocumentActionResult):
+        _close_workbook(workbook)
+        return worksheet_result
+    worksheet = worksheet_result
+
+    if _effective_row_count(worksheet) + 1 > config.max_xlsx_rows:
+        _close_workbook(workbook)
+        return _error(
+            action,
+            "office_xlsx_too_many_rows",
+            "Appending row would exceed max_xlsx_rows.",
+            config,
+            path_relative=resolution.relative_path,
+        )
+
+    worksheet.append(row_result)
+    row_index = worksheet.max_row
+    try:
+        _save_xlsx_atomically(workbook, resolution.resolved_path, config)
+    except OfficeRealDocumentPathError as exc:
+        _close_workbook(workbook)
+        return _error(action, exc.code, str(exc), config, path_relative=resolution.relative_path)
+    except Exception as exc:
+        _close_workbook(workbook)
+        return _error(
+            action,
+            "office_xlsx_write_failed",
+            "XLSX workbook could not be written.",
+            config,
+            path_relative=resolution.relative_path,
+            error_class=exc.__class__.__name__,
+        )
+
+    summary = _worksheet_summary(worksheet, config)
+    sheet_name = worksheet.title
+    _close_workbook(workbook)
+    return _xlsx_success(
+        action,
+        config,
+        resolution,
+        sheet_name=sheet_name,
+        appended_row_index=row_index,
+        row_count=summary["row_count"],
+        column_count=summary["column_count"],
+        table_preview=summary["table_preview"],
+        truncated=summary["truncated"],
+        file_size_bytes=resolution.resolved_path.stat().st_size,
+    )
+
+
+def _read_xlsx_summary(
+    parameters: dict[str, Any],
+    config: OfficeRealDocumentActivityConfig,
+    openpyxl_module: Any,
+) -> OfficeRealDocumentActionResult:
+    action = "office_read_xlsx_summary"
+    resolution = _resolve_existing_xlsx_path(action, parameters, config)
+    if isinstance(resolution, OfficeRealDocumentActionResult):
+        return resolution
+
+    preview_rows_result = _xlsx_preview_limit(
+        action,
+        parameters.get("max_rows"),
+        config.max_xlsx_preview_rows,
+        config.max_xlsx_rows,
+        "max_rows",
+        config,
+    )
+    if isinstance(preview_rows_result, OfficeRealDocumentActionResult):
+        return preview_rows_result
+    preview_columns_result = _xlsx_preview_limit(
+        action,
+        parameters.get("max_columns"),
+        config.max_xlsx_preview_columns,
+        config.max_xlsx_columns,
+        "max_columns",
+        config,
+    )
+    if isinstance(preview_columns_result, OfficeRealDocumentActionResult):
+        return preview_columns_result
+
+    workbook_result = _load_existing_xlsx_workbook(
+        action,
+        resolution,
+        config,
+        openpyxl_module,
+        read_only=True,
+    )
+    if isinstance(workbook_result, OfficeRealDocumentActionResult):
+        return workbook_result
+    workbook = workbook_result
+
+    worksheet_result = _worksheet_for_action(action, workbook, parameters.get("sheet_name"), config)
+    if isinstance(worksheet_result, OfficeRealDocumentActionResult):
+        _close_workbook(workbook)
+        return worksheet_result
+    worksheet = worksheet_result
+
+    summary = _worksheet_summary(
+        worksheet,
+        config,
+        preview_rows=preview_rows_result,
+        preview_columns=preview_columns_result,
+    )
+    sheet_names = list(workbook.sheetnames)
+    active_sheet = workbook.active.title if workbook.active is not None else worksheet.title
+    sheet_name = worksheet.title
+    _close_workbook(workbook)
+    return _xlsx_success(
+        action,
+        config,
+        resolution,
+        sheet_name=sheet_name,
+        active_sheet=active_sheet,
+        sheet_names=sheet_names,
+        row_count=summary["row_count"],
+        column_count=summary["column_count"],
+        table_preview=summary["table_preview"],
+        truncated=summary["truncated"],
+        file_size_bytes=resolution.resolved_path.stat().st_size,
+    )
+
+
+def _resolve_action_xlsx_path(
+    action: str,
+    parameters: dict[str, Any],
+    config: OfficeRealDocumentActivityConfig,
+) -> OfficeDocumentPathResolution | OfficeRealDocumentActionResult:
+    path = parameters.get("path")
+    if path is None:
+        return _error(action, "missing_parameter", "Missing required parameter: path.", config)
+    if not isinstance(path, str):
+        return _error(action, "invalid_parameter", "path must be a string.", config)
+    try:
+        resolution = resolve_safe_office_real_document_path(path, config)
+    except OfficeRealDocumentPathError as exc:
+        return _error(action, exc.code, str(exc), config)
+    if Path(resolution.normalized_path).suffix.lower() != ".xlsx":
+        return _error(action, "office_extension_denied", "XLSX action requires a .xlsx path.", config)
+    return resolution
+
+
+def _resolve_existing_xlsx_path(
+    action: str,
+    parameters: dict[str, Any],
+    config: OfficeRealDocumentActivityConfig,
+) -> OfficeDocumentPathResolution | OfficeRealDocumentActionResult:
+    resolution = _resolve_action_xlsx_path(action, parameters, config)
+    if isinstance(resolution, OfficeRealDocumentActionResult):
+        return resolution
+    if not resolution.resolved_path.exists() or not resolution.resolved_path.is_file():
+        return _error(
+            action,
+            "office_xlsx_file_missing",
+            "XLSX workbook does not exist.",
+            config,
+            path_relative=resolution.relative_path,
+        )
+    size = resolution.resolved_path.stat().st_size
+    if size > config.max_file_bytes:
+        return _error(
+            action,
+            "office_xlsx_file_too_large",
+            "XLSX workbook exceeds max_file_bytes.",
+            config,
+            path_relative=resolution.relative_path,
+            file_size_bytes=size,
+            max_file_bytes=config.max_file_bytes,
+        )
+    return resolution
+
+
+def _load_existing_xlsx_workbook(
+    action: str,
+    resolution: OfficeDocumentPathResolution,
+    config: OfficeRealDocumentActivityConfig,
+    openpyxl_module: Any,
+    *,
+    read_only: bool = False,
+) -> Any | OfficeRealDocumentActionResult:
+    try:
+        return openpyxl_module.load_workbook(
+            str(resolution.resolved_path),
+            read_only=read_only,
+            data_only=False,
+            keep_links=False,
+        )
+    except Exception as exc:
+        return _error(
+            action,
+            "office_xlsx_read_failed",
+            "XLSX workbook could not be read.",
+            config,
+            path_relative=resolution.relative_path,
+            error_class=exc.__class__.__name__,
+        )
+
+
+def _save_xlsx_atomically(
+    workbook: Any,
+    destination: Path,
+    config: OfficeRealDocumentActivityConfig,
+) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=destination.parent,
+            prefix=f".{destination.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp:
+            temp_path = Path(tmp.name)
+        workbook.save(str(temp_path))
+        if temp_path.stat().st_size > config.max_file_bytes:
+            raise OfficeRealDocumentPathError(
+                "office_xlsx_file_too_large",
+                "XLSX workbook exceeds max_file_bytes.",
+            )
+        os.replace(temp_path, destination)
+        temp_path = None
+    finally:
+        if temp_path is not None and temp_path.exists():
+            temp_path.unlink()
+
+
+def _worksheet_for_action(
+    action: str,
+    workbook: Any,
+    sheet_name: Any,
+    config: OfficeRealDocumentActivityConfig,
+) -> Any | OfficeRealDocumentActionResult:
+    if sheet_name is None:
+        worksheet = workbook.active
+    else:
+        sheet_result = _sheet_name(action, sheet_name, config)
+        if isinstance(sheet_result, OfficeRealDocumentActionResult):
+            return sheet_result
+        if sheet_result not in workbook.sheetnames:
+            return _error(
+                action,
+                "office_xlsx_invalid_sheet",
+                "Requested sheet does not exist.",
+                config,
+            )
+        worksheet = workbook[sheet_result]
+
+    row_count, column_count = _worksheet_bounds(worksheet)
+    if row_count > config.max_xlsx_rows:
+        return _error(
+            action,
+            "office_xlsx_too_many_rows",
+            "Worksheet exceeds max_xlsx_rows.",
+            config,
+            sheet_name=worksheet.title,
+            row_count=row_count,
+            max_xlsx_rows=config.max_xlsx_rows,
+        )
+    if column_count > config.max_xlsx_columns:
+        return _error(
+            action,
+            "office_xlsx_too_many_columns",
+            "Worksheet exceeds max_xlsx_columns.",
+            config,
+            sheet_name=worksheet.title,
+            column_count=column_count,
+            max_xlsx_columns=config.max_xlsx_columns,
+        )
+    return worksheet
+
+
+def _sheet_name(
+    action: str,
+    value: Any,
+    config: OfficeRealDocumentActivityConfig,
+) -> str | OfficeRealDocumentActionResult:
+    if value is None:
+        return "Sheet"
+    if not isinstance(value, str):
+        return _error(action, "office_xlsx_invalid_sheet", "sheet_name must be a string.", config)
+    if not value.strip():
+        return _error(action, "office_xlsx_invalid_sheet", "sheet_name must be non-empty.", config)
+    if "\x00" in value:
+        return _error(action, "office_xlsx_invalid_sheet", "sheet_name must not contain NUL.", config)
+    normalized = value.strip()
+    if len(normalized) > 31:
+        return _error(action, "office_xlsx_invalid_sheet", "sheet_name is too long.", config)
+    if any(char in INVALID_SHEET_NAME_CHARS for char in normalized):
+        return _error(action, "office_xlsx_invalid_sheet", "sheet_name contains invalid characters.", config)
+    return normalized
+
+
+def _xlsx_cell_coordinate(
+    value: Any,
+    config: OfficeRealDocumentActivityConfig,
+) -> str | OfficeRealDocumentActionResult:
+    action = "office_update_xlsx_cell"
+    if not isinstance(value, str) or not value.strip():
+        return _error(action, "office_xlsx_invalid_cell", "cell must be a non-empty string.", config)
+    cell = value.strip().upper()
+    if len(cell) > 10 or not CELL_COORDINATE_RE.fullmatch(cell):
+        return _error(action, "office_xlsx_invalid_cell", "cell must be an A1-style coordinate.", config)
+    column = _column_index(cell.rstrip("0123456789"))
+    row = int(cell[len(cell.rstrip("0123456789")) :])
+    if row > config.max_xlsx_rows:
+        return _error(action, "office_xlsx_too_many_rows", "cell row exceeds max_xlsx_rows.", config)
+    if column > config.max_xlsx_columns:
+        return _error(action, "office_xlsx_too_many_columns", "cell column exceeds max_xlsx_columns.", config)
+    return cell
+
+
+def _column_index(letters: str) -> int:
+    index = 0
+    for char in letters:
+        index = index * 26 + (ord(char.upper()) - ord("A") + 1)
+    return index
+
+
+def _xlsx_rows(
+    action: str,
+    value: Any,
+    config: OfficeRealDocumentActivityConfig,
+) -> list[list[Any]] | OfficeRealDocumentActionResult:
+    if value is None:
+        return []
+    if not isinstance(value, list) or any(not isinstance(row, list) for row in value):
+        return _error(action, "invalid_parameter", "rows must be a list of rows.", config)
+    if len(value) > config.max_xlsx_rows:
+        return _error(action, "office_xlsx_too_many_rows", "rows exceeds max_xlsx_rows.", config)
+    rows: list[list[Any]] = []
+    for row in value:
+        row_result = _xlsx_row(action, row, "row", config)
+        if isinstance(row_result, OfficeRealDocumentActionResult):
+            return row_result
+        rows.append(row_result)
+    return rows
+
+
+def _xlsx_row(
+    action: str,
+    value: Any,
+    field_name: str,
+    config: OfficeRealDocumentActivityConfig,
+) -> list[Any] | OfficeRealDocumentActionResult:
+    if value is None:
+        return _error(action, "invalid_parameter", f"{field_name} must be a list.", config)
+    if not isinstance(value, list):
+        return _error(action, "invalid_parameter", f"{field_name} must be a list.", config)
+    if len(value) > config.max_xlsx_columns:
+        return _error(
+            action,
+            "office_xlsx_too_many_columns",
+            f"{field_name} exceeds max_xlsx_columns.",
+            config,
+        )
+    row: list[Any] = []
+    for item in value:
+        value_result = _xlsx_cell_value(action, item, config)
+        if isinstance(value_result, OfficeRealDocumentActionResult):
+            return value_result
+        row.append(value_result)
+    return row
+
+
+def _xlsx_cell_value(
+    action: str,
+    value: Any,
+    config: OfficeRealDocumentActivityConfig,
+) -> Any | OfficeRealDocumentActionResult:
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        if "\x00" in value:
+            return _error(
+                action,
+                "office_xlsx_invalid_content",
+                "XLSX cell values must not contain NUL characters.",
+                config,
+            )
+        if len(value) > config.max_xlsx_cell_chars:
+            return _error(
+                action,
+                "office_xlsx_invalid_content",
+                "XLSX cell value exceeds max_xlsx_cell_chars.",
+                config,
+            )
+        try:
+            validate_spreadsheet_text_value(value, config)
+        except OfficeFormulaLikeValueError as exc:
+            return _error(action, exc.code, str(exc), config)
+        return value
+    return _error(
+        action,
+        "invalid_parameter",
+        "XLSX cell values must be scalar strings, numbers, booleans, or null.",
+        config,
+    )
+
+
+def _validate_xlsx_shape(
+    action: str,
+    headers: list[Any],
+    rows: list[list[Any]],
+    config: OfficeRealDocumentActivityConfig,
+) -> OfficeRealDocumentActionResult | None:
+    row_count = len(rows) + (1 if headers else 0)
+    column_count = max([len(headers), *(len(row) for row in rows)], default=0)
+    if row_count > config.max_xlsx_rows:
+        return _error(action, "office_xlsx_too_many_rows", "Workbook exceeds max_xlsx_rows.", config)
+    if column_count > config.max_xlsx_columns:
+        return _error(
+            action,
+            "office_xlsx_too_many_columns",
+            "Workbook exceeds max_xlsx_columns.",
+            config,
+        )
+    return None
+
+
+def _xlsx_preview_limit(
+    action: str,
+    value: Any,
+    default: int,
+    maximum: int,
+    field_name: str,
+    config: OfficeRealDocumentActivityConfig,
+) -> int | OfficeRealDocumentActionResult:
+    if value is None:
+        return default
+    if not isinstance(value, int) or value <= 0:
+        return _error(action, "invalid_parameter", f"{field_name} must be a positive integer.", config)
+    return min(value, maximum)
+
+
+def _worksheet_bounds(worksheet: Any) -> tuple[int, int]:
+    row_count = int(worksheet.max_row or 0)
+    column_count = int(worksheet.max_column or 0)
+    if row_count == 1 and column_count == 1:
+        try:
+            first = next(worksheet.iter_rows(min_row=1, max_row=1, max_col=1, values_only=True))
+        except StopIteration:
+            return 0, 0
+        if not first or first[0] is None:
+            return 0, 0
+    return row_count, column_count
+
+
+def _effective_row_count(worksheet: Any) -> int:
+    return _worksheet_bounds(worksheet)[0]
+
+
+def _worksheet_summary(
+    worksheet: Any,
+    config: OfficeRealDocumentActivityConfig,
+    *,
+    preview_rows: int | None = None,
+    preview_columns: int | None = None,
+) -> dict[str, Any]:
+    row_count, column_count = _worksheet_bounds(worksheet)
+    max_rows = preview_rows or config.max_xlsx_preview_rows
+    max_columns = preview_columns or config.max_xlsx_preview_columns
+    preview = _worksheet_preview(worksheet, min(max_rows, row_count), min(max_columns, column_count))
+    return {
+        "row_count": row_count,
+        "column_count": column_count,
+        "table_preview": preview,
+        "truncated": row_count > max_rows or column_count > max_columns,
+    }
+
+
+def _worksheet_preview(
+    worksheet: Any,
+    max_rows: int,
+    max_columns: int,
+) -> list[list[Any]]:
+    if max_rows <= 0 or max_columns <= 0:
+        return []
+    rows: list[list[Any]] = []
+    for row in worksheet.iter_rows(
+        min_row=1,
+        max_row=max_rows,
+        min_col=1,
+        max_col=max_columns,
+        values_only=True,
+    ):
+        rows.append([_preview_cell(value) for value in row])
+    return rows
+
+
+def _preview_cell(value: Any) -> Any:
+    if isinstance(value, str):
+        return text_preview(value, 120)
+    return value
+
+
+def _xlsx_preview_text(table_preview: list[list[Any]], config: OfficeRealDocumentActivityConfig) -> str:
+    rendered_rows = [
+        " | ".join("" if value is None else str(value) for value in row)
+        for row in table_preview
+    ]
+    return text_preview("\n".join(rendered_rows), config.max_text_preview_chars)
+
+
+def _xlsx_success(
+    action: str,
+    config: OfficeRealDocumentActivityConfig,
+    resolution: OfficeDocumentPathResolution,
+    *,
+    sheet_name: str,
+    row_count: int,
+    column_count: int,
+    table_preview: list[list[Any]],
+    truncated: bool,
+    **metadata: Any,
+) -> OfficeRealDocumentActionResult:
+    preview = _xlsx_preview_text(table_preview, config)
+    return OfficeRealDocumentActionResult(
+        action=action,
+        success=True,
+        output=preview,
+        metadata={
+            "document_type": "xlsx",
+            "path_relative": resolution.relative_path,
+            "sheet_name": sheet_name,
+            "row_count": row_count,
+            "column_count": column_count,
+            "table_preview": table_preview,
+            "text_preview": preview,
+            "truncated": truncated,
+            **metadata,
+            **_success_metadata(config),
+        },
+    )
+
+
+def _close_workbook(workbook: Any) -> None:
+    close = getattr(workbook, "close", None)
+    if callable(close):
+        close()
 
 
 def _resolve_action_docx_path(
@@ -816,6 +1621,17 @@ def _validate_action_formula_values(
     row = parameters.get("row")
     if isinstance(row, list):
         candidate_values.extend(row)
+    values = parameters.get("values")
+    if isinstance(values, list):
+        candidate_values.extend(values)
+    headers = parameters.get("headers")
+    if isinstance(headers, list):
+        candidate_values.extend(headers)
+    rows = parameters.get("rows")
+    if isinstance(rows, list):
+        for item in rows:
+            if isinstance(item, list):
+                candidate_values.extend(item)
 
     for value in candidate_values:
         try:

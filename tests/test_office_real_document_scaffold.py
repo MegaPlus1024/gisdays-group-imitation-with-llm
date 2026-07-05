@@ -77,10 +77,10 @@ def test_enabled_with_missing_dependency_returns_controlled_error(tmp_path: Path
     assert result.metadata["real_office_document_automation"] is False
 
 
-def test_enabled_with_available_dependencies_returns_not_implemented(tmp_path: Path) -> None:
+def test_enabled_pptx_action_returns_not_implemented(tmp_path: Path) -> None:
     result = run_office_real_document_activity(
-        "office_create_xlsx",
-        {"path": "artifacts/book.xlsx"},
+        "office_create_pptx",
+        {"path": "artifacts/deck.pptx"},
         _config(tmp_path, enabled=True),
         dependency_loader=lambda: {"docx": object(), "openpyxl": object(), "pptx": object()},
     )
