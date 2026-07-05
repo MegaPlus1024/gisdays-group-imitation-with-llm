@@ -4,7 +4,7 @@ import json
 import re
 from collections import Counter
 from statistics import mean
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -12,7 +12,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 NORMALITY_JUDGE_SCHEMA_VERSION = "normality_judge_v1"
 NormalityJudgeStatus = Literal["ok", "invalid_input", "disabled"]
 NormalityJudgeLabel = Literal["normal", "suspicious", "abnormal", "not_evaluated"]
-NormalityJudgeMode = Literal["fake", "deterministic"]
+NormalityJudgeMode = Literal["fake", "deterministic", "disabled", "static", "llm"]
+NormalityJudgeProviderName = Literal["fake", "deterministic", "disabled", "static", "llm"]
 
 NORMALITY_DIMENSIONS = (
     "task_relevance",
@@ -28,6 +29,7 @@ NORMALITY_DIMENSIONS = (
 class NormalityJudgeConfig(BaseModel):
     enabled: bool = False
     mode: NormalityJudgeMode = "fake"
+    judge_provider: NormalityJudgeProviderName | None = None
     max_events: int = 100
     max_text_chars: int = 500
     include_raw_outputs: bool = False
@@ -109,6 +111,7 @@ class NormalityJudgeResult(BaseModel):
     findings: list[str] = Field(default_factory=list)
     redactions_applied: list[str] = Field(default_factory=list)
     judge_mode: NormalityJudgeMode
+    provider_name: str | None = None
     schema_version: str = NORMALITY_JUDGE_SCHEMA_VERSION
 
     @field_validator("overall_score")
@@ -119,28 +122,135 @@ class NormalityJudgeResult(BaseModel):
         return value
 
 
-class DeterministicNormalityJudge:
-    def __init__(self, config: NormalityJudgeConfig | None = None) -> None:
-        self.config = config or NormalityJudgeConfig(enabled=True, mode="deterministic")
+class NormalityJudgeProvider(Protocol):
+    provider_name: str
 
-    def evaluate(self, judge_input: NormalityJudgeInput) -> NormalityJudgeResult:
-        return run_normality_judge(judge_input, self.config)
+    def evaluate(
+        self,
+        judge_input: NormalityJudgeInput,
+        config: NormalityJudgeConfig,
+    ) -> NormalityJudgeResult:
+        ...
 
 
-def run_normality_judge(
-    judge_input: NormalityJudgeInput,
-    config: NormalityJudgeConfig | None = None,
-) -> NormalityJudgeResult:
-    cfg = config or NormalityJudgeConfig()
-    if not cfg.enabled:
+class DeterministicNormalityJudgeProvider:
+    provider_name = "deterministic_normality_judge"
+
+    def evaluate(
+        self,
+        judge_input: NormalityJudgeInput,
+        config: NormalityJudgeConfig,
+    ) -> NormalityJudgeResult:
+        if not config.enabled:
+            return DisabledNormalityJudgeProvider().evaluate(judge_input, config)
+        return _run_deterministic_normality_judge(
+            judge_input,
+            config,
+            provider_name=self.provider_name,
+        )
+
+
+class DisabledNormalityJudgeProvider:
+    provider_name = "disabled_normality_judge"
+
+    def evaluate(
+        self,
+        judge_input: NormalityJudgeInput,
+        config: NormalityJudgeConfig,
+    ) -> NormalityJudgeResult:
+        del judge_input
         return NormalityJudgeResult(
             status="disabled",
             label="not_evaluated",
             overall_score=0.0,
             findings=["Normality judge is disabled."],
-            judge_mode=cfg.mode,
+            judge_mode=config.mode if config.mode == "disabled" else "disabled",
+            provider_name=self.provider_name,
         )
 
+
+class StaticNormalityJudgeProvider:
+    provider_name = "static_normality_judge"
+
+    def __init__(self, result: NormalityJudgeResult) -> None:
+        self.result = result
+
+    def evaluate(
+        self,
+        judge_input: NormalityJudgeInput,
+        config: NormalityJudgeConfig,
+    ) -> NormalityJudgeResult:
+        del judge_input, config
+        if self.result.provider_name:
+            return self.result
+        return self.result.model_copy(update={"provider_name": self.provider_name})
+
+
+class LLMNormalityJudgeProvider:
+    provider_name = "llm_normality_judge_placeholder"
+
+    def evaluate(
+        self,
+        judge_input: NormalityJudgeInput,
+        config: NormalityJudgeConfig,
+    ) -> NormalityJudgeResult:
+        del judge_input
+        return NormalityJudgeResult(
+            status="invalid_input",
+            label="not_evaluated",
+            overall_score=0.0,
+            findings=["llm_judge_provider_not_configured"],
+            judge_mode=config.mode if config.mode == "llm" else "llm",
+            provider_name=self.provider_name,
+        )
+
+
+class DeterministicNormalityJudge:
+    def __init__(self, config: NormalityJudgeConfig | None = None) -> None:
+        self.config = config or NormalityJudgeConfig(enabled=True, mode="deterministic")
+        self.provider = DeterministicNormalityJudgeProvider()
+
+    def evaluate(self, judge_input: NormalityJudgeInput) -> NormalityJudgeResult:
+        return self.provider.evaluate(judge_input, self.config)
+
+
+def create_normality_judge_provider(
+    config: NormalityJudgeConfig | None = None,
+    provider: NormalityJudgeProvider | None = None,
+) -> NormalityJudgeProvider:
+    if provider is not None:
+        return provider
+    cfg = config or NormalityJudgeConfig()
+    provider_name = cfg.judge_provider or cfg.mode
+    if not cfg.enabled or provider_name == "disabled":
+        return DisabledNormalityJudgeProvider()
+    if provider_name in {"fake", "deterministic"}:
+        return DeterministicNormalityJudgeProvider()
+    if provider_name == "llm":
+        return LLMNormalityJudgeProvider()
+    if provider_name == "static":
+        return LLMNormalityJudgeProvider()
+    return DeterministicNormalityJudgeProvider()
+
+
+def run_normality_judge(
+    judge_input: NormalityJudgeInput,
+    config: NormalityJudgeConfig | None = None,
+    *,
+    provider: NormalityJudgeProvider | None = None,
+) -> NormalityJudgeResult:
+    cfg = config or NormalityJudgeConfig()
+    selected_provider = create_normality_judge_provider(cfg, provider=provider)
+    return selected_provider.evaluate(judge_input, cfg)
+
+
+def _run_deterministic_normality_judge(
+    judge_input: NormalityJudgeInput,
+    config: NormalityJudgeConfig,
+    *,
+    provider_name: str,
+) -> NormalityJudgeResult:
+    cfg = config
     if not _valid_input(judge_input):
         return NormalityJudgeResult(
             status="invalid_input",
@@ -148,6 +258,7 @@ def run_normality_judge(
             overall_score=0.0,
             findings=["Normality judge input is missing scenario_id, task_summary, or events."],
             judge_mode=cfg.mode,
+            provider_name=provider_name,
         )
 
     events = judge_input.events[: cfg.max_events]
@@ -169,6 +280,7 @@ def run_normality_judge(
         findings=findings,
         redactions_applied=sorted(redactions),
         judge_mode=cfg.mode,
+        provider_name=provider_name,
     )
 
 
@@ -210,7 +322,8 @@ def normality_judge_output_contract() -> dict[str, Any]:
         },
         "findings": ["string"],
         "redactions_applied": ["string"],
-        "judge_mode": "fake | deterministic",
+        "judge_mode": "fake | deterministic | disabled | static | llm",
+        "provider_name": "string | null",
         "schema_version": NORMALITY_JUDGE_SCHEMA_VERSION,
     }
 

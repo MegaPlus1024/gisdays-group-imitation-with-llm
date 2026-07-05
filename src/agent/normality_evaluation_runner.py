@@ -11,6 +11,7 @@ from src.agent.normality_judge import (
     NormalityJudgeConfig,
     NormalityJudgeEvent,
     NormalityJudgeInput,
+    NormalityJudgeProvider,
     NormalityJudgeResult,
     aggregate_normality_results,
     run_normality_judge,
@@ -34,6 +35,7 @@ class NormalityEvaluationRunConfig(BaseModel):
     enabled: bool = True
     judge_enabled: bool = True
     judge_mode: Literal["fake", "deterministic"] = "deterministic"
+    judge_provider: Literal["fake", "deterministic", "disabled", "static", "llm"] = "deterministic"
     write_summary: bool = True
     scenario_id: str | None = None
     task_summary: str | None = None
@@ -81,6 +83,7 @@ class NormalityEvaluationRunResult(BaseModel):
     findings: list[str] = Field(default_factory=list)
     redactions_applied: list[str] = Field(default_factory=list)
     judge_mode: str | None = None
+    judge_provider: str | None = None
     event_preview: list[dict[str, Any]] = Field(default_factory=list)
     judge_result: NormalityJudgeResult | None = None
     aggregation: dict[str, Any] | None = None
@@ -135,6 +138,8 @@ def load_normality_events_from_file(
 
 def run_normality_evaluation_from_file(
     config: NormalityEvaluationRunConfig,
+    *,
+    provider: NormalityJudgeProvider | None = None,
 ) -> NormalityEvaluationRunResult:
     if not config.enabled or not config.judge_enabled:
         return _disabled_result(config)
@@ -158,7 +163,7 @@ def run_normality_evaluation_from_file(
         config=config,
     )
     judge_config = _judge_config(config)
-    judge_result = run_normality_judge(judge_input, judge_config)
+    judge_result = run_normality_judge(judge_input, judge_config, provider=provider)
     status: NormalityEvaluationRunStatus = "ok"
     if judge_result.status == "disabled":
         status = "judge_disabled"
@@ -197,6 +202,7 @@ def run_normality_evaluation_for_group_history(
     environment_summary: str | None = None,
     trial_id: str | None = None,
     config: NormalityEvaluationRunConfig | None = None,
+    provider: NormalityJudgeProvider | None = None,
 ) -> NormalityEvaluationRunResult:
     runtime_config = _group_history_config(
         config=config,
@@ -224,7 +230,7 @@ def run_normality_evaluation_for_group_history(
         config=runtime_config,
     )
     judge_config = _judge_config(runtime_config)
-    judge_result = run_normality_judge(judge_input, judge_config)
+    judge_result = run_normality_judge(judge_input, judge_config, provider=provider)
     status: NormalityEvaluationRunStatus = "ok"
     if judge_result.status == "disabled":
         status = "judge_disabled"
@@ -262,6 +268,7 @@ def write_normality_evaluation_for_pipeline_result(
     config: NormalityEvaluationRunConfig | None = None,
     task_summary: str | None = None,
     agent_roles: dict[str, str] | None = None,
+    provider: NormalityJudgeProvider | None = None,
 ) -> NormalityEvaluationRunResult:
     payload = _record_dict(pipeline_result)
     scenario_id = _as_non_empty_str(payload.get("scenario_id")) or "offline_pipeline_result"
@@ -284,6 +291,7 @@ def write_normality_evaluation_for_pipeline_result(
         environment_summary="Offline fake/local pipeline result artifacts.",
         trial_id=_as_non_empty_str(payload.get("run_id")),
         config=config,
+        provider=provider,
     )
 
 
@@ -331,6 +339,7 @@ def _disabled_result(config: NormalityEvaluationRunConfig) -> NormalityEvaluatio
         findings=judge_result.findings,
         redactions_applied=judge_result.redactions_applied,
         judge_mode=judge_result.judge_mode,
+        judge_provider=judge_result.provider_name,
         judge_result=judge_result,
         aggregation=aggregate_normality_results([judge_result]),
         warnings=["normality_judge_disabled"],
@@ -524,6 +533,7 @@ def _result_from_judge(
         findings=judge_result.findings,
         redactions_applied=judge_result.redactions_applied,
         judge_mode=judge_result.judge_mode,
+        judge_provider=judge_result.provider_name,
         event_preview=_event_preview(judge_input, judge_config),
         judge_result=judge_result,
         aggregation=aggregate_normality_results([judge_result]),
@@ -561,6 +571,7 @@ def _judge_config(config: NormalityEvaluationRunConfig) -> NormalityJudgeConfig:
     return NormalityJudgeConfig(
         enabled=config.judge_enabled,
         mode=config.judge_mode,
+        judge_provider=config.judge_provider,
         max_events=config.max_events,
         max_text_chars=config.max_text_chars,
         include_raw_outputs=config.include_raw_outputs,
