@@ -1,0 +1,84 @@
+{
+  "scenario_id": "office_document_file_workflow_basic_v1",
+  "description": "Offline fake-compatible orchestrator/executor scenario for planning optional DOCX, XLSX, and PPTX document-file actions inside a controlled artifact workspace.",
+  "orchestrator_model_id": "second_model",
+  "executor_model_id": "first_model",
+  "registry_path": "configs/script_registry.example.json",
+  "max_group_steps": 1,
+  "max_steps_per_agent": 1,
+  "execute_actions": false,
+  "expected_group_behavior": "Agents plan local document-file activity using only allowlisted office document actions and relative artifact paths. The scenario is intended for offline config validation and fake-compatible planning; it does not require real document backend execution.",
+  "agents": [
+    {
+      "agent_id": "document_summary_agent",
+      "role_template_path": "configs/roles/office_document_worker.example.json",
+      "activity_profile_path": "configs/activity_profiles/office_worker.json",
+      "assigned_goal": "Plan a short DOCX summary and a text-only PPTX brief under artifacts/office_documents/offline_basic/.",
+      "executor_model_id": "first_model",
+      "state_override": {
+        "scenario_hint": "Use only optional office document-file actions with relative artifact paths.",
+        "planned_action_sequence": [
+          "office_create_docx",
+          "office_append_docx_section",
+          "office_create_pptx",
+          "office_add_pptx_slide"
+        ],
+        "artifact_path_examples": [
+          "artifacts/office_documents/offline_basic/summary.docx",
+          "artifacts/office_documents/offline_basic/brief.pptx"
+        ]
+      }
+    },
+    {
+      "agent_id": "document_tracker_agent",
+      "role_template_path": "configs/roles/office_document_worker.example.json",
+      "activity_profile_path": "configs/activity_profiles/office_worker.json",
+      "assigned_goal": "Plan a small XLSX tracker and bounded readback checks under artifacts/office_documents/offline_basic/.",
+      "executor_model_id": "first_model",
+      "state_override": {
+        "scenario_hint": "Use only optional office document-file actions with relative artifact paths.",
+        "planned_action_sequence": [
+          "office_create_xlsx",
+          "office_append_xlsx_row",
+          "office_update_xlsx_cell",
+          "office_read_xlsx_summary"
+        ],
+        "artifact_path_examples": [
+          "artifacts/office_documents/offline_basic/tasks.xlsx"
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "schema_version": "orchestrator_executor_group_scenario_v1",
+    "offline_fake_compatible": true,
+    "network_required": false,
+    "external_network_required": false,
+    "browser_real_automation_required": false,
+    "office_real_automation_required": false,
+    "office_real_document_backend_required": false,
+    "office_real_document_backend_enabled_by_default": false,
+    "optional_office_dependencies_required": false,
+    "write_path_policy": "artifact_workspace_only",
+    "artifact_workspace_root_hint": "artifacts/office_documents/offline_basic/",
+    "expected_safe_actions": [
+      "office_create_docx",
+      "office_append_docx_section",
+      "office_extract_docx_text",
+      "office_create_xlsx",
+      "office_update_xlsx_cell",
+      "office_append_xlsx_row",
+      "office_read_xlsx_summary",
+      "office_create_pptx",
+      "office_add_pptx_slide",
+      "office_extract_pptx_text"
+    ],
+    "forbidden_runtime": [
+      "desktop_office_app",
+      "real_browser",
+      "external_network",
+      "shell_command",
+      "model_runtime"
+    ]
+  }
+}
