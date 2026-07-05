@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,11 @@ from .scripts.office_document_activity import (
     OfficeDocumentActivityConfig,
     run_office_document_activity,
 )
+from .scripts.office_real_document_activity import (
+    SUPPORTED_OFFICE_REAL_DOCUMENT_ACTIONS,
+    OfficeRealDocumentActivityConfig,
+    run_office_real_document_activity,
+)
 from .scripts.results import ScriptExecutionResult
 from .scripts.shell_command_activity import (
     ShellCommandActivityConfig,
@@ -43,11 +49,26 @@ class ScriptExecutionBridgeConfig(BaseModel):
     write_history: bool = False
     browser_fixture_manifest_path: str | None = None
     browser_fixture_allowed_url_prefixes: list[str] = Field(default_factory=list)
+    office_real_document_enabled: bool = False
+    office_real_document_artifact_root: str | None = None
+    office_real_document_max_file_bytes: int = 5_000_000
+    office_real_document_max_text_preview_chars: int = 500
+    office_real_document_allow_formulas: bool = False
 
     @field_validator("project_root")
     @classmethod
     def validate_project_root(cls, value: Path) -> Path:
         return value.resolve()
+
+    @field_validator(
+        "office_real_document_max_file_bytes",
+        "office_real_document_max_text_preview_chars",
+    )
+    @classmethod
+    def validate_office_real_document_limits(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("office real document limits must be > 0.")
+        return value
 
 
 class ScriptExecutionBridgeOutput(BaseModel):
@@ -69,10 +90,12 @@ class ScriptExecutionBridge:
         *,
         registry: ScriptRegistry | None = None,
         history_logger: ExecutionHistoryLogger | None = None,
+        office_real_document_dependency_loader: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self.config = config or ScriptExecutionBridgeConfig()
         self.registry = registry
         self.history_logger = history_logger
+        self.office_real_document_dependency_loader = office_real_document_dependency_loader
         if self.config.validate_with_registry and self.registry is None:
             registry_path = self.config.project_root / self.config.registry_path
             self.registry = load_script_registry(registry_path)
@@ -183,6 +206,22 @@ class ScriptExecutionBridge:
             )
             return result, True
 
+        if action in SUPPORTED_OFFICE_REAL_DOCUMENT_ACTIONS:
+            result = run_office_real_document_activity(
+                action,
+                params,
+                OfficeRealDocumentActivityConfig(
+                    enabled=self.config.office_real_document_enabled,
+                    project_root=project_root,
+                    artifact_root=self.config.office_real_document_artifact_root,
+                    max_file_bytes=self.config.office_real_document_max_file_bytes,
+                    max_text_preview_chars=self.config.office_real_document_max_text_preview_chars,
+                    allow_formulas=self.config.office_real_document_allow_formulas,
+                ),
+                dependency_loader=self.office_real_document_dependency_loader,
+            )
+            return result, True
+
         if action == "run_shell_command":
             result = run_shell_command_activity(
                 params,
@@ -231,6 +270,16 @@ SUPPORTED_ACTIONS = [
     "list_directory",
     "browser_open_url",
     "office_create_document_stub",
+    "office_create_docx",
+    "office_append_docx_section",
+    "office_extract_docx_text",
+    "office_create_xlsx",
+    "office_update_xlsx_cell",
+    "office_append_xlsx_row",
+    "office_read_xlsx_summary",
+    "office_create_pptx",
+    "office_add_pptx_slide",
+    "office_extract_pptx_text",
     "run_shell_command",
 ]
 

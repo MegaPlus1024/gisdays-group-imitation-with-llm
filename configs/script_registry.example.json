@@ -249,6 +249,704 @@
       ]
     },
     {
+      "name": "office_create_docx",
+      "description": "Create a DOCX document file through the optional office document-file backend; no desktop office application is opened.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "description": "Relative artifact path for the DOCX file.",
+          "min_length": 1
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "description": "Optional document title.",
+          "max_length": 5000
+        },
+        {
+          "name": "paragraphs",
+          "type": "array",
+          "description": "Optional list of paragraph strings."
+        },
+        {
+          "name": "metadata",
+          "type": "object",
+          "description": "Optional caller metadata."
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "artifacts/",
+          "experiments/",
+          "tests/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/",
+          "logs/",
+          "secrets/",
+          "credentials/",
+          "tokens/"
+        ],
+        "read_only": false,
+        "notes": [
+          "Optional document-file automation only.",
+          "Backend remains disabled unless explicitly configured."
+        ]
+      },
+      "result_shape": {
+        "document_type": "docx",
+        "path_relative": "string",
+        "text_preview": "string"
+      },
+      "tags": [
+        "office",
+        "optional_office",
+        "document_file",
+        "write"
+      ],
+      "examples": [
+        {
+          "path": "artifacts/office/summary.docx",
+          "title": "Summary",
+          "paragraphs": [
+            "Local artifact summary."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "office_append_docx_section",
+      "description": "Append a section to an existing DOCX document file through the optional office document-file backend; no desktop office application is opened.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "description": "Relative artifact path for the existing DOCX file.",
+          "min_length": 1
+        },
+        {
+          "name": "heading",
+          "type": "string",
+          "description": "Optional section heading.",
+          "max_length": 5000
+        },
+        {
+          "name": "paragraphs",
+          "type": "array",
+          "required": true,
+          "description": "List of paragraph strings to append."
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "artifacts/",
+          "experiments/",
+          "tests/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/",
+          "logs/",
+          "secrets/",
+          "credentials/",
+          "tokens/"
+        ],
+        "read_only": false,
+        "notes": [
+          "Optional document-file automation only.",
+          "Backend remains disabled unless explicitly configured."
+        ]
+      },
+      "result_shape": {
+        "document_type": "docx",
+        "path_relative": "string",
+        "text_preview": "string"
+      },
+      "tags": [
+        "office",
+        "optional_office",
+        "document_file",
+        "write"
+      ],
+      "examples": [
+        {
+          "path": "artifacts/office/summary.docx",
+          "heading": "Follow-up",
+          "paragraphs": [
+            "Next local step."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "office_extract_docx_text",
+      "description": "Extract bounded text preview from a DOCX document file through the optional office document-file backend; no desktop office application is opened.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "description": "Relative artifact path for the existing DOCX file.",
+          "min_length": 1
+        },
+        {
+          "name": "max_chars",
+          "type": "integer",
+          "description": "Optional preview character limit."
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "artifacts/",
+          "experiments/",
+          "tests/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/",
+          "logs/",
+          "secrets/",
+          "credentials/",
+          "tokens/"
+        ],
+        "read_only": true,
+        "notes": [
+          "Optional document-file automation only.",
+          "Preview output is bounded by backend configuration."
+        ]
+      },
+      "result_shape": {
+        "document_type": "docx",
+        "path_relative": "string",
+        "text_preview": "string"
+      },
+      "tags": [
+        "office",
+        "optional_office",
+        "document_file",
+        "read"
+      ],
+      "examples": [
+        {
+          "path": "artifacts/office/summary.docx"
+        }
+      ]
+    },
+    {
+      "name": "office_create_xlsx",
+      "description": "Create an XLSX workbook file through the optional office document-file backend; no desktop office application is opened.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "description": "Relative artifact path for the XLSX file.",
+          "min_length": 1
+        },
+        {
+          "name": "sheet_name",
+          "type": "string",
+          "description": "Optional worksheet name.",
+          "max_length": 31
+        },
+        {
+          "name": "headers",
+          "type": "array",
+          "description": "Optional header row."
+        },
+        {
+          "name": "rows",
+          "type": "array",
+          "description": "Optional list of worksheet rows."
+        },
+        {
+          "name": "metadata",
+          "type": "object",
+          "description": "Optional caller metadata."
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "artifacts/",
+          "experiments/",
+          "tests/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/",
+          "logs/",
+          "secrets/",
+          "credentials/",
+          "tokens/"
+        ],
+        "read_only": false,
+        "notes": [
+          "Optional document-file automation only.",
+          "Formula-like values are denied by default in the backend."
+        ]
+      },
+      "result_shape": {
+        "document_type": "xlsx",
+        "path_relative": "string",
+        "table_preview": "array"
+      },
+      "tags": [
+        "office",
+        "optional_office",
+        "document_file",
+        "write"
+      ],
+      "examples": [
+        {
+          "path": "artifacts/office/tasks.xlsx",
+          "sheet_name": "Tasks",
+          "headers": [
+            "Task",
+            "Status"
+          ],
+          "rows": [
+            [
+              "Review",
+              "Done"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "office_update_xlsx_cell",
+      "description": "Update one cell in an existing XLSX workbook file through the optional office document-file backend; no desktop office application is opened.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "description": "Relative artifact path for the existing XLSX file.",
+          "min_length": 1
+        },
+        {
+          "name": "sheet_name",
+          "type": "string",
+          "description": "Optional worksheet name.",
+          "max_length": 31
+        },
+        {
+          "name": "cell",
+          "type": "string",
+          "required": true,
+          "description": "A1-style cell coordinate.",
+          "min_length": 2,
+          "max_length": 10
+        },
+        {
+          "name": "value",
+          "type": "string",
+          "required": true,
+          "description": "String cell value. Formula-like strings are denied by default."
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "artifacts/",
+          "experiments/",
+          "tests/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/",
+          "logs/",
+          "secrets/",
+          "credentials/",
+          "tokens/"
+        ],
+        "read_only": false,
+        "notes": [
+          "Optional document-file automation only.",
+          "Formula-like values are denied by default in the backend."
+        ]
+      },
+      "result_shape": {
+        "document_type": "xlsx",
+        "path_relative": "string",
+        "updated_cell": "string"
+      },
+      "tags": [
+        "office",
+        "optional_office",
+        "document_file",
+        "write"
+      ],
+      "examples": [
+        {
+          "path": "artifacts/office/tasks.xlsx",
+          "sheet_name": "Tasks",
+          "cell": "B2",
+          "value": "Done"
+        }
+      ]
+    },
+    {
+      "name": "office_append_xlsx_row",
+      "description": "Append one row to an existing XLSX workbook file through the optional office document-file backend; no desktop office application is opened.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "description": "Relative artifact path for the existing XLSX file.",
+          "min_length": 1
+        },
+        {
+          "name": "sheet_name",
+          "type": "string",
+          "description": "Optional worksheet name.",
+          "max_length": 31
+        },
+        {
+          "name": "values",
+          "type": "array",
+          "required": true,
+          "description": "Row values to append."
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "artifacts/",
+          "experiments/",
+          "tests/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/",
+          "logs/",
+          "secrets/",
+          "credentials/",
+          "tokens/"
+        ],
+        "read_only": false,
+        "notes": [
+          "Optional document-file automation only.",
+          "Formula-like values are denied by default in the backend."
+        ]
+      },
+      "result_shape": {
+        "document_type": "xlsx",
+        "path_relative": "string",
+        "appended_row_index": "integer"
+      },
+      "tags": [
+        "office",
+        "optional_office",
+        "document_file",
+        "write"
+      ],
+      "examples": [
+        {
+          "path": "artifacts/office/tasks.xlsx",
+          "sheet_name": "Tasks",
+          "values": [
+            "Write report",
+            "Queued"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "office_read_xlsx_summary",
+      "description": "Read bounded workbook summary from an XLSX file through the optional office document-file backend; no desktop office application is opened.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "description": "Relative artifact path for the existing XLSX file.",
+          "min_length": 1
+        },
+        {
+          "name": "sheet_name",
+          "type": "string",
+          "description": "Optional worksheet name.",
+          "max_length": 31
+        },
+        {
+          "name": "max_rows",
+          "type": "integer",
+          "description": "Optional row preview limit."
+        },
+        {
+          "name": "max_columns",
+          "type": "integer",
+          "description": "Optional column preview limit."
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "artifacts/",
+          "experiments/",
+          "tests/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/",
+          "logs/",
+          "secrets/",
+          "credentials/",
+          "tokens/"
+        ],
+        "read_only": true,
+        "notes": [
+          "Optional document-file automation only.",
+          "Preview output is bounded by backend configuration."
+        ]
+      },
+      "result_shape": {
+        "document_type": "xlsx",
+        "path_relative": "string",
+        "table_preview": "array"
+      },
+      "tags": [
+        "office",
+        "optional_office",
+        "document_file",
+        "read"
+      ],
+      "examples": [
+        {
+          "path": "artifacts/office/tasks.xlsx",
+          "sheet_name": "Tasks"
+        }
+      ]
+    },
+    {
+      "name": "office_create_pptx",
+      "description": "Create a PPTX presentation file through the optional office document-file backend; no desktop office application is opened.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "description": "Relative artifact path for the PPTX file.",
+          "min_length": 1
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "description": "Optional title slide text.",
+          "max_length": 5000
+        },
+        {
+          "name": "subtitle",
+          "type": "string",
+          "description": "Optional subtitle text.",
+          "max_length": 5000
+        },
+        {
+          "name": "slides",
+          "type": "array",
+          "description": "Optional list of slide objects."
+        },
+        {
+          "name": "metadata",
+          "type": "object",
+          "description": "Optional caller metadata."
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "artifacts/",
+          "experiments/",
+          "tests/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/",
+          "logs/",
+          "secrets/",
+          "credentials/",
+          "tokens/"
+        ],
+        "read_only": false,
+        "notes": [
+          "Optional document-file automation only.",
+          "Only text slides are created by the backend."
+        ]
+      },
+      "result_shape": {
+        "document_type": "pptx",
+        "path_relative": "string",
+        "text_preview": "string"
+      },
+      "tags": [
+        "office",
+        "optional_office",
+        "document_file",
+        "write"
+      ],
+      "examples": [
+        {
+          "path": "artifacts/office/summary.pptx",
+          "title": "Summary",
+          "slides": [
+            {
+              "title": "Updates",
+              "bullets": [
+                "Local result recorded."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "office_add_pptx_slide",
+      "description": "Add one text slide to an existing PPTX presentation file through the optional office document-file backend; no desktop office application is opened.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "description": "Relative artifact path for the existing PPTX file.",
+          "min_length": 1
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "description": "Optional slide title.",
+          "max_length": 5000
+        },
+        {
+          "name": "bullets",
+          "type": "array",
+          "description": "Optional bullet strings."
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "description": "Optional body text.",
+          "max_length": 5000
+        },
+        {
+          "name": "paragraphs",
+          "type": "array",
+          "description": "Optional paragraph strings."
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "description": "Optional caller note, validated but not embedded.",
+          "max_length": 5000
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "artifacts/",
+          "experiments/",
+          "tests/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/",
+          "logs/",
+          "secrets/",
+          "credentials/",
+          "tokens/"
+        ],
+        "read_only": false,
+        "notes": [
+          "Optional document-file automation only.",
+          "Only text slides are added by the backend."
+        ]
+      },
+      "result_shape": {
+        "document_type": "pptx",
+        "path_relative": "string",
+        "slide_count": "integer"
+      },
+      "tags": [
+        "office",
+        "optional_office",
+        "document_file",
+        "write"
+      ],
+      "examples": [
+        {
+          "path": "artifacts/office/summary.pptx",
+          "title": "Next Steps",
+          "bullets": [
+            "Keep local-only evidence."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "office_extract_pptx_text",
+      "description": "Extract bounded text preview from a PPTX presentation file through the optional office document-file backend; no desktop office application is opened.",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "description": "Relative artifact path for the existing PPTX file.",
+          "min_length": 1
+        },
+        {
+          "name": "max_chars",
+          "type": "integer",
+          "description": "Optional preview character limit."
+        }
+      ],
+      "safety": {
+        "allowed_file_roots": [
+          "artifacts/",
+          "experiments/",
+          "tests/"
+        ],
+        "forbidden_file_roots": [
+          "models/gguf/",
+          ".venv/",
+          ".git/",
+          "logs/",
+          "secrets/",
+          "credentials/",
+          "tokens/"
+        ],
+        "read_only": true,
+        "notes": [
+          "Optional document-file automation only.",
+          "Preview output is bounded by backend configuration."
+        ]
+      },
+      "result_shape": {
+        "document_type": "pptx",
+        "path_relative": "string",
+        "text_preview": "string"
+      },
+      "tags": [
+        "office",
+        "optional_office",
+        "document_file",
+        "read"
+      ],
+      "examples": [
+        {
+          "path": "artifacts/office/summary.pptx"
+        }
+      ]
+    },
+    {
       "name": "run_shell_command",
       "description": "Run a constrained local shell command from project root.",
       "parameters": [

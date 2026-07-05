@@ -2034,7 +2034,7 @@ def _scenario_action_constraint_issue(
 ) -> dict[str, Any] | None:
     if scenario.metadata.get("write_path_policy") != "artifact_workspace_only":
         return None
-    if next_action.action not in {"create_file", "append_file", "office_create_document_stub"}:
+    if next_action.action not in _ARTIFACT_WORKSPACE_WRITE_ACTIONS:
         return None
     path = next_action.parameters.get("path")
     if not isinstance(path, str) or not path.strip():
@@ -2061,6 +2061,20 @@ def _scenario_action_constraint_issue(
 
 _ARTIFACT_WORKSPACE_FALLBACK = "experiments/multi_agent/orchestrator_executor/workspace"
 _SAFE_ARTIFACT_ROOTS = ("docs/", "configs/", "experiments/", "tests/")
+_OFFICE_REAL_DOCUMENT_WRITE_ACTIONS = frozenset(
+    {
+        "office_create_docx",
+        "office_append_docx_section",
+        "office_create_xlsx",
+        "office_update_xlsx_cell",
+        "office_append_xlsx_row",
+        "office_create_pptx",
+        "office_add_pptx_slide",
+    }
+)
+_ARTIFACT_WORKSPACE_WRITE_ACTIONS = frozenset(
+    {"create_file", "append_file", "office_create_document_stub"}
+) | _OFFICE_REAL_DOCUMENT_WRITE_ACTIONS
 
 
 def _safe_relative_workspace_root(project_root: Path, out_dir: Path) -> str:
