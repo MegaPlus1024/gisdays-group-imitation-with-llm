@@ -23,6 +23,7 @@ from src.agent.normality_judge import (
 
 
 NORMALITY_EVALUATION_RUNNER_SCHEMA_VERSION = "normality_evaluation_runner_v1"
+NORMALITY_BATCH_MANIFEST_SCHEMA_VERSION = "normality_batch_manifest_v1"
 NORMALITY_EVALUATION_SUMMARY_FILENAME = "normality_judge_summary.json"
 NORMALITY_BATCH_SUMMARY_FILENAME = "normality_judge_batch_summary.json"
 NORMALITY_JUDGE_PROMPT_PREVIEW_FILENAME = "normality_judge_prompt_preview.txt"
@@ -102,6 +103,11 @@ class NormalityEvaluationRunResult(BaseModel):
 class NormalityBatchEvaluationEntry(BaseModel):
     input_path_display: str | None = None
     input_path_relative: str | None = None
+    trial_id: str | None = None
+    scenario_id: str | None = None
+    task_summary: str | None = None
+    model_pair: dict[str, str] | None = None
+    tags: list[str] = Field(default_factory=list)
     status: str
     label: str | None = None
     overall_score: float | None = None
@@ -117,6 +123,9 @@ class NormalityBatchEvaluationEntry(BaseModel):
 
 class NormalityBatchEvaluationResult(BaseModel):
     status: str
+    manifest_schema_version: str | None = None
+    batch_id: str | None = None
+    description: str | None = None
     input_count: int
     evaluated_count: int
     failed_count: int
@@ -128,6 +137,31 @@ class NormalityBatchEvaluationResult(BaseModel):
     entries: list[NormalityBatchEvaluationEntry] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     schema_version: str = NORMALITY_EVALUATION_RUNNER_SCHEMA_VERSION
+
+
+class NormalityBatchManifestEntry(BaseModel):
+    input_path: str | None = None
+    trial_id: str | None = None
+    scenario_id: str | None = None
+    task_summary: str | None = None
+    model_pair: dict[str, str] | None = None
+    tags: list[str] = Field(default_factory=list)
+
+
+class NormalityBatchManifest(BaseModel):
+    schema_version: str = NORMALITY_BATCH_MANIFEST_SCHEMA_VERSION
+    batch_id: str | None = None
+    description: str | None = None
+    default_scenario_id: str | None = None
+    default_task_summary: str | None = None
+    inputs: list[NormalityBatchManifestEntry]
+
+
+class NormalityBatchManifestLoadResult(BaseModel):
+    status: Literal["ok", "input_missing", "invalid_input"]
+    manifest: NormalityBatchManifest | None = None
+    manifest_path_relative: str | None = None
+    warnings: list[str] = Field(default_factory=list)
 
 
 def load_normality_events_from_file(
@@ -175,6 +209,90 @@ def load_normality_events_from_file(
     return _load_json_events(text, input_path_relative)
 
 
+def load_normality_batch_manifest(
+    manifest_path: str | Path | None,
+    *,
+    project_root: str | Path = Path("."),
+    max_input_bytes: int = 1_000_000,
+) -> NormalityBatchManifestLoadResult:
+    root = Path(project_root)
+    if manifest_path is None:
+        return NormalityBatchManifestLoadResult(
+            status="input_missing",
+            warnings=["manifest_path_missing"],
+        )
+
+    path = _resolve_path(manifest_path, root)
+    manifest_path_relative = _safe_relative(path, root)
+    if not path.exists() or not path.is_file():
+        return NormalityBatchManifestLoadResult(
+            status="input_missing",
+            manifest_path_relative=manifest_path_relative,
+            warnings=["manifest_file_missing"],
+        )
+
+    try:
+        if path.stat().st_size > max_input_bytes:
+            return NormalityBatchManifestLoadResult(
+                status="invalid_input",
+                manifest_path_relative=manifest_path_relative,
+                warnings=["manifest_file_too_large"],
+            )
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return NormalityBatchManifestLoadResult(
+            status="invalid_input",
+            manifest_path_relative=manifest_path_relative,
+            warnings=["manifest_file_unreadable"],
+        )
+    except UnicodeDecodeError:
+        return NormalityBatchManifestLoadResult(
+            status="invalid_input",
+            manifest_path_relative=manifest_path_relative,
+            warnings=["manifest_file_not_utf8_text"],
+        )
+
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return NormalityBatchManifestLoadResult(
+            status="invalid_input",
+            manifest_path_relative=manifest_path_relative,
+            warnings=["manifest_json_decode_error"],
+        )
+    if not isinstance(payload, dict):
+        return NormalityBatchManifestLoadResult(
+            status="invalid_input",
+            manifest_path_relative=manifest_path_relative,
+            warnings=["manifest_payload_not_object"],
+        )
+    if "inputs" not in payload:
+        return NormalityBatchManifestLoadResult(
+            status="invalid_input",
+            manifest_path_relative=manifest_path_relative,
+            warnings=["manifest_inputs_missing"],
+        )
+    if not isinstance(payload.get("inputs"), list):
+        return NormalityBatchManifestLoadResult(
+            status="invalid_input",
+            manifest_path_relative=manifest_path_relative,
+            warnings=["manifest_inputs_not_list"],
+        )
+    try:
+        manifest = NormalityBatchManifest.model_validate(payload)
+    except ValueError:
+        return NormalityBatchManifestLoadResult(
+            status="invalid_input",
+            manifest_path_relative=manifest_path_relative,
+            warnings=["manifest_validation_failed"],
+        )
+    return NormalityBatchManifestLoadResult(
+        status="ok",
+        manifest=manifest,
+        manifest_path_relative=manifest_path_relative,
+    )
+
+
 def run_normality_evaluation_from_file(
     config: NormalityEvaluationRunConfig,
     *,
@@ -217,6 +335,121 @@ def run_normality_evaluation_from_file(
             result.status = "write_failed"
             result.warnings = sorted(set([*result.warnings, "summary_write_failed"]))
     return result
+
+
+def run_batch_normality_evaluation_from_manifest(
+    config: NormalityEvaluationRunConfig,
+    manifest_path: str | Path,
+    *,
+    provider: NormalityJudgeProvider | None = None,
+) -> NormalityBatchEvaluationResult:
+    load_result = load_normality_batch_manifest(
+        manifest_path,
+        project_root=config.project_root,
+        max_input_bytes=config.max_input_bytes,
+    )
+    if load_result.status != "ok" or load_result.manifest is None:
+        result = NormalityBatchEvaluationResult(
+            status=load_result.status,
+            input_count=0,
+            evaluated_count=0,
+            failed_count=0,
+            judge_mode=config.judge_mode,
+            judge_provider=config.judge_provider,
+            output_dir_relative=_output_dir_relative(config),
+            aggregation=_batch_aggregation([]),
+            warnings=load_result.warnings,
+        )
+        return _write_batch_result_if_requested(result, config)
+
+    manifest = load_result.manifest
+    if not manifest.inputs:
+        result = NormalityBatchEvaluationResult(
+            status="invalid_input",
+            manifest_schema_version=manifest.schema_version,
+            batch_id=manifest.batch_id,
+            description=manifest.description,
+            input_count=0,
+            evaluated_count=0,
+            failed_count=0,
+            judge_mode=config.judge_mode,
+            judge_provider=config.judge_provider,
+            output_dir_relative=_output_dir_relative(config),
+            aggregation=_batch_aggregation([]),
+            warnings=["manifest_inputs_empty"],
+        )
+        return _write_batch_result_if_requested(result, config)
+
+    manifest_parent = _resolve_path(manifest_path, config.project_root).parent
+    entries: list[NormalityBatchEvaluationEntry] = []
+    for manifest_entry in manifest.inputs:
+        entry_scenario_id = config.scenario_id or manifest_entry.scenario_id or manifest.default_scenario_id
+        entry_task_summary = config.task_summary or manifest_entry.task_summary or manifest.default_task_summary
+        if not manifest_entry.input_path:
+            entries.append(
+                _manifest_failed_entry(
+                    manifest_entry,
+                    status="invalid_input",
+                    scenario_id=entry_scenario_id,
+                    task_summary=entry_task_summary,
+                    warning="manifest_entry_input_path_missing",
+                )
+            )
+            continue
+        if _is_absolute_path(manifest_entry.input_path):
+            entries.append(
+                _manifest_failed_entry(
+                    manifest_entry,
+                    status="invalid_input",
+                    scenario_id=entry_scenario_id,
+                    task_summary=entry_task_summary,
+                    warning="manifest_absolute_input_path_rejected",
+                    input_path_display="<absolute_path>",
+                )
+            )
+            continue
+
+        item_config = config.model_copy(
+            update={
+                "project_root": manifest_parent,
+                "input_path": manifest_entry.input_path,
+                "scenario_id": entry_scenario_id,
+                "task_summary": entry_task_summary,
+                "write_summary": False,
+            }
+        )
+        item_result = run_normality_evaluation_from_file(item_config, provider=provider)
+        entry = _batch_entry_from_result(manifest_entry.input_path, item_result, item_config)
+        entries.append(
+            entry.model_copy(
+                update={
+                    "trial_id": manifest_entry.trial_id,
+                    "scenario_id": entry_scenario_id or entry.scenario_id,
+                    "task_summary": entry_task_summary or entry.task_summary,
+                    "model_pair": manifest_entry.model_pair,
+                    "tags": manifest_entry.tags,
+                }
+            )
+        )
+
+    evaluated_count = sum(1 for entry in entries if entry.status in {"ok", "judge_disabled"})
+    failed_count = len(entries) - evaluated_count
+    result = NormalityBatchEvaluationResult(
+        status=_batch_status(entries, evaluated_count),
+        manifest_schema_version=manifest.schema_version,
+        batch_id=manifest.batch_id,
+        description=manifest.description,
+        input_count=len(entries),
+        evaluated_count=evaluated_count,
+        failed_count=failed_count,
+        judge_mode=config.judge_mode,
+        judge_provider=_batch_judge_provider(entries, config.judge_provider),
+        output_dir_relative=_output_dir_relative(config),
+        aggregation=_batch_aggregation(entries),
+        entries=entries,
+        warnings=_batch_warnings(entries),
+    )
+    return _write_batch_result_if_requested(result, config)
 
 
 def run_batch_normality_evaluation(
@@ -1019,6 +1252,7 @@ def _batch_entry_from_result(
     return NormalityBatchEvaluationEntry(
         input_path_display=_input_path_display(input_path, config),
         input_path_relative=result.input_path_relative,
+        scenario_id=result.scenario_id,
         status=result.status,
         label=result.label,
         overall_score=result.overall_score,
@@ -1030,6 +1264,28 @@ def _batch_entry_from_result(
         findings=result.findings,
         redactions_applied=result.redactions_applied,
         event_preview=result.event_preview,
+    )
+
+
+def _manifest_failed_entry(
+    manifest_entry: NormalityBatchManifestEntry,
+    *,
+    status: str,
+    scenario_id: str | None,
+    task_summary: str | None,
+    warning: str,
+    input_path_display: str | None = None,
+) -> NormalityBatchEvaluationEntry:
+    return NormalityBatchEvaluationEntry(
+        input_path_display=input_path_display,
+        input_path_relative=None,
+        trial_id=manifest_entry.trial_id,
+        scenario_id=scenario_id,
+        task_summary=task_summary,
+        model_pair=manifest_entry.model_pair,
+        tags=manifest_entry.tags,
+        status=status,
+        warnings=[warning],
     )
 
 

@@ -225,6 +225,7 @@ def test_batch_stdout_is_concise_json_with_aggregate_fields(
 
     assert code == 0
     assert set(payload) == {
+        "batch_id",
         "batch_summary_path",
         "evaluated_count",
         "failed_count",

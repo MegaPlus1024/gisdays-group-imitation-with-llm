@@ -11,6 +11,7 @@ from src.agent.normality_evaluation_runner import (
     NORMALITY_EVALUATION_SUMMARY_FILENAME,
     NormalityEvaluationRunConfig,
     run_batch_normality_evaluation,
+    run_batch_normality_evaluation_from_manifest,
     run_normality_evaluation_from_saved_llm_response,
     run_normality_evaluation_from_file,
     write_normality_evaluation_summary,
@@ -25,8 +26,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--input",
         action="append",
-        required=True,
         help="Path to a JSON or JSONL event file. Repeat for offline batch evaluation.",
+    )
+    parser.add_argument(
+        "--input-manifest",
+        default=None,
+        help="Path to an explicit normality batch manifest JSON file.",
     )
     parser.add_argument(
         "--output-dir",
@@ -76,6 +81,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         args = parser.parse_args(list(argv) if argv is not None else None)
         input_paths = list(args.input or [])
+        if args.input_manifest and input_paths:
+            _print_json(_invalid_payload("input_manifest_cannot_combine_with_input"))
+            return 2
+        if not args.input_manifest and not input_paths:
+            _print_json(_invalid_payload("input_or_manifest_required"))
+            return 2
+        if args.input_manifest and args.raw_judge_response:
+            _print_json(_invalid_payload("raw_judge_response_manifest_unsupported"))
+            return 2
+        if args.input_manifest and (args.write_prompt_preview or args.prompt_preview):
+            _print_json(_invalid_payload("prompt_preview_manifest_unsupported"))
+            return 2
         if len(input_paths) > 1 and args.raw_judge_response:
             _print_json(_invalid_payload("raw_judge_response_batch_unsupported"))
             return 2
@@ -96,6 +113,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             include_raw_outputs=args.include_raw_outputs,
             redact_paths=not args.no_redact_paths,
         )
+        if args.input_manifest:
+            batch_result = run_batch_normality_evaluation_from_manifest(
+                config,
+                args.input_manifest,
+            )
+            _print_json(_batch_stdout_payload(batch_result))
+            return _batch_exit_code(batch_result.status)
         if len(input_paths) > 1:
             batch_result = run_batch_normality_evaluation(config, input_paths)
             _print_json(_batch_stdout_payload(batch_result))
@@ -174,6 +198,7 @@ def _batch_stdout_payload(result: object) -> dict[str, object]:
         batch_path = NORMALITY_BATCH_SUMMARY_FILENAME
     return {
         "status": status,
+        "batch_id": getattr(result, "batch_id", None),
         "input_count": getattr(result, "input_count", 0),
         "evaluated_count": getattr(result, "evaluated_count", 0),
         "failed_count": getattr(result, "failed_count", 0),
