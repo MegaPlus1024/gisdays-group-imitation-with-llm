@@ -34,6 +34,7 @@ class NormalityEvaluationRunConfig(BaseModel):
     enabled: bool = True
     judge_enabled: bool = True
     judge_mode: Literal["fake", "deterministic"] = "deterministic"
+    write_summary: bool = True
     scenario_id: str | None = None
     task_summary: str | None = None
     input_path: str | None = None
@@ -69,6 +70,7 @@ class NormalityEventsLoadResult(BaseModel):
 
 class NormalityEvaluationRunResult(BaseModel):
     status: NormalityEvaluationRunStatus
+    scenario_id: str | None = None
     input_path_relative: str | None = None
     output_dir_relative: str | None = None
     summary_path_relative: str | None = None
@@ -78,6 +80,7 @@ class NormalityEvaluationRunResult(BaseModel):
     dimension_scores: dict[str, Any] = Field(default_factory=dict)
     findings: list[str] = Field(default_factory=list)
     redactions_applied: list[str] = Field(default_factory=list)
+    judge_mode: str | None = None
     event_preview: list[dict[str, Any]] = Field(default_factory=list)
     judge_result: NormalityJudgeResult | None = None
     aggregation: dict[str, Any] | None = None
@@ -171,7 +174,7 @@ def run_normality_evaluation_from_file(
         judge_result=judge_result,
         warnings=load_result.warnings,
     )
-    if config.output_dir:
+    if config.output_dir and config.write_summary:
         result.summary_path_relative = _summary_path_relative(config)
         try:
             write_normality_evaluation_summary(result, config.resolve_project_path(config.output_dir))
@@ -179,6 +182,109 @@ def run_normality_evaluation_from_file(
             result.status = "write_failed"
             result.warnings = sorted(set([*result.warnings, "summary_write_failed"]))
     return result
+
+
+def run_normality_evaluation_for_group_history(
+    *,
+    group_history: list[Any],
+    scenario_id: str,
+    task_summary: str,
+    output_dir: str | Path | None = None,
+    project_root: str | Path = Path("."),
+    agent_roles: dict[str, str] | None = None,
+    constraints: list[str] | None = None,
+    expected_behavior: str | None = None,
+    environment_summary: str | None = None,
+    trial_id: str | None = None,
+    config: NormalityEvaluationRunConfig | None = None,
+) -> NormalityEvaluationRunResult:
+    runtime_config = _group_history_config(
+        config=config,
+        scenario_id=scenario_id,
+        task_summary=task_summary,
+        output_dir=output_dir,
+        project_root=project_root,
+    )
+    if not runtime_config.enabled or not runtime_config.judge_enabled:
+        return _disabled_result(runtime_config)
+
+    records = [_record_dict(item) for item in group_history]
+    metadata = {
+        "scenario_id": scenario_id,
+        "trial_id": trial_id,
+        "task_summary": task_summary,
+        "agent_roles": agent_roles or _agent_roles(records, {}),
+        "constraints": constraints or [],
+        "expected_behavior": expected_behavior,
+        "environment_summary": environment_summary,
+    }
+    judge_input = _judge_input_from_records(
+        records=records,
+        metadata=metadata,
+        config=runtime_config,
+    )
+    judge_config = _judge_config(runtime_config)
+    judge_result = run_normality_judge(judge_input, judge_config)
+    status: NormalityEvaluationRunStatus = "ok"
+    if judge_result.status == "disabled":
+        status = "judge_disabled"
+    elif judge_result.status == "invalid_input":
+        status = "invalid_input"
+
+    load_result = NormalityEventsLoadResult(status="ok", records=records)
+    result = _result_from_judge(
+        status=status,
+        load_result=load_result,
+        output_dir_relative=_output_dir_relative(runtime_config),
+        judge_input=judge_input,
+        judge_config=judge_config,
+        judge_result=judge_result,
+        warnings=[],
+    )
+    if runtime_config.output_dir and runtime_config.write_summary:
+        result.summary_path_relative = _summary_path_relative(runtime_config)
+        try:
+            write_normality_evaluation_summary(
+                result,
+                runtime_config.resolve_project_path(runtime_config.output_dir),
+            )
+        except OSError:
+            result.status = "write_failed"
+            result.warnings = sorted(set([*result.warnings, "summary_write_failed"]))
+    return result
+
+
+def write_normality_evaluation_for_pipeline_result(
+    pipeline_result: Any,
+    *,
+    output_dir: str | Path | None = None,
+    project_root: str | Path = Path("."),
+    config: NormalityEvaluationRunConfig | None = None,
+    task_summary: str | None = None,
+    agent_roles: dict[str, str] | None = None,
+) -> NormalityEvaluationRunResult:
+    payload = _record_dict(pipeline_result)
+    scenario_id = _as_non_empty_str(payload.get("scenario_id")) or "offline_pipeline_result"
+    plan = _dict_value(payload.get("plan"))
+    history = payload.get("group_history") or []
+    if not isinstance(history, list):
+        history = []
+    return run_normality_evaluation_for_group_history(
+        group_history=history,
+        scenario_id=scenario_id,
+        task_summary=(
+            task_summary
+            or _as_non_empty_str(plan.get("expected_group_outcome"))
+            or "Evaluate offline pipeline group history artifacts."
+        ),
+        output_dir=output_dir,
+        project_root=project_root,
+        agent_roles=agent_roles or _agent_roles_from_pipeline_payload(payload),
+        expected_behavior=_as_non_empty_str(plan.get("expected_group_outcome")),
+        environment_summary="Offline fake/local pipeline result artifacts.",
+        trial_id=_as_non_empty_str(payload.get("run_id")),
+        config=config,
+    )
 
 
 def write_normality_evaluation_summary(
@@ -212,6 +318,7 @@ def _disabled_result(config: NormalityEvaluationRunConfig) -> NormalityEvaluatio
     judge_result = run_normality_judge(judge_input, judge_config)
     result = NormalityEvaluationRunResult(
         status="judge_disabled",
+        scenario_id=judge_input.scenario_id,
         input_path_relative=None,
         output_dir_relative=_output_dir_relative(config),
         event_count=0,
@@ -223,11 +330,12 @@ def _disabled_result(config: NormalityEvaluationRunConfig) -> NormalityEvaluatio
         },
         findings=judge_result.findings,
         redactions_applied=judge_result.redactions_applied,
+        judge_mode=judge_result.judge_mode,
         judge_result=judge_result,
         aggregation=aggregate_normality_results([judge_result]),
         warnings=["normality_judge_disabled"],
     )
-    if config.output_dir:
+    if config.output_dir and config.write_summary:
         result.summary_path_relative = _summary_path_relative(config)
         try:
             write_normality_evaluation_summary(result, config.resolve_project_path(config.output_dir))
@@ -403,6 +511,7 @@ def _result_from_judge(
 ) -> NormalityEvaluationRunResult:
     return NormalityEvaluationRunResult(
         status=status,
+        scenario_id=judge_input.scenario_id,
         input_path_relative=load_result.input_path_relative,
         output_dir_relative=output_dir_relative,
         event_count=len(judge_input.events),
@@ -414,6 +523,7 @@ def _result_from_judge(
         },
         findings=judge_result.findings,
         redactions_applied=judge_result.redactions_applied,
+        judge_mode=judge_result.judge_mode,
         event_preview=_event_preview(judge_input, judge_config),
         judge_result=judge_result,
         aggregation=aggregate_normality_results([judge_result]),
@@ -458,6 +568,29 @@ def _judge_config(config: NormalityEvaluationRunConfig) -> NormalityJudgeConfig:
     )
 
 
+def _group_history_config(
+    *,
+    config: NormalityEvaluationRunConfig | None,
+    scenario_id: str,
+    task_summary: str,
+    output_dir: str | Path | None,
+    project_root: str | Path,
+) -> NormalityEvaluationRunConfig:
+    updates = {
+        "scenario_id": scenario_id,
+        "task_summary": task_summary,
+    }
+    if output_dir is not None:
+        updates["output_dir"] = str(output_dir)
+    if project_root != Path(".") or config is None:
+        updates["project_root"] = Path(project_root)
+    if config is None:
+        return NormalityEvaluationRunConfig.model_validate(updates)
+    payload = config.model_dump()
+    payload.update(updates)
+    return NormalityEvaluationRunConfig.model_validate(payload)
+
+
 def _first_record_key(payload: dict[str, Any]) -> str | None:
     for key in ("group_history", "events", "records", "history"):
         if key in payload:
@@ -491,6 +624,36 @@ def _agent_roles(records: list[dict[str, Any]], metadata: dict[str, Any]) -> dic
         agent_id = _as_non_empty_str(record.get("agent_id")) or "unknown_agent"
         role = _as_non_empty_str(record.get("role")) or _as_non_empty_str(record.get("agent_role"))
         roles.setdefault(agent_id, role or "unknown")
+    return roles
+
+
+def _agent_roles_from_pipeline_payload(payload: dict[str, Any]) -> dict[str, str]:
+    roles: dict[str, str] = {}
+    per_agent_results = payload.get("per_agent_results")
+    if isinstance(per_agent_results, list):
+        for item in per_agent_results:
+            row = _record_dict(item)
+            agent_id = _as_non_empty_str(row.get("agent_id"))
+            if not agent_id:
+                continue
+            role_hint = " ".join(
+                str(part)
+                for part in [
+                    row.get("role_template_path"),
+                    row.get("activity_profile_path"),
+                    row.get("assigned_goal"),
+                    agent_id,
+                ]
+                if part
+            ).lower()
+            if any(token in role_hint for token in ("office", "document", "spreadsheet", "presentation")):
+                roles[agent_id] = "office document worker"
+            elif "developer" in role_hint:
+                roles[agent_id] = "developer"
+            elif role_hint.strip():
+                roles[agent_id] = role_hint
+            else:
+                roles[agent_id] = "unknown"
     return roles
 
 
@@ -626,6 +789,18 @@ def _resolve_path(path: str | Path, root: Path) -> Path:
     if candidate.is_absolute():
         return candidate
     return root / candidate
+
+
+def _record_dict(value: Any) -> dict[str, Any]:
+    if hasattr(value, "model_dump"):
+        data = value.model_dump(mode="json")
+        return data if isinstance(data, dict) else {}
+    if isinstance(value, dict):
+        return value
+    try:
+        return dict(value)
+    except (TypeError, ValueError):
+        return {}
 
 
 def _dict_value(value: Any) -> dict[str, Any]:
