@@ -33,6 +33,7 @@ def test_registry_lists_all_expected_artifact_types() -> None:
         registry.WORKFLOW_RUN_MANIFEST,
         registry.ARTIFACT_VALIDATION_REPORT,
         registry.WORKFLOW_CONFIG,
+        registry.MODEL_EVALUATION_COMPATIBILITY_REPORT,
     }
 
 
@@ -93,7 +94,7 @@ def test_build_version_payload_includes_subcommands() -> None:
 
     assert payload["status"] == "ok"
     assert payload["tool"] == "offline_model_evaluation_cli"
-    assert payload["supported_subcommands"] == ["run", "validate", "schema", "version"]
+    assert payload["supported_subcommands"] == ["run", "validate", "compatibility", "schema", "version"]
     assert payload["artifact_contract_version"] == "artifact_contract_v1"
     assert registry.MODEL_COMPARISON_PLAN in payload["artifact_contract_supported_types"]
     assert payload["no_runtime_execution"] is True
@@ -105,6 +106,7 @@ def test_build_version_payload_includes_schema_versions_from_registry() -> None:
     assert payload["supported_schema_versions"] == list(registry.get_supported_schema_versions())
     assert "model_evaluation_workflow_config_v1" in payload["supported_schema_versions"]
     assert "model_evaluation_artifact_validation_v1" in payload["supported_schema_versions"]
+    assert "model_evaluation_compatibility_report_v1" in payload["supported_schema_versions"]
 
 
 def test_unified_cli_version_matches_registry_payload(capsys: pytest.CaptureFixture[str]) -> None:

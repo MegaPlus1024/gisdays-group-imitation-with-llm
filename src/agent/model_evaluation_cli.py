@@ -14,6 +14,7 @@ from .model_evaluation_artifact_contracts import (
     get_artifact_schema_contract,
 )
 from .model_evaluation_artifact_validator_cli import main as artifact_validator_cli_main
+from .model_evaluation_compatibility_gate_cli import main as compatibility_gate_cli_main
 from .model_evaluation_artifact_registry import (
     CLI_TOOL_NAME,
     SUPPORTED_CLI_SUBCOMMANDS,
@@ -33,6 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="subcommand")
     subparsers.add_parser("run", help="Run the existing offline workflow runner.", add_help=False)
     subparsers.add_parser("validate", help="Validate existing offline workflow artifacts.", add_help=False)
+    subparsers.add_parser("compatibility", help="Run the offline artifact compatibility gate.", add_help=False)
     schema_parser = subparsers.add_parser("schema", help="Print offline artifact schema contracts.")
     schema_parser.add_argument("--artifact-type", default=None, help="Optional artifact type to print.")
     schema_parser.add_argument("--full", action="store_true", default=False, help="Print full field contracts.")
@@ -52,6 +54,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _delegate_cli(workflow_runner_cli_main, remaining)
     if args.subcommand == "validate":
         return _delegate_cli(artifact_validator_cli_main, remaining)
+    if args.subcommand == "compatibility":
+        return _delegate_cli(compatibility_gate_cli_main, remaining)
     if args.subcommand == "schema":
         if remaining:
             _print_json(_invalid_payload("schema_unexpected_args"))

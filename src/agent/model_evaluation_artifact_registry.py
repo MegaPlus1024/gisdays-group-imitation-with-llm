@@ -14,6 +14,7 @@ WORKFLOW_BUNDLE = "workflow_bundle"
 WORKFLOW_RUN_MANIFEST = "workflow_run_manifest"
 ARTIFACT_VALIDATION_REPORT = "artifact_validation_report"
 WORKFLOW_CONFIG = "workflow_config"
+MODEL_EVALUATION_COMPATIBILITY_REPORT = "model_evaluation_compatibility_report"
 
 ArtifactType = Literal[
     "model_catalog",
@@ -26,6 +27,7 @@ ArtifactType = Literal[
     "workflow_run_manifest",
     "artifact_validation_report",
     "workflow_config",
+    "model_evaluation_compatibility_report",
 ]
 WorkflowBundleArtifactType = Literal[
     "model_catalog",
@@ -46,7 +48,7 @@ WorkflowOutputArtifactType = Literal[
 ]
 
 CLI_TOOL_NAME = "offline_model_evaluation_cli"
-SUPPORTED_CLI_SUBCOMMANDS = ("run", "validate", "schema", "version")
+SUPPORTED_CLI_SUBCOMMANDS = ("run", "validate", "compatibility", "schema", "version")
 
 
 @dataclass(frozen=True)
@@ -151,6 +153,13 @@ _REGISTRY: tuple[ArtifactSchemaInfo, ...] = (
         schema_version="model_evaluation_workflow_config_v1",
         default_filename="model_evaluation_workflow.example.json",
         description="Offline model evaluation workflow config.",
+    ),
+    ArtifactSchemaInfo(
+        artifact_type=MODEL_EVALUATION_COMPATIBILITY_REPORT,
+        schema_version="model_evaluation_compatibility_report_v1",
+        default_filename="model_evaluation_compatibility_report.json",
+        description="Offline model evaluation compatibility report.",
+        status_field="status",
     ),
 )
 

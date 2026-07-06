@@ -77,6 +77,23 @@ def _bundle_payload(**overrides: object) -> dict[str, Any]:
     return payload
 
 
+def _compatibility_report_payload(**overrides: object) -> dict[str, Any]:
+    payload = {
+        "schema_version": "model_evaluation_compatibility_report_v1",
+        "status": "compatible",
+        "compatibility_id": "contract_compatibility",
+        "checked_artifact_count": 9,
+        "issue_count": 0,
+        "warning_count": 0,
+        "error_count": 0,
+        "issues": [],
+        "notes": ["Offline compatibility validation only; no model execution performed."],
+        "no_runtime_execution": True,
+    }
+    payload.update(overrides)
+    return payload
+
+
 def _workflow_config(tmp_path: Path) -> ModelEvaluationWorkflowRunConfig:
     return ModelEvaluationWorkflowRunConfig.model_validate(
         {
@@ -217,6 +234,25 @@ def test_invalid_workflow_bundle_status_fails() -> None:
     issues = contracts.validate_artifact_against_contract(
         _bundle_payload(status="finished"),
         registry.WORKFLOW_BUNDLE,
+    )
+
+    assert "contract_field_value_not_allowed" in _issue_codes(issues)
+    assert "contract_status_not_allowed" in _issue_codes(issues)
+
+
+def test_valid_compatibility_report_passes_contract_validation() -> None:
+    issues = contracts.validate_artifact_against_contract(
+        _compatibility_report_payload(),
+        registry.MODEL_EVALUATION_COMPATIBILITY_REPORT,
+    )
+
+    assert issues == []
+
+
+def test_invalid_compatibility_report_status_fails() -> None:
+    issues = contracts.validate_artifact_against_contract(
+        _compatibility_report_payload(status="finished"),
+        registry.MODEL_EVALUATION_COMPATIBILITY_REPORT,
     )
 
     assert "contract_field_value_not_allowed" in _issue_codes(issues)
