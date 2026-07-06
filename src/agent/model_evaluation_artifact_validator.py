@@ -8,9 +8,23 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from .model_evaluation_artifact_registry import (
+    ARTIFACT_VALIDATION_REPORT,
+    get_all_workflow_output_artifact_types,
+    get_artifact_schema_info,
+    get_default_artifact_filename,
+    get_expected_schema_versions_for_workflow_outputs,
+    get_optional_workflow_output_artifact_types,
+    get_required_workflow_output_artifact_types,
+    get_workflow_known_relative_paths,
+)
 
-MODEL_EVALUATION_ARTIFACT_VALIDATION_SCHEMA_VERSION = "model_evaluation_artifact_validation_v1"
-MODEL_EVALUATION_ARTIFACT_VALIDATION_REPORT_FILENAME = "model_evaluation_artifact_validation_report.json"
+MODEL_EVALUATION_ARTIFACT_VALIDATION_SCHEMA_VERSION = get_artifact_schema_info(
+    ARTIFACT_VALIDATION_REPORT
+).schema_version
+MODEL_EVALUATION_ARTIFACT_VALIDATION_REPORT_FILENAME = get_default_artifact_filename(
+    ARTIFACT_VALIDATION_REPORT
+)
 MODEL_EVALUATION_ARTIFACT_VALIDATION_PREVIEW_FILENAME = "model_evaluation_artifact_validation_preview.md"
 
 ArtifactIssueSeverity = Literal["info", "warning", "error"]
@@ -26,41 +40,21 @@ WorkflowArtifactType = Literal[
     "workflow_run_manifest",
 ]
 
-KNOWN_WORKFLOW_ARTIFACT_LOCATIONS: dict[WorkflowArtifactType, str] = {
-    "model_comparison_plan": "plan/model_comparison_plan.json",
-    "readiness_report": "readiness/model_comparison_readiness_report.json",
-    "normality_comparison_summary": "normality/normality_comparison_summary.json",
-    "model_resource_summary": "resource/model_resource_summary.json",
-    "model_evaluation_scorecard": "scorecard/model_evaluation_scorecard.json",
-    "workflow_bundle": "bundle/model_evaluation_workflow_bundle.json",
-    "workflow_run_manifest": "workflow_run_manifest.json",
-}
+KNOWN_WORKFLOW_ARTIFACT_LOCATIONS: dict[WorkflowArtifactType, str] = get_workflow_known_relative_paths()
 
 REQUIRED_WORKFLOW_OUTPUT_ARTIFACTS: tuple[WorkflowArtifactType, ...] = (
-    "model_comparison_plan",
-    "readiness_report",
-    "model_evaluation_scorecard",
-    "workflow_bundle",
-    "workflow_run_manifest",
+    get_required_workflow_output_artifact_types()
 )
 OPTIONAL_WORKFLOW_OUTPUT_ARTIFACTS: tuple[WorkflowArtifactType, ...] = (
-    "normality_comparison_summary",
-    "model_resource_summary",
+    get_optional_workflow_output_artifact_types()
 )
 ALL_WORKFLOW_OUTPUT_ARTIFACTS: tuple[WorkflowArtifactType, ...] = (
-    *REQUIRED_WORKFLOW_OUTPUT_ARTIFACTS,
-    *OPTIONAL_WORKFLOW_OUTPUT_ARTIFACTS,
+    get_all_workflow_output_artifact_types()
 )
 
-EXPECTED_SCHEMA_VERSIONS: dict[WorkflowArtifactType, str] = {
-    "model_comparison_plan": "model_comparison_plan_v1",
-    "readiness_report": "model_comparison_readiness_v1",
-    "normality_comparison_summary": "normality_comparison_v1",
-    "model_resource_summary": "model_resource_summary_v1",
-    "model_evaluation_scorecard": "model_evaluation_scorecard_v1",
-    "workflow_bundle": "model_evaluation_workflow_bundle_v1",
-    "workflow_run_manifest": "model_evaluation_workflow_run_v1",
-}
+EXPECTED_SCHEMA_VERSIONS: dict[WorkflowArtifactType, str] = (
+    get_expected_schema_versions_for_workflow_outputs()
+)
 
 RECOGNIZED_STATUSES: dict[WorkflowArtifactType, set[str]] = {
     "readiness_report": {"ready", "ready_with_warnings", "not_ready"},

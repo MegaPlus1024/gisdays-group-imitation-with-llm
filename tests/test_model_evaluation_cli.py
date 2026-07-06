@@ -8,6 +8,7 @@ import pytest
 from src.agent.model_evaluation_artifact_validator import (
     MODEL_EVALUATION_ARTIFACT_VALIDATION_REPORT_FILENAME,
 )
+from src.agent.model_evaluation_artifact_registry import build_version_payload
 from src.agent.model_evaluation_cli import main as model_evaluation_cli_main
 from src.agent.model_evaluation_workflow_runner import WORKFLOW_RUN_MANIFEST_FILENAME
 
@@ -73,6 +74,7 @@ def test_version_returns_json_ok(capsys: pytest.CaptureFixture[str]) -> None:
     assert "model_evaluation_workflow_config_v1" in payload["supported_schema_versions"]
     assert "model_evaluation_artifact_validation_v1" in payload["supported_schema_versions"]
     assert payload["no_runtime_execution"] is True
+    assert payload == build_version_payload()
 
 
 def test_run_config_mode_creates_workflow_artifacts(

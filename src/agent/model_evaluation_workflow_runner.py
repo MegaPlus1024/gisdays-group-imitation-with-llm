@@ -21,6 +21,13 @@ from .model_evaluation_scorecard import (
     build_model_evaluation_scorecard,
     write_model_evaluation_scorecard,
 )
+from .model_evaluation_artifact_registry import (
+    MODEL_RESOURCE_SUMMARY,
+    WORKFLOW_CONFIG,
+    WORKFLOW_RUN_MANIFEST,
+    get_artifact_schema_info,
+    get_default_artifact_filename,
+)
 from .model_evaluation_workflow_bundle import (
     build_model_evaluation_workflow_bundle,
     write_model_evaluation_workflow_bundle,
@@ -32,9 +39,13 @@ from .normality_comparison import (
 )
 
 
-MODEL_EVALUATION_WORKFLOW_RUN_SCHEMA_VERSION = "model_evaluation_workflow_run_v1"
-MODEL_EVALUATION_WORKFLOW_CONFIG_SCHEMA_VERSION = "model_evaluation_workflow_config_v1"
-WORKFLOW_RUN_MANIFEST_FILENAME = "workflow_run_manifest.json"
+MODEL_EVALUATION_WORKFLOW_RUN_SCHEMA_VERSION = get_artifact_schema_info(
+    WORKFLOW_RUN_MANIFEST
+).schema_version
+MODEL_EVALUATION_WORKFLOW_CONFIG_SCHEMA_VERSION = get_artifact_schema_info(
+    WORKFLOW_CONFIG
+).schema_version
+WORKFLOW_RUN_MANIFEST_FILENAME = get_default_artifact_filename(WORKFLOW_RUN_MANIFEST)
 DEFAULT_WORKFLOW_ID = "offline_model_evaluation_workflow"
 
 WorkflowRunStatus = Literal["ok", "partial", "invalid", "write_failed"]
@@ -366,7 +377,7 @@ def run_offline_model_evaluation_workflow(
             tags=cfg.tags,
             project_root=Path.cwd(),
         )
-        resource_path = output_dir / "resource" / "model_resource_summary.json"
+        resource_path = output_dir / "resource" / get_default_artifact_filename(MODEL_RESOURCE_SUMMARY)
         artifact_paths["model_resource_summary"] = _display_path(resource_path, base_dir=output_dir)
         if resource.status != "ok":
             warnings.append(f"model_resource_summary_status:{resource.status}")

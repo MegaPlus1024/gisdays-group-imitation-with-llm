@@ -8,9 +8,19 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from .model_evaluation_artifact_registry import (
+    WORKFLOW_BUNDLE,
+    get_all_workflow_bundle_artifact_types,
+    get_artifact_schema_info,
+    get_default_artifact_filename,
+    get_optional_workflow_artifact_types,
+    get_required_workflow_artifact_types,
+)
 
-MODEL_EVALUATION_WORKFLOW_BUNDLE_SCHEMA_VERSION = "model_evaluation_workflow_bundle_v1"
-MODEL_EVALUATION_WORKFLOW_BUNDLE_FILENAME = "model_evaluation_workflow_bundle.json"
+MODEL_EVALUATION_WORKFLOW_BUNDLE_SCHEMA_VERSION = get_artifact_schema_info(
+    WORKFLOW_BUNDLE
+).schema_version
+MODEL_EVALUATION_WORKFLOW_BUNDLE_FILENAME = get_default_artifact_filename(WORKFLOW_BUNDLE)
 MODEL_EVALUATION_WORKFLOW_BUNDLE_PREVIEW_FILENAME = "model_evaluation_workflow_bundle_preview.md"
 MODEL_EVALUATION_WORKFLOW_BUNDLE_NOTES = [
     "Offline workflow bundle only; no model execution performed.",
@@ -28,20 +38,9 @@ WorkflowArtifactType = Literal[
 WorkflowArtifactStatus = Literal["ok", "not_provided", "missing", "invalid_input"]
 WorkflowBundleStatus = Literal["complete", "partial", "invalid"]
 
-REQUIRED_WORKFLOW_ARTIFACTS: tuple[WorkflowArtifactType, ...] = (
-    "model_catalog",
-    "model_comparison_plan",
-    "readiness_report",
-)
-OPTIONAL_WORKFLOW_ARTIFACTS: tuple[WorkflowArtifactType, ...] = (
-    "normality_comparison_summary",
-    "model_resource_summary",
-    "model_evaluation_scorecard",
-)
-ALL_WORKFLOW_ARTIFACTS: tuple[WorkflowArtifactType, ...] = (
-    *REQUIRED_WORKFLOW_ARTIFACTS,
-    *OPTIONAL_WORKFLOW_ARTIFACTS,
-)
+REQUIRED_WORKFLOW_ARTIFACTS: tuple[WorkflowArtifactType, ...] = get_required_workflow_artifact_types()
+OPTIONAL_WORKFLOW_ARTIFACTS: tuple[WorkflowArtifactType, ...] = get_optional_workflow_artifact_types()
+ALL_WORKFLOW_ARTIFACTS: tuple[WorkflowArtifactType, ...] = get_all_workflow_bundle_artifact_types()
 
 _MAX_INPUT_BYTES = 1_000_000
 _MAX_TEXT_CHARS = 200
