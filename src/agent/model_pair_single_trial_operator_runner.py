@@ -14,12 +14,14 @@ from . import model_pair_single_trial_execution as _single_trial_execution
 
 MODEL_PAIR_SINGLE_TRIAL_OPERATOR_RUNNER_SCHEMA_VERSION = "model_pair_single_trial_operator_runner_v1"
 SINGLE_TRIAL_RUNTIME_CONFIRMATION = "SINGLE_TRIAL_RUNTIME_OPT_IN"
+LOCAL_MODEL_PAIR_ENTRYPOINT_REF = "src.agent.model_pair_local_pipeline_entrypoint:run_local_model_pair_trial"
 
 _MAX_TEXT_CHARS = 500
 _MAX_LIST_ITEMS = 200
 _FORBIDDEN_OUTPUT_DIR_PARTS = {"reports", "experiments"}
 _ENTRYPOINT_MODULE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
 _ENTRYPOINT_FUNCTION_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_PATH_LIKE_KEY_RE = re.compile(r"(^|_)(path|dir|file|root)$")
 
 _DEFAULT_RUN_SINGLE_MODEL_PAIR_TRIAL = _single_trial_execution.run_single_model_pair_trial
 run_single_model_pair_trial = _DEFAULT_RUN_SINGLE_MODEL_PAIR_TRIAL
@@ -34,6 +36,7 @@ class ModelPairSingleTrialOperatorConfig:
     plan_path: Path | str | None = None
     readiness_summary_path: Path | str | None = None
     entrypoint_ref: str | None = None
+    local_pipeline_config_path: Path | str | None = None
     output_dir: Path | str | None = None
     trial_id: str | None = None
     pair_id: str | None = None
@@ -104,6 +107,7 @@ def run_single_trial_operator(args_or_config: Any) -> dict[str, Any]:
             malformed_code="readiness_summary_json_malformed",
             object_code="readiness_summary_payload_not_object",
         )
+        local_pipeline_config = _load_local_pipeline_config(config)
         entrypoint = load_entrypoint_from_ref(config.entrypoint_ref or "")
         single_result = _current_single_trial_api()(
             plan_payload,
@@ -119,6 +123,11 @@ def run_single_trial_operator(args_or_config: Any) -> dict[str, Any]:
                 write_matrix_summary=bool(config.write_matrix_summary),
                 write_trial_result=bool(config.write_trial_result),
                 auto_matrix_adapter_outputs=bool(config.auto_matrix_adapter_outputs),
+                extra_config=(
+                    {"local_pipeline_config": local_pipeline_config}
+                    if local_pipeline_config is not None
+                    else None
+                ),
                 run_id=config.run_id,
                 tags=config.tags,
             ),
@@ -148,6 +157,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--plan", dest="plan_path")
     parser.add_argument("--readiness-summary", dest="readiness_summary_path")
     parser.add_argument("--entrypoint", dest="entrypoint_ref")
+    parser.add_argument("--local-pipeline-config", dest="local_pipeline_config_path")
     parser.add_argument("--output-dir", dest="output_dir")
     parser.add_argument("--trial-id", dest="trial_id")
     parser.add_argument("--pair-id", dest="pair_id")
@@ -180,6 +190,7 @@ def _coerce_config(value: Any) -> ModelPairSingleTrialOperatorConfig:
             plan_path=_field(source, "plan_path", "plan"),
             readiness_summary_path=_field(source, "readiness_summary_path", "readiness_summary"),
             entrypoint_ref=_field(source, "entrypoint_ref", "entrypoint"),
+            local_pipeline_config_path=_field(source, "local_pipeline_config_path", "local_pipeline_config"),
             output_dir=_field(source, "output_dir"),
             trial_id=_field(source, "trial_id"),
             pair_id=_field(source, "pair_id"),
@@ -286,6 +297,122 @@ def _load_json_object(
     if not isinstance(payload, dict):
         raise ModelPairSingleTrialOperatorError(object_code)
     return payload
+
+
+def _load_local_pipeline_config(config: ModelPairSingleTrialOperatorConfig) -> dict[str, Any] | None:
+    has_path = _safe_optional_text(config.local_pipeline_config_path) is not None
+    if not has_path:
+        if config.allow_runtime_execution and _is_local_model_pair_entrypoint(config.entrypoint_ref):
+            raise ModelPairSingleTrialOperatorError("local_pipeline_config_required")
+        return None
+    path = _validated_relative_config_path(config.local_pipeline_config_path)
+    payload = _load_json_object(
+        path,
+        missing_value_code="local_pipeline_config_required",
+        missing_file_code="local_pipeline_config_file_missing",
+        unreadable_code="local_pipeline_config_file_unreadable",
+        malformed_code="local_pipeline_config_json_malformed",
+        object_code="local_pipeline_config_payload_not_object",
+    )
+    _validate_local_pipeline_config_payload(payload)
+    return payload
+
+
+def _is_local_model_pair_entrypoint(ref: Any) -> bool:
+    return _safe_optional_text(ref) == LOCAL_MODEL_PAIR_ENTRYPOINT_REF
+
+
+def _validated_relative_config_path(value: str | Path | None) -> Path:
+    if value is None:
+        raise ModelPairSingleTrialOperatorError("local_pipeline_config_required")
+    text = str(value).strip()
+    if not text:
+        raise ModelPairSingleTrialOperatorError("local_pipeline_config_required")
+    if _is_forbidden_config_file_path_text(text):
+        raise ModelPairSingleTrialOperatorError("local_pipeline_config_path_forbidden")
+    return Path(text)
+
+
+def _validate_local_pipeline_config_payload(payload: Mapping[str, Any]) -> None:
+    if _contains_secret_like_config(payload):
+        raise ModelPairSingleTrialOperatorError("local_pipeline_config_secret_like")
+    for path_key, path_value in _path_like_config_values(payload):
+        if _is_forbidden_path_text(path_value):
+            raise ModelPairSingleTrialOperatorError("local_pipeline_config_path_forbidden")
+        if path_key.endswith("out_dir") or path_key == "out_dir" or path_key.endswith("_dir"):
+            _validate_local_pipeline_output_dir(path_value)
+    out_dir = payload.get("out_dir")
+    if not _safe_optional_text(out_dir):
+        raise ModelPairSingleTrialOperatorError("local_pipeline_config_out_dir_missing")
+    if isinstance(out_dir, str):
+        _validate_local_pipeline_output_dir(out_dir)
+
+
+def _path_like_config_values(payload: Mapping[str, Any], *, prefix: str = "") -> list[tuple[str, str]]:
+    rows: list[tuple[str, str]] = []
+    for key, value in payload.items():
+        key_text = str(key)
+        dotted_key = f"{prefix}.{key_text}" if prefix else key_text
+        if isinstance(value, Mapping):
+            rows.extend(_path_like_config_values(value, prefix=dotted_key))
+            continue
+        if isinstance(value, str) and _is_path_like_key(key_text):
+            rows.append((key_text.lower(), value))
+    return rows
+
+
+def _is_path_like_key(key: str) -> bool:
+    return bool(_PATH_LIKE_KEY_RE.search(key.lower()))
+
+
+def _validate_local_pipeline_output_dir(value: str) -> None:
+    parts = [part.lower() for part in Path(value).parts]
+    if set(parts) & _FORBIDDEN_OUTPUT_DIR_PARTS or _is_docs_ai_final_path(parts):
+        raise ModelPairSingleTrialOperatorError("local_pipeline_config_output_dir_forbidden")
+
+
+def _is_forbidden_path_text(value: str) -> bool:
+    text = value.strip()
+    if not text:
+        return True
+    if "://" in text:
+        return True
+    windows_path = PureWindowsPath(text)
+    posix_path = PurePosixPath(text)
+    if windows_path.is_absolute() or posix_path.is_absolute() or bool(re.match(r"^[A-Za-z]:", text)):
+        return True
+    return any(part == ".." for part in windows_path.parts) or any(part == ".." for part in posix_path.parts)
+
+
+def _is_forbidden_config_file_path_text(value: str) -> bool:
+    text = value.strip()
+    if not text or "://" in text:
+        return True
+    windows_path = PureWindowsPath(text)
+    posix_path = PurePosixPath(text)
+    return any(part == ".." for part in windows_path.parts) or any(part == ".." for part in posix_path.parts)
+
+
+def _contains_secret_like_config(value: Any) -> bool:
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            if _secret_like_key(str(key)) or _contains_secret_like_config(item):
+                return True
+        return False
+    if isinstance(value, list | tuple | set):
+        return any(_contains_secret_like_config(item) for item in value)
+    if isinstance(value, str):
+        return _secret_assignment_like_text(value)
+    return False
+
+
+def _secret_assignment_like_text(value: str) -> bool:
+    return bool(
+        re.search(
+            r"(?i)\b(api[_-]?key|token|secret|password|credential|auth)\s*[:=]\s*['\"]?[^,\s'\"]+",
+            value,
+        )
+    )
 
 
 def _validated_output_dir(value: str | Path | None) -> Path:

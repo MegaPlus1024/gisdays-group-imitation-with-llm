@@ -24,6 +24,7 @@ from src.agent.model_pair_single_trial_execution import (
     MODEL_PAIR_SINGLE_TRIAL_RESULT_FILENAME,
 )
 from src.agent.model_pair_single_trial_operator_runner import (
+    LOCAL_MODEL_PAIR_ENTRYPOINT_REF,
     SINGLE_TRIAL_RUNTIME_CONFIRMATION,
     ModelPairSingleTrialOperatorConfig,
     ModelPairSingleTrialOperatorError,
@@ -112,6 +113,25 @@ def _ready_summary_path(tmp_path: Path, plan: dict[str, Any] | None = None) -> P
         model_binding_resolver=_model_bindings,
     )
     return write_model_pair_execution_readiness_summary(summary, tmp_path / "readiness")
+
+
+def _local_pipeline_config_path(tmp_path: Path, **overrides: object) -> Path:
+    payload: dict[str, Any] = {
+        "schema_version": "single_trial_local_pipeline_config_v1",
+        "mode": "fake",
+        "models_config_path": "configs/evaluation_models.json",
+        "scenario_path": SCENARIO_PATH,
+        "out_dir": "artifacts/single_trial_runs/operator_test/pipeline",
+        "run_id": "operator_test",
+        "max_group_steps": 1,
+        "max_steps_per_agent": 1,
+        "execute_actions": False,
+        "force": True,
+    }
+    payload.update(overrides)
+    path = tmp_path / "local_pipeline_config.json"
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    return path
 
 
 def _readiness_path(tmp_path: Path, payload: dict[str, Any]) -> Path:
@@ -368,6 +388,160 @@ def test_exact_runtime_confirmation_sets_allow_true(
     assert result["runtime_confirmation"] == "accepted"
 
 
+def test_operator_no_runtime_local_entrypoint_does_not_require_local_pipeline_config(tmp_path: Path) -> None:
+    plan = _plan()
+    result = run_single_trial_operator(
+        ModelPairSingleTrialOperatorConfig(
+            plan_path=_plan_path(tmp_path, plan),
+            readiness_summary_path=_ready_summary_path(tmp_path, plan),
+            entrypoint_ref=LOCAL_MODEL_PAIR_ENTRYPOINT_REF,
+            output_dir=tmp_path / "single",
+            trial_id=plan["trials"][0]["trial_id"],
+        )
+    )
+
+    assert result["status"] == "skipped"
+    assert result["trial_result"]["error_code"] == "runtime_execution_not_enabled"
+
+
+def test_operator_runtime_local_entrypoint_requires_local_pipeline_config(tmp_path: Path) -> None:
+    plan = _plan()
+    result = run_single_trial_operator(
+        ModelPairSingleTrialOperatorConfig(
+            plan_path=_plan_path(tmp_path, plan),
+            readiness_summary_path=_ready_summary_path(tmp_path, plan),
+            entrypoint_ref=LOCAL_MODEL_PAIR_ENTRYPOINT_REF,
+            output_dir=tmp_path / "single",
+            trial_id=plan["trials"][0]["trial_id"],
+            allow_runtime_execution=True,
+            confirm_runtime_execution=SINGLE_TRIAL_RUNTIME_CONFIRMATION,
+        )
+    )
+
+    assert result["status"] == "invalid"
+    assert result["error"] == "local_pipeline_config_required"
+    assert "Traceback" not in json.dumps(result, ensure_ascii=False)
+
+
+def test_operator_missing_local_pipeline_config_path_is_controlled(tmp_path: Path) -> None:
+    plan = _plan()
+    result = run_single_trial_operator(
+        ModelPairSingleTrialOperatorConfig(
+            plan_path=_plan_path(tmp_path, plan),
+            readiness_summary_path=_ready_summary_path(tmp_path, plan),
+            entrypoint_ref=LOCAL_MODEL_PAIR_ENTRYPOINT_REF,
+            local_pipeline_config_path=tmp_path / "missing_local_pipeline.json",
+            output_dir=tmp_path / "single",
+            trial_id=plan["trials"][0]["trial_id"],
+            allow_runtime_execution=True,
+            confirm_runtime_execution=SINGLE_TRIAL_RUNTIME_CONFIRMATION,
+        )
+    )
+
+    assert result["status"] == "invalid"
+    assert result["error"] == "local_pipeline_config_file_missing"
+
+
+def test_operator_malformed_local_pipeline_config_is_controlled(tmp_path: Path) -> None:
+    plan = _plan()
+    config_path = tmp_path / "malformed_local_pipeline.json"
+    config_path.write_text("{", encoding="utf-8")
+
+    result = run_single_trial_operator(
+        ModelPairSingleTrialOperatorConfig(
+            plan_path=_plan_path(tmp_path, plan),
+            readiness_summary_path=_ready_summary_path(tmp_path, plan),
+            entrypoint_ref=LOCAL_MODEL_PAIR_ENTRYPOINT_REF,
+            local_pipeline_config_path=config_path,
+            output_dir=tmp_path / "single",
+            trial_id=plan["trials"][0]["trial_id"],
+            allow_runtime_execution=True,
+            confirm_runtime_execution=SINGLE_TRIAL_RUNTIME_CONFIRMATION,
+        )
+    )
+
+    assert result["status"] == "invalid"
+    assert result["error"] == "local_pipeline_config_json_malformed"
+    assert "Traceback" not in json.dumps(result, ensure_ascii=False)
+
+
+def test_operator_rejects_secret_like_local_pipeline_config(tmp_path: Path) -> None:
+    plan = _plan()
+    config_path = _local_pipeline_config_path(tmp_path, api_key="SHOULD_NOT_COPY")
+
+    result = run_single_trial_operator(
+        ModelPairSingleTrialOperatorConfig(
+            plan_path=_plan_path(tmp_path, plan),
+            readiness_summary_path=_ready_summary_path(tmp_path, plan),
+            entrypoint_ref=LOCAL_MODEL_PAIR_ENTRYPOINT_REF,
+            local_pipeline_config_path=config_path,
+            output_dir=tmp_path / "single",
+            trial_id=plan["trials"][0]["trial_id"],
+            allow_runtime_execution=True,
+            confirm_runtime_execution=SINGLE_TRIAL_RUNTIME_CONFIRMATION,
+        )
+    )
+
+    assert result["status"] == "invalid"
+    assert result["error"] == "local_pipeline_config_secret_like"
+    assert "SHOULD_NOT_COPY" not in json.dumps(result, ensure_ascii=False)
+
+
+def test_operator_rejects_forbidden_local_pipeline_config_out_dir(tmp_path: Path) -> None:
+    plan = _plan()
+    config_path = _local_pipeline_config_path(tmp_path, out_dir="reports/single_trial/pipeline")
+
+    result = run_single_trial_operator(
+        ModelPairSingleTrialOperatorConfig(
+            plan_path=_plan_path(tmp_path, plan),
+            readiness_summary_path=_ready_summary_path(tmp_path, plan),
+            entrypoint_ref=LOCAL_MODEL_PAIR_ENTRYPOINT_REF,
+            local_pipeline_config_path=config_path,
+            output_dir=tmp_path / "single",
+            trial_id=plan["trials"][0]["trial_id"],
+            allow_runtime_execution=True,
+            confirm_runtime_execution=SINGLE_TRIAL_RUNTIME_CONFIRMATION,
+        )
+    )
+
+    assert result["status"] == "invalid"
+    assert result["error"] == "local_pipeline_config_output_dir_forbidden"
+
+
+def test_operator_passes_local_pipeline_config_to_single_trial_extra_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.agent.model_pair_single_trial_operator_runner as runner_module
+
+    plan = _plan()
+    config_path = _local_pipeline_config_path(tmp_path, run_id="extra_config_test")
+    captured: dict[str, Any] = {}
+
+    def fake_single_api(_: dict[str, Any], *, pipeline_entrypoint: object, config: object) -> dict[str, Any]:
+        captured["extra_config"] = config.extra_config  # type: ignore[attr-defined]
+        captured["callable"] = callable(pipeline_entrypoint)
+        return {"status": "succeeded", "allow_runtime_execution": config.allow_runtime_execution}  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(runner_module, "run_single_model_pair_trial", fake_single_api)
+    result = runner_module.run_single_trial_operator(
+        ModelPairSingleTrialOperatorConfig(
+            plan_path=_plan_path(tmp_path, plan),
+            readiness_summary_path=_ready_summary_path(tmp_path, plan),
+            entrypoint_ref=LOCAL_MODEL_PAIR_ENTRYPOINT_REF,
+            local_pipeline_config_path=config_path,
+            output_dir=tmp_path / "single",
+            trial_id=plan["trials"][0]["trial_id"],
+            allow_runtime_execution=True,
+            confirm_runtime_execution=SINGLE_TRIAL_RUNTIME_CONFIRMATION,
+        )
+    )
+
+    assert result["status"] == "succeeded"
+    assert captured["callable"] is True
+    assert captured["extra_config"]["local_pipeline_config"]["run_id"] == "extra_config_test"
+
+
 def test_selected_trial_executes_once_with_fake_entrypoint(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -569,6 +743,7 @@ def test_no_general_public_cli_live_mode_added() -> None:
     assert "--orchestrator-base-url" not in operator_help
     assert "--executor-base-url" not in operator_help
     assert "--gguf" not in operator_help.lower()
+    assert "--local-pipeline-config" in operator_help
 
 
 def test_operator_does_not_import_or_read_forbidden_runtime_dependencies(

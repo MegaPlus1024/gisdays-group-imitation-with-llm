@@ -89,7 +89,11 @@ def build_pipeline_entrypoint_input(
     }
 
     if extra_config:
-        entrypoint_input["extra_config"] = _safe_mapping(extra_config)
+        safe_extra_config = _safe_mapping(extra_config)
+        entrypoint_input["extra_config"] = safe_extra_config
+        local_pipeline_config = safe_extra_config.get("local_pipeline_config")
+        if isinstance(local_pipeline_config, Mapping):
+            entrypoint_input["local_pipeline_config"] = local_pipeline_config
     return _safe_mapping(entrypoint_input)
 
 

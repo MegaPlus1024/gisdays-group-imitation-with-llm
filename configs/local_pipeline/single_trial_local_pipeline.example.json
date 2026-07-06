@@ -1,0 +1,22 @@
+{
+  "schema_version": "single_trial_local_pipeline_config_v1",
+  "mode": "local",
+  "models_config_path": "configs/evaluation_models.json",
+  "scenario_path": "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json",
+  "out_dir": "artifacts/single_trial_runs/phase_8_11_first/pipeline",
+  "run_id": "phase_8_11_first",
+  "max_group_steps": 1,
+  "max_steps_per_agent": 1,
+  "repair_attempts": 0,
+  "orchestrator_repair_attempts": 0,
+  "execute_actions": false,
+  "force": true,
+  "execution_options": {
+    "allow_runtime_execution": true,
+    "no_runtime_execution": false
+  },
+  "notes": [
+    "Example config only.",
+    "Runtime execution still requires guarded operator confirmation."
+  ]
+}

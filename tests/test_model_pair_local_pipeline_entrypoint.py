@@ -19,6 +19,7 @@ from src.agent.model_pair_local_pipeline_entrypoint import (
     run_local_model_pair_trial,
     validate_local_entrypoint_runtime_config,
 )
+from src.agent.model_pair_pipeline_entrypoint_wrapper import build_pipeline_entrypoint_input
 from src.agent.model_pair_pipeline_result_adapter import adapt_orchestrator_executor_pipeline_result
 from src.agent.model_pair_single_trial_execution import (
     ModelPairSingleTrialExecutionConfig,
@@ -36,6 +37,7 @@ PAIR_ID = "second_model__to__first_model"
 SCENARIO_ID = "office_document_file_workflow_basic_v1"
 SCENARIO_PATH = "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json"
 LOCAL_ENTRYPOINT_REF = "src.agent.model_pair_local_pipeline_entrypoint:run_local_model_pair_trial"
+EXAMPLE_CONFIG_PATH = Path("configs/local_pipeline/single_trial_local_pipeline.example.json")
 
 
 def _local_pipeline_config(**overrides: object) -> dict[str, Any]:
@@ -181,6 +183,13 @@ def _plan_path(tmp_path: Path, plan: dict[str, Any] | None = None) -> Path:
     return path
 
 
+def _local_pipeline_config_path(tmp_path: Path, **overrides: object) -> Path:
+    payload = _local_pipeline_config(**overrides)
+    path = tmp_path / "local_pipeline_config.json"
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    return path
+
+
 def _ready_summary_path(tmp_path: Path, plan: dict[str, Any] | None = None) -> Path:
     summary = validate_model_pair_execution_readiness(
         plan or _plan(),
@@ -292,7 +301,50 @@ def test_runtime_true_missing_local_pipeline_config_returns_dependency_missing()
 
     assert result["status"] == "failed"
     assert result["error_code"] == "local_pipeline_entrypoint_config_invalid"
-    assert "local_pipeline_entrypoint_runtime_dependency_missing" in _codes(result)
+    assert "local_pipeline_config_missing" in _codes(result)
+
+
+def test_local_entrypoint_accepts_nested_extra_config_compatibility_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_existing_pipeline_module(monkeypatch)
+
+    result = run_local_model_pair_trial(
+        _entrypoint_input(
+            allow_runtime=True,
+            local_pipeline_config=None,
+            extra_config={"local_pipeline_config": _local_pipeline_config()},
+        )
+    )
+
+    assert result["status"] == "completed"
+    assert result["resource_observation"]["backend"] == "monkeypatched_local_entrypoint_helper"
+
+
+def test_wrapper_lifts_local_pipeline_config_to_entrypoint_input() -> None:
+    payload = build_pipeline_entrypoint_input(
+        _entrypoint_input(allow_runtime=False, local_pipeline_config=None),
+        extra_config={"local_pipeline_config": _local_pipeline_config(run_id="lift_test")},
+    )
+
+    assert payload["local_pipeline_config"]["run_id"] == "lift_test"
+    assert payload["extra_config"]["local_pipeline_config"]["run_id"] == "lift_test"
+
+
+def test_example_local_pipeline_config_is_safe_relative_json() -> None:
+    payload = json.loads(EXAMPLE_CONFIG_PATH.read_text(encoding="utf-8"))
+
+    assert payload["schema_version"] == "single_trial_local_pipeline_config_v1"
+    assert payload["out_dir"].startswith("artifacts/single_trial_runs/")
+    assert payload["scenario_path"] == SCENARIO_PATH
+    assert payload["execution_options"]["allow_runtime_execution"] is True
+    assert payload["execute_actions"] is False
+    for key in ("models_config_path", "scenario_path", "out_dir"):
+        value = Path(payload[key])
+        assert not value.is_absolute()
+        assert ".." not in value.parts
+    assert "reports" not in Path(payload["out_dir"]).parts
+    assert "experiments" not in Path(payload["out_dir"]).parts
 
 
 def test_runtime_true_does_not_lazy_import_existing_pipeline_before_validation(
@@ -341,20 +393,30 @@ def test_entrypoint_passes_expected_config_shape_to_existing_pipeline(
     assert config_payload["execute_actions"] is False
 
 
-def test_runtime_true_missing_model_bindings_returns_controlled_failed_result() -> None:
+def test_runtime_true_missing_model_bindings_returns_controlled_failed_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_fake_existing_pipeline_module(monkeypatch)
+
     result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True, model_bindings={}))
 
     assert result["status"] == "failed"
     assert result["error_code"] == "local_pipeline_entrypoint_config_invalid"
     assert "model_bindings_missing" in _codes(result)
+    assert calls == []
 
 
-def test_runtime_true_missing_scenario_config_returns_controlled_failed_result() -> None:
+def test_runtime_true_missing_scenario_config_returns_controlled_failed_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_fake_existing_pipeline_module(monkeypatch)
+
     result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True, scenario_config={}))
 
     assert result["status"] == "failed"
     assert result["error_code"] == "local_pipeline_entrypoint_config_invalid"
     assert "scenario_config_missing" in _codes(result)
+    assert calls == []
 
 
 def test_runtime_true_valid_config_calls_monkeypatched_helper_once(
@@ -549,6 +611,7 @@ def test_entrypoint_works_through_single_trial_stack_with_monkeypatched_runtime_
     assert result["no_runtime_execution"] is False
     assert len(calls) == 1
     assert calls[0]["execution_options"]["allow_runtime_execution"] is True
+    assert calls[0]["local_pipeline_config"]["out_dir"] == "artifacts/local_pipeline_runs/phase_8_10_test"
 
 
 def test_guarded_operator_runner_runtime_path_uses_fake_existing_pipeline_only(
@@ -563,6 +626,7 @@ def test_guarded_operator_runner_runtime_path_uses_fake_existing_pipeline_only(
             plan_path=_plan_path(tmp_path, plan),
             readiness_summary_path=_ready_summary_path(tmp_path, plan),
             entrypoint_ref=LOCAL_ENTRYPOINT_REF,
+            local_pipeline_config_path=_local_pipeline_config_path(tmp_path),
             output_dir=tmp_path / "single_operator_runtime_fake",
             trial_id=plan["trials"][0]["trial_id"],
             allow_runtime_execution=True,

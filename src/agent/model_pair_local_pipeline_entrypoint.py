@@ -122,15 +122,18 @@ def validate_local_entrypoint_runtime_config(entrypoint_input: Mapping[str, Any]
             )
         )
 
-    if _local_pipeline_config(entrypoint_input) is None:
+    local_config_state = _local_pipeline_config_state(entrypoint_input)
+    if local_config_state != "present":
         findings.append(
             _finding(
                 "error",
-                "local_pipeline_entrypoint_runtime_dependency_missing",
+                "local_pipeline_config_missing"
+                if local_config_state == "missing"
+                else "local_pipeline_config_invalid",
                 trial_id=entrypoint_input.get("trial_id"),
                 pair_id=entrypoint_input.get("pair_id"),
                 scenario_id=entrypoint_input.get("scenario_id"),
-                message="local_pipeline_config is required for runtime mode.",
+                message="local_pipeline_config must be provided as an object for runtime mode.",
             )
         )
 
@@ -218,6 +221,17 @@ def _local_pipeline_config(entrypoint_input: Mapping[str, Any]) -> dict[str, Any
         if isinstance(candidate, Mapping):
             return dict(candidate)
     return None
+
+
+def _local_pipeline_config_state(entrypoint_input: Mapping[str, Any]) -> str:
+    seen_candidate = False
+    for candidate in _local_pipeline_config_candidates(entrypoint_input):
+        if candidate is None:
+            continue
+        seen_candidate = True
+        if isinstance(candidate, Mapping):
+            return "present"
+    return "invalid" if seen_candidate else "missing"
 
 
 def _local_pipeline_config_candidates(entrypoint_input: Mapping[str, Any]) -> list[Any]:
