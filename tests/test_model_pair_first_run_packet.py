@@ -1,0 +1,409 @@
+from __future__ import annotations
+
+import builtins
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from src.agent.model_pair_first_run_packet import (
+    COMMAND_JSON_FILENAME,
+    CONTROLLED_SINGLE_TRIAL_TAG,
+    FIRST_SINGLE_TRIAL_RUN_PACKET_SCHEMA_VERSION,
+    LOCAL_MODEL_PAIR_ENTRYPOINT_REF,
+    LOCAL_PIPELINE_CONFIG_FILENAME,
+    RUN_SINGLE_TRIAL_SCRIPT_FILENAME,
+    SINGLE_TRIAL_RUNTIME_CONFIRMATION,
+    build_first_single_trial_run_packet,
+    main as packet_main,
+)
+
+
+PAIR_ID = "second_model__to__first_model"
+SCENARIO_ID = "office_document_file_workflow_basic_v1"
+RUN_ID = "phase_8_12_first"
+TRIAL_ID = f"{SCENARIO_ID}__{PAIR_ID}__r01"
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    return path
+
+
+def _catalog_payload() -> dict[str, Any]:
+    return {
+        "schema_version": "model_catalog_v1",
+        "models": [
+            {
+                "model_id": "first_model",
+                "display_name": "First Model",
+                "upstream_name": "local/first",
+                "local_path": "models/first_model.gguf",
+                "family": "synthetic",
+                "parameter_count_b": 1.0,
+                "quantization": "Q4_K_M",
+                "enabled": True,
+                "roles": {
+                    "orchestrator_candidate": False,
+                    "executor_candidate": True,
+                    "judge_candidate": False,
+                },
+                "tags": ["fixture"],
+            },
+            {
+                "model_id": "second_model",
+                "display_name": "Second Model",
+                "upstream_name": "local/second",
+                "local_path": "models/second_model.gguf",
+                "family": "synthetic",
+                "parameter_count_b": 2.0,
+                "quantization": "Q5_K_M",
+                "enabled": True,
+                "roles": {
+                    "orchestrator_candidate": True,
+                    "executor_candidate": False,
+                    "judge_candidate": False,
+                },
+                "tags": ["fixture"],
+            },
+        ],
+    }
+
+
+def _local_pipeline_config(**overrides: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "schema_version": "single_trial_local_pipeline_config_v1",
+        "mode": "local",
+        "models_config_path": "configs/evaluation_models.json",
+        "scenario_path": "configs/scenario.json",
+        "out_dir": "artifacts/single_trial_runs/phase_8_12_first/pipeline",
+        "run_id": RUN_ID,
+        "max_group_steps": 1,
+        "max_steps_per_agent": 1,
+        "execute_actions": False,
+        "force": True,
+        "execution_options": {
+            "allow_runtime_execution": True,
+            "no_runtime_execution": False,
+        },
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _fixture_workspace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    scenario_exists: bool = True,
+    local_config_overrides: dict[str, Any] | None = None,
+) -> dict[str, str]:
+    monkeypatch.chdir(tmp_path)
+    _write_json(Path("configs/model_catalog.json"), _catalog_payload())
+    _write_json(Path("configs/local_pipeline_config.json"), _local_pipeline_config(**(local_config_overrides or {})))
+    if scenario_exists:
+        _write_json(Path("configs/scenario.json"), {"scenario_id": SCENARIO_ID})
+    return {
+        "output_dir": "packets/first",
+        "model_catalog_path": "configs/model_catalog.json",
+        "local_pipeline_config_path": "configs/local_pipeline_config.json",
+    }
+
+
+def _build_packet(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    **overrides: Any,
+) -> dict[str, Any]:
+    paths = _fixture_workspace(
+        tmp_path,
+        monkeypatch,
+        scenario_exists=overrides.pop("scenario_exists", True),
+        local_config_overrides=overrides.pop("local_config_overrides", None),
+    )
+    payload: dict[str, Any] = {
+        **paths,
+        "scenario_id": SCENARIO_ID,
+        "pair_id": PAIR_ID,
+        "run_id": RUN_ID,
+    }
+    payload.update(overrides)
+    return build_first_single_trial_run_packet(**payload)
+
+
+def _json(path: str | Path) -> dict[str, Any]:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def test_builds_ready_packet_and_expected_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _build_packet(tmp_path, monkeypatch, tags=("smoke",))
+
+    assert summary["schema_version"] == FIRST_SINGLE_TRIAL_RUN_PACKET_SCHEMA_VERSION
+    assert summary["status"] == "ready"
+    assert summary["readiness_status"] == "ready"
+    assert summary["run_id"] == RUN_ID
+    assert summary["pair_id"] == PAIR_ID
+    assert summary["scenario_id"] == SCENARIO_ID
+    assert summary["no_runtime_execution"] is True
+    assert summary["auto_matrix_adapter_outputs"] is True
+
+    plan_path = Path(summary["plan_path"])
+    readiness_path = Path(summary["readiness_summary_path"])
+    copied_config_path = Path(summary["local_pipeline_config_path"])
+    script_path = Path(summary["run_script_path"])
+    command_path = Path(summary["command_path"])
+    assert plan_path.name == "model_pair_plan.json"
+    assert readiness_path.name == "model_pair_execution_readiness_summary.json"
+    assert copied_config_path.name == LOCAL_PIPELINE_CONFIG_FILENAME
+    assert script_path.name == RUN_SINGLE_TRIAL_SCRIPT_FILENAME
+    assert command_path.name == COMMAND_JSON_FILENAME
+    assert all(path.is_file() for path in (plan_path, readiness_path, copied_config_path, script_path, command_path))
+
+    plan = _json(plan_path)
+    assert plan["candidate_pairs"][0]["pair_id"] == PAIR_ID
+    assert len(plan["candidate_pairs"]) == 1
+    assert len(plan["trials"]) == 1
+    assert plan["trials"][0]["trial_id"] == TRIAL_ID
+    assert CONTROLLED_SINGLE_TRIAL_TAG in plan["trials"][0]["tags"]
+
+    readiness = _json(readiness_path)
+    assert readiness["status"] == "ready"
+    assert readiness["trial_count"] == 1
+    assert readiness["no_runtime_execution"] is True
+
+    script = script_path.read_text(encoding="utf-8")
+    assert r".\.venv\Scripts\python.exe scripts/run_single_trial_controlled.py" in script
+    assert "--plan packets/first/model_pair_plan.json" in script
+    assert "--readiness-summary packets/first/model_pair_execution_readiness_summary.json" in script
+    assert f"--entrypoint {LOCAL_MODEL_PAIR_ENTRYPOINT_REF}" in script
+    assert "--local-pipeline-config packets/first/local_pipeline_config.json" in script
+    assert f"--output-dir artifacts/single_trial_runs/{RUN_ID}" in script
+    assert f"--trial-id {TRIAL_ID}" in script
+    assert "--allow-runtime-execution" in script
+    assert f"--confirm-runtime-execution {SINGLE_TRIAL_RUNTIME_CONFIRMATION}" in script
+    assert "--auto-matrix-adapter-outputs" in script
+    assert f"--run-id {RUN_ID}" in script
+    assert f"--tag {CONTROLLED_SINGLE_TRIAL_TAG}" in script
+    assert "--tag smoke" in script
+
+
+def test_summary_paths_are_relative_and_do_not_expose_tmp_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _build_packet(tmp_path, monkeypatch)
+    encoded = json.dumps(summary, ensure_ascii=False)
+
+    for key in ("packet_dir", "plan_path", "readiness_summary_path", "local_pipeline_config_path", "command_path"):
+        assert not Path(summary[key]).is_absolute()
+    assert str(tmp_path) not in encoded
+    assert ":\\" not in encoded
+
+
+def test_no_auto_matrix_adapter_flag_omits_generated_command_flag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _build_packet(tmp_path, monkeypatch, auto_matrix_adapter_outputs=False)
+
+    assert summary["status"] == "ready"
+    script = Path(summary["run_script_path"]).read_text(encoding="utf-8")
+    command = _json(summary["command_path"])
+    assert "--auto-matrix-adapter-outputs" not in script
+    assert "--auto-matrix-adapter-outputs" not in command["argv"]
+
+
+def test_missing_scenario_reference_returns_not_ready_without_traceback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _build_packet(tmp_path, monkeypatch, scenario_exists=False)
+    encoded = json.dumps(summary, ensure_ascii=False)
+
+    assert summary["status"] == "not_ready"
+    assert summary["readiness_status"] == "not_ready"
+    assert "readiness_not_ready" in summary["warnings"]
+    assert Path(summary["readiness_summary_path"]).is_file()
+    assert "Traceback" not in encoded
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("output_dir", "../packet"),
+        ("output_dir", "reports/packet"),
+        ("output_dir", "docs/ai/final-packet"),
+        ("model_catalog_path", "../model_catalog.json"),
+        ("local_pipeline_config_path", "../local_pipeline_config.json"),
+    ],
+)
+def test_rejects_traversal_and_forbidden_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    value: str,
+) -> None:
+    summary = _build_packet(tmp_path, monkeypatch, **{field: value})
+
+    assert summary["status"] == "invalid"
+    assert "Traceback" not in json.dumps(summary, ensure_ascii=False)
+
+
+def test_rejects_absolute_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fixture_workspace(tmp_path, monkeypatch)
+
+    summary = build_first_single_trial_run_packet(
+        output_dir=tmp_path / "packet",
+        model_catalog_path="configs/model_catalog.json",
+        scenario_id=SCENARIO_ID,
+        pair_id=PAIR_ID,
+        local_pipeline_config_path="configs/local_pipeline_config.json",
+        run_id=RUN_ID,
+    )
+
+    assert summary["status"] == "invalid"
+    assert summary["error"] == "output_dir_must_be_relative"
+
+
+def test_rejects_secret_like_local_pipeline_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _build_packet(
+        tmp_path,
+        monkeypatch,
+        local_config_overrides={"api_key": "should_not_be_serialized"},
+    )
+
+    assert summary["status"] == "invalid"
+    assert summary["error"] == "local_pipeline_config_secret_like"
+    assert "should_not_be_serialized" not in json.dumps(summary, ensure_ascii=False)
+
+
+def test_does_not_read_gguf_contents(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_read_text = Path.read_text
+
+    def guarded_read_text(self: Path, *args: Any, **kwargs: Any) -> str:
+        if self.suffix.lower() == ".gguf":
+            raise AssertionError("GGUF contents must not be read")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", guarded_read_text)
+
+    summary = _build_packet(tmp_path, monkeypatch)
+
+    assert summary["status"] == "ready"
+
+
+def test_does_not_import_runtime_or_browser_office_clients(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_import = builtins.__import__
+    forbidden_prefixes = (
+        "src.agent.orchestrator_executor_pipeline",
+        "src.agent.model_pair_local_pipeline_entrypoint",
+        "llama_cpp",
+        "playwright",
+        "selenium",
+        "win32com",
+        "office",
+    )
+
+    def guarded_import(name: str, *args: Any, **kwargs: Any) -> Any:
+        if name.startswith(forbidden_prefixes):
+            raise AssertionError(f"Forbidden runtime import attempted: {name}")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+
+    summary = _build_packet(tmp_path, monkeypatch)
+
+    assert summary["status"] == "ready"
+
+
+def test_does_not_write_reports_experiments_docs_or_runtime_outputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _build_packet(tmp_path, monkeypatch)
+
+    assert summary["status"] == "ready"
+    assert not Path("reports").exists()
+    assert not Path("experiments").exists()
+    assert not Path("docs/ai/final").exists()
+    assert not Path(f"artifacts/single_trial_runs/{RUN_ID}").exists()
+
+
+def test_cli_prints_json_and_does_not_execute_generated_command(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    paths = _fixture_workspace(tmp_path, monkeypatch)
+
+    rc = packet_main(
+        [
+            "--output-dir",
+            paths["output_dir"],
+            "--model-catalog",
+            paths["model_catalog_path"],
+            "--scenario-id",
+            SCENARIO_ID,
+            "--pair-id",
+            PAIR_ID,
+            "--local-pipeline-config",
+            paths["local_pipeline_config_path"],
+            "--run-id",
+            RUN_ID,
+            "--tag",
+            "cli",
+        ]
+    )
+    stdout = capsys.readouterr().out
+    summary = json.loads(stdout)
+
+    assert rc == 0
+    assert summary["status"] == "ready"
+    assert Path(summary["command_path"]).is_file()
+    assert not Path(f"artifacts/single_trial_runs/{RUN_ID}").exists()
+
+
+def test_cli_invalid_returns_nonzero_json(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    paths = _fixture_workspace(tmp_path, monkeypatch)
+
+    rc = packet_main(
+        [
+            "--output-dir",
+            "../packet",
+            "--model-catalog",
+            paths["model_catalog_path"],
+            "--scenario-id",
+            SCENARIO_ID,
+            "--pair-id",
+            PAIR_ID,
+            "--local-pipeline-config",
+            paths["local_pipeline_config_path"],
+            "--run-id",
+            RUN_ID,
+        ]
+    )
+    summary = json.loads(capsys.readouterr().out)
+
+    assert rc == 2
+    assert summary["status"] == "invalid"
