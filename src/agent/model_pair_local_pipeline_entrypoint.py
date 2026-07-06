@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import dataclasses
+import importlib
 import re
 from collections.abc import Mapping
-from pathlib import PurePosixPath, PureWindowsPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 
@@ -12,6 +13,7 @@ LOCAL_MODEL_PAIR_PIPELINE_ENTRYPOINT = "run_local_model_pair_trial"
 _MAX_TEXT_CHARS = 500
 _MAX_LIST_ITEMS = 200
 _ARTIFACT_KEYS = ("artifact_refs", "artifacts", "output_files", "generated_files")
+_FORBIDDEN_OUTPUT_DIR_PARTS = {"reports", "experiments"}
 
 
 class LocalPipelineEntrypointConfigurationError(RuntimeError):
@@ -120,6 +122,18 @@ def validate_local_entrypoint_runtime_config(entrypoint_input: Mapping[str, Any]
             )
         )
 
+    if _local_pipeline_config(entrypoint_input) is None:
+        findings.append(
+            _finding(
+                "error",
+                "local_pipeline_entrypoint_runtime_dependency_missing",
+                trial_id=entrypoint_input.get("trial_id"),
+                pair_id=entrypoint_input.get("pair_id"),
+                scenario_id=entrypoint_input.get("scenario_id"),
+                message="local_pipeline_config is required for runtime mode.",
+            )
+        )
+
     model_bindings = entrypoint_input.get("model_bindings")
     if not isinstance(model_bindings, Mapping) or not model_bindings:
         findings.append(
@@ -163,8 +177,85 @@ def validate_local_entrypoint_runtime_config(entrypoint_input: Mapping[str, Any]
 
 
 def _run_existing_pipeline_entrypoint(entrypoint_input: Mapping[str, Any]) -> Any:
-    _ = entrypoint_input
-    raise LocalPipelineEntrypointConfigurationError("local_pipeline_entrypoint_not_configured")
+    pipeline_module = importlib.import_module("src.agent.orchestrator_executor_pipeline")
+    config_cls = getattr(pipeline_module, "OrchestratorExecutorRunConfig", None)
+    runner_cls = getattr(pipeline_module, "OrchestratorExecutorRunner", None)
+    if config_cls is None or runner_cls is None:
+        raise LocalPipelineEntrypointConfigurationError("local_pipeline_entrypoint_runtime_dependency_missing")
+
+    config_payload = _existing_pipeline_config_payload(entrypoint_input)
+    try:
+        if callable(getattr(config_cls, "model_validate", None)):
+            config = config_cls.model_validate(config_payload)
+        else:
+            config = config_cls(**config_payload)
+        runner = runner_cls(config)
+    except LocalPipelineEntrypointConfigurationError:
+        raise
+    except Exception as exc:
+        raise LocalPipelineEntrypointConfigurationError("local_pipeline_entrypoint_config_invalid") from exc
+    run = getattr(runner, "run", None)
+    if not callable(run):
+        raise LocalPipelineEntrypointConfigurationError("local_pipeline_entrypoint_runtime_dependency_missing")
+    return run()
+
+
+def _existing_pipeline_config_payload(entrypoint_input: Mapping[str, Any]) -> dict[str, Any]:
+    local_config = _local_pipeline_config(entrypoint_input)
+    if local_config is None:
+        raise LocalPipelineEntrypointConfigurationError("local_pipeline_entrypoint_runtime_dependency_missing")
+    payload = dict(local_config)
+    payload.setdefault("scenario_path", _safe_optional_text(entrypoint_input.get("scenario_path")))
+    payload.setdefault("run_id", _safe_optional_text(entrypoint_input.get("trial_id")) or "local_model_pair_trial")
+    payload.setdefault("orchestrator_model_id", _safe_optional_text(entrypoint_input.get("orchestrator_model_id")))
+    payload.setdefault("executor_model_id", _safe_optional_text(entrypoint_input.get("executor_model_id")))
+    _validate_existing_pipeline_out_dir(payload.get("out_dir"))
+    return {key: value for key, value in payload.items() if value is not None}
+
+
+def _local_pipeline_config(entrypoint_input: Mapping[str, Any]) -> dict[str, Any] | None:
+    for candidate in _local_pipeline_config_candidates(entrypoint_input):
+        if isinstance(candidate, Mapping):
+            return dict(candidate)
+    return None
+
+
+def _local_pipeline_config_candidates(entrypoint_input: Mapping[str, Any]) -> list[Any]:
+    candidates: list[Any] = [entrypoint_input.get("local_pipeline_config")]
+    extra_config = entrypoint_input.get("extra_config")
+    if isinstance(extra_config, Mapping):
+        candidates.extend(
+            [
+                extra_config.get("local_pipeline_config"),
+                extra_config.get("local_pipeline"),
+            ]
+        )
+    metadata = entrypoint_input.get("metadata")
+    if isinstance(metadata, Mapping):
+        candidates.append(metadata.get("local_pipeline_config"))
+        context_metadata = metadata.get("context_metadata")
+        if isinstance(context_metadata, Mapping):
+            candidates.append(context_metadata.get("local_pipeline_config"))
+    return candidates
+
+
+def _validate_existing_pipeline_out_dir(value: Any) -> None:
+    text = _safe_optional_text(value)
+    if not text:
+        raise LocalPipelineEntrypointConfigurationError("local_pipeline_entrypoint_runtime_dependency_missing")
+    try:
+        parts = [part.lower() for part in Path(text).parts]
+    except TypeError as exc:
+        raise LocalPipelineEntrypointConfigurationError("local_pipeline_entrypoint_config_invalid") from exc
+    if set(parts) & _FORBIDDEN_OUTPUT_DIR_PARTS or _is_docs_ai_final_path(parts):
+        raise LocalPipelineEntrypointConfigurationError("local_pipeline_entrypoint_output_dir_forbidden")
+
+
+def _is_docs_ai_final_path(parts: list[str]) -> bool:
+    for index in range(0, max(0, len(parts) - 2)):
+        if parts[index] == "docs" and parts[index + 1] == "ai" and parts[index + 2].startswith("final"):
+            return True
+    return False
 
 
 def _no_runtime_result() -> dict[str, Any]:

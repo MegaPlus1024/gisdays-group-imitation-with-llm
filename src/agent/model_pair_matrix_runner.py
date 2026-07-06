@@ -630,7 +630,7 @@ def _request_metadata(
     pair: dict[str, Any],
     scenario: dict[str, Any],
 ) -> dict[str, Any]:
-    return {
+    metadata: dict[str, Any] = {
         "plan_id": _optional_text(payload.get("plan_id")),
         "trial_notes": _string_list(trial.get("notes")),
         "trial_warnings": _string_list(trial.get("warnings")),
@@ -638,3 +638,18 @@ def _request_metadata(
         "scenario_tags": _string_list(scenario.get("tags")),
         "no_runtime_execution": bool(trial.get("no_runtime_execution", payload.get("no_runtime_execution", True))),
     }
+    local_pipeline_config = _first_mapping(
+        trial.get("local_pipeline_config"),
+        scenario.get("local_pipeline_config"),
+        payload.get("local_pipeline_config"),
+    )
+    if local_pipeline_config is not None:
+        metadata["local_pipeline_config"] = dict(local_pipeline_config)
+    return metadata
+
+
+def _first_mapping(*values: Any) -> dict[str, Any] | None:
+    for value in values:
+        if isinstance(value, dict):
+            return value
+    return None

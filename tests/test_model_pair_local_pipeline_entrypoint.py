@@ -3,6 +3,8 @@ from __future__ import annotations
 import builtins
 import importlib
 import json
+import sys
+import types
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +26,7 @@ from src.agent.model_pair_single_trial_execution import (
 )
 from src.agent.model_pair_single_trial_operator_runner import (
     ModelPairSingleTrialOperatorConfig,
+    SINGLE_TRIAL_RUNTIME_CONFIRMATION,
     load_entrypoint_from_ref,
     run_single_trial_operator,
 )
@@ -33,6 +36,20 @@ PAIR_ID = "second_model__to__first_model"
 SCENARIO_ID = "office_document_file_workflow_basic_v1"
 SCENARIO_PATH = "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json"
 LOCAL_ENTRYPOINT_REF = "src.agent.model_pair_local_pipeline_entrypoint:run_local_model_pair_trial"
+
+
+def _local_pipeline_config(**overrides: object) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "mode": "fake",
+        "models_config_path": "configs/evaluation_models.json",
+        "out_dir": "artifacts/local_pipeline_runs/phase_8_10_test",
+        "force": True,
+        "execute_actions": False,
+        "max_group_steps": 1,
+        "max_steps_per_agent": 1,
+    }
+    payload.update(overrides)
+    return payload
 
 
 def _entrypoint_input(*, allow_runtime: bool | None = False, **overrides: object) -> dict[str, Any]:
@@ -57,6 +74,7 @@ def _entrypoint_input(*, allow_runtime: bool | None = False, **overrides: object
         },
         "execution_options": execution_options,
         "metadata": {"explicit_runtime_opt_in": allow_runtime is True},
+        "local_pipeline_config": _local_pipeline_config(),
     }
     payload.update(overrides)
     return payload
@@ -129,6 +147,7 @@ def _plan(**overrides: object) -> dict[str, Any]:
                 "expected_outputs": {"checks": [{"type": "status_equals", "expected": "succeeded"}]},
                 "tags": ["local_entrypoint_test"],
                 "no_runtime_execution": True,
+                "local_pipeline_config": _local_pipeline_config(out_dir="artifacts/local_pipeline_runs/operator_test"),
             }
         ],
         "no_runtime_execution": True,
@@ -177,6 +196,41 @@ def _codes(result: dict[str, Any]) -> set[str]:
     if not isinstance(findings, list):
         return set()
     return {finding["code"] for finding in findings if isinstance(finding, dict) and "code" in finding}
+
+
+def _install_fake_existing_pipeline_module(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    result: dict[str, Any] | None = None,
+    run_raises: bool = False,
+) -> list[tuple[str, Any]]:
+    calls: list[tuple[str, Any]] = []
+    module = types.ModuleType("src.agent.orchestrator_executor_pipeline")
+
+    class FakeRunConfig:
+        def __init__(self, payload: dict[str, Any]) -> None:
+            self.payload = payload
+
+        @classmethod
+        def model_validate(cls, payload: dict[str, Any]) -> "FakeRunConfig":
+            calls.append(("config", payload))
+            return cls(payload)
+
+    class FakeRunner:
+        def __init__(self, config: FakeRunConfig) -> None:
+            calls.append(("runner_init", config.payload))
+            self.config = config
+
+        def run(self) -> dict[str, Any]:
+            calls.append(("run", self.config.payload))
+            if run_raises:
+                raise RuntimeError("RAW_SECRET_EXCEPTION_DETAIL token=SECRET_TOKEN")
+            return result or _fake_pipeline_result()
+
+    module.OrchestratorExecutorRunConfig = FakeRunConfig  # type: ignore[attr-defined]
+    module.OrchestratorExecutorRunner = FakeRunner  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "src.agent.orchestrator_executor_pipeline", module)
+    return calls
 
 
 def test_no_runtime_input_returns_skipped_result() -> None:
@@ -231,6 +285,60 @@ def test_runtime_true_validation_checks_required_fields() -> None:
     assert "scenario_id_missing" in codes
     assert "orchestrator_model_id_missing" in codes
     assert "executor_model_id_missing" in codes
+
+
+def test_runtime_true_missing_local_pipeline_config_returns_dependency_missing() -> None:
+    result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True, local_pipeline_config=None))
+
+    assert result["status"] == "failed"
+    assert result["error_code"] == "local_pipeline_entrypoint_config_invalid"
+    assert "local_pipeline_entrypoint_runtime_dependency_missing" in _codes(result)
+
+
+def test_runtime_true_does_not_lazy_import_existing_pipeline_before_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_fake_existing_pipeline_module(monkeypatch)
+
+    result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True, scenario_config={}))
+
+    assert result["status"] == "failed"
+    assert result["error_code"] == "local_pipeline_entrypoint_config_invalid"
+    assert "scenario_config_missing" in _codes(result)
+    assert calls == []
+
+
+def test_runtime_true_lazy_imports_and_calls_existing_pipeline_runner_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_fake_existing_pipeline_module(monkeypatch)
+
+    result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True))
+
+    assert result["status"] == "completed"
+    assert [name for name, _ in calls] == ["config", "runner_init", "run"]
+
+
+def test_entrypoint_passes_expected_config_shape_to_existing_pipeline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_fake_existing_pipeline_module(monkeypatch)
+    payload = _entrypoint_input(
+        allow_runtime=True,
+        local_pipeline_config=_local_pipeline_config(out_dir="artifacts/local_pipeline_runs/shape_test"),
+    )
+
+    run_result = run_local_model_pair_trial(payload)
+    config_payload = calls[0][1]
+
+    assert run_result["status"] == "completed"
+    assert config_payload["mode"] == "fake"
+    assert config_payload["scenario_path"] == SCENARIO_PATH
+    assert config_payload["orchestrator_model_id"] == "second_model"
+    assert config_payload["executor_model_id"] == "first_model"
+    assert config_payload["run_id"] == payload["trial_id"]
+    assert config_payload["out_dir"] == "artifacts/local_pipeline_runs/shape_test"
+    assert config_payload["execute_actions"] is False
 
 
 def test_runtime_true_missing_model_bindings_returns_controlled_failed_result() -> None:
@@ -289,6 +397,18 @@ def test_monkeypatched_existing_pipeline_success_passes_through_safely(
     assert result["no_runtime_execution"] is False
 
 
+def test_existing_pipeline_success_result_passes_adapter_with_fake_module(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_existing_pipeline_module(monkeypatch, result=_fake_pipeline_result())
+
+    result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True))
+    adapted = adapt_orchestrator_executor_pipeline_result(result)
+
+    assert adapted["status"] == "succeeded"
+    assert adapted["resource_observation"]["backend"] == "monkeypatched_local_entrypoint_helper"
+
+
 def test_monkeypatched_existing_pipeline_failure_passes_through_safely(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -305,6 +425,22 @@ def test_monkeypatched_existing_pipeline_failure_passes_through_safely(
     assert result["status"] == "failed"
     assert result["task_success"] is False
     assert result["error_code"] == "fake_pipeline_failed"
+
+
+def test_existing_pipeline_failed_result_passes_adapter_with_fake_module(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_existing_pipeline_module(
+        monkeypatch,
+        result=_fake_pipeline_result(status="failed", success=False, failure_reason="fake_pipeline_failed"),
+    )
+
+    result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True))
+    adapted = adapt_orchestrator_executor_pipeline_result(result)
+
+    assert result["status"] == "failed"
+    assert adapted["status"] == "failed"
+    assert adapted["error_code"] == "fake_pipeline_failed"
 
 
 def test_existing_pipeline_exception_becomes_controlled_failed_result_without_raw_leak(
@@ -326,6 +462,21 @@ def test_existing_pipeline_exception_becomes_controlled_failed_result_without_ra
     assert marker not in text
     assert "RuntimeError" not in text
     assert "SECRET_TOKEN" not in text
+
+
+def test_existing_pipeline_runner_exception_becomes_controlled_failed_without_raw_leak(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_existing_pipeline_module(monkeypatch, run_raises=True)
+
+    result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True))
+    text = json.dumps(result, ensure_ascii=False)
+
+    assert result["status"] == "failed"
+    assert result["error_code"] == "local_pipeline_entrypoint_failed"
+    assert "RAW_SECRET_EXCEPTION_DETAIL" not in text
+    assert "SECRET_TOKEN" not in text
+    assert "Traceback" not in text
 
 
 def test_returned_shape_is_accepted_by_pipeline_result_adapter() -> None:
@@ -390,6 +541,7 @@ def test_entrypoint_works_through_single_trial_stack_with_monkeypatched_runtime_
             role_config_resolver=_role_config,
             scenario_config_resolver=_scenario_config,
             model_binding_resolver=_model_bindings,
+            extra_config={"local_pipeline_config": _local_pipeline_config()},
         ),
     )
 
@@ -397,6 +549,30 @@ def test_entrypoint_works_through_single_trial_stack_with_monkeypatched_runtime_
     assert result["no_runtime_execution"] is False
     assert len(calls) == 1
     assert calls[0]["execution_options"]["allow_runtime_execution"] is True
+
+
+def test_guarded_operator_runner_runtime_path_uses_fake_existing_pipeline_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_fake_existing_pipeline_module(monkeypatch)
+    plan = _plan()
+
+    result = run_single_trial_operator(
+        ModelPairSingleTrialOperatorConfig(
+            plan_path=_plan_path(tmp_path, plan),
+            readiness_summary_path=_ready_summary_path(tmp_path, plan),
+            entrypoint_ref=LOCAL_ENTRYPOINT_REF,
+            output_dir=tmp_path / "single_operator_runtime_fake",
+            trial_id=plan["trials"][0]["trial_id"],
+            allow_runtime_execution=True,
+            confirm_runtime_execution=SINGLE_TRIAL_RUNTIME_CONFIRMATION,
+        )
+    )
+
+    assert result["status"] == "succeeded"
+    assert result["no_runtime_execution"] is False
+    assert [name for name, _ in calls] == ["config", "runner_init", "run"]
 
 
 def test_raw_prompt_response_fields_are_not_copied(monkeypatch: pytest.MonkeyPatch) -> None:
