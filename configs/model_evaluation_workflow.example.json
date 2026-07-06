@@ -12,6 +12,10 @@
   "normality_batch_summary_paths": [],
   "resource_observation_paths": [],
   "resource_summary_path": null,
+  "matrix_run_summary_path": null,
+  "auto_task_correctness_from_matrix": false,
+  "task_correctness_evaluator": "rule_based",
+  "task_correctness_summary_path": null,
   "tags": [
     "offline",
     "example",

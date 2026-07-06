@@ -16,6 +16,7 @@ from .model_evaluation_workflow_runner import (
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run a one-shot offline model evaluation workflow from explicit inputs or a JSON config.",
+        exit_on_error=False,
     )
     parser.add_argument("--config", default=None, help="Optional workflow config JSON.")
     parser.add_argument("--model-catalog", default=None, help="Required model catalog JSON.")
@@ -28,6 +29,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--normality-batch-summary", action="append", default=[], help="Optional normality batch summary.")
     parser.add_argument("--resource-observation", action="append", default=[], help="Optional resource observation JSON/JSONL.")
     parser.add_argument("--resource-summary", default=None, help="Optional existing model_resource_summary.json.")
+    parser.add_argument("--matrix-run-summary", default=None, help="Optional model_pair_matrix_run_summary.json.")
+    parser.add_argument("--auto-task-correctness-from-matrix", action="store_true", default=False)
+    parser.add_argument(
+        "--task-correctness-evaluator",
+        choices=("rule_based", "disabled"),
+        default="rule_based",
+    )
     parser.add_argument("--task-correctness-summary", default=None, help="Optional existing task_correctness_batch_summary.json.")
     parser.add_argument("--tag", action="append", default=[], help="Optional workflow tag. Repeatable.")
     parser.add_argument("--workflow-id", default=None, help="Optional workflow id.")
@@ -74,11 +82,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 normality_batch_summary_paths=args.normality_batch_summary,
                 resource_observation_paths=args.resource_observation,
                 resource_summary_path=args.resource_summary,
+                matrix_run_summary_path=args.matrix_run_summary,
+                auto_task_correctness_from_matrix=args.auto_task_correctness_from_matrix,
+                task_correctness_evaluator=args.task_correctness_evaluator,
                 task_correctness_summary_path=args.task_correctness_summary,
                 tags=args.tag,
                 write_markdown_previews=args.write_markdown_previews,
             )
         result = run_offline_model_evaluation_workflow(config)
+    except argparse.ArgumentError as exc:
+        _print_json(_invalid_payload(_argument_error_code(exc)))
+        return 2
     except (OSError, ValueError, json.JSONDecodeError, ModelEvaluationWorkflowConfigError) as exc:
         _print_json(_invalid_payload(exc.__class__.__name__))
         return 2
@@ -92,6 +106,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "scorecard_path": result.artifact_paths.get("model_evaluation_scorecard"),
         "bundle_path": result.artifact_paths.get("workflow_bundle"),
         "task_correctness_summary_path": result.artifact_paths.get("task_correctness_batch_summary"),
+        "correctness_input_count": result.correctness_input_count,
+        "correctness_evaluated_count": result.correctness_evaluated_count,
         "warning_count": len(result.warnings),
         "no_runtime_execution": result.no_runtime_execution,
     }
@@ -109,6 +125,8 @@ def _invalid_payload(error: str) -> dict[str, object]:
         "scorecard_path": None,
         "bundle_path": None,
         "task_correctness_summary_path": None,
+        "correctness_input_count": 0,
+        "correctness_evaluated_count": 0,
         "warning_count": 0,
         "no_runtime_execution": True,
         "error": error,
@@ -126,6 +144,12 @@ def _config_conflict(args: argparse.Namespace) -> str | None:
         return "config_conflicts_with_resource_observation"
     if args.resource_summary:
         return "config_conflicts_with_resource_summary"
+    if args.matrix_run_summary:
+        return "config_conflicts_with_matrix_run_summary"
+    if args.auto_task_correctness_from_matrix:
+        return "config_conflicts_with_auto_task_correctness_from_matrix"
+    if args.task_correctness_evaluator != "rule_based":
+        return "config_conflicts_with_task_correctness_evaluator"
     if args.task_correctness_summary:
         return "config_conflicts_with_task_correctness_summary"
     if args.write_markdown_previews:
@@ -137,6 +161,13 @@ def _config_conflict(args: argparse.Namespace) -> str | None:
     if args.include_role_mismatch_pairs:
         return "config_conflicts_with_pair_flags"
     return None
+
+
+def _argument_error_code(exc: argparse.ArgumentError) -> str:
+    argument_name = getattr(exc, "argument_name", "")
+    if argument_name == "--task-correctness-evaluator":
+        return "invalid_task_correctness_evaluator"
+    return "argument_error"
 
 
 def _unique_text(values: list[str]) -> list[str]:

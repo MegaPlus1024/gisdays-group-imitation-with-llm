@@ -33,6 +33,14 @@ from .model_evaluation_workflow_bundle import (
     write_model_evaluation_workflow_bundle,
 )
 from .model_resource_evaluation import run_model_resource_evaluation
+from .model_task_correctness_evaluation import (
+    DisabledTaskCorrectnessEvaluator,
+    RuleBasedTaskCorrectnessEvaluator,
+    TaskCorrectnessInputLoadError,
+    build_correctness_inputs_from_matrix_run_summary,
+    evaluate_task_correctness_batch,
+    write_task_correctness_batch_summary,
+)
 from .normality_comparison import (
     compare_normality_batch_summaries,
     write_normality_comparison_summary,
@@ -49,6 +57,7 @@ WORKFLOW_RUN_MANIFEST_FILENAME = get_default_artifact_filename(WORKFLOW_RUN_MANI
 DEFAULT_WORKFLOW_ID = "offline_model_evaluation_workflow"
 
 WorkflowRunStatus = Literal["ok", "partial", "invalid", "write_failed"]
+TaskCorrectnessEvaluatorName = Literal["rule_based", "disabled"]
 
 _WORKFLOW_CONFIG_ALLOWED_KEYS = {
     "schema_version",
@@ -62,6 +71,9 @@ _WORKFLOW_CONFIG_ALLOWED_KEYS = {
     "normality_batch_summary_paths",
     "resource_observation_paths",
     "resource_summary_path",
+    "matrix_run_summary_path",
+    "auto_task_correctness_from_matrix",
+    "task_correctness_evaluator",
     "task_correctness_summary_path",
     "tags",
     "write_markdown_previews",
@@ -84,6 +96,9 @@ class ModelEvaluationWorkflowRunConfig(BaseModel):
     normality_batch_summary_paths: list[str] = Field(default_factory=list)
     resource_observation_paths: list[str] = Field(default_factory=list)
     resource_summary_path: str | None = None
+    matrix_run_summary_path: str | None = None
+    auto_task_correctness_from_matrix: bool = False
+    task_correctness_evaluator: TaskCorrectnessEvaluatorName = "rule_based"
     task_correctness_summary_path: str | None = None
     tags: list[str] = Field(default_factory=list)
     write_markdown_previews: bool = False
@@ -108,7 +123,7 @@ class ModelEvaluationWorkflowRunConfig(BaseModel):
             raise ValueError("optional workflow text fields must be non-empty when provided.")
         return _safe_text(cleaned)
 
-    @field_validator("task_correctness_summary_path")
+    @field_validator("matrix_run_summary_path", "task_correctness_summary_path")
     @classmethod
     def validate_optional_input_path_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -156,6 +171,7 @@ class ModelEvaluationWorkflowRunConfig(BaseModel):
     @field_validator(
         "include_self_pairs",
         "include_role_mismatch_pairs",
+        "auto_task_correctness_from_matrix",
         "write_markdown_previews",
         "config_used",
         "output_dir_overridden",
@@ -166,6 +182,14 @@ class ModelEvaluationWorkflowRunConfig(BaseModel):
         if not isinstance(value, bool):
             raise ValueError("workflow flags must be booleans.")
         return value
+
+    @field_validator("task_correctness_evaluator")
+    @classmethod
+    def validate_task_correctness_evaluator(cls, value: str) -> str:
+        cleaned = value.strip()
+        if cleaned not in {"rule_based", "disabled"}:
+            raise ValueError("task_correctness_evaluator must be rule_based or disabled.")
+        return cleaned
 
     @model_validator(mode="after")
     def validate_resource_input_choice(self) -> "ModelEvaluationWorkflowRunConfig":
@@ -186,6 +210,8 @@ class ModelEvaluationWorkflowRunResult(BaseModel):
     readiness_status: str | None = None
     readiness_error_count: int = 0
     readiness_warning_count: int = 0
+    correctness_input_count: int = 0
+    correctness_evaluated_count: int = 0
     warnings: list[str] = Field(default_factory=list)
     no_runtime_execution: bool = True
     manifest_path_relative: str | None = None
@@ -276,6 +302,16 @@ def workflow_run_config_from_dict(
             field_name="resource_summary_path",
             config_dir=config_dir,
         ),
+        "matrix_run_summary_path": _config_optional_input_path(
+            data.get("matrix_run_summary_path"),
+            field_name="matrix_run_summary_path",
+            config_dir=config_dir,
+        ),
+        "auto_task_correctness_from_matrix": data.get("auto_task_correctness_from_matrix", False),
+        "task_correctness_evaluator": _optional_config_text(
+            data.get("task_correctness_evaluator", "rule_based"),
+            "task_correctness_evaluator",
+        ),
         "task_correctness_summary_path": _config_optional_input_path(
             data.get("task_correctness_summary_path"),
             field_name="task_correctness_summary_path",
@@ -325,6 +361,28 @@ def run_offline_model_evaluation_workflow(
             warnings=["output_dir_write_failed"],
             config_metadata=config_metadata,
         )
+
+    if cfg.task_correctness_summary_path and cfg.auto_task_correctness_from_matrix:
+        warnings.append("explicit_task_correctness_summary_overrides_auto_generation")
+    if (
+        cfg.matrix_run_summary_path
+        and not cfg.auto_task_correctness_from_matrix
+    ):
+        warnings.append("matrix_run_summary_provided_without_correctness_auto")
+    if (
+        cfg.auto_task_correctness_from_matrix
+        and not cfg.task_correctness_summary_path
+        and not cfg.matrix_run_summary_path
+    ):
+        result = _result(
+            status="invalid",
+            workflow_id=workflow_id,
+            output_display=output_display,
+            artifact_paths=artifact_paths,
+            warnings=[*warnings, "matrix_run_summary_required_for_correctness_auto"],
+            config_metadata=config_metadata,
+        )
+        return _write_manifest_or_write_failed(result, output_dir)
 
     try:
         catalog = load_model_catalog(cfg.model_catalog_path)
@@ -411,12 +469,48 @@ def run_offline_model_evaluation_workflow(
         warnings.append("resource_inputs_not_provided")
 
     task_correctness_path: str | Path | None = None
+    correctness_input_count = 0
+    correctness_evaluated_count = 0
     if cfg.task_correctness_summary_path:
         task_correctness_path = cfg.task_correctness_summary_path
         artifact_paths["task_correctness_batch_summary"] = _display_path(
             task_correctness_path,
             base_dir=output_dir,
         )
+    elif cfg.auto_task_correctness_from_matrix and cfg.matrix_run_summary_path:
+        try:
+            task_correctness_summary = _build_task_correctness_summary_from_matrix(
+                cfg.matrix_run_summary_path,
+                evaluator_name=cfg.task_correctness_evaluator,
+                summary_id=f"{workflow_id}_task_correctness",
+                tags=cfg.tags,
+            )
+            correctness_input_count = task_correctness_summary.input_count
+            correctness_evaluated_count = task_correctness_summary.evaluated_count
+            task_correctness_path = write_task_correctness_batch_summary(
+                task_correctness_summary,
+                output_dir / "correctness",
+            )
+            artifact_paths["task_correctness_batch_summary"] = _display_path(
+                task_correctness_path,
+                base_dir=output_dir,
+            )
+        except (TaskCorrectnessInputLoadError, OSError, ValueError, json.JSONDecodeError) as exc:
+            result = _result(
+                status="invalid",
+                workflow_id=workflow_id,
+                output_display=output_display,
+                artifact_paths=artifact_paths,
+                model_count=len(catalog.models),
+                candidate_pair_count=len(plan.candidate_pairs),
+                trial_count=len(plan.trials),
+                readiness_status=readiness.status,
+                readiness_error_count=readiness_error_count,
+                readiness_warning_count=readiness_warning_count,
+                warnings=[*warnings, f"task_correctness_auto_generation_failed:{_safe_text(str(exc))}"],
+                config_metadata=config_metadata,
+            )
+            return _write_manifest_or_write_failed(result, output_dir)
 
     try:
         scorecard = build_model_evaluation_scorecard(
@@ -468,6 +562,8 @@ def run_offline_model_evaluation_workflow(
             readiness_status=readiness.status,
             readiness_error_count=readiness_error_count,
             readiness_warning_count=readiness_warning_count,
+            correctness_input_count=correctness_input_count,
+            correctness_evaluated_count=correctness_evaluated_count,
             warnings=[*warnings, f"final_artifact_build_failed:{exc.__class__.__name__}"],
             config_metadata=config_metadata,
         )
@@ -490,6 +586,8 @@ def run_offline_model_evaluation_workflow(
         readiness_status=readiness.status,
         readiness_error_count=readiness_error_count,
         readiness_warning_count=readiness_warning_count,
+        correctness_input_count=correctness_input_count,
+        correctness_evaluated_count=correctness_evaluated_count,
         warnings=warnings,
         config_metadata=config_metadata,
     )
@@ -631,6 +729,31 @@ def _workflow_status(
     return "ok"
 
 
+def _build_task_correctness_summary_from_matrix(
+    matrix_run_summary_path: str | Path,
+    *,
+    evaluator_name: TaskCorrectnessEvaluatorName,
+    summary_id: str,
+    tags: list[str],
+):
+    inputs = build_correctness_inputs_from_matrix_run_summary(matrix_run_summary_path)
+    evaluator = _task_correctness_evaluator(evaluator_name)
+    return evaluate_task_correctness_batch(
+        inputs,
+        evaluator,
+        summary_id=summary_id,
+        tags=tags,
+    )
+
+
+def _task_correctness_evaluator(
+    evaluator_name: TaskCorrectnessEvaluatorName,
+) -> RuleBasedTaskCorrectnessEvaluator | DisabledTaskCorrectnessEvaluator:
+    if evaluator_name == "disabled":
+        return DisabledTaskCorrectnessEvaluator()
+    return RuleBasedTaskCorrectnessEvaluator()
+
+
 def _write_manifest_or_write_failed(
     result: ModelEvaluationWorkflowRunResult,
     output_dir: Path,
@@ -660,6 +783,8 @@ def _result(
     readiness_status: str | None = None,
     readiness_error_count: int = 0,
     readiness_warning_count: int = 0,
+    correctness_input_count: int = 0,
+    correctness_evaluated_count: int = 0,
     warnings: list[str] | None = None,
     config_metadata: dict[str, Any] | None = None,
 ) -> ModelEvaluationWorkflowRunResult:
@@ -675,6 +800,8 @@ def _result(
         readiness_status=_safe_optional_text(readiness_status),
         readiness_error_count=readiness_error_count,
         readiness_warning_count=readiness_warning_count,
+        correctness_input_count=correctness_input_count,
+        correctness_evaluated_count=correctness_evaluated_count,
         warnings=sorted(set(_safe_text(warning) for warning in (warnings or []))),
         config_used=bool(metadata.get("config_used", False)),
         config_schema_version=_safe_optional_text(metadata.get("config_schema_version")),

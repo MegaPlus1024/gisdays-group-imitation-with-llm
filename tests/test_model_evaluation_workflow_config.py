@@ -46,6 +46,10 @@ def test_loads_example_config(tmp_path: Path) -> None:
     assert config.scenario_paths == [SCENARIO_RELATIVE]
     assert config.output_dir == str(tmp_path / "workflow")
     assert config.output_dir_overridden is True
+    assert config.matrix_run_summary_path is None
+    assert config.auto_task_correctness_from_matrix is False
+    assert config.task_correctness_evaluator == "rule_based"
+    assert config.task_correctness_summary_path is None
 
 
 def test_example_config_has_no_absolute_paths_or_production_overclaim() -> None:
@@ -68,8 +72,26 @@ def test_builds_run_config_from_json_dict(tmp_path: Path) -> None:
     assert config.repetitions_per_pair == 1
     assert config.include_self_pairs is True
     assert config.include_role_mismatch_pairs is False
+    assert config.matrix_run_summary_path is None
+    assert config.auto_task_correctness_from_matrix is False
+    assert config.task_correctness_evaluator == "rule_based"
     assert config.tags == ["offline", "example", "no-runtime"]
     assert config.config_used is True
+
+
+def test_builds_run_config_with_matrix_correctness_fields(tmp_path: Path) -> None:
+    config = workflow_run_config_from_dict(
+        _example_payload(
+            matrix_run_summary_path="artifacts/matrix/model_pair_matrix_run_summary.json",
+            auto_task_correctness_from_matrix=True,
+            task_correctness_evaluator="disabled",
+        ),
+        output_dir_override=tmp_path / "workflow",
+    )
+
+    assert config.matrix_run_summary_path == "artifacts/matrix/model_pair_matrix_run_summary.json"
+    assert config.auto_task_correctness_from_matrix is True
+    assert config.task_correctness_evaluator == "disabled"
 
 
 def test_rejects_missing_required_model_catalog_path(tmp_path: Path) -> None:
@@ -134,6 +156,46 @@ def test_rejects_repetitions_per_pair_less_than_one(tmp_path: Path) -> None:
 
 def test_rejects_non_list_tags(tmp_path: Path) -> None:
     payload = _example_payload(tags="offline", output_dir=str(tmp_path / "workflow"))
+
+    with pytest.raises(ModelEvaluationWorkflowConfigError):
+        workflow_run_config_from_dict(payload)
+
+
+def test_rejects_invalid_task_correctness_evaluator(tmp_path: Path) -> None:
+    payload = _example_payload(
+        task_correctness_evaluator="static",
+        output_dir=str(tmp_path / "workflow"),
+    )
+
+    with pytest.raises(ModelEvaluationWorkflowConfigError):
+        workflow_run_config_from_dict(payload)
+
+
+def test_rejects_non_bool_auto_task_correctness_flag(tmp_path: Path) -> None:
+    payload = _example_payload(
+        auto_task_correctness_from_matrix="true",
+        output_dir=str(tmp_path / "workflow"),
+    )
+
+    with pytest.raises(ModelEvaluationWorkflowConfigError):
+        workflow_run_config_from_dict(payload)
+
+
+def test_rejects_absolute_matrix_run_summary_path(tmp_path: Path) -> None:
+    payload = _example_payload(
+        matrix_run_summary_path=str(PROJECT_ROOT / "artifacts" / "matrix" / "model_pair_matrix_run_summary.json"),
+        output_dir=str(tmp_path / "workflow"),
+    )
+
+    with pytest.raises(ModelEvaluationWorkflowConfigError):
+        workflow_run_config_from_dict(payload)
+
+
+def test_rejects_traversal_matrix_run_summary_path(tmp_path: Path) -> None:
+    payload = _example_payload(
+        matrix_run_summary_path="../outside/model_pair_matrix_run_summary.json",
+        output_dir=str(tmp_path / "workflow"),
+    )
 
     with pytest.raises(ModelEvaluationWorkflowConfigError):
         workflow_run_config_from_dict(payload)

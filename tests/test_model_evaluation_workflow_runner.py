@@ -17,6 +17,7 @@ from src.agent.model_evaluation_workflow_runner import (
     run_offline_model_evaluation_workflow,
 )
 from src.agent.model_evaluation_workflow_runner_cli import main as workflow_runner_cli_main
+from src.agent.model_pair_matrix_runner import MODEL_PAIR_MATRIX_RUN_SUMMARY_FILENAME
 from src.agent.model_resource_evaluation import MODEL_RESOURCE_SUMMARY_FILENAME
 from src.agent.model_task_correctness_evaluation import TASK_CORRECTNESS_BATCH_SUMMARY_FILENAME
 from src.agent.normality_comparison import NORMALITY_COMPARISON_SUMMARY_FILENAME
@@ -180,6 +181,51 @@ def _task_correctness_summary_path(tmp_path: Path) -> Path:
             ],
             "warnings": [],
             "notes": ["Synthetic runner correctness summary."],
+            "no_runtime_execution": True,
+        },
+    )
+
+
+def _matrix_run_summary_path(
+    tmp_path: Path,
+    *,
+    task_success: bool = True,
+    correctness_score: float | None = 0.94,
+) -> Path:
+    pair_id = "second_model__to__first_model"
+    scenario_id = "office_document_file_workflow_basic_v1"
+    trial_result: dict[str, Any] = {
+        "trial_id": f"{scenario_id}__{pair_id}__r01",
+        "scenario_id": scenario_id,
+        "pair_id": pair_id,
+        "orchestrator_model_id": "second_model",
+        "executor_model_id": "first_model",
+        "status": "succeeded",
+        "task_success": task_success,
+        "warnings": [],
+        "notes": ["synthetic_matrix_trial"],
+        "no_runtime_execution": True,
+        "execution_mode": "static_fixture",
+    }
+    if correctness_score is not None:
+        trial_result["correctness_score"] = correctness_score
+    return _write_json(
+        tmp_path / "inputs" / MODEL_PAIR_MATRIX_RUN_SUMMARY_FILENAME,
+        {
+            "schema_version": "model_pair_matrix_run_summary_v1",
+            "run_id": "runner_test_matrix",
+            "plan_id": "runner_test_matrix_plan",
+            "execution_mode": "static_fixture",
+            "trial_count": 1,
+            "succeeded_count": 1,
+            "failed_count": 0,
+            "skipped_count": 0,
+            "dry_run_count": 0,
+            "pair_summaries": [],
+            "scenario_summaries": [],
+            "trial_results": [trial_result],
+            "warnings": [],
+            "notes": ["Synthetic matrix run summary."],
             "no_runtime_execution": True,
         },
     )
@@ -368,6 +414,134 @@ def test_runner_passes_explicit_task_correctness_summary_to_scorecard_and_manife
     assert manifest["artifact_paths"]["task_correctness_batch_summary"] is not None
 
 
+def test_runner_auto_generates_task_correctness_summary_from_matrix_run(tmp_path: Path) -> None:
+    matrix_summary = _matrix_run_summary_path(tmp_path)
+
+    result = run_offline_model_evaluation_workflow(
+        _config(
+            tmp_path,
+            matrix_run_summary_path=str(matrix_summary),
+            auto_task_correctness_from_matrix=True,
+        )
+    )
+    output_dir = tmp_path / "workflow"
+    correctness_path = output_dir / "correctness" / TASK_CORRECTNESS_BATCH_SUMMARY_FILENAME
+    correctness = _load_json(correctness_path)
+    scorecard = _load_json(output_dir / "scorecard" / MODEL_EVALUATION_SCORECARD_FILENAME)
+    bundle = _load_json(output_dir / "bundle" / MODEL_EVALUATION_WORKFLOW_BUNDLE_FILENAME)
+    manifest = _load_json(output_dir / WORKFLOW_RUN_MANIFEST_FILENAME)
+
+    assert result.status == "partial"
+    assert correctness["input_count"] == 1
+    assert correctness["evaluated_count"] == 1
+    assert correctness["passed_count"] == 1
+    assert result.correctness_input_count == 1
+    assert result.correctness_evaluated_count == 1
+    assert result.artifact_paths["task_correctness_batch_summary"] == (
+        "correctness/task_correctness_batch_summary.json"
+    )
+    assert scorecard["task_correctness_summary_used"] is True
+    assert scorecard["task_correctness_metrics"]["evaluated_count"] == 1
+    assert scorecard["task_correctness_metrics"]["mean_correctness_score"] == pytest.approx(0.94)
+    assert bundle["artifacts"]["task_correctness_batch_summary"]["status"] == "ok"
+    assert "task_correctness_batch_summary" in bundle["summary"]["optional_artifacts_present"]
+    assert manifest["artifact_paths"]["task_correctness_batch_summary"] == (
+        "correctness/task_correctness_batch_summary.json"
+    )
+    assert manifest["correctness_input_count"] == 1
+    assert manifest["correctness_evaluated_count"] == 1
+
+
+def test_explicit_task_correctness_summary_overrides_auto_generation(tmp_path: Path) -> None:
+    explicit_summary = _task_correctness_summary_path(tmp_path)
+    matrix_summary = _matrix_run_summary_path(tmp_path, task_success=False, correctness_score=0.0)
+
+    result = run_offline_model_evaluation_workflow(
+        _config(
+            tmp_path,
+            task_correctness_summary_path=str(explicit_summary),
+            matrix_run_summary_path=str(matrix_summary),
+            auto_task_correctness_from_matrix=True,
+        )
+    )
+    scorecard = _load_json(tmp_path / "workflow" / "scorecard" / MODEL_EVALUATION_SCORECARD_FILENAME)
+
+    assert "explicit_task_correctness_summary_overrides_auto_generation" in result.warnings
+    assert not (tmp_path / "workflow" / "correctness" / TASK_CORRECTNESS_BATCH_SUMMARY_FILENAME).exists()
+    assert scorecard["task_correctness_summary_used"] is True
+    assert scorecard["task_correctness_metrics"]["mean_correctness_score"] == 1.0
+
+
+def test_matrix_summary_without_auto_flag_warns_without_generating_correctness(tmp_path: Path) -> None:
+    matrix_summary = _matrix_run_summary_path(tmp_path)
+
+    result = run_offline_model_evaluation_workflow(
+        _config(tmp_path, matrix_run_summary_path=str(matrix_summary))
+    )
+
+    assert "matrix_run_summary_provided_without_correctness_auto" in result.warnings
+    assert result.artifact_paths["task_correctness_batch_summary"] is None
+    assert result.correctness_input_count == 0
+    assert not (tmp_path / "workflow" / "correctness" / TASK_CORRECTNESS_BATCH_SUMMARY_FILENAME).exists()
+
+
+def test_auto_correctness_without_matrix_summary_returns_controlled_invalid(tmp_path: Path) -> None:
+    result = run_offline_model_evaluation_workflow(
+        _config(tmp_path, auto_task_correctness_from_matrix=True)
+    )
+    manifest = _load_json(tmp_path / "workflow" / WORKFLOW_RUN_MANIFEST_FILENAME)
+
+    assert result.status == "invalid"
+    assert "matrix_run_summary_required_for_correctness_auto" in result.warnings
+    assert manifest["status"] == "invalid"
+    assert manifest["artifact_paths"]["task_correctness_batch_summary"] is None
+
+
+def test_malformed_matrix_summary_returns_controlled_invalid_no_traceback(tmp_path: Path) -> None:
+    matrix_summary = tmp_path / "inputs" / MODEL_PAIR_MATRIX_RUN_SUMMARY_FILENAME
+    matrix_summary.parent.mkdir(parents=True, exist_ok=True)
+    matrix_summary.write_text("{bad-json", encoding="utf-8")
+
+    result = run_offline_model_evaluation_workflow(
+        _config(
+            tmp_path,
+            matrix_run_summary_path=str(matrix_summary),
+            auto_task_correctness_from_matrix=True,
+        )
+    )
+    manifest = _load_json(tmp_path / "workflow" / WORKFLOW_RUN_MANIFEST_FILENAME)
+
+    assert result.status == "invalid"
+    assert any(
+        warning.startswith("task_correctness_auto_generation_failed:matrix_summary_json_malformed")
+        for warning in result.warnings
+    )
+    assert manifest["status"] == "invalid"
+    assert manifest["artifact_paths"]["task_correctness_batch_summary"] is None
+
+
+def test_disabled_correctness_evaluator_writes_skipped_auto_summary(tmp_path: Path) -> None:
+    matrix_summary = _matrix_run_summary_path(tmp_path)
+
+    result = run_offline_model_evaluation_workflow(
+        _config(
+            tmp_path,
+            matrix_run_summary_path=str(matrix_summary),
+            auto_task_correctness_from_matrix=True,
+            task_correctness_evaluator="disabled",
+        )
+    )
+    correctness = _load_json(
+        tmp_path / "workflow" / "correctness" / TASK_CORRECTNESS_BATCH_SUMMARY_FILENAME
+    )
+
+    assert result.correctness_input_count == 1
+    assert result.correctness_evaluated_count == 1
+    assert correctness["passed_count"] == 0
+    assert correctness["skipped_count"] == 1
+    assert "task_correctness_evaluator_disabled" in correctness["warnings"]
+
+
 def test_cli_runs_workflow_and_prints_concise_json(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -406,6 +580,92 @@ def test_cli_runs_workflow_and_prints_concise_json(
     assert payload["scorecard_path"] == "scorecard/model_evaluation_scorecard.json"
     assert payload["bundle_path"] == "bundle/model_evaluation_workflow_bundle.json"
     assert payload["task_correctness_summary_path"] is not None
+
+
+def test_cli_auto_task_correctness_from_matrix_works(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    matrix_summary = _matrix_run_summary_path(tmp_path)
+
+    code = workflow_runner_cli_main(
+        [
+            "--model-catalog",
+            str(CATALOG_PATH),
+            "--scenario",
+            SCENARIO_PATH,
+            "--output-dir",
+            str(tmp_path / "workflow"),
+            "--matrix-run-summary",
+            str(matrix_summary),
+            "--auto-task-correctness-from-matrix",
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 0
+    assert payload["status"] == "partial"
+    assert payload["task_correctness_summary_path"] == "correctness/task_correctness_batch_summary.json"
+    assert payload["correctness_input_count"] == 1
+    assert payload["correctness_evaluated_count"] == 1
+    assert (tmp_path / "workflow" / "correctness" / TASK_CORRECTNESS_BATCH_SUMMARY_FILENAME).is_file()
+
+
+def test_cli_explicit_task_correctness_summary_overrides_auto(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    explicit_summary = _task_correctness_summary_path(tmp_path)
+    matrix_summary = _matrix_run_summary_path(tmp_path, task_success=False, correctness_score=0.0)
+
+    code = workflow_runner_cli_main(
+        [
+            "--model-catalog",
+            str(CATALOG_PATH),
+            "--scenario",
+            SCENARIO_PATH,
+            "--output-dir",
+            str(tmp_path / "workflow"),
+            "--task-correctness-summary",
+            str(explicit_summary),
+            "--matrix-run-summary",
+            str(matrix_summary),
+            "--auto-task-correctness-from-matrix",
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+    scorecard = _load_json(tmp_path / "workflow" / "scorecard" / MODEL_EVALUATION_SCORECARD_FILENAME)
+
+    assert code == 0
+    assert payload["status"] == "partial"
+    assert payload["task_correctness_summary_path"] is not None
+    assert not (tmp_path / "workflow" / "correctness" / TASK_CORRECTNESS_BATCH_SUMMARY_FILENAME).exists()
+    assert scorecard["task_correctness_metrics"]["mean_correctness_score"] == 1.0
+
+
+def test_cli_invalid_task_correctness_evaluator_rejected(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    code = workflow_runner_cli_main(
+        [
+            "--model-catalog",
+            str(CATALOG_PATH),
+            "--scenario",
+            SCENARIO_PATH,
+            "--output-dir",
+            str(tmp_path / "workflow"),
+            "--task-correctness-evaluator",
+            "static",
+        ]
+    )
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert code == 2
+    assert payload["status"] == "invalid_input"
+    assert payload["error"] == "invalid_task_correctness_evaluator"
+    assert "Traceback" not in captured.err
 
 
 def test_cli_rejects_missing_model_catalog_no_traceback(
@@ -478,6 +738,7 @@ def test_no_gguf_model_probe_browser_office_calls_are_made(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    matrix_summary = _matrix_run_summary_path(tmp_path)
     original_exists = Path.exists
     original_read_text = Path.read_text
     original_import = __import__
@@ -501,9 +762,16 @@ def test_no_gguf_model_probe_browser_office_calls_are_made(
     monkeypatch.setattr(Path, "read_text", forbid_gguf_read_text)
     monkeypatch.setattr("builtins.__import__", forbid_runtime_import)
 
-    result = run_offline_model_evaluation_workflow(_config(tmp_path))
+    result = run_offline_model_evaluation_workflow(
+        _config(
+            tmp_path,
+            matrix_run_summary_path=str(matrix_summary),
+            auto_task_correctness_from_matrix=True,
+        )
+    )
 
     assert result.status == "partial"
+    assert result.correctness_input_count == 1
 
 
 def test_no_absolute_tmp_path_leak_in_main_json_artifacts(tmp_path: Path) -> None:
