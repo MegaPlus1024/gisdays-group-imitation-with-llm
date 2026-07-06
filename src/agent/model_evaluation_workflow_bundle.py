@@ -9,6 +9,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 from .model_evaluation_artifact_registry import (
+    MATRIX_RUN_ADAPTER_SUMMARY,
     TASK_CORRECTNESS_BATCH_SUMMARY,
     WORKFLOW_BUNDLE,
     get_all_workflow_bundle_artifact_types,
@@ -35,6 +36,7 @@ WorkflowArtifactType = Literal[
     "normality_comparison_summary",
     "model_resource_summary",
     "task_correctness_batch_summary",
+    "matrix_run_adapter_summary",
     "model_evaluation_scorecard",
 ]
 WorkflowArtifactStatus = Literal["ok", "not_provided", "missing", "invalid_input"]
@@ -42,7 +44,10 @@ WorkflowBundleStatus = Literal["complete", "partial", "invalid"]
 
 REQUIRED_WORKFLOW_ARTIFACTS: tuple[WorkflowArtifactType, ...] = get_required_workflow_artifact_types()
 OPTIONAL_WORKFLOW_ARTIFACTS: tuple[WorkflowArtifactType, ...] = get_optional_workflow_artifact_types()
-SUPPLEMENTAL_WORKFLOW_ARTIFACTS: tuple[WorkflowArtifactType, ...] = (TASK_CORRECTNESS_BATCH_SUMMARY,)
+SUPPLEMENTAL_WORKFLOW_ARTIFACTS: tuple[WorkflowArtifactType, ...] = (
+    TASK_CORRECTNESS_BATCH_SUMMARY,
+    MATRIX_RUN_ADAPTER_SUMMARY,
+)
 ALL_WORKFLOW_ARTIFACTS: tuple[WorkflowArtifactType, ...] = (
     *get_all_workflow_bundle_artifact_types(),
     *SUPPLEMENTAL_WORKFLOW_ARTIFACTS,
@@ -164,6 +169,7 @@ def build_model_evaluation_workflow_bundle(
     normality_comparison_summary_path: str | Path | None = None,
     model_resource_summary_path: str | Path | None = None,
     task_correctness_summary_path: str | Path | None = None,
+    matrix_run_adapter_summary_path: str | Path | None = None,
     model_evaluation_scorecard_path: str | Path | None = None,
     bundle_id: str = "model_evaluation_workflow_bundle",
     base_dir: str | Path | None = None,
@@ -176,6 +182,7 @@ def build_model_evaluation_workflow_bundle(
         "normality_comparison_summary": normality_comparison_summary_path,
         "model_resource_summary": model_resource_summary_path,
         "task_correctness_batch_summary": task_correctness_summary_path,
+        "matrix_run_adapter_summary": matrix_run_adapter_summary_path,
         "model_evaluation_scorecard": model_evaluation_scorecard_path,
     }
     artifacts = {
@@ -236,6 +243,7 @@ def _summary_for_artifact(payload: dict[str, Any], artifact_type: WorkflowArtifa
         "normality_comparison_summary": _normality_comparison_summary,
         "model_resource_summary": _model_resource_summary,
         "task_correctness_batch_summary": _task_correctness_summary,
+        "matrix_run_adapter_summary": _matrix_run_adapter_summary,
         "model_evaluation_scorecard": _model_evaluation_scorecard_summary,
     }
     return _safe_value(extractors[artifact_type](payload))
@@ -342,6 +350,17 @@ def _task_correctness_summary(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _matrix_run_adapter_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "source_run_id": _safe_optional_text(payload.get("source_run_id")),
+        "trial_count": _int_or_count(payload.get("trial_count"), 0),
+        "resource_observation_count": _int_or_count(payload.get("resource_observation_count"), 0),
+        "normality_input_count": _int_or_count(payload.get("normality_input_count"), 0),
+        "normality_missing_trace_count": _int_or_count(payload.get("normality_missing_trace_count"), 0),
+        "warning_count": len(_list_value(payload.get("warnings"))),
+    }
+
+
 def _model_evaluation_scorecard_summary(payload: dict[str, Any]) -> dict[str, Any]:
     warnings = payload.get("warnings")
     return {
@@ -359,6 +378,7 @@ def _bundle_summary(artifacts: dict[WorkflowArtifactType, WorkflowArtifactSummar
     normality = artifacts["normality_comparison_summary"].summary
     resource = artifacts["model_resource_summary"].summary
     correctness = artifacts["task_correctness_batch_summary"].summary
+    matrix_adapter = artifacts["matrix_run_adapter_summary"].summary
     scorecard = artifacts["model_evaluation_scorecard"].summary
     return {
         "model_count": catalog.get("model_count", 0),
@@ -368,6 +388,9 @@ def _bundle_summary(artifacts: dict[WorkflowArtifactType, WorkflowArtifactSummar
         "scorecard_pair_count": scorecard.get("model_pair_count", 0),
         "normality_evaluated_entries": normality.get("evaluated_entries", 0),
         "resource_observation_count": resource.get("observation_count", 0),
+        "matrix_adapter_resource_observation_count": matrix_adapter.get("resource_observation_count", 0),
+        "matrix_adapter_normality_input_count": matrix_adapter.get("normality_input_count", 0),
+        "matrix_adapter_missing_trace_count": matrix_adapter.get("normality_missing_trace_count", 0),
         "task_correctness_evaluated_count": correctness.get("evaluated_count", 0),
         "task_correctness_pair_count": correctness.get("pair_count", 0),
         "required_artifacts_ok": all(artifacts[item].status == "ok" for item in REQUIRED_WORKFLOW_ARTIFACTS),

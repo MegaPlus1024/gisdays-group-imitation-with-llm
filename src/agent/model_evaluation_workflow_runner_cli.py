@@ -30,6 +30,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--resource-observation", action="append", default=[], help="Optional resource observation JSON/JSONL.")
     parser.add_argument("--resource-summary", default=None, help="Optional existing model_resource_summary.json.")
     parser.add_argument("--matrix-run-summary", default=None, help="Optional model_pair_matrix_run_summary.json.")
+    parser.add_argument("--auto-matrix-adapter-outputs", action="store_true", default=False)
+    parser.add_argument("--feed-matrix-resource-observations", action="store_true", default=False)
+    parser.add_argument("--matrix-task-summary-map", default=None, help="Optional scenario-to-task-summary map JSON.")
     parser.add_argument("--auto-task-correctness-from-matrix", action="store_true", default=False)
     parser.add_argument(
         "--task-correctness-evaluator",
@@ -83,6 +86,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 resource_observation_paths=args.resource_observation,
                 resource_summary_path=args.resource_summary,
                 matrix_run_summary_path=args.matrix_run_summary,
+                auto_matrix_adapter_outputs=args.auto_matrix_adapter_outputs,
+                feed_matrix_resource_observations=args.feed_matrix_resource_observations,
+                matrix_task_summary_map_path=args.matrix_task_summary_map,
                 auto_task_correctness_from_matrix=args.auto_task_correctness_from_matrix,
                 task_correctness_evaluator=args.task_correctness_evaluator,
                 task_correctness_summary_path=args.task_correctness_summary,
@@ -105,7 +111,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         "readiness_status": result.readiness_status,
         "scorecard_path": result.artifact_paths.get("model_evaluation_scorecard"),
         "bundle_path": result.artifact_paths.get("workflow_bundle"),
+        "matrix_adapter_summary_path": result.artifact_paths.get("matrix_run_adapter_summary"),
+        "matrix_resource_observations_path": result.artifact_paths.get("matrix_resource_observations"),
+        "matrix_normality_inputs_path": result.artifact_paths.get("matrix_normality_inputs"),
         "task_correctness_summary_path": result.artifact_paths.get("task_correctness_batch_summary"),
+        "resource_observation_count": result.resource_observation_count,
+        "normality_input_count": result.normality_input_count,
+        "normality_missing_trace_count": result.normality_missing_trace_count,
         "correctness_input_count": result.correctness_input_count,
         "correctness_evaluated_count": result.correctness_evaluated_count,
         "warning_count": len(result.warnings),
@@ -124,7 +136,13 @@ def _invalid_payload(error: str) -> dict[str, object]:
         "readiness_status": None,
         "scorecard_path": None,
         "bundle_path": None,
+        "matrix_adapter_summary_path": None,
+        "matrix_resource_observations_path": None,
+        "matrix_normality_inputs_path": None,
         "task_correctness_summary_path": None,
+        "resource_observation_count": 0,
+        "normality_input_count": 0,
+        "normality_missing_trace_count": 0,
         "correctness_input_count": 0,
         "correctness_evaluated_count": 0,
         "warning_count": 0,
@@ -146,6 +164,12 @@ def _config_conflict(args: argparse.Namespace) -> str | None:
         return "config_conflicts_with_resource_summary"
     if args.matrix_run_summary:
         return "config_conflicts_with_matrix_run_summary"
+    if args.auto_matrix_adapter_outputs:
+        return "config_conflicts_with_auto_matrix_adapter_outputs"
+    if args.feed_matrix_resource_observations:
+        return "config_conflicts_with_feed_matrix_resource_observations"
+    if args.matrix_task_summary_map:
+        return "config_conflicts_with_matrix_task_summary_map"
     if args.auto_task_correctness_from_matrix:
         return "config_conflicts_with_auto_task_correctness_from_matrix"
     if args.task_correctness_evaluator != "rule_based":

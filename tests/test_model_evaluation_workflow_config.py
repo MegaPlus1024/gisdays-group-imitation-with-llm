@@ -47,6 +47,9 @@ def test_loads_example_config(tmp_path: Path) -> None:
     assert config.output_dir == str(tmp_path / "workflow")
     assert config.output_dir_overridden is True
     assert config.matrix_run_summary_path is None
+    assert config.auto_matrix_adapter_outputs is False
+    assert config.feed_matrix_resource_observations is False
+    assert config.matrix_task_summary_map_path is None
     assert config.auto_task_correctness_from_matrix is False
     assert config.task_correctness_evaluator == "rule_based"
     assert config.task_correctness_summary_path is None
@@ -73,6 +76,9 @@ def test_builds_run_config_from_json_dict(tmp_path: Path) -> None:
     assert config.include_self_pairs is True
     assert config.include_role_mismatch_pairs is False
     assert config.matrix_run_summary_path is None
+    assert config.auto_matrix_adapter_outputs is False
+    assert config.feed_matrix_resource_observations is False
+    assert config.matrix_task_summary_map_path is None
     assert config.auto_task_correctness_from_matrix is False
     assert config.task_correctness_evaluator == "rule_based"
     assert config.tags == ["offline", "example", "no-runtime"]
@@ -92,6 +98,23 @@ def test_builds_run_config_with_matrix_correctness_fields(tmp_path: Path) -> Non
     assert config.matrix_run_summary_path == "artifacts/matrix/model_pair_matrix_run_summary.json"
     assert config.auto_task_correctness_from_matrix is True
     assert config.task_correctness_evaluator == "disabled"
+
+
+def test_builds_run_config_with_matrix_adapter_fields(tmp_path: Path) -> None:
+    config = workflow_run_config_from_dict(
+        _example_payload(
+            matrix_run_summary_path="artifacts/matrix/model_pair_matrix_run_summary.json",
+            auto_matrix_adapter_outputs=True,
+            feed_matrix_resource_observations=True,
+            matrix_task_summary_map_path="configs/matrix_task_summary_map.example.json",
+        ),
+        output_dir_override=tmp_path / "workflow",
+    )
+
+    assert config.matrix_run_summary_path == "artifacts/matrix/model_pair_matrix_run_summary.json"
+    assert config.auto_matrix_adapter_outputs is True
+    assert config.feed_matrix_resource_observations is True
+    assert config.matrix_task_summary_map_path == "configs/matrix_task_summary_map.example.json"
 
 
 def test_rejects_missing_required_model_catalog_path(tmp_path: Path) -> None:
@@ -181,6 +204,17 @@ def test_rejects_non_bool_auto_task_correctness_flag(tmp_path: Path) -> None:
         workflow_run_config_from_dict(payload)
 
 
+@pytest.mark.parametrize("field_name", ["auto_matrix_adapter_outputs", "feed_matrix_resource_observations"])
+def test_rejects_non_bool_matrix_adapter_flags(tmp_path: Path, field_name: str) -> None:
+    payload = _example_payload(
+        **{field_name: "true"},
+        output_dir=str(tmp_path / "workflow"),
+    )
+
+    with pytest.raises(ModelEvaluationWorkflowConfigError):
+        workflow_run_config_from_dict(payload)
+
+
 def test_rejects_absolute_matrix_run_summary_path(tmp_path: Path) -> None:
     payload = _example_payload(
         matrix_run_summary_path=str(PROJECT_ROOT / "artifacts" / "matrix" / "model_pair_matrix_run_summary.json"),
@@ -194,6 +228,26 @@ def test_rejects_absolute_matrix_run_summary_path(tmp_path: Path) -> None:
 def test_rejects_traversal_matrix_run_summary_path(tmp_path: Path) -> None:
     payload = _example_payload(
         matrix_run_summary_path="../outside/model_pair_matrix_run_summary.json",
+        output_dir=str(tmp_path / "workflow"),
+    )
+
+    with pytest.raises(ModelEvaluationWorkflowConfigError):
+        workflow_run_config_from_dict(payload)
+
+
+def test_rejects_absolute_matrix_task_summary_map_path(tmp_path: Path) -> None:
+    payload = _example_payload(
+        matrix_task_summary_map_path=str(PROJECT_ROOT / "configs" / "matrix_task_summary_map.example.json"),
+        output_dir=str(tmp_path / "workflow"),
+    )
+
+    with pytest.raises(ModelEvaluationWorkflowConfigError):
+        workflow_run_config_from_dict(payload)
+
+
+def test_rejects_traversal_matrix_task_summary_map_path(tmp_path: Path) -> None:
+    payload = _example_payload(
+        matrix_task_summary_map_path="../outside/matrix_task_summary_map.json",
         output_dir=str(tmp_path / "workflow"),
     )
 
@@ -264,6 +318,39 @@ def test_cli_rejects_config_mixed_with_explicit_scenario(
     assert code == 2
     assert payload["status"] == "invalid_input"
     assert payload["error"] == "config_conflicts_with_scenario"
+
+
+@pytest.mark.parametrize(
+    ("extra_args", "error"),
+    [
+        (["--auto-matrix-adapter-outputs"], "config_conflicts_with_auto_matrix_adapter_outputs"),
+        (["--feed-matrix-resource-observations"], "config_conflicts_with_feed_matrix_resource_observations"),
+        (
+            ["--matrix-task-summary-map", "configs/matrix_task_summary_map.example.json"],
+            "config_conflicts_with_matrix_task_summary_map",
+        ),
+    ],
+)
+def test_cli_rejects_config_mixed_with_matrix_adapter_options(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    extra_args: list[str],
+    error: str,
+) -> None:
+    code = workflow_runner_cli_main(
+        [
+            "--config",
+            str(EXAMPLE_CONFIG_PATH),
+            "--output-dir",
+            str(tmp_path / "workflow"),
+            *extra_args,
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 2
+    assert payload["status"] == "invalid_input"
+    assert payload["error"] == error
 
 
 def test_cli_config_output_dir_overrides_config_output(

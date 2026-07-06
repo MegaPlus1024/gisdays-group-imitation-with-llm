@@ -32,6 +32,13 @@ from .model_evaluation_workflow_bundle import (
     build_model_evaluation_workflow_bundle,
     write_model_evaluation_workflow_bundle,
 )
+from .model_pair_matrix_adapters import (
+    MATRIX_RUN_ADAPTER_SUMMARY_FILENAME,
+    MODEL_RESOURCE_OBSERVATIONS_JSONL_FILENAME,
+    NORMALITY_JUDGE_INPUTS_JSONL_FILENAME,
+    MatrixRunAdapterInputLoadError,
+    write_matrix_run_adapter_outputs,
+)
 from .model_resource_evaluation import run_model_resource_evaluation
 from .model_task_correctness_evaluation import (
     DisabledTaskCorrectnessEvaluator,
@@ -72,6 +79,9 @@ _WORKFLOW_CONFIG_ALLOWED_KEYS = {
     "resource_observation_paths",
     "resource_summary_path",
     "matrix_run_summary_path",
+    "auto_matrix_adapter_outputs",
+    "feed_matrix_resource_observations",
+    "matrix_task_summary_map_path",
     "auto_task_correctness_from_matrix",
     "task_correctness_evaluator",
     "task_correctness_summary_path",
@@ -97,6 +107,9 @@ class ModelEvaluationWorkflowRunConfig(BaseModel):
     resource_observation_paths: list[str] = Field(default_factory=list)
     resource_summary_path: str | None = None
     matrix_run_summary_path: str | None = None
+    auto_matrix_adapter_outputs: bool = False
+    feed_matrix_resource_observations: bool = False
+    matrix_task_summary_map_path: str | None = None
     auto_task_correctness_from_matrix: bool = False
     task_correctness_evaluator: TaskCorrectnessEvaluatorName = "rule_based"
     task_correctness_summary_path: str | None = None
@@ -123,7 +136,7 @@ class ModelEvaluationWorkflowRunConfig(BaseModel):
             raise ValueError("optional workflow text fields must be non-empty when provided.")
         return _safe_text(cleaned)
 
-    @field_validator("matrix_run_summary_path", "task_correctness_summary_path")
+    @field_validator("matrix_run_summary_path", "matrix_task_summary_map_path", "task_correctness_summary_path")
     @classmethod
     def validate_optional_input_path_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -171,6 +184,8 @@ class ModelEvaluationWorkflowRunConfig(BaseModel):
     @field_validator(
         "include_self_pairs",
         "include_role_mismatch_pairs",
+        "auto_matrix_adapter_outputs",
+        "feed_matrix_resource_observations",
         "auto_task_correctness_from_matrix",
         "write_markdown_previews",
         "config_used",
@@ -195,6 +210,8 @@ class ModelEvaluationWorkflowRunConfig(BaseModel):
     def validate_resource_input_choice(self) -> "ModelEvaluationWorkflowRunConfig":
         if self.resource_observation_paths and self.resource_summary_path:
             raise ValueError("provide resource observations or resource summary, not both.")
+        if self.feed_matrix_resource_observations and self.resource_summary_path:
+            raise ValueError("provide matrix resource observation feed or resource summary, not both.")
         return self
 
 
@@ -210,6 +227,9 @@ class ModelEvaluationWorkflowRunResult(BaseModel):
     readiness_status: str | None = None
     readiness_error_count: int = 0
     readiness_warning_count: int = 0
+    resource_observation_count: int = 0
+    normality_input_count: int = 0
+    normality_missing_trace_count: int = 0
     correctness_input_count: int = 0
     correctness_evaluated_count: int = 0
     warnings: list[str] = Field(default_factory=list)
@@ -307,6 +327,13 @@ def workflow_run_config_from_dict(
             field_name="matrix_run_summary_path",
             config_dir=config_dir,
         ),
+        "auto_matrix_adapter_outputs": data.get("auto_matrix_adapter_outputs", False),
+        "feed_matrix_resource_observations": data.get("feed_matrix_resource_observations", False),
+        "matrix_task_summary_map_path": _config_optional_input_path(
+            data.get("matrix_task_summary_map_path"),
+            field_name="matrix_task_summary_map_path",
+            config_dir=config_dir,
+        ),
         "auto_task_correctness_from_matrix": data.get("auto_task_correctness_from_matrix", False),
         "task_correctness_evaluator": _optional_config_text(
             data.get("task_correctness_evaluator", "rule_based"),
@@ -344,6 +371,9 @@ def run_offline_model_evaluation_workflow(
         "readiness_report": None,
         "normality_comparison_summary": None,
         "model_resource_summary": None,
+        "matrix_resource_observations": None,
+        "matrix_normality_inputs": None,
+        "matrix_run_adapter_summary": None,
         "task_correctness_batch_summary": None,
         "model_evaluation_scorecard": None,
         "workflow_bundle": None,
@@ -367,8 +397,29 @@ def run_offline_model_evaluation_workflow(
     if (
         cfg.matrix_run_summary_path
         and not cfg.auto_task_correctness_from_matrix
+        and not cfg.auto_matrix_adapter_outputs
     ):
         warnings.append("matrix_run_summary_provided_without_correctness_auto")
+    if cfg.auto_matrix_adapter_outputs and not cfg.matrix_run_summary_path:
+        result = _result(
+            status="invalid",
+            workflow_id=workflow_id,
+            output_display=output_display,
+            artifact_paths=artifact_paths,
+            warnings=[*warnings, "matrix_run_summary_required_for_matrix_adapter_outputs"],
+            config_metadata=config_metadata,
+        )
+        return _write_manifest_or_write_failed(result, output_dir)
+    if cfg.feed_matrix_resource_observations and not cfg.auto_matrix_adapter_outputs:
+        result = _result(
+            status="invalid",
+            workflow_id=workflow_id,
+            output_display=output_display,
+            artifact_paths=artifact_paths,
+            warnings=[*warnings, "matrix_adapter_outputs_required_for_resource_feed"],
+            config_metadata=config_metadata,
+        )
+        return _write_manifest_or_write_failed(result, output_dir)
     if (
         cfg.auto_task_correctness_from_matrix
         and not cfg.task_correctness_summary_path
@@ -430,6 +481,65 @@ def run_offline_model_evaluation_workflow(
     if readiness.status != "ready":
         warnings.append(f"readiness_status:{readiness.status}")
 
+    matrix_adapter_summary_path: Path | None = None
+    matrix_resource_observations_path: Path | None = None
+    matrix_normality_inputs_path: Path | None = None
+    resource_observation_count = 0
+    normality_input_count = 0
+    normality_missing_trace_count = 0
+    if cfg.auto_matrix_adapter_outputs and cfg.matrix_run_summary_path:
+        try:
+            adapter_dir = output_dir / "matrix_adapters"
+            task_summary_by_scenario = _load_matrix_task_summary_map(cfg.matrix_task_summary_map_path)
+            adapter_summary = write_matrix_run_adapter_outputs(
+                cfg.matrix_run_summary_path,
+                adapter_dir,
+                task_summary_by_scenario=task_summary_by_scenario,
+                adapter_id=f"{workflow_id}_matrix_adapters",
+            )
+            matrix_resource_observations_path = adapter_dir / MODEL_RESOURCE_OBSERVATIONS_JSONL_FILENAME
+            matrix_normality_inputs_path = adapter_dir / NORMALITY_JUDGE_INPUTS_JSONL_FILENAME
+            matrix_adapter_summary_path = adapter_dir / MATRIX_RUN_ADAPTER_SUMMARY_FILENAME
+            artifact_paths["matrix_resource_observations"] = _display_path(
+                matrix_resource_observations_path,
+                base_dir=output_dir,
+            )
+            artifact_paths["matrix_normality_inputs"] = _display_path(
+                matrix_normality_inputs_path,
+                base_dir=output_dir,
+            )
+            artifact_paths["matrix_run_adapter_summary"] = _display_path(
+                matrix_adapter_summary_path,
+                base_dir=output_dir,
+            )
+            resource_observation_count = _non_negative_int(adapter_summary.get("resource_observation_count"))
+            normality_input_count = _non_negative_int(adapter_summary.get("normality_input_count"))
+            normality_missing_trace_count = _non_negative_int(
+                adapter_summary.get("normality_missing_trace_count")
+            )
+        except (
+            MatrixRunAdapterInputLoadError,
+            ModelEvaluationWorkflowConfigError,
+            OSError,
+            ValueError,
+            json.JSONDecodeError,
+        ) as exc:
+            result = _result(
+                status="invalid",
+                workflow_id=workflow_id,
+                output_display=output_display,
+                artifact_paths=artifact_paths,
+                model_count=len(catalog.models),
+                candidate_pair_count=len(plan.candidate_pairs),
+                trial_count=len(plan.trials),
+                readiness_status=readiness.status,
+                readiness_error_count=readiness_error_count,
+                readiness_warning_count=readiness_warning_count,
+                warnings=[*warnings, f"matrix_adapter_output_generation_failed:{_safe_text(str(exc))}"],
+                config_metadata=config_metadata,
+            )
+            return _write_manifest_or_write_failed(result, output_dir)
+
     normality_path: Path | None = None
     if cfg.normality_batch_summary_paths:
         normality = compare_normality_batch_summaries(
@@ -449,9 +559,34 @@ def run_offline_model_evaluation_workflow(
         warnings.append("normality_inputs_not_provided")
 
     resource_path: Path | str | None = None
-    if cfg.resource_observation_paths:
+    resource_observation_paths: list[str | Path] = list(cfg.resource_observation_paths)
+    if cfg.feed_matrix_resource_observations:
+        if matrix_resource_observations_path is None:
+            result = _result(
+                status="invalid",
+                workflow_id=workflow_id,
+                output_display=output_display,
+                artifact_paths=artifact_paths,
+                model_count=len(catalog.models),
+                candidate_pair_count=len(plan.candidate_pairs),
+                trial_count=len(plan.trials),
+                readiness_status=readiness.status,
+                readiness_error_count=readiness_error_count,
+                readiness_warning_count=readiness_warning_count,
+                resource_observation_count=resource_observation_count,
+                normality_input_count=normality_input_count,
+                normality_missing_trace_count=normality_missing_trace_count,
+                warnings=[*warnings, "matrix_resource_observations_required_for_resource_feed"],
+                config_metadata=config_metadata,
+            )
+            return _write_manifest_or_write_failed(result, output_dir)
+        if resource_observation_paths:
+            warnings.append("matrix_resource_observations_appended_to_explicit_resource_inputs")
+        resource_observation_paths.append(matrix_resource_observations_path)
+
+    if resource_observation_paths:
         resource = run_model_resource_evaluation(
-            cfg.resource_observation_paths,
+            resource_observation_paths,
             output_dir / "resource",
             model_catalog=catalog,
             summary_id=f"{workflow_id}_resource",
@@ -507,6 +642,9 @@ def run_offline_model_evaluation_workflow(
                 readiness_status=readiness.status,
                 readiness_error_count=readiness_error_count,
                 readiness_warning_count=readiness_warning_count,
+                resource_observation_count=resource_observation_count,
+                normality_input_count=normality_input_count,
+                normality_missing_trace_count=normality_missing_trace_count,
                 warnings=[*warnings, f"task_correctness_auto_generation_failed:{_safe_text(str(exc))}"],
                 config_metadata=config_metadata,
             )
@@ -537,6 +675,7 @@ def run_offline_model_evaluation_workflow(
             readiness_report_path=readiness_path,
             normality_comparison_summary_path=normality_path,
             model_resource_summary_path=resource_path,
+            matrix_run_adapter_summary_path=matrix_adapter_summary_path,
             task_correctness_summary_path=task_correctness_path,
             model_evaluation_scorecard_path=scorecard_path,
             bundle_id=f"{workflow_id}_bundle",
@@ -562,6 +701,9 @@ def run_offline_model_evaluation_workflow(
             readiness_status=readiness.status,
             readiness_error_count=readiness_error_count,
             readiness_warning_count=readiness_warning_count,
+            resource_observation_count=resource_observation_count,
+            normality_input_count=normality_input_count,
+            normality_missing_trace_count=normality_missing_trace_count,
             correctness_input_count=correctness_input_count,
             correctness_evaluated_count=correctness_evaluated_count,
             warnings=[*warnings, f"final_artifact_build_failed:{exc.__class__.__name__}"],
@@ -586,6 +728,9 @@ def run_offline_model_evaluation_workflow(
         readiness_status=readiness.status,
         readiness_error_count=readiness_error_count,
         readiness_warning_count=readiness_warning_count,
+        resource_observation_count=resource_observation_count,
+        normality_input_count=normality_input_count,
+        normality_missing_trace_count=normality_missing_trace_count,
         correctness_input_count=correctness_input_count,
         correctness_evaluated_count=correctness_evaluated_count,
         warnings=warnings,
@@ -729,6 +874,16 @@ def _workflow_status(
     return "ok"
 
 
+def _non_negative_int(value: Any) -> int:
+    if isinstance(value, bool):
+        return 0
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return max(parsed, 0)
+
+
 def _build_task_correctness_summary_from_matrix(
     matrix_run_summary_path: str | Path,
     *,
@@ -744,6 +899,33 @@ def _build_task_correctness_summary_from_matrix(
         summary_id=summary_id,
         tags=tags,
     )
+
+
+def _load_matrix_task_summary_map(path: str | Path | None) -> dict[str, str] | None:
+    if path is None:
+        return None
+    candidate = Path(path)
+    try:
+        payload = json.loads(candidate.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ModelEvaluationWorkflowConfigError("matrix_task_summary_map_file_missing") from exc
+    except OSError as exc:
+        raise ModelEvaluationWorkflowConfigError("matrix_task_summary_map_file_unreadable") from exc
+    except json.JSONDecodeError as exc:
+        raise ModelEvaluationWorkflowConfigError("matrix_task_summary_map_json_malformed") from exc
+    if not isinstance(payload, dict):
+        raise ModelEvaluationWorkflowConfigError("matrix_task_summary_map_payload_not_object")
+
+    result: dict[str, str] = {}
+    for key, value in payload.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise ModelEvaluationWorkflowConfigError("matrix_task_summary_map_entries_must_be_strings")
+        cleaned_key = _safe_text(key).strip()
+        cleaned_value = _safe_text(value).strip()
+        if not cleaned_key or not cleaned_value:
+            raise ModelEvaluationWorkflowConfigError("matrix_task_summary_map_entries_must_be_non_empty")
+        result[cleaned_key] = cleaned_value
+    return result
 
 
 def _task_correctness_evaluator(
@@ -783,6 +965,9 @@ def _result(
     readiness_status: str | None = None,
     readiness_error_count: int = 0,
     readiness_warning_count: int = 0,
+    resource_observation_count: int = 0,
+    normality_input_count: int = 0,
+    normality_missing_trace_count: int = 0,
     correctness_input_count: int = 0,
     correctness_evaluated_count: int = 0,
     warnings: list[str] | None = None,
@@ -800,6 +985,9 @@ def _result(
         readiness_status=_safe_optional_text(readiness_status),
         readiness_error_count=readiness_error_count,
         readiness_warning_count=readiness_warning_count,
+        resource_observation_count=resource_observation_count,
+        normality_input_count=normality_input_count,
+        normality_missing_trace_count=normality_missing_trace_count,
         correctness_input_count=correctness_input_count,
         correctness_evaluated_count=correctness_evaluated_count,
         warnings=sorted(set(_safe_text(warning) for warning in (warnings or []))),

@@ -177,6 +177,25 @@ def _task_correctness_payload() -> dict[str, Any]:
     }
 
 
+def _matrix_adapter_payload() -> dict[str, Any]:
+    return {
+        "schema_version": "matrix_run_adapter_summary_v1",
+        "adapter_id": "workflow_matrix_adapters",
+        "source_run_id": "matrix_run_001",
+        "trial_count": 2,
+        "resource_observation_count": 2,
+        "normality_input_count": 2,
+        "normality_missing_trace_count": 1,
+        "output_paths": {
+            "resource_observations": "model_resource_observations.jsonl",
+            "normality_inputs": "normality_judge_inputs.jsonl",
+            "adapter_summary": "matrix_run_adapter_summary.json",
+        },
+        "warnings": ["normality_trace_missing"],
+        "no_runtime_execution": True,
+    }
+
+
 def _scorecard_payload(*, scorecard_id: str = "workflow_scorecard") -> dict[str, Any]:
     return {
         "schema_version": "model_evaluation_scorecard_v1",
@@ -197,6 +216,7 @@ def _artifact_paths(tmp_path: Path) -> dict[str, Path]:
         "normality_comparison_summary": _write_json(tmp_path / "normality.json", _normality_payload()),
         "model_resource_summary": _write_json(tmp_path / "resource.json", _resource_payload()),
         "task_correctness_batch_summary": _write_json(tmp_path / "correctness.json", _task_correctness_payload()),
+        "matrix_run_adapter_summary": _write_json(tmp_path / "matrix_adapter.json", _matrix_adapter_payload()),
         "model_evaluation_scorecard": _write_json(tmp_path / "scorecard.json", _scorecard_payload()),
     }
 
@@ -365,6 +385,42 @@ def test_extracts_task_correctness_summary(tmp_path: Path) -> None:
     assert artifact.summary["pair_count"] == 1
     assert artifact.summary["scenario_count"] == 1
     assert artifact.summary["warning_count"] == 1
+
+
+def test_extracts_matrix_run_adapter_summary(tmp_path: Path) -> None:
+    path = _write_json(tmp_path / "matrix_adapter.json", _matrix_adapter_payload())
+
+    artifact = load_workflow_artifact_summary(path, "matrix_run_adapter_summary", base_dir=tmp_path)
+
+    assert artifact.summary["source_run_id"] == "matrix_run_001"
+    assert artifact.summary["trial_count"] == 2
+    assert artifact.summary["resource_observation_count"] == 2
+    assert artifact.summary["normality_input_count"] == 2
+    assert artifact.summary["normality_missing_trace_count"] == 1
+    assert artifact.summary["warning_count"] == 1
+
+
+def test_bundle_can_include_matrix_run_adapter_summary_as_supplemental(tmp_path: Path) -> None:
+    paths = _artifact_paths(tmp_path)
+
+    bundle = build_model_evaluation_workflow_bundle(
+        model_catalog_path=paths["model_catalog"],
+        model_comparison_plan_path=paths["model_comparison_plan"],
+        readiness_report_path=paths["readiness_report"],
+        normality_comparison_summary_path=paths["normality_comparison_summary"],
+        model_resource_summary_path=paths["model_resource_summary"],
+        matrix_run_adapter_summary_path=paths["matrix_run_adapter_summary"],
+        model_evaluation_scorecard_path=paths["model_evaluation_scorecard"],
+        bundle_id="matrix_adapter_bundle",
+        base_dir=tmp_path,
+    )
+
+    assert bundle.status == "complete"
+    assert bundle.artifacts["matrix_run_adapter_summary"].status == "ok"
+    assert "matrix_run_adapter_summary" in bundle.summary["optional_artifacts_present"]
+    assert bundle.summary["matrix_adapter_resource_observation_count"] == 2
+    assert bundle.summary["matrix_adapter_normality_input_count"] == 2
+    assert bundle.summary["matrix_adapter_missing_trace_count"] == 1
 
 
 def test_extracts_scorecard_summary(tmp_path: Path) -> None:

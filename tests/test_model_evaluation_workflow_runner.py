@@ -17,6 +17,11 @@ from src.agent.model_evaluation_workflow_runner import (
     run_offline_model_evaluation_workflow,
 )
 from src.agent.model_evaluation_workflow_runner_cli import main as workflow_runner_cli_main
+from src.agent.model_pair_matrix_adapters import (
+    MATRIX_RUN_ADAPTER_SUMMARY_FILENAME,
+    MODEL_RESOURCE_OBSERVATIONS_JSONL_FILENAME,
+    NORMALITY_JUDGE_INPUTS_JSONL_FILENAME,
+)
 from src.agent.model_pair_matrix_runner import MODEL_PAIR_MATRIX_RUN_SUMMARY_FILENAME
 from src.agent.model_resource_evaluation import MODEL_RESOURCE_SUMMARY_FILENAME
 from src.agent.model_task_correctness_evaluation import TASK_CORRECTNESS_BATCH_SUMMARY_FILENAME
@@ -31,6 +36,14 @@ RAW_MARKER = "RAW_FULL_WORKFLOW_RUNNER_TEST_MARKER"
 
 def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _load_jsonl(path: Path) -> list[dict[str, Any]]:
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
 
 
 def _write_json(path: Path, payload: object) -> Path:
@@ -191,6 +204,8 @@ def _matrix_run_summary_path(
     *,
     task_success: bool = True,
     correctness_score: float | None = 0.94,
+    group_history: list[dict[str, Any]] | None = None,
+    resource_observation: dict[str, Any] | None = None,
 ) -> Path:
     pair_id = "second_model__to__first_model"
     scenario_id = "office_document_file_workflow_basic_v1"
@@ -209,6 +224,10 @@ def _matrix_run_summary_path(
     }
     if correctness_score is not None:
         trial_result["correctness_score"] = correctness_score
+    if group_history is not None:
+        trial_result["group_history"] = group_history
+    if resource_observation is not None:
+        trial_result["resource_observation"] = resource_observation
     return _write_json(
         tmp_path / "inputs" / MODEL_PAIR_MATRIX_RUN_SUMMARY_FILENAME,
         {
@@ -485,6 +504,146 @@ def test_matrix_summary_without_auto_flag_warns_without_generating_correctness(t
     assert not (tmp_path / "workflow" / "correctness" / TASK_CORRECTNESS_BATCH_SUMMARY_FILENAME).exists()
 
 
+def test_runner_auto_matrix_adapter_outputs_write_artifacts_manifest_and_bundle(tmp_path: Path) -> None:
+    matrix_summary = _matrix_run_summary_path(tmp_path)
+
+    result = run_offline_model_evaluation_workflow(
+        _config(
+            tmp_path,
+            matrix_run_summary_path=str(matrix_summary),
+            auto_matrix_adapter_outputs=True,
+        )
+    )
+    output_dir = tmp_path / "workflow"
+    adapter_dir = output_dir / "matrix_adapters"
+    adapter_summary = _load_json(adapter_dir / MATRIX_RUN_ADAPTER_SUMMARY_FILENAME)
+    manifest = _load_json(output_dir / WORKFLOW_RUN_MANIFEST_FILENAME)
+    bundle = _load_json(output_dir / "bundle" / MODEL_EVALUATION_WORKFLOW_BUNDLE_FILENAME)
+
+    assert result.status == "partial"
+    assert "matrix_run_summary_provided_without_correctness_auto" not in result.warnings
+    assert result.artifact_paths["matrix_resource_observations"] == (
+        "matrix_adapters/model_resource_observations.jsonl"
+    )
+    assert result.artifact_paths["matrix_normality_inputs"] == "matrix_adapters/normality_judge_inputs.jsonl"
+    assert result.artifact_paths["matrix_run_adapter_summary"] == "matrix_adapters/matrix_run_adapter_summary.json"
+    assert (adapter_dir / MODEL_RESOURCE_OBSERVATIONS_JSONL_FILENAME).is_file()
+    assert (adapter_dir / NORMALITY_JUDGE_INPUTS_JSONL_FILENAME).is_file()
+    assert result.resource_observation_count == 1
+    assert result.normality_input_count == 1
+    assert result.normality_missing_trace_count == 1
+    assert adapter_summary["resource_observation_count"] == 1
+    assert adapter_summary["normality_input_count"] == 1
+    assert adapter_summary["normality_missing_trace_count"] == 1
+    assert manifest["artifact_paths"]["matrix_run_adapter_summary"] == (
+        "matrix_adapters/matrix_run_adapter_summary.json"
+    )
+    assert manifest["resource_observation_count"] == 1
+    assert manifest["normality_input_count"] == 1
+    assert manifest["normality_missing_trace_count"] == 1
+    assert bundle["artifacts"]["matrix_run_adapter_summary"]["status"] == "ok"
+    assert "matrix_run_adapter_summary" in bundle["summary"]["optional_artifacts_present"]
+    assert bundle["summary"]["matrix_adapter_resource_observation_count"] == 1
+    assert bundle["summary"]["matrix_adapter_normality_input_count"] == 1
+    assert bundle["summary"]["matrix_adapter_missing_trace_count"] == 1
+
+
+def test_runner_matrix_adapter_prepares_normality_inputs_without_running_judge(tmp_path: Path) -> None:
+    matrix_summary = _matrix_run_summary_path(tmp_path)
+
+    result = run_offline_model_evaluation_workflow(
+        _config(
+            tmp_path,
+            matrix_run_summary_path=str(matrix_summary),
+            auto_matrix_adapter_outputs=True,
+        )
+    )
+    output_dir = tmp_path / "workflow"
+    normality_inputs = _load_jsonl(output_dir / "matrix_adapters" / NORMALITY_JUDGE_INPUTS_JSONL_FILENAME)
+
+    assert result.normality_input_count == 1
+    assert "normality_inputs_not_provided" in result.warnings
+    assert result.artifact_paths["normality_comparison_summary"] is None
+    assert not (output_dir / "normality" / NORMALITY_COMPARISON_SUMMARY_FILENAME).exists()
+    assert normality_inputs[0]["adapter_status"] == "invalid_input"
+    assert "normality_trace_missing" in normality_inputs[0]["warnings"]
+
+
+def test_runner_feeds_generated_matrix_resource_observations_to_resource_summary(tmp_path: Path) -> None:
+    matrix_summary = _matrix_run_summary_path(tmp_path)
+
+    result = run_offline_model_evaluation_workflow(
+        _config(
+            tmp_path,
+            matrix_run_summary_path=str(matrix_summary),
+            auto_matrix_adapter_outputs=True,
+            feed_matrix_resource_observations=True,
+        )
+    )
+    output_dir = tmp_path / "workflow"
+    resource = _load_json(output_dir / "resource" / MODEL_RESOURCE_SUMMARY_FILENAME)
+    scorecard = _load_json(output_dir / "scorecard" / MODEL_EVALUATION_SCORECARD_FILENAME)
+
+    assert result.status == "partial"
+    assert "resource_inputs_not_provided" not in result.warnings
+    assert result.artifact_paths["model_resource_summary"] == "resource/model_resource_summary.json"
+    assert resource["status"] == "ok"
+    assert resource["input_count"] == 1
+    assert resource["observation_count"] == 1
+    assert scorecard["resource_summary_used"] is True
+
+
+def test_runner_appends_generated_matrix_resource_to_explicit_resource_inputs(tmp_path: Path) -> None:
+    matrix_summary = _matrix_run_summary_path(tmp_path)
+    resource_input = _resource_observation_path(tmp_path)
+
+    result = run_offline_model_evaluation_workflow(
+        _config(
+            tmp_path,
+            matrix_run_summary_path=str(matrix_summary),
+            auto_matrix_adapter_outputs=True,
+            feed_matrix_resource_observations=True,
+            resource_observation_paths=[str(resource_input)],
+        )
+    )
+    resource = _load_json(tmp_path / "workflow" / "resource" / MODEL_RESOURCE_SUMMARY_FILENAME)
+
+    assert "matrix_resource_observations_appended_to_explicit_resource_inputs" in result.warnings
+    assert "resource_inputs_not_provided" not in result.warnings
+    assert resource["input_count"] == 2
+    assert resource["observation_count"] == 3
+
+
+def test_auto_matrix_adapter_without_matrix_summary_returns_controlled_invalid(tmp_path: Path) -> None:
+    result = run_offline_model_evaluation_workflow(
+        _config(tmp_path, auto_matrix_adapter_outputs=True)
+    )
+    manifest = _load_json(tmp_path / "workflow" / WORKFLOW_RUN_MANIFEST_FILENAME)
+
+    assert result.status == "invalid"
+    assert "matrix_run_summary_required_for_matrix_adapter_outputs" in result.warnings
+    assert manifest["status"] == "invalid"
+    assert manifest["artifact_paths"]["matrix_run_adapter_summary"] is None
+
+
+def test_feed_matrix_resource_observations_without_adapter_returns_controlled_invalid(tmp_path: Path) -> None:
+    matrix_summary = _matrix_run_summary_path(tmp_path)
+
+    result = run_offline_model_evaluation_workflow(
+        _config(
+            tmp_path,
+            matrix_run_summary_path=str(matrix_summary),
+            feed_matrix_resource_observations=True,
+        )
+    )
+    manifest = _load_json(tmp_path / "workflow" / WORKFLOW_RUN_MANIFEST_FILENAME)
+
+    assert result.status == "invalid"
+    assert "matrix_adapter_outputs_required_for_resource_feed" in result.warnings
+    assert manifest["status"] == "invalid"
+    assert manifest["artifact_paths"]["matrix_resource_observations"] is None
+
+
 def test_auto_correctness_without_matrix_summary_returns_controlled_invalid(tmp_path: Path) -> None:
     result = run_offline_model_evaluation_workflow(
         _config(tmp_path, auto_task_correctness_from_matrix=True)
@@ -518,6 +677,29 @@ def test_malformed_matrix_summary_returns_controlled_invalid_no_traceback(tmp_pa
     )
     assert manifest["status"] == "invalid"
     assert manifest["artifact_paths"]["task_correctness_batch_summary"] is None
+
+
+def test_malformed_matrix_summary_for_adapter_returns_controlled_invalid(tmp_path: Path) -> None:
+    matrix_summary = tmp_path / "inputs" / MODEL_PAIR_MATRIX_RUN_SUMMARY_FILENAME
+    matrix_summary.parent.mkdir(parents=True, exist_ok=True)
+    matrix_summary.write_text("{bad-json", encoding="utf-8")
+
+    result = run_offline_model_evaluation_workflow(
+        _config(
+            tmp_path,
+            matrix_run_summary_path=str(matrix_summary),
+            auto_matrix_adapter_outputs=True,
+        )
+    )
+    manifest = _load_json(tmp_path / "workflow" / WORKFLOW_RUN_MANIFEST_FILENAME)
+
+    assert result.status == "invalid"
+    assert any(
+        warning.startswith("matrix_adapter_output_generation_failed:matrix_summary_json_malformed")
+        for warning in result.warnings
+    )
+    assert manifest["status"] == "invalid"
+    assert manifest["artifact_paths"]["matrix_run_adapter_summary"] is None
 
 
 def test_disabled_correctness_evaluator_writes_skipped_auto_summary(tmp_path: Path) -> None:
@@ -609,6 +791,133 @@ def test_cli_auto_task_correctness_from_matrix_works(
     assert payload["correctness_input_count"] == 1
     assert payload["correctness_evaluated_count"] == 1
     assert (tmp_path / "workflow" / "correctness" / TASK_CORRECTNESS_BATCH_SUMMARY_FILENAME).is_file()
+
+
+def test_cli_auto_matrix_adapter_outputs_prints_counts_and_paths(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    matrix_summary = _matrix_run_summary_path(tmp_path)
+
+    code = workflow_runner_cli_main(
+        [
+            "--model-catalog",
+            str(CATALOG_PATH),
+            "--scenario",
+            SCENARIO_PATH,
+            "--output-dir",
+            str(tmp_path / "workflow"),
+            "--matrix-run-summary",
+            str(matrix_summary),
+            "--auto-matrix-adapter-outputs",
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 0
+    assert payload["status"] == "partial"
+    assert payload["matrix_adapter_summary_path"] == "matrix_adapters/matrix_run_adapter_summary.json"
+    assert payload["matrix_resource_observations_path"] == "matrix_adapters/model_resource_observations.jsonl"
+    assert payload["matrix_normality_inputs_path"] == "matrix_adapters/normality_judge_inputs.jsonl"
+    assert payload["resource_observation_count"] == 1
+    assert payload["normality_input_count"] == 1
+    assert payload["normality_missing_trace_count"] == 1
+    assert payload["correctness_input_count"] == 0
+
+
+def test_cli_feeds_matrix_resource_observations(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    matrix_summary = _matrix_run_summary_path(tmp_path)
+
+    code = workflow_runner_cli_main(
+        [
+            "--model-catalog",
+            str(CATALOG_PATH),
+            "--scenario",
+            SCENARIO_PATH,
+            "--output-dir",
+            str(tmp_path / "workflow"),
+            "--matrix-run-summary",
+            str(matrix_summary),
+            "--auto-matrix-adapter-outputs",
+            "--feed-matrix-resource-observations",
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+    resource = _load_json(tmp_path / "workflow" / "resource" / MODEL_RESOURCE_SUMMARY_FILENAME)
+
+    assert code == 0
+    assert payload["status"] == "partial"
+    assert payload["resource_observation_count"] == 1
+    assert resource["observation_count"] == 1
+    assert (tmp_path / "workflow" / "resource" / MODEL_RESOURCE_SUMMARY_FILENAME).is_file()
+
+
+def test_cli_matrix_task_summary_map_is_used_for_normality_inputs(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    matrix_summary = _matrix_run_summary_path(
+        tmp_path,
+        group_history=[{"role": "orchestrator", "content": "Collected the offline fixture."}],
+    )
+    summary_map = _write_json(
+        tmp_path / "inputs" / "matrix_task_summary_map.json",
+        {"office_document_file_workflow_basic_v1": "Mapped office workflow task summary."},
+    )
+
+    code = workflow_runner_cli_main(
+        [
+            "--model-catalog",
+            str(CATALOG_PATH),
+            "--scenario",
+            SCENARIO_PATH,
+            "--output-dir",
+            str(tmp_path / "workflow"),
+            "--matrix-run-summary",
+            str(matrix_summary),
+            "--auto-matrix-adapter-outputs",
+            "--matrix-task-summary-map",
+            str(summary_map),
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+    normality_inputs = _load_jsonl(
+        tmp_path / "workflow" / "matrix_adapters" / NORMALITY_JUDGE_INPUTS_JSONL_FILENAME
+    )
+
+    assert code == 0
+    assert payload["normality_input_count"] == 1
+    assert payload["normality_missing_trace_count"] == 0
+    assert normality_inputs[0]["task_summary"] == "Mapped office workflow task summary."
+    assert "adapter_status" not in normality_inputs[0]
+
+
+def test_cli_auto_matrix_adapter_without_matrix_summary_returns_controlled_invalid(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    code = workflow_runner_cli_main(
+        [
+            "--model-catalog",
+            str(CATALOG_PATH),
+            "--scenario",
+            SCENARIO_PATH,
+            "--output-dir",
+            str(tmp_path / "workflow"),
+            "--auto-matrix-adapter-outputs",
+        ]
+    )
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert code == 2
+    assert payload["status"] == "invalid"
+    assert payload["matrix_adapter_summary_path"] is None
+    assert payload["resource_observation_count"] == 0
+    assert "Traceback" not in captured.err
 
 
 def test_cli_explicit_task_correctness_summary_overrides_auto(
@@ -766,11 +1075,14 @@ def test_no_gguf_model_probe_browser_office_calls_are_made(
         _config(
             tmp_path,
             matrix_run_summary_path=str(matrix_summary),
+            auto_matrix_adapter_outputs=True,
+            feed_matrix_resource_observations=True,
             auto_task_correctness_from_matrix=True,
         )
     )
 
     assert result.status == "partial"
+    assert result.resource_observation_count == 1
     assert result.correctness_input_count == 1
 
 
