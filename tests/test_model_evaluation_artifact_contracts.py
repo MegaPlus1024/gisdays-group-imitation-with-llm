@@ -99,6 +99,48 @@ def _model_pair_matrix_run_summary_payload(**overrides: object) -> dict[str, Any
     return payload
 
 
+def _task_correctness_result_payload(**overrides: object) -> dict[str, Any]:
+    payload = {
+        "schema_version": "task_correctness_evaluation_result_v1",
+        "trial_id": "trial_1",
+        "scenario_id": "office_document_file_workflow_basic_v1",
+        "pair_id": "second_model__to__first_model",
+        "status": "passed",
+        "task_success": True,
+        "correctness_score": 1.0,
+        "check_results": [],
+        "failure_reasons": [],
+        "warnings": [],
+        "notes": ["Offline task correctness evaluation only; no runtime execution performed."],
+        "no_runtime_execution": True,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _task_correctness_batch_summary_payload(**overrides: object) -> dict[str, Any]:
+    payload = {
+        "schema_version": "task_correctness_batch_summary_v1",
+        "summary_id": "contract_correctness_summary",
+        "input_count": 1,
+        "evaluated_count": 1,
+        "invalid_count": 0,
+        "passed_count": 1,
+        "failed_count": 0,
+        "partial_count": 0,
+        "skipped_count": 0,
+        "mean_correctness_score": 1.0,
+        "by_pair": {},
+        "by_scenario": {},
+        "results": [_task_correctness_result_payload()],
+        "warnings": [],
+        "notes": ["Offline task correctness batch summary only; no model execution performed."],
+        "no_runtime_execution": True,
+    }
+    payload.update(overrides)
+    return payload
+
+
 def _bundle_payload(**overrides: object) -> dict[str, Any]:
     payload = {
         "schema_version": "model_evaluation_workflow_bundle_v1",
@@ -233,6 +275,24 @@ def test_valid_model_pair_matrix_run_summary_passes_contract_validation() -> Non
     issues = contracts.validate_artifact_against_contract(
         _model_pair_matrix_run_summary_payload(),
         registry.MODEL_PAIR_MATRIX_RUN_SUMMARY,
+    )
+
+    assert issues == []
+
+
+def test_valid_task_correctness_result_passes_contract_validation() -> None:
+    issues = contracts.validate_artifact_against_contract(
+        _task_correctness_result_payload(),
+        registry.TASK_CORRECTNESS_EVALUATION_RESULT,
+    )
+
+    assert issues == []
+
+
+def test_valid_task_correctness_batch_summary_passes_contract_validation() -> None:
+    issues = contracts.validate_artifact_against_contract(
+        _task_correctness_batch_summary_payload(),
+        registry.TASK_CORRECTNESS_BATCH_SUMMARY,
     )
 
     assert issues == []

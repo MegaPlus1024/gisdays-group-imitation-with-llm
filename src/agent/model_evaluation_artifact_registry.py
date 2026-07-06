@@ -7,6 +7,8 @@ from typing import Literal
 MODEL_CATALOG = "model_catalog"
 MODEL_COMPARISON_PLAN = "model_comparison_plan"
 MODEL_PAIR_MATRIX_RUN_SUMMARY = "model_pair_matrix_run_summary"
+TASK_CORRECTNESS_EVALUATION_RESULT = "task_correctness_evaluation_result"
+TASK_CORRECTNESS_BATCH_SUMMARY = "task_correctness_batch_summary"
 READINESS_REPORT = "readiness_report"
 NORMALITY_COMPARISON_SUMMARY = "normality_comparison_summary"
 MODEL_RESOURCE_SUMMARY = "model_resource_summary"
@@ -21,6 +23,8 @@ ArtifactType = Literal[
     "model_catalog",
     "model_comparison_plan",
     "model_pair_matrix_run_summary",
+    "task_correctness_evaluation_result",
+    "task_correctness_batch_summary",
     "readiness_report",
     "normality_comparison_summary",
     "model_resource_summary",
@@ -90,6 +94,19 @@ _REGISTRY: tuple[ArtifactSchemaInfo, ...] = (
         schema_version="model_pair_matrix_run_summary_v1",
         default_filename="model_pair_matrix_run_summary.json",
         description="Offline model-pair matrix run summary.",
+    ),
+    ArtifactSchemaInfo(
+        artifact_type=TASK_CORRECTNESS_EVALUATION_RESULT,
+        schema_version="task_correctness_evaluation_result_v1",
+        default_filename="task_correctness_evaluation_result.json",
+        description="Offline task correctness evaluation result.",
+        status_field="status",
+    ),
+    ArtifactSchemaInfo(
+        artifact_type=TASK_CORRECTNESS_BATCH_SUMMARY,
+        schema_version="task_correctness_batch_summary_v1",
+        default_filename="task_correctness_batch_summary.json",
+        description="Offline task correctness batch summary.",
     ),
     ArtifactSchemaInfo(
         artifact_type=READINESS_REPORT,
