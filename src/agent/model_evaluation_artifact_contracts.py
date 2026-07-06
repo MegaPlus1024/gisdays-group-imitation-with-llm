@@ -13,6 +13,7 @@ from .model_evaluation_artifact_registry import (
     MATRIX_RUN_ADAPTER_SUMMARY,
     MODEL_RESOURCE_SUMMARY,
     NORMALITY_COMPARISON_SUMMARY,
+    PREPARED_NORMALITY_JUDGE_PROMPT_PACK_SUMMARY,
     READINESS_REPORT,
     TASK_CORRECTNESS_BATCH_SUMMARY,
     TASK_CORRECTNESS_EVALUATION_RESULT,
@@ -379,6 +380,20 @@ _CONTRACTS_BY_TYPE: dict[str, ArtifactSchemaContract] = {
         optional=(
             _optional("adapter_id", "string"),
             _optional("output_paths", "object"),
+        ),
+    ),
+    PREPARED_NORMALITY_JUDGE_PROMPT_PACK_SUMMARY: _contract(
+        PREPARED_NORMALITY_JUDGE_PROMPT_PACK_SUMMARY,
+        required=(
+            _field("schema_version", "string"),
+            _field("pack_id", "string"),
+            _field("input_count", "integer"),
+            _field("prompt_count", "integer"),
+            _field("skipped_count", "integer"),
+            _field("prompts", "array"),
+            _field("warnings", "array"),
+            _field("notes", "array"),
+            _field("no_runtime_execution", "boolean"),
         ),
     ),
     TASK_CORRECTNESS_EVALUATION_RESULT: _contract(

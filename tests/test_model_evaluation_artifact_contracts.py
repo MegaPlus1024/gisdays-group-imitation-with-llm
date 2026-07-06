@@ -120,6 +120,32 @@ def _matrix_run_adapter_summary_payload(**overrides: object) -> dict[str, Any]:
     return payload
 
 
+def _prepared_prompt_pack_summary_payload(**overrides: object) -> dict[str, Any]:
+    payload = {
+        "schema_version": "prepared_normality_judge_prompt_pack_v1",
+        "pack_id": "contract_prompt_pack",
+        "input_count": 1,
+        "prompt_count": 1,
+        "skipped_count": 0,
+        "prompts": [
+            {
+                "prompt_id": "contract_prompt_pack__trial_1",
+                "trial_id": "trial_1",
+                "scenario_id": "office_document_file_workflow_basic_v1",
+                "pair_id": "second_model__to__first_model",
+                "status": "ok",
+                "warning_count": 0,
+                "prompt_char_count": 1024,
+            }
+        ],
+        "warnings": [],
+        "notes": ["Offline prompt pack only; no model execution performed."],
+        "no_runtime_execution": True,
+    }
+    payload.update(overrides)
+    return payload
+
+
 def _task_correctness_result_payload(**overrides: object) -> dict[str, Any]:
     payload = {
         "schema_version": "task_correctness_evaluation_result_v1",
@@ -305,6 +331,15 @@ def test_valid_matrix_run_adapter_summary_passes_contract_validation() -> None:
     issues = contracts.validate_artifact_against_contract(
         _matrix_run_adapter_summary_payload(),
         registry.MATRIX_RUN_ADAPTER_SUMMARY,
+    )
+
+    assert issues == []
+
+
+def test_valid_prepared_prompt_pack_summary_passes_contract_validation() -> None:
+    issues = contracts.validate_artifact_against_contract(
+        _prepared_prompt_pack_summary_payload(),
+        registry.PREPARED_NORMALITY_JUDGE_PROMPT_PACK_SUMMARY,
     )
 
     assert issues == []

@@ -27,6 +27,7 @@ def test_registry_lists_all_expected_artifact_types() -> None:
         registry.MODEL_COMPARISON_PLAN,
         registry.MODEL_PAIR_MATRIX_RUN_SUMMARY,
         registry.MATRIX_RUN_ADAPTER_SUMMARY,
+        registry.PREPARED_NORMALITY_JUDGE_PROMPT_PACK_SUMMARY,
         registry.TASK_CORRECTNESS_EVALUATION_RESULT,
         registry.TASK_CORRECTNESS_BATCH_SUMMARY,
         registry.READINESS_REPORT,
@@ -103,6 +104,7 @@ def test_build_version_payload_includes_subcommands() -> None:
     assert registry.MODEL_COMPARISON_PLAN in payload["artifact_contract_supported_types"]
     assert registry.MODEL_PAIR_MATRIX_RUN_SUMMARY in payload["artifact_contract_supported_types"]
     assert registry.MATRIX_RUN_ADAPTER_SUMMARY in payload["artifact_contract_supported_types"]
+    assert registry.PREPARED_NORMALITY_JUDGE_PROMPT_PACK_SUMMARY in payload["artifact_contract_supported_types"]
     assert registry.TASK_CORRECTNESS_BATCH_SUMMARY in payload["artifact_contract_supported_types"]
     assert payload["no_runtime_execution"] is True
 
@@ -114,6 +116,7 @@ def test_build_version_payload_includes_schema_versions_from_registry() -> None:
     assert "model_evaluation_workflow_config_v1" in payload["supported_schema_versions"]
     assert "model_pair_matrix_run_summary_v1" in payload["supported_schema_versions"]
     assert "matrix_run_adapter_summary_v1" in payload["supported_schema_versions"]
+    assert "prepared_normality_judge_prompt_pack_v1" in payload["supported_schema_versions"]
     assert "task_correctness_batch_summary_v1" in payload["supported_schema_versions"]
     assert "model_evaluation_artifact_validation_v1" in payload["supported_schema_versions"]
     assert "model_evaluation_compatibility_report_v1" in payload["supported_schema_versions"]

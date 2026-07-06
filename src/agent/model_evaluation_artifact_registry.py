@@ -8,6 +8,7 @@ MODEL_CATALOG = "model_catalog"
 MODEL_COMPARISON_PLAN = "model_comparison_plan"
 MODEL_PAIR_MATRIX_RUN_SUMMARY = "model_pair_matrix_run_summary"
 MATRIX_RUN_ADAPTER_SUMMARY = "matrix_run_adapter_summary"
+PREPARED_NORMALITY_JUDGE_PROMPT_PACK_SUMMARY = "prepared_normality_judge_prompt_pack_summary"
 TASK_CORRECTNESS_EVALUATION_RESULT = "task_correctness_evaluation_result"
 TASK_CORRECTNESS_BATCH_SUMMARY = "task_correctness_batch_summary"
 READINESS_REPORT = "readiness_report"
@@ -25,6 +26,7 @@ ArtifactType = Literal[
     "model_comparison_plan",
     "model_pair_matrix_run_summary",
     "matrix_run_adapter_summary",
+    "prepared_normality_judge_prompt_pack_summary",
     "task_correctness_evaluation_result",
     "task_correctness_batch_summary",
     "readiness_report",
@@ -102,6 +104,12 @@ _REGISTRY: tuple[ArtifactSchemaInfo, ...] = (
         schema_version="matrix_run_adapter_summary_v1",
         default_filename="matrix_run_adapter_summary.json",
         description="Offline model-pair matrix adapter output summary.",
+    ),
+    ArtifactSchemaInfo(
+        artifact_type=PREPARED_NORMALITY_JUDGE_PROMPT_PACK_SUMMARY,
+        schema_version="prepared_normality_judge_prompt_pack_v1",
+        default_filename="normality_judge_prompt_pack_summary.json",
+        description="Offline prepared normality judge prompt pack summary.",
     ),
     ArtifactSchemaInfo(
         artifact_type=TASK_CORRECTNESS_EVALUATION_RESULT,
