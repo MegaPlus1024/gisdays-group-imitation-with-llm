@@ -689,7 +689,7 @@ def _task_summary(payload: dict[str, Any], metadata: dict[str, Any]) -> str | No
 def _expected_outputs(payload: dict[str, Any], metadata: dict[str, Any]) -> list[Any] | dict[str, Any]:
     for source in (payload, metadata):
         value = source.get("expected_outputs")
-        if isinstance(value, list | dict):
+        if isinstance(value, list | dict) and value:
             return value
         value = source.get("correctness_checks")
         if isinstance(value, list):

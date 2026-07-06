@@ -34,6 +34,9 @@ class ModelPairTrialExecutionRequest(BaseModel):
     executor_model_id: str
     repeat_index: int
     tags: list[str] = Field(default_factory=list)
+    task_summary: str | None = None
+    expected_outputs: list[Any] | dict[str, Any] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     no_runtime_execution: bool = True
     execution_mode: str = DEFAULT_MODEL_PAIR_MATRIX_EXECUTION_MODE
 
@@ -65,6 +68,16 @@ class ModelPairTrialExecutionRequest(BaseModel):
     def validate_tags(cls, value: list[str]) -> list[str]:
         return _clean_text_list(value)
 
+    @field_validator("task_summary")
+    @classmethod
+    def validate_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("task_summary must be non-empty when provided.")
+        return cleaned
+
 
 class ModelPairTrialExecutionResult(BaseModel):
     trial_id: str
@@ -77,6 +90,14 @@ class ModelPairTrialExecutionResult(BaseModel):
     correctness_score: float | None = None
     normality_input_ref: str | None = None
     resource_observation: dict[str, Any] | None = None
+    group_history: list[dict[str, Any]] = Field(default_factory=list)
+    event_history: list[dict[str, Any]] = Field(default_factory=list)
+    activity_trace: list[dict[str, Any]] = Field(default_factory=list)
+    artifact_refs: list[str] = Field(default_factory=list)
+    task_summary: str | None = None
+    expected_outputs: list[Any] | dict[str, Any] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     error_code: str | None = None
     warnings: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
@@ -106,7 +127,7 @@ class ModelPairTrialExecutionResult(BaseModel):
             raise ValueError("correctness_score must be between 0 and 1 when provided.")
         return value
 
-    @field_validator("normality_input_ref", "error_code")
+    @field_validator("normality_input_ref", "task_summary", "error_code")
     @classmethod
     def validate_optional_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -116,7 +137,7 @@ class ModelPairTrialExecutionResult(BaseModel):
             raise ValueError("optional trial result text fields must be non-empty when provided.")
         return cleaned
 
-    @field_validator("warnings", "notes")
+    @field_validator("artifact_refs", "tags", "warnings", "notes")
     @classmethod
     def validate_text_lists(cls, value: list[str]) -> list[str]:
         return _clean_text_list(value)
@@ -370,6 +391,9 @@ def _trial_execution_requests(
                 executor_model_id=executor_model_id,
                 repeat_index=_positive_int(trial.get("repeat_index"), f"trial_repeat_index_invalid:{trial_id}"),
                 tags=_string_list(trial.get("tags")),
+                task_summary=_task_summary(trial, scenario),
+                expected_outputs=_expected_outputs(trial, scenario),
+                metadata=_request_metadata(payload, trial, pair, scenario),
                 no_runtime_execution=bool(trial.get("no_runtime_execution", payload.get("no_runtime_execution", True))),
                 execution_mode=execution_mode,
             )
@@ -391,6 +415,10 @@ def _static_result_from_payload(
     raw.setdefault("orchestrator_model_id", request.orchestrator_model_id)
     raw.setdefault("executor_model_id", request.executor_model_id)
     raw.setdefault("status", "dry_run")
+    raw.setdefault("task_summary", request.task_summary)
+    raw.setdefault("expected_outputs", request.expected_outputs)
+    raw.setdefault("tags", request.tags)
+    raw.setdefault("metadata", request.metadata)
     raw.setdefault("warnings", [])
     raw.setdefault("notes", [])
     raw["no_runtime_execution"] = True
@@ -574,3 +602,39 @@ def _clean_text_list(value: list[str]) -> list[str]:
     if any(not item for item in cleaned):
         raise ValueError("text lists must not contain empty values.")
     return cleaned
+
+
+def _task_summary(trial: dict[str, Any], scenario: dict[str, Any]) -> str | None:
+    for source in (trial, scenario):
+        for key in ("task_summary", "expected_group_behavior", "description"):
+            text = _optional_text(source.get(key))
+            if text:
+                return text
+    return None
+
+
+def _expected_outputs(trial: dict[str, Any], scenario: dict[str, Any]) -> list[Any] | dict[str, Any]:
+    for source in (trial, scenario):
+        value = source.get("expected_outputs")
+        if isinstance(value, list | dict):
+            return value
+        value = source.get("correctness_checks")
+        if isinstance(value, list):
+            return {"checks": value}
+    return []
+
+
+def _request_metadata(
+    payload: dict[str, Any],
+    trial: dict[str, Any],
+    pair: dict[str, Any],
+    scenario: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "plan_id": _optional_text(payload.get("plan_id")),
+        "trial_notes": _string_list(trial.get("notes")),
+        "trial_warnings": _string_list(trial.get("warnings")),
+        "pair_tags": _string_list(pair.get("tags")),
+        "scenario_tags": _string_list(scenario.get("tags")),
+        "no_runtime_execution": bool(trial.get("no_runtime_execution", payload.get("no_runtime_execution", True))),
+    }
