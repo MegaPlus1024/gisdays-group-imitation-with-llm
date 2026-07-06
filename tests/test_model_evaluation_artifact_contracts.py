@@ -120,6 +120,26 @@ def _matrix_run_adapter_summary_payload(**overrides: object) -> dict[str, Any]:
     return payload
 
 
+def _model_pair_execution_readiness_summary_payload(**overrides: object) -> dict[str, Any]:
+    payload = {
+        "schema_version": "model_pair_execution_readiness_v1",
+        "status": "ready",
+        "allow_runtime_execution": False,
+        "trial_count": 1,
+        "ready_trial_count": 1,
+        "not_ready_trial_count": 0,
+        "model_pair_count": 1,
+        "scenario_count": 1,
+        "findings": [],
+        "warnings": [],
+        "notes": ["Readiness validation only; no runtime execution performed."],
+        "tags": ["contract_test"],
+        "no_runtime_execution": True,
+    }
+    payload.update(overrides)
+    return payload
+
+
 def _prepared_prompt_pack_summary_payload(**overrides: object) -> dict[str, Any]:
     payload = {
         "schema_version": "prepared_normality_judge_prompt_pack_v1",
@@ -331,6 +351,15 @@ def test_valid_matrix_run_adapter_summary_passes_contract_validation() -> None:
     issues = contracts.validate_artifact_against_contract(
         _matrix_run_adapter_summary_payload(),
         registry.MATRIX_RUN_ADAPTER_SUMMARY,
+    )
+
+    assert issues == []
+
+
+def test_valid_model_pair_execution_readiness_summary_passes_contract_validation() -> None:
+    issues = contracts.validate_artifact_against_contract(
+        _model_pair_execution_readiness_summary_payload(),
+        registry.MODEL_PAIR_EXECUTION_READINESS_SUMMARY,
     )
 
     assert issues == []
