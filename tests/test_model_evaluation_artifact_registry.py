@@ -94,7 +94,7 @@ def test_build_version_payload_includes_subcommands() -> None:
 
     assert payload["status"] == "ok"
     assert payload["tool"] == "offline_model_evaluation_cli"
-    assert payload["supported_subcommands"] == ["run", "validate", "compatibility", "schema", "version"]
+    assert payload["supported_subcommands"] == ["run", "validate", "compatibility", "check", "schema", "version"]
     assert payload["artifact_contract_version"] == "artifact_contract_v1"
     assert registry.MODEL_COMPARISON_PLAN in payload["artifact_contract_supported_types"]
     assert payload["no_runtime_execution"] is True

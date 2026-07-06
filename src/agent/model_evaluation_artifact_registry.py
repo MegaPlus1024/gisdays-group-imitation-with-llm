@@ -48,7 +48,7 @@ WorkflowOutputArtifactType = Literal[
 ]
 
 CLI_TOOL_NAME = "offline_model_evaluation_cli"
-SUPPORTED_CLI_SUBCOMMANDS = ("run", "validate", "compatibility", "schema", "version")
+SUPPORTED_CLI_SUBCOMMANDS = ("run", "validate", "compatibility", "check", "schema", "version")
 
 
 @dataclass(frozen=True)
