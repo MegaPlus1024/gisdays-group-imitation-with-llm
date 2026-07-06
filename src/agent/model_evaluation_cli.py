@@ -4,8 +4,15 @@ import argparse
 import json
 import sys
 from collections.abc import Callable
+from dataclasses import asdict
 from typing import Sequence
 
+from .model_evaluation_artifact_contracts import (
+    ARTIFACT_CONTRACT_VERSION,
+    export_artifact_schema_contract_summaries,
+    export_artifact_schema_contracts,
+    get_artifact_schema_contract,
+)
 from .model_evaluation_artifact_validator_cli import main as artifact_validator_cli_main
 from .model_evaluation_artifact_registry import (
     CLI_TOOL_NAME,
@@ -26,6 +33,9 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="subcommand")
     subparsers.add_parser("run", help="Run the existing offline workflow runner.", add_help=False)
     subparsers.add_parser("validate", help="Validate existing offline workflow artifacts.", add_help=False)
+    schema_parser = subparsers.add_parser("schema", help="Print offline artifact schema contracts.")
+    schema_parser.add_argument("--artifact-type", default=None, help="Optional artifact type to print.")
+    schema_parser.add_argument("--full", action="store_true", default=False, help="Print full field contracts.")
     subparsers.add_parser("version", help="Print supported offline workflow schemas.")
     return parser
 
@@ -42,6 +52,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _delegate_cli(workflow_runner_cli_main, remaining)
     if args.subcommand == "validate":
         return _delegate_cli(artifact_validator_cli_main, remaining)
+    if args.subcommand == "schema":
+        if remaining:
+            _print_json(_invalid_payload("schema_unexpected_args"))
+            return 2
+        try:
+            _print_json(_schema_payload(args.artifact_type, full=args.full))
+        except ValueError:
+            _print_json(_invalid_payload("schema_artifact_type_unknown"))
+            return 2
+        return 0
     if args.subcommand == "version":
         if remaining:
             _print_json(_invalid_payload("version_unexpected_args"))
@@ -64,6 +84,33 @@ def _system_exit_code(exc: SystemExit) -> int:
     if isinstance(exc.code, int):
         return exc.code
     return 2
+
+
+def _schema_payload(artifact_type: str | None, *, full: bool) -> dict[str, object]:
+    if artifact_type:
+        contract = get_artifact_schema_contract(artifact_type)
+        payload = asdict(contract) if full else _contract_summary(contract)
+        return {
+            "status": "ok",
+            "contract_version": ARTIFACT_CONTRACT_VERSION,
+            "artifact_count": 1,
+            "artifacts": [payload],
+            "no_runtime_execution": True,
+        }
+    return export_artifact_schema_contracts() if full else export_artifact_schema_contract_summaries()
+
+
+def _contract_summary(contract: object) -> dict[str, object]:
+    row = asdict(contract)
+    return {
+        "artifact_type": row["artifact_type"],
+        "schema_version": row["schema_version"],
+        "required_field_count": len(row["required_fields"]),
+        "optional_field_count": len(row["optional_fields"]),
+        "status_allowed_values": row["status_allowed_values"],
+        "description": row["description"],
+        "contract_version": row["contract_version"],
+    }
 
 
 def _invalid_payload(error: str) -> dict[str, object]:

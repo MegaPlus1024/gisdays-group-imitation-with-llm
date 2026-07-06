@@ -70,7 +70,7 @@ def test_version_returns_json_ok(capsys: pytest.CaptureFixture[str]) -> None:
     assert code == 0
     assert payload["status"] == "ok"
     assert payload["tool"] == "offline_model_evaluation_cli"
-    assert payload["supported_subcommands"] == ["run", "validate", "version"]
+    assert payload["supported_subcommands"] == ["run", "validate", "schema", "version"]
     assert "model_evaluation_workflow_config_v1" in payload["supported_schema_versions"]
     assert "model_evaluation_artifact_validation_v1" in payload["supported_schema_versions"]
     assert payload["no_runtime_execution"] is True

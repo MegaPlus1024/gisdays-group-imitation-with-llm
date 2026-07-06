@@ -46,7 +46,7 @@ WorkflowOutputArtifactType = Literal[
 ]
 
 CLI_TOOL_NAME = "offline_model_evaluation_cli"
-SUPPORTED_CLI_SUBCOMMANDS = ("run", "validate", "version")
+SUPPORTED_CLI_SUBCOMMANDS = ("run", "validate", "schema", "version")
 
 
 @dataclass(frozen=True)
@@ -232,6 +232,10 @@ def get_default_artifact_filename(artifact_type: str) -> str:
     return get_artifact_schema_info(artifact_type).default_filename
 
 
+def get_artifact_contract_supported_types() -> tuple[ArtifactType, ...]:
+    return tuple(info.artifact_type for info in _REGISTRY)
+
+
 def artifact_type_from_workflow_relative_path(path: str) -> WorkflowOutputArtifactType | None:
     normalized = path.replace("\\", "/").strip()
     for artifact_type, relative_path in get_workflow_known_relative_paths().items():
@@ -259,5 +263,7 @@ def build_version_payload() -> dict[str, object]:
         "workflow_known_relative_paths": get_workflow_known_relative_paths(),
         "required_workflow_artifact_types": list(get_required_workflow_artifact_types()),
         "optional_workflow_artifact_types": list(get_optional_workflow_artifact_types()),
+        "artifact_contract_version": "artifact_contract_v1",
+        "artifact_contract_supported_types": list(get_artifact_contract_supported_types()),
         "no_runtime_execution": True,
     }

@@ -8,6 +8,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from .model_evaluation_artifact_contracts import (
+    ArtifactContractIssue,
+    validate_artifact_against_contract,
+)
 from .model_evaluation_artifact_registry import (
     ARTIFACT_VALIDATION_REPORT,
     get_all_workflow_output_artifact_types,
@@ -465,11 +469,31 @@ def _validate_generic_artifact(
             )
         )
 
+    for contract_issue in validate_artifact_against_contract(payload, artifact_type):
+        issues.append(_contract_issue_to_validation_issue(contract_issue, artifact_path))
+
     _scan_value_safety(
         payload,
         artifact_type=artifact_type,
         artifact_path=artifact_path,
         issues=issues,
+    )
+
+
+def _contract_issue_to_validation_issue(
+    contract_issue: ArtifactContractIssue,
+    artifact_path: str | None,
+) -> ModelEvaluationArtifactIssue:
+    return _issue(
+        contract_issue.severity,
+        contract_issue.code,
+        contract_issue.message,
+        artifact_type=contract_issue.artifact_type,
+        artifact_path=artifact_path,
+        metadata={
+            "field": contract_issue.field,
+            **(contract_issue.metadata or {}),
+        },
     )
 
 
