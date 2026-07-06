@@ -152,6 +152,31 @@ def _resource_payload() -> dict[str, Any]:
     }
 
 
+def _task_correctness_payload() -> dict[str, Any]:
+    return {
+        "schema_version": "task_correctness_batch_summary_v1",
+        "summary_id": "workflow_correctness",
+        "input_count": 2,
+        "evaluated_count": 2,
+        "invalid_count": 0,
+        "passed_count": 1,
+        "failed_count": 1,
+        "partial_count": 0,
+        "skipped_count": 0,
+        "mean_correctness_score": 0.5,
+        "by_pair": {
+            "second_model__to__first_model": {"evaluated_count": 2},
+        },
+        "by_scenario": {
+            "office_document_file_workflow_basic_v1": {"evaluated_count": 2},
+        },
+        "results": [{"trial_id": "raw_result_not_copied"}],
+        "warnings": ["synthetic_warning"],
+        "notes": ["Synthetic correctness summary."],
+        "no_runtime_execution": True,
+    }
+
+
 def _scorecard_payload(*, scorecard_id: str = "workflow_scorecard") -> dict[str, Any]:
     return {
         "schema_version": "model_evaluation_scorecard_v1",
@@ -171,6 +196,7 @@ def _artifact_paths(tmp_path: Path) -> dict[str, Path]:
         "readiness_report": _write_json(tmp_path / "readiness.json", _readiness_payload()),
         "normality_comparison_summary": _write_json(tmp_path / "normality.json", _normality_payload()),
         "model_resource_summary": _write_json(tmp_path / "resource.json", _resource_payload()),
+        "task_correctness_batch_summary": _write_json(tmp_path / "correctness.json", _task_correctness_payload()),
         "model_evaluation_scorecard": _write_json(tmp_path / "scorecard.json", _scorecard_payload()),
     }
 
@@ -328,6 +354,19 @@ def test_extracts_resource_summary(tmp_path: Path) -> None:
     assert artifact.summary["runtime_modes"] == ["offline_fixture"]
 
 
+def test_extracts_task_correctness_summary(tmp_path: Path) -> None:
+    path = _write_json(tmp_path / "correctness.json", _task_correctness_payload())
+
+    artifact = load_workflow_artifact_summary(path, "task_correctness_batch_summary", base_dir=tmp_path)
+
+    assert artifact.summary["evaluated_count"] == 2
+    assert artifact.summary["passed_count"] == 1
+    assert artifact.summary["failed_count"] == 1
+    assert artifact.summary["pair_count"] == 1
+    assert artifact.summary["scenario_count"] == 1
+    assert artifact.summary["warning_count"] == 1
+
+
 def test_extracts_scorecard_summary(tmp_path: Path) -> None:
     path = _write_json(tmp_path / "scorecard.json", _scorecard_payload())
 
@@ -396,6 +435,8 @@ def test_cli_writes_bundle_json(tmp_path: Path, capsys: pytest.CaptureFixture[st
             str(paths["normality_comparison_summary"]),
             "--model-resource-summary",
             str(paths["model_resource_summary"]),
+            "--task-correctness-summary",
+            str(paths["task_correctness_batch_summary"]),
             "--model-evaluation-scorecard",
             str(paths["model_evaluation_scorecard"]),
             "--output-dir",
@@ -414,6 +455,7 @@ def test_cli_writes_bundle_json(tmp_path: Path, capsys: pytest.CaptureFixture[st
     assert set(payload["optional_artifacts_present"]) == {
         "normality_comparison_summary",
         "model_resource_summary",
+        "task_correctness_batch_summary",
         "model_evaluation_scorecard",
     }
     assert payload["bundle_path"] == MODEL_EVALUATION_WORKFLOW_BUNDLE_FILENAME

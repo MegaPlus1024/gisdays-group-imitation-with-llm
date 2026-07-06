@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Any, Literal
 
@@ -26,6 +27,9 @@ MODEL_EVALUATION_SCORECARD_NOTES = [
     "Prototype evidence synthesis only; not a production recommendation.",
 ]
 MAX_TOP_FINDINGS = 5
+MAX_TOP_CORRECTNESS_FAILURE_REASONS = 5
+MAX_SCORECARD_SCENARIO_METRICS = 50
+TASK_CORRECTNESS_BATCH_SUMMARY_SCHEMA_VERSION = "task_correctness_batch_summary_v1"
 
 
 class JSONSummaryLoadResult(BaseModel):
@@ -49,6 +53,8 @@ class ModelEvaluationScorecard(BaseModel):
     plan_used: bool = False
     normality_summary_used: bool = False
     resource_summary_used: bool = False
+    task_correctness_summary_used: bool = False
+    task_correctness_metrics: dict[str, Any] | None = None
     no_runtime_execution: bool = True
     created_by: str = MODEL_EVALUATION_SCORECARD_CREATED_BY
     scorecard_path_relative: str | None = None
@@ -118,6 +124,8 @@ def build_model_evaluation_scorecard(
     model_comparison_plan_path: str | Path | None = None,
     normality_comparison_summary_path: str | Path | None = None,
     model_resource_summary_path: str | Path | None = None,
+    task_correctness_summary_path: str | Path | None = None,
+    task_correctness_summary: dict[str, Any] | None = None,
     scorecard_id: str = "model_evaluation_scorecard",
     project_root: str | Path = Path("."),
     max_input_bytes: int = 1_000_000,
@@ -159,6 +167,15 @@ def build_model_evaluation_scorecard(
         project_root=root,
         max_input_bytes=max_input_bytes,
     )
+    task_correctness_payload = task_correctness_summary
+    if task_correctness_payload is None:
+        task_correctness_payload = _load_optional_summary(
+            task_correctness_summary_path,
+            label="task_correctness_summary",
+            warnings=warnings,
+            project_root=root,
+            max_input_bytes=max_input_bytes,
+        )
 
     if plan_payload is not None:
         _merge_plan(pair_records, catalog, plan_payload, warnings)
@@ -166,9 +183,16 @@ def build_model_evaluation_scorecard(
         _merge_normality_summary(pair_records, catalog, normality_payload, warnings)
     if resource_payload is not None:
         _merge_resource_summary(pair_records, catalog, resource_payload, warnings)
+    if task_correctness_payload is not None:
+        _merge_task_correctness_summary(pair_records, catalog, task_correctness_payload, warnings)
+    else:
+        warnings.append("missing_task_correctness_metrics")
 
     model_entries = _model_entries(catalog, pair_records, resource_payload)
-    pair_entries = _final_pair_entries(pair_records)
+    pair_entries = _final_pair_entries(
+        pair_records,
+        task_correctness_summary_used=task_correctness_payload is not None,
+    )
     if not pair_entries:
         warnings.append("no_model_pairs")
 
@@ -184,6 +208,12 @@ def build_model_evaluation_scorecard(
         plan_used=plan_payload is not None,
         normality_summary_used=normality_payload is not None,
         resource_summary_used=resource_payload is not None,
+        task_correctness_summary_used=task_correctness_payload is not None,
+        task_correctness_metrics=(
+            _task_correctness_global_metrics(task_correctness_payload)
+            if task_correctness_payload is not None
+            else None
+        ),
     )
 
 
@@ -217,6 +247,8 @@ def run_model_evaluation_scorecard(
     model_comparison_plan_path: str | Path | None = None,
     normality_comparison_summary_path: str | Path | None = None,
     model_resource_summary_path: str | Path | None = None,
+    task_correctness_summary_path: str | Path | None = None,
+    task_correctness_summary: dict[str, Any] | None = None,
     scorecard_id: str = "model_evaluation_scorecard",
     project_root: str | Path = Path("."),
     write_markdown_preview: bool = False,
@@ -226,6 +258,8 @@ def run_model_evaluation_scorecard(
         model_comparison_plan_path=model_comparison_plan_path,
         normality_comparison_summary_path=normality_comparison_summary_path,
         model_resource_summary_path=model_resource_summary_path,
+        task_correctness_summary_path=task_correctness_summary_path,
+        task_correctness_summary=task_correctness_summary,
         scorecard_id=scorecard_id,
         project_root=project_root,
     )
@@ -402,12 +436,58 @@ def _merge_resource_summary(
         record["resource_metrics"] = _resource_metrics(group)
 
 
+def _merge_task_correctness_summary(
+    pair_records: dict[str, dict[str, Any]],
+    catalog: ModelCatalog,
+    payload: dict[str, Any],
+    warnings: list[str],
+) -> None:
+    if payload.get("schema_version") != TASK_CORRECTNESS_BATCH_SUMMARY_SCHEMA_VERSION:
+        warnings.append("task_correctness_summary_schema_unexpected")
+    for warning in _string_list(payload.get("warnings")):
+        warnings.append(f"task_correctness_summary:{warning}")
+
+    by_pair = payload.get("by_pair") if isinstance(payload.get("by_pair"), dict) else {}
+    if not by_pair:
+        warnings.append("task_correctness_summary_has_no_pair_groups")
+        return
+
+    result_failure_reasons = _correctness_failure_reason_counts_by_pair(payload)
+    result_warnings = _correctness_warning_counts_by_pair(payload)
+    for group_label, group in by_pair.items():
+        if not isinstance(group, dict):
+            continue
+        raw_pair_id = _optional_text(group.get("pair_id")) or _optional_text(group_label)
+        orchestrator, executor = _correctness_group_pair(raw_pair_id, group)
+        record = _ensure_pair_record(
+            pair_records,
+            catalog,
+            orchestrator,
+            executor,
+            source="task_correctness_summary",
+        )
+        failure_reasons = Counter()
+        if raw_pair_id:
+            failure_reasons.update(result_failure_reasons.get(raw_pair_id, Counter()))
+        failure_reasons.update(_failure_reason_counter(group.get("failure_reasons")))
+        warning_count = sum(result_warnings.get(raw_pair_id or "", Counter()).values())
+        if warning_count == 0:
+            warning_count = len(_string_list(group.get("warnings")))
+        record["correctness_metrics"] = _task_correctness_pair_metrics(
+            raw_pair_id or record["pair_id"],
+            group,
+            failure_reasons=failure_reasons,
+            warning_count=warning_count,
+        )
+
+
 def _model_entries(
     catalog: ModelCatalog,
     pair_records: dict[str, dict[str, Any]],
     resource_payload: dict[str, Any] | None,
 ) -> list[dict[str, Any]]:
     by_model_resource = _resource_groups_by_model(resource_payload)
+    by_model_correctness = _correctness_metrics_by_model(pair_records)
     appearances: dict[str, dict[str, int]] = {}
     for record in pair_records.values():
         orchestrator = record["orchestrator_model_id"]
@@ -426,13 +506,18 @@ def _model_entries(
                 "catalog_metadata": _catalog_entry_metadata(entry),
                 "appearances": appearances.get(entry.model_id, {"as_orchestrator": 0, "as_executor": 0}),
                 "resource_metrics": _resource_metrics(resource_group) if resource_group else None,
+                "correctness_metrics": by_model_correctness.get(entry.model_id),
                 "warnings": _model_warnings(entry),
             }
         )
     return rows
 
 
-def _final_pair_entries(pair_records: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+def _final_pair_entries(
+    pair_records: dict[str, dict[str, Any]],
+    *,
+    task_correctness_summary_used: bool = False,
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for record in pair_records.values():
         warnings = set(record.get("warnings", set()))
@@ -440,6 +525,8 @@ def _final_pair_entries(pair_records: dict[str, dict[str, Any]]) -> list[dict[st
             warnings.add("missing_normality_metrics")
         if "resource_metrics" not in record:
             warnings.add("missing_resource_metrics")
+        if task_correctness_summary_used and "correctness_metrics" not in record:
+            warnings.add("missing_task_correctness_metrics")
         row = {
             "pair_id": record["pair_id"],
             "pair_label": record["pair_label"],
@@ -453,6 +540,7 @@ def _final_pair_entries(pair_records: dict[str, dict[str, Any]]) -> list[dict[st
             "normality_rank": record.get("normality_rank"),
             "normality_metrics": record.get("normality_metrics"),
             "resource_metrics": record.get("resource_metrics"),
+            "correctness_metrics": record.get("correctness_metrics"),
             "sort_key_preview": _sort_key_preview(record),
             "warnings": sorted(warnings),
         }
@@ -679,6 +767,223 @@ def _resource_groups_by_model(resource_payload: dict[str, Any] | None) -> dict[s
     }
 
 
+def _task_correctness_global_metrics(payload: dict[str, Any]) -> dict[str, Any]:
+    failure_reasons = Counter()
+    for row in _correctness_result_rows(payload):
+        failure_reasons.update(_failure_reason_counter(row.get("failure_reasons")))
+    if not failure_reasons:
+        for group in _correctness_group_rows(payload.get("by_pair")):
+            failure_reasons.update(_failure_reason_counter(group.get("failure_reasons")))
+    warnings = _string_list(payload.get("warnings"))
+    return {
+        "input_count": _optional_int(payload.get("input_count")),
+        "evaluated_count": _optional_int(payload.get("evaluated_count")),
+        "passed_count": _optional_int(payload.get("passed_count")),
+        "failed_count": _optional_int(payload.get("failed_count")),
+        "partial_count": _optional_int(payload.get("partial_count")),
+        "skipped_count": _optional_int(payload.get("skipped_count")),
+        "mean_correctness_score": _optional_float(payload.get("mean_correctness_score")),
+        "pair_count": len(_correctness_group_rows(payload.get("by_pair"))),
+        "scenario_count": len(_correctness_group_rows(payload.get("by_scenario"))),
+        "by_scenario": _task_correctness_scenario_metrics(payload),
+        "top_failure_reasons": _bounded_counter(
+            failure_reasons,
+            key_name="reason",
+            limit=MAX_TOP_CORRECTNESS_FAILURE_REASONS,
+        ),
+        "warning_count": len(warnings),
+    }
+
+
+def _task_correctness_scenario_metrics(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    by_scenario = payload.get("by_scenario") if isinstance(payload.get("by_scenario"), dict) else {}
+    rows: list[dict[str, Any]] = []
+    for label, group in sorted(by_scenario.items(), key=lambda item: str(item[0])):
+        if not isinstance(group, dict):
+            continue
+        scenario_id = _optional_text(group.get("scenario_id")) or _safe_text(str(label))
+        rows.append(
+            {
+                "scenario_id": scenario_id,
+                "input_count": _optional_int(group.get("input_count")),
+                "evaluated_count": _optional_int(group.get("evaluated_count")),
+                "passed_count": _optional_int(group.get("passed_count")),
+                "failed_count": _optional_int(group.get("failed_count")),
+                "partial_count": _optional_int(group.get("partial_count")),
+                "skipped_count": _optional_int(group.get("skipped_count")),
+                "pass_rate": _pass_rate(group),
+                "mean_correctness_score": _optional_float(group.get("mean_correctness_score")),
+                "top_failure_reasons": _bounded_counter(
+                    _failure_reason_counter(group.get("failure_reasons")),
+                    key_name="reason",
+                    limit=MAX_TOP_CORRECTNESS_FAILURE_REASONS,
+                ),
+                "warning_count": len(_string_list(group.get("warnings"))),
+            }
+        )
+        if len(rows) >= MAX_SCORECARD_SCENARIO_METRICS:
+            break
+    return rows
+
+
+def _task_correctness_pair_metrics(
+    pair_id: str,
+    group: dict[str, Any],
+    *,
+    failure_reasons: Counter[str],
+    warning_count: int,
+) -> dict[str, Any]:
+    return {
+        "pair_id": _safe_text(pair_id),
+        "evaluated_count": _optional_int(group.get("evaluated_count")),
+        "passed_count": _optional_int(group.get("passed_count")),
+        "failed_count": _optional_int(group.get("failed_count")),
+        "partial_count": _optional_int(group.get("partial_count")),
+        "skipped_count": _optional_int(group.get("skipped_count")),
+        "pass_rate": _pass_rate(group),
+        "mean_correctness_score": _optional_float(group.get("mean_correctness_score")),
+        "top_failure_reasons": _bounded_counter(
+            failure_reasons,
+            key_name="reason",
+            limit=MAX_TOP_CORRECTNESS_FAILURE_REASONS,
+        ),
+        "warning_count": max(0, warning_count),
+    }
+
+
+def _correctness_metrics_by_model(pair_records: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    buckets: dict[str, dict[str, Any]] = {}
+    for record in pair_records.values():
+        metrics = record.get("correctness_metrics")
+        if not isinstance(metrics, dict):
+            continue
+        evaluated_count = _optional_int(metrics.get("evaluated_count")) or 0
+        score = _optional_float(metrics.get("mean_correctness_score"))
+        weight = evaluated_count if evaluated_count > 0 else (1 if score is not None else 0)
+        for role_key, metric_key in (
+            ("orchestrator_model_id", "as_orchestrator"),
+            ("executor_model_id", "as_executor"),
+        ):
+            model_id = record.get(role_key)
+            if not isinstance(model_id, str):
+                continue
+            bucket = buckets.setdefault(
+                model_id,
+                {
+                    "as_orchestrator_scores": [],
+                    "as_executor_scores": [],
+                    "correctness_observation_count": 0,
+                },
+            )
+            bucket["correctness_observation_count"] += evaluated_count
+            if score is not None and weight > 0:
+                bucket[f"{metric_key}_scores"].append((score, weight))
+    return {
+        model_id: {
+            "as_orchestrator_correctness_mean": _weighted_mean(bucket["as_orchestrator_scores"]),
+            "as_executor_correctness_mean": _weighted_mean(bucket["as_executor_scores"]),
+            "correctness_observation_count": bucket["correctness_observation_count"],
+        }
+        for model_id, bucket in buckets.items()
+    }
+
+
+def _correctness_group_pair(raw_pair_id: str | None, group: dict[str, Any]) -> tuple[str | None, str | None]:
+    orchestrator = _optional_text(group.get("orchestrator_model_id") or group.get("orchestrator"))
+    executor = _optional_text(group.get("executor_model_id") or group.get("executor"))
+    group_key = group.get("group_key") if isinstance(group.get("group_key"), dict) else {}
+    orchestrator = orchestrator or _optional_text(group_key.get("orchestrator"))
+    executor = executor or _optional_text(group_key.get("executor"))
+    if (not orchestrator or not executor) and raw_pair_id:
+        parsed_orchestrator, parsed_executor = _pair_parts(raw_pair_id)
+        orchestrator = orchestrator or parsed_orchestrator
+        executor = executor or parsed_executor
+    return orchestrator, executor
+
+
+def _correctness_failure_reason_counts_by_pair(payload: dict[str, Any]) -> dict[str, Counter[str]]:
+    by_pair: dict[str, Counter[str]] = {}
+    for row in _correctness_result_rows(payload):
+        pair_id = _optional_text(row.get("pair_id"))
+        if not pair_id:
+            continue
+        by_pair.setdefault(pair_id, Counter()).update(_failure_reason_counter(row.get("failure_reasons")))
+    return by_pair
+
+
+def _correctness_warning_counts_by_pair(payload: dict[str, Any]) -> dict[str, Counter[str]]:
+    by_pair: dict[str, Counter[str]] = {}
+    for row in _correctness_result_rows(payload):
+        pair_id = _optional_text(row.get("pair_id"))
+        if not pair_id:
+            continue
+        by_pair.setdefault(pair_id, Counter()).update(_string_list(row.get("warnings")))
+    return by_pair
+
+
+def _correctness_result_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    results = payload.get("results")
+    return [row for row in results if isinstance(row, dict)] if isinstance(results, list) else []
+
+
+def _correctness_group_rows(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, dict):
+        return []
+    return [group for group in value.values() if isinstance(group, dict)]
+
+
+def _failure_reason_counter(value: Any) -> Counter[str]:
+    reasons: Counter[str] = Counter()
+    if isinstance(value, dict):
+        for reason, count in value.items():
+            text = _optional_text(reason)
+            safe_count = _optional_int(count)
+            if text and safe_count is not None and safe_count > 0:
+                reasons[text] += safe_count
+        return reasons
+    if not isinstance(value, list):
+        return reasons
+    for item in value:
+        if isinstance(item, dict):
+            reason = _optional_text(item.get("reason") or item.get("failure_reason") or item.get("message"))
+            count = _optional_int(item.get("count")) or 1
+        else:
+            reason = _optional_text(item)
+            count = 1
+        if reason:
+            reasons[reason] += count
+    return reasons
+
+
+def _bounded_counter(counter: Counter[str], *, key_name: str, limit: int) -> list[dict[str, Any]]:
+    return [
+        {key_name: _safe_text(name), "count": count}
+        for name, count in counter.most_common(limit)
+        if name
+    ]
+
+
+def _pass_rate(group: dict[str, Any]) -> float | None:
+    explicit = _optional_float(group.get("pass_rate"))
+    if explicit is not None:
+        return explicit
+    explicit = _optional_float(group.get("success_rate"))
+    if explicit is not None:
+        return explicit
+    passed_count = _optional_int(group.get("passed_count"))
+    evaluated_count = _optional_int(group.get("evaluated_count"))
+    if passed_count is None or evaluated_count is None or evaluated_count <= 0:
+        return None
+    return round(passed_count / evaluated_count, 6)
+
+
+def _weighted_mean(values: list[tuple[float, int]]) -> float | None:
+    total_weight = sum(weight for _, weight in values)
+    if total_weight <= 0:
+        return None
+    return round(sum(score * weight for score, weight in values) / total_weight, 6)
+
+
 def _overall_summary(models: list[dict[str, Any]], pairs: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "model_count": len(models),
@@ -686,6 +991,7 @@ def _overall_summary(models: list[dict[str, Any]], pairs: list[dict[str, Any]]) 
         "pairs_with_plan_metadata": sum(1 for pair in pairs if pair.get("plan_metadata")),
         "pairs_with_normality_metrics": sum(1 for pair in pairs if pair.get("normality_metrics")),
         "pairs_with_resource_metrics": sum(1 for pair in pairs if pair.get("resource_metrics")),
+        "pairs_with_correctness_metrics": sum(1 for pair in pairs if pair.get("correctness_metrics")),
         "no_runtime_execution": True,
         "production_recommendation": False,
     }
@@ -694,10 +1000,13 @@ def _overall_summary(models: list[dict[str, Any]], pairs: list[dict[str, Any]]) 
 def _sort_key_preview(record: dict[str, Any]) -> dict[str, Any]:
     normality = record.get("normality_metrics") if isinstance(record.get("normality_metrics"), dict) else {}
     resource = record.get("resource_metrics") if isinstance(record.get("resource_metrics"), dict) else {}
+    correctness = record.get("correctness_metrics") if isinstance(record.get("correctness_metrics"), dict) else {}
     return {
         "normality_rank": record.get("normality_rank"),
         "normality_mean_overall_score": normality.get("mean_overall_score"),
         "resource_success_rate": resource.get("success_rate"),
+        "correctness_pass_rate": correctness.get("pass_rate"),
+        "correctness_mean_score": correctness.get("mean_correctness_score"),
         "not_a_production_recommendation": True,
     }
 

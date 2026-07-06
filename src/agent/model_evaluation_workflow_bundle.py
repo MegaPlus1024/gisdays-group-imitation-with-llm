@@ -9,6 +9,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 from .model_evaluation_artifact_registry import (
+    TASK_CORRECTNESS_BATCH_SUMMARY,
     WORKFLOW_BUNDLE,
     get_all_workflow_bundle_artifact_types,
     get_artifact_schema_info,
@@ -33,6 +34,7 @@ WorkflowArtifactType = Literal[
     "readiness_report",
     "normality_comparison_summary",
     "model_resource_summary",
+    "task_correctness_batch_summary",
     "model_evaluation_scorecard",
 ]
 WorkflowArtifactStatus = Literal["ok", "not_provided", "missing", "invalid_input"]
@@ -40,7 +42,11 @@ WorkflowBundleStatus = Literal["complete", "partial", "invalid"]
 
 REQUIRED_WORKFLOW_ARTIFACTS: tuple[WorkflowArtifactType, ...] = get_required_workflow_artifact_types()
 OPTIONAL_WORKFLOW_ARTIFACTS: tuple[WorkflowArtifactType, ...] = get_optional_workflow_artifact_types()
-ALL_WORKFLOW_ARTIFACTS: tuple[WorkflowArtifactType, ...] = get_all_workflow_bundle_artifact_types()
+SUPPLEMENTAL_WORKFLOW_ARTIFACTS: tuple[WorkflowArtifactType, ...] = (TASK_CORRECTNESS_BATCH_SUMMARY,)
+ALL_WORKFLOW_ARTIFACTS: tuple[WorkflowArtifactType, ...] = (
+    *get_all_workflow_bundle_artifact_types(),
+    *SUPPLEMENTAL_WORKFLOW_ARTIFACTS,
+)
 
 _MAX_INPUT_BYTES = 1_000_000
 _MAX_TEXT_CHARS = 200
@@ -157,6 +163,7 @@ def build_model_evaluation_workflow_bundle(
     readiness_report_path: str | Path,
     normality_comparison_summary_path: str | Path | None = None,
     model_resource_summary_path: str | Path | None = None,
+    task_correctness_summary_path: str | Path | None = None,
     model_evaluation_scorecard_path: str | Path | None = None,
     bundle_id: str = "model_evaluation_workflow_bundle",
     base_dir: str | Path | None = None,
@@ -168,6 +175,7 @@ def build_model_evaluation_workflow_bundle(
         "readiness_report": readiness_report_path,
         "normality_comparison_summary": normality_comparison_summary_path,
         "model_resource_summary": model_resource_summary_path,
+        "task_correctness_batch_summary": task_correctness_summary_path,
         "model_evaluation_scorecard": model_evaluation_scorecard_path,
     }
     artifacts = {
@@ -227,6 +235,7 @@ def _summary_for_artifact(payload: dict[str, Any], artifact_type: WorkflowArtifa
         "readiness_report": _readiness_report_summary,
         "normality_comparison_summary": _normality_comparison_summary,
         "model_resource_summary": _model_resource_summary,
+        "task_correctness_batch_summary": _task_correctness_summary,
         "model_evaluation_scorecard": _model_evaluation_scorecard_summary,
     }
     return _safe_value(extractors[artifact_type](payload))
@@ -314,6 +323,25 @@ def _model_resource_summary(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _task_correctness_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    by_pair = payload.get("by_pair") if isinstance(payload.get("by_pair"), dict) else {}
+    by_scenario = payload.get("by_scenario") if isinstance(payload.get("by_scenario"), dict) else {}
+    return {
+        "input_count": _int_or_count(payload.get("input_count"), 0),
+        "evaluated_count": _int_or_count(payload.get("evaluated_count"), 0),
+        "passed_count": _int_or_count(payload.get("passed_count"), 0),
+        "failed_count": _int_or_count(payload.get("failed_count"), 0),
+        "partial_count": _int_or_count(payload.get("partial_count"), 0),
+        "skipped_count": _int_or_count(payload.get("skipped_count"), 0),
+        "mean_correctness_score": payload.get("mean_correctness_score")
+        if isinstance(payload.get("mean_correctness_score"), int | float)
+        else None,
+        "pair_count": len(by_pair),
+        "scenario_count": len(by_scenario),
+        "warning_count": len(_list_value(payload.get("warnings"))),
+    }
+
+
 def _model_evaluation_scorecard_summary(payload: dict[str, Any]) -> dict[str, Any]:
     warnings = payload.get("warnings")
     return {
@@ -330,6 +358,7 @@ def _bundle_summary(artifacts: dict[WorkflowArtifactType, WorkflowArtifactSummar
     readiness = artifacts["readiness_report"].summary
     normality = artifacts["normality_comparison_summary"].summary
     resource = artifacts["model_resource_summary"].summary
+    correctness = artifacts["task_correctness_batch_summary"].summary
     scorecard = artifacts["model_evaluation_scorecard"].summary
     return {
         "model_count": catalog.get("model_count", 0),
@@ -339,10 +368,12 @@ def _bundle_summary(artifacts: dict[WorkflowArtifactType, WorkflowArtifactSummar
         "scorecard_pair_count": scorecard.get("model_pair_count", 0),
         "normality_evaluated_entries": normality.get("evaluated_entries", 0),
         "resource_observation_count": resource.get("observation_count", 0),
+        "task_correctness_evaluated_count": correctness.get("evaluated_count", 0),
+        "task_correctness_pair_count": correctness.get("pair_count", 0),
         "required_artifacts_ok": all(artifacts[item].status == "ok" for item in REQUIRED_WORKFLOW_ARTIFACTS),
         "optional_artifacts_present": [
             artifact_type
-            for artifact_type in OPTIONAL_WORKFLOW_ARTIFACTS
+            for artifact_type in (*OPTIONAL_WORKFLOW_ARTIFACTS, *SUPPLEMENTAL_WORKFLOW_ARTIFACTS)
             if artifacts[artifact_type].status == "ok"
         ],
         "no_runtime_execution": True,
@@ -354,6 +385,8 @@ def _bundle_status(artifacts: dict[WorkflowArtifactType, WorkflowArtifactSummary
         return "invalid"
     if any(artifacts[artifact_type].status != "ok" for artifact_type in OPTIONAL_WORKFLOW_ARTIFACTS):
         return "partial"
+    if any(artifacts[artifact_type].status in {"missing", "invalid_input"} for artifact_type in SUPPLEMENTAL_WORKFLOW_ARTIFACTS):
+        return "partial"
     return "complete"
 
 
@@ -361,6 +394,8 @@ def _bundle_warnings(artifacts: dict[WorkflowArtifactType, WorkflowArtifactSumma
     warnings: list[str] = []
     for artifact_type, artifact in artifacts.items():
         if artifact.status == "ok":
+            continue
+        if artifact_type in SUPPLEMENTAL_WORKFLOW_ARTIFACTS and artifact.status == "not_provided":
             continue
         prefix = "required" if artifact_type in REQUIRED_WORKFLOW_ARTIFACTS else "optional"
         warnings.append(f"{prefix}_artifact_{artifact.status}:{artifact_type}")

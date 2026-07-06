@@ -133,6 +133,96 @@ def _resource_summary() -> dict[str, object]:
     }
 
 
+def _correctness_result(
+    *,
+    trial_id: str,
+    pair_id: str = "second_model__to__first_model",
+    status: str,
+    score: float | None,
+    failure_reasons: list[str] | None = None,
+    warnings: list[str] | None = None,
+) -> dict[str, object]:
+    return {
+        "schema_version": "task_correctness_evaluation_result_v1",
+        "trial_id": trial_id,
+        "scenario_id": "office_document_file_workflow_basic_v1",
+        "pair_id": pair_id,
+        "status": status,
+        "task_success": status == "passed" if status in {"passed", "failed"} else None,
+        "correctness_score": score,
+        "check_results": [],
+        "failure_reasons": failure_reasons or [],
+        "warnings": warnings or [],
+        "notes": ["synthetic_correctness_result"],
+        "no_runtime_execution": True,
+    }
+
+
+def _correctness_summary(*, failure_reason_count: int = 2) -> dict[str, object]:
+    failure_reasons = [f"failure_reason_{index}" for index in range(failure_reason_count)]
+    return {
+        "schema_version": "task_correctness_batch_summary_v1",
+        "summary_id": "scorecard_correctness",
+        "input_count": 3,
+        "evaluated_count": 3,
+        "invalid_count": 0,
+        "passed_count": 1,
+        "failed_count": 1,
+        "partial_count": 1,
+        "skipped_count": 0,
+        "mean_correctness_score": 0.5,
+        "by_pair": {
+            "second_model__to__first_model": {
+                "pair_id": "second_model__to__first_model",
+                "input_count": 3,
+                "evaluated_count": 3,
+                "invalid_count": 0,
+                "passed_count": 1,
+                "failed_count": 1,
+                "partial_count": 1,
+                "skipped_count": 0,
+                "mean_correctness_score": 0.5,
+                "failure_reasons": failure_reasons,
+                "warnings": ["minor_correctness_warning"],
+            }
+        },
+        "by_scenario": {
+            "office_document_file_workflow_basic_v1": {
+                "scenario_id": "office_document_file_workflow_basic_v1",
+                "input_count": 3,
+                "evaluated_count": 3,
+                "invalid_count": 0,
+                "passed_count": 1,
+                "failed_count": 1,
+                "partial_count": 1,
+                "skipped_count": 0,
+                "mean_correctness_score": 0.5,
+                "failure_reasons": failure_reasons[:2],
+                "warnings": ["minor_correctness_warning"],
+            }
+        },
+        "results": [
+            _correctness_result(trial_id="correctness_passed", status="passed", score=1.0),
+            _correctness_result(
+                trial_id="correctness_failed",
+                status="failed",
+                score=0.0,
+                failure_reasons=failure_reasons,
+                warnings=["minor_correctness_warning"],
+            ),
+            _correctness_result(
+                trial_id="correctness_partial",
+                status="partial",
+                score=0.5,
+                failure_reasons=failure_reasons[:1],
+            ),
+        ],
+        "warnings": ["minor_correctness_warning"],
+        "notes": ["Synthetic correctness summary."],
+        "no_runtime_execution": True,
+    }
+
+
 def _plan_path(tmp_path: Path) -> Path:
     plan = build_model_comparison_plan(
         _catalog(),
@@ -194,6 +284,8 @@ def test_catalog_only_scorecard_builds_candidate_pairs() -> None:
     assert pair["sources"] == ["catalog_candidate"]
     assert "missing_normality_metrics" in pair["warnings"]
     assert "missing_resource_metrics" in pair["warnings"]
+    assert "missing_task_correctness_metrics" not in pair["warnings"]
+    assert "missing_task_correctness_metrics" in scorecard.warnings
 
 
 def test_plan_metadata_is_merged_into_pair_scorecard(tmp_path: Path) -> None:
@@ -266,6 +358,57 @@ def test_all_inputs_combine_into_one_pair_record(tmp_path: Path) -> None:
     assert scorecard.overall["pairs_with_plan_metadata"] == 1
     assert scorecard.overall["pairs_with_normality_metrics"] == 1
     assert scorecard.overall["pairs_with_resource_metrics"] == 1
+
+
+def test_task_correctness_summary_adds_global_pair_and_model_metrics(tmp_path: Path) -> None:
+    correctness_path = _write_json(tmp_path / "correctness.json", _correctness_summary())
+
+    scorecard = build_model_evaluation_scorecard(
+        _catalog(),
+        task_correctness_summary_path=correctness_path,
+        project_root=PROJECT_ROOT,
+    )
+    pair = _pair(scorecard, "second_model__to__first_model")
+    missing_pair = _pair(scorecard, "second_model__to__second_model")
+    first_model = next(model for model in scorecard.models if model["model_id"] == "first_model")
+    second_model = next(model for model in scorecard.models if model["model_id"] == "second_model")
+
+    assert scorecard.task_correctness_summary_used is True
+    assert scorecard.task_correctness_metrics["evaluated_count"] == 3
+    assert scorecard.task_correctness_metrics["passed_count"] == 1
+    assert scorecard.task_correctness_metrics["mean_correctness_score"] == pytest.approx(0.5)
+    assert scorecard.task_correctness_metrics["by_scenario"][0]["scenario_id"] == (
+        "office_document_file_workflow_basic_v1"
+    )
+    assert pair["correctness_metrics"]["evaluated_count"] == 3
+    assert pair["correctness_metrics"]["pass_rate"] == pytest.approx(1 / 3)
+    assert pair["correctness_metrics"]["mean_correctness_score"] == pytest.approx(0.5)
+    assert pair["correctness_metrics"]["warning_count"] == 1
+    assert missing_pair["correctness_metrics"] is None
+    assert "missing_task_correctness_metrics" in missing_pair["warnings"]
+    assert first_model["correctness_metrics"]["as_executor_correctness_mean"] == pytest.approx(0.5)
+    assert second_model["correctness_metrics"]["as_orchestrator_correctness_mean"] == pytest.approx(0.5)
+    assert scorecard.overall["pairs_with_correctness_metrics"] == 1
+
+
+def test_task_correctness_failure_reasons_are_bounded_and_results_not_copied(tmp_path: Path) -> None:
+    correctness_path = _write_json(
+        tmp_path / "correctness.json",
+        _correctness_summary(failure_reason_count=10),
+    )
+
+    scorecard = build_model_evaluation_scorecard(
+        _catalog(),
+        task_correctness_summary_path=correctness_path,
+        project_root=PROJECT_ROOT,
+    )
+    pair = _pair(scorecard, "second_model__to__first_model")
+    text = json.dumps(scorecard.model_dump(mode="json"), ensure_ascii=False)
+
+    assert len(pair["correctness_metrics"]["top_failure_reasons"]) == 5
+    assert "correctness_failed" not in text
+    assert "check_results" not in text
+    assert '"results"' not in text
 
 
 def test_alias_in_normality_summary_resolves_to_canonical_pair(tmp_path: Path) -> None:
@@ -383,6 +526,57 @@ def test_cli_writes_scorecard_with_optional_markdown(tmp_path: Path, capsys: pyt
     assert payload["scorecard_id"] == "cli_scorecard"
     assert payload["markdown_preview_path"] == MODEL_EVALUATION_SCORECARD_PREVIEW_FILENAME
     assert (tmp_path / "out" / MODEL_EVALUATION_SCORECARD_FILENAME).is_file()
+
+
+def test_cli_writes_scorecard_with_task_correctness_summary(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    correctness_path = _write_json(tmp_path / "correctness.json", _correctness_summary())
+
+    code = main(
+        [
+            "--model-catalog",
+            str(CATALOG_PATH),
+            "--task-correctness-summary",
+            str(correctness_path),
+            "--output-dir",
+            str(tmp_path / "out"),
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+    scorecard = _load_json(tmp_path / "out" / MODEL_EVALUATION_SCORECARD_FILENAME)
+
+    assert code == 0
+    assert payload["task_correctness_summary_used"] is True
+    assert scorecard["task_correctness_summary_used"] is True
+    assert scorecard["task_correctness_metrics"]["evaluated_count"] == 3
+
+
+def test_cli_malformed_task_correctness_summary_returns_nonzero_no_traceback(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    bad = tmp_path / "bad_correctness.json"
+    bad.write_text("{not json", encoding="utf-8")
+
+    code = main(
+        [
+            "--model-catalog",
+            str(CATALOG_PATH),
+            "--task-correctness-summary",
+            str(bad),
+            "--output-dir",
+            str(tmp_path / "out"),
+        ]
+    )
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert code == 2
+    assert payload["status"] == "invalid_input"
+    assert payload["error"] == "task_correctness_summary_invalid_input"
+    assert "Traceback" not in captured.err
 
 
 def test_cli_missing_catalog_returns_nonzero_no_traceback(

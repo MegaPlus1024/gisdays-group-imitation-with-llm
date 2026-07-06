@@ -22,6 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--readiness-report", required=True, help="Required readiness report JSON.")
     parser.add_argument("--normality-comparison-summary", default=None, help="Optional normality comparison summary JSON.")
     parser.add_argument("--model-resource-summary", default=None, help="Optional model resource summary JSON.")
+    parser.add_argument("--task-correctness-summary", default=None, help="Optional task correctness batch summary JSON.")
     parser.add_argument("--model-evaluation-scorecard", default=None, help="Optional model evaluation scorecard JSON.")
     parser.add_argument("--output-dir", required=True, help="Directory for model_evaluation_workflow_bundle.json.")
     parser.add_argument("--bundle-id", default="model_evaluation_workflow_bundle", help="Optional bundle id.")
@@ -40,6 +41,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             readiness_report_path=args.readiness_report,
             normality_comparison_summary_path=args.normality_comparison_summary,
             model_resource_summary_path=args.model_resource_summary,
+            task_correctness_summary_path=args.task_correctness_summary,
             model_evaluation_scorecard_path=args.model_evaluation_scorecard,
             bundle_id=args.bundle_id,
             base_dir=output_dir.parent,

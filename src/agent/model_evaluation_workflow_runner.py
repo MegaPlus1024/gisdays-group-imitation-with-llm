@@ -62,6 +62,7 @@ _WORKFLOW_CONFIG_ALLOWED_KEYS = {
     "normality_batch_summary_paths",
     "resource_observation_paths",
     "resource_summary_path",
+    "task_correctness_summary_path",
     "tags",
     "write_markdown_previews",
     "notes",
@@ -83,6 +84,7 @@ class ModelEvaluationWorkflowRunConfig(BaseModel):
     normality_batch_summary_paths: list[str] = Field(default_factory=list)
     resource_observation_paths: list[str] = Field(default_factory=list)
     resource_summary_path: str | None = None
+    task_correctness_summary_path: str | None = None
     tags: list[str] = Field(default_factory=list)
     write_markdown_previews: bool = False
     notes: list[str] = Field(default_factory=list)
@@ -91,7 +93,12 @@ class ModelEvaluationWorkflowRunConfig(BaseModel):
     config_display_path: str | None = None
     output_dir_overridden: bool = False
 
-    @field_validator("workflow_id", "resource_summary_path", "config_schema_version", "config_display_path")
+    @field_validator(
+        "workflow_id",
+        "resource_summary_path",
+        "config_schema_version",
+        "config_display_path",
+    )
     @classmethod
     def validate_optional_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -100,6 +107,16 @@ class ModelEvaluationWorkflowRunConfig(BaseModel):
         if not cleaned:
             raise ValueError("optional workflow text fields must be non-empty when provided.")
         return _safe_text(cleaned)
+
+    @field_validator("task_correctness_summary_path")
+    @classmethod
+    def validate_optional_input_path_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("optional workflow input path fields must be non-empty when provided.")
+        return cleaned
 
     @field_validator("model_catalog_path", "output_dir")
     @classmethod
@@ -259,6 +276,11 @@ def workflow_run_config_from_dict(
             field_name="resource_summary_path",
             config_dir=config_dir,
         ),
+        "task_correctness_summary_path": _config_optional_input_path(
+            data.get("task_correctness_summary_path"),
+            field_name="task_correctness_summary_path",
+            config_dir=config_dir,
+        ),
         "tags": _config_string_list(data.get("tags", []), "tags"),
         "write_markdown_previews": data.get("write_markdown_previews", False),
         "notes": _config_string_list(data.get("notes", []), "notes"),
@@ -286,6 +308,7 @@ def run_offline_model_evaluation_workflow(
         "readiness_report": None,
         "normality_comparison_summary": None,
         "model_resource_summary": None,
+        "task_correctness_batch_summary": None,
         "model_evaluation_scorecard": None,
         "workflow_bundle": None,
         "workflow_run_manifest": None,
@@ -387,12 +410,21 @@ def run_offline_model_evaluation_workflow(
     else:
         warnings.append("resource_inputs_not_provided")
 
+    task_correctness_path: str | Path | None = None
+    if cfg.task_correctness_summary_path:
+        task_correctness_path = cfg.task_correctness_summary_path
+        artifact_paths["task_correctness_batch_summary"] = _display_path(
+            task_correctness_path,
+            base_dir=output_dir,
+        )
+
     try:
         scorecard = build_model_evaluation_scorecard(
             catalog,
             model_comparison_plan_path=plan_path,
             normality_comparison_summary_path=normality_path,
             model_resource_summary_path=resource_path,
+            task_correctness_summary_path=task_correctness_path,
             scorecard_id=f"{workflow_id}_scorecard",
             project_root=Path.cwd(),
         )
@@ -411,6 +443,7 @@ def run_offline_model_evaluation_workflow(
             readiness_report_path=readiness_path,
             normality_comparison_summary_path=normality_path,
             model_resource_summary_path=resource_path,
+            task_correctness_summary_path=task_correctness_path,
             model_evaluation_scorecard_path=scorecard_path,
             bundle_id=f"{workflow_id}_bundle",
             base_dir=output_dir,

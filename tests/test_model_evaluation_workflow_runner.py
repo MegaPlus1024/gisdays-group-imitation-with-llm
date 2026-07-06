@@ -18,6 +18,7 @@ from src.agent.model_evaluation_workflow_runner import (
 )
 from src.agent.model_evaluation_workflow_runner_cli import main as workflow_runner_cli_main
 from src.agent.model_resource_evaluation import MODEL_RESOURCE_SUMMARY_FILENAME
+from src.agent.model_task_correctness_evaluation import TASK_CORRECTNESS_BATCH_SUMMARY_FILENAME
 from src.agent.normality_comparison import NORMALITY_COMPARISON_SUMMARY_FILENAME
 
 
@@ -115,6 +116,73 @@ def _resource_observation_path(tmp_path: Path) -> Path:
             }
         )
     return _write_json(tmp_path / "inputs" / "resource_observations.json", observations)
+
+
+def _task_correctness_summary_path(tmp_path: Path) -> Path:
+    return _write_json(
+        tmp_path / "inputs" / TASK_CORRECTNESS_BATCH_SUMMARY_FILENAME,
+        {
+            "schema_version": "task_correctness_batch_summary_v1",
+            "summary_id": "runner_test_correctness",
+            "input_count": 1,
+            "evaluated_count": 1,
+            "invalid_count": 0,
+            "passed_count": 1,
+            "failed_count": 0,
+            "partial_count": 0,
+            "skipped_count": 0,
+            "mean_correctness_score": 1.0,
+            "by_pair": {
+                "second_model__to__first_model": {
+                    "pair_id": "second_model__to__first_model",
+                    "input_count": 1,
+                    "evaluated_count": 1,
+                    "invalid_count": 0,
+                    "passed_count": 1,
+                    "failed_count": 0,
+                    "partial_count": 0,
+                    "skipped_count": 0,
+                    "mean_correctness_score": 1.0,
+                    "failure_reasons": [],
+                    "warnings": [],
+                }
+            },
+            "by_scenario": {
+                "office_document_file_workflow_basic_v1": {
+                    "scenario_id": "office_document_file_workflow_basic_v1",
+                    "input_count": 1,
+                    "evaluated_count": 1,
+                    "invalid_count": 0,
+                    "passed_count": 1,
+                    "failed_count": 0,
+                    "partial_count": 0,
+                    "skipped_count": 0,
+                    "mean_correctness_score": 1.0,
+                    "failure_reasons": [],
+                    "warnings": [],
+                }
+            },
+            "results": [
+                {
+                    "schema_version": "task_correctness_evaluation_result_v1",
+                    "trial_id": "runner_correctness_trial",
+                    "scenario_id": "office_document_file_workflow_basic_v1",
+                    "pair_id": "second_model__to__first_model",
+                    "status": "passed",
+                    "task_success": True,
+                    "correctness_score": 1.0,
+                    "check_results": [],
+                    "failure_reasons": [],
+                    "warnings": [],
+                    "notes": ["synthetic_runner_correctness"],
+                    "no_runtime_execution": True,
+                }
+            ],
+            "warnings": [],
+            "notes": ["Synthetic runner correctness summary."],
+            "no_runtime_execution": True,
+        },
+    )
 
 
 def _assert_workflow_core_files(output_dir: Path) -> None:
@@ -281,6 +349,25 @@ def test_scorecard_and_bundle_reference_available_artifacts(tmp_path: Path) -> N
     assert bundle["artifacts"]["model_evaluation_scorecard"]["status"] == "ok"
 
 
+def test_runner_passes_explicit_task_correctness_summary_to_scorecard_and_manifest(tmp_path: Path) -> None:
+    correctness_input = _task_correctness_summary_path(tmp_path)
+
+    result = run_offline_model_evaluation_workflow(
+        _config(tmp_path, task_correctness_summary_path=str(correctness_input))
+    )
+    scorecard = _load_json(tmp_path / "workflow" / "scorecard" / MODEL_EVALUATION_SCORECARD_FILENAME)
+    bundle = _load_json(tmp_path / "workflow" / "bundle" / MODEL_EVALUATION_WORKFLOW_BUNDLE_FILENAME)
+    manifest = _load_json(tmp_path / "workflow" / WORKFLOW_RUN_MANIFEST_FILENAME)
+
+    assert scorecard["task_correctness_summary_used"] is True
+    assert scorecard["task_correctness_metrics"]["evaluated_count"] == 1
+    assert bundle["artifacts"]["task_correctness_batch_summary"]["status"] == "ok"
+    assert bundle["summary"]["task_correctness_evaluated_count"] == 1
+    assert "task_correctness_batch_summary" in bundle["summary"]["optional_artifacts_present"]
+    assert result.artifact_paths["task_correctness_batch_summary"] is not None
+    assert manifest["artifact_paths"]["task_correctness_batch_summary"] is not None
+
+
 def test_cli_runs_workflow_and_prints_concise_json(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -300,6 +387,8 @@ def test_cli_runs_workflow_and_prints_concise_json(
             str(normality_input),
             "--resource-observation",
             str(resource_input),
+            "--task-correctness-summary",
+            str(_task_correctness_summary_path(tmp_path)),
             "--workflow-id",
             "cli_workflow",
             "--tag",
@@ -316,6 +405,7 @@ def test_cli_runs_workflow_and_prints_concise_json(
     assert payload["readiness_status"] == "ready"
     assert payload["scorecard_path"] == "scorecard/model_evaluation_scorecard.json"
     assert payload["bundle_path"] == "bundle/model_evaluation_workflow_bundle.json"
+    assert payload["task_correctness_summary_path"] is not None
 
 
 def test_cli_rejects_missing_model_catalog_no_traceback(

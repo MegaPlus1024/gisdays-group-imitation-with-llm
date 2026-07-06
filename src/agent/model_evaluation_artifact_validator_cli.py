@@ -22,6 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--readiness-report", default=None, help="Existing model_comparison_readiness_report.json.")
     parser.add_argument("--normality-comparison-summary", default=None, help="Existing normality_comparison_summary.json.")
     parser.add_argument("--model-resource-summary", default=None, help="Existing model_resource_summary.json.")
+    parser.add_argument("--task-correctness-summary", default=None, help="Existing task_correctness_batch_summary.json.")
     parser.add_argument("--scorecard", default=None, help="Existing model_evaluation_scorecard.json.")
     parser.add_argument("--workflow-bundle", default=None, help="Existing model_evaluation_workflow_bundle.json.")
     parser.add_argument("--workflow-run-manifest", default=None, help="Existing workflow_run_manifest.json.")
@@ -52,6 +53,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 readiness_report_path=args.readiness_report,
                 normality_comparison_summary_path=args.normality_comparison_summary,
                 model_resource_summary_path=args.model_resource_summary,
+                task_correctness_summary_path=args.task_correctness_summary,
                 scorecard_path=args.scorecard,
                 workflow_bundle_path=args.workflow_bundle,
                 workflow_run_manifest_path=args.workflow_run_manifest,
@@ -91,6 +93,7 @@ def _mode_conflict(args: argparse.Namespace) -> str | None:
         args.readiness_report,
         args.normality_comparison_summary,
         args.model_resource_summary,
+        args.task_correctness_summary,
         args.scorecard,
         args.workflow_bundle,
         args.workflow_run_manifest,

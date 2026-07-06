@@ -14,6 +14,7 @@ from .model_evaluation_artifact_contracts import (
 )
 from .model_evaluation_artifact_registry import (
     ARTIFACT_VALIDATION_REPORT,
+    TASK_CORRECTNESS_BATCH_SUMMARY,
     get_all_workflow_output_artifact_types,
     get_artifact_schema_info,
     get_default_artifact_filename,
@@ -39,6 +40,7 @@ WorkflowArtifactType = Literal[
     "readiness_report",
     "normality_comparison_summary",
     "model_resource_summary",
+    "task_correctness_batch_summary",
     "model_evaluation_scorecard",
     "workflow_bundle",
     "workflow_run_manifest",
@@ -59,6 +61,9 @@ ALL_WORKFLOW_OUTPUT_ARTIFACTS: tuple[WorkflowArtifactType, ...] = (
 EXPECTED_SCHEMA_VERSIONS: dict[WorkflowArtifactType, str] = (
     get_expected_schema_versions_for_workflow_outputs()
 )
+EXPECTED_SCHEMA_VERSIONS[TASK_CORRECTNESS_BATCH_SUMMARY] = get_artifact_schema_info(
+    TASK_CORRECTNESS_BATCH_SUMMARY
+).schema_version
 
 RECOGNIZED_STATUSES: dict[WorkflowArtifactType, set[str]] = {
     "readiness_report": {"ready", "ready_with_warnings", "not_ready"},
@@ -309,6 +314,7 @@ def validate_model_evaluation_artifacts(
     readiness_report_path: str | Path | None = None,
     normality_comparison_summary_path: str | Path | None = None,
     model_resource_summary_path: str | Path | None = None,
+    task_correctness_summary_path: str | Path | None = None,
     scorecard_path: str | Path | None = None,
     workflow_bundle_path: str | Path | None = None,
     workflow_run_manifest_path: str | Path | None = None,
@@ -321,6 +327,7 @@ def validate_model_evaluation_artifacts(
         "readiness_report": readiness_report_path,
         "normality_comparison_summary": normality_comparison_summary_path,
         "model_resource_summary": model_resource_summary_path,
+        "task_correctness_batch_summary": task_correctness_summary_path,
         "model_evaluation_scorecard": scorecard_path,
         "workflow_bundle": workflow_bundle_path,
         "workflow_run_manifest": workflow_run_manifest_path,
@@ -365,6 +372,7 @@ def validate_model_evaluation_artifacts(
         payloads.get("model_comparison_plan"),
         payloads.get("normality_comparison_summary"),
         payloads.get("model_resource_summary"),
+        payloads.get("task_correctness_batch_summary"),
         issues,
     )
     _validate_bundle(payloads.get("workflow_bundle"), artifacts, issues)
@@ -578,6 +586,7 @@ def _validate_scorecard(
     plan: dict[str, Any] | None,
     normality: dict[str, Any] | None,
     resource: dict[str, Any] | None,
+    task_correctness: dict[str, Any] | None,
     issues: list[ModelEvaluationArtifactIssue],
 ) -> None:
     if scorecard is None:
@@ -608,6 +617,8 @@ def _validate_scorecard(
         issues.append(_issue("warning", "scorecard_normality_summary_not_marked_used", "Normality artifact is present but scorecard does not mark it as used.", artifact_type="model_evaluation_scorecard", artifact_path=artifact_path))
     if resource is not None and scorecard.get("resource_summary_used") is not True:
         issues.append(_issue("warning", "scorecard_resource_summary_not_marked_used", "Resource artifact is present but scorecard does not mark it as used.", artifact_type="model_evaluation_scorecard", artifact_path=artifact_path))
+    if task_correctness is not None and scorecard.get("task_correctness_summary_used") is not True:
+        issues.append(_issue("warning", "scorecard_task_correctness_summary_not_marked_used", "Task correctness artifact is present but scorecard does not mark it as used.", artifact_type="model_evaluation_scorecard", artifact_path=artifact_path))
 
 
 def _validate_bundle(
@@ -623,11 +634,20 @@ def _validate_bundle(
         issues.append(_issue("error", "bundle_artifacts_missing", "Workflow bundle artifacts map is missing.", artifact_type="workflow_bundle", artifact_path=artifact_path))
         return
 
-    for artifact_type in ("model_comparison_plan", "readiness_report", "normality_comparison_summary", "model_resource_summary", "model_evaluation_scorecard"):
+    for artifact_type in (
+        "model_comparison_plan",
+        "readiness_report",
+        "normality_comparison_summary",
+        "model_resource_summary",
+        "task_correctness_batch_summary",
+        "model_evaluation_scorecard",
+    ):
         bundle_row = bundle_artifacts.get(artifact_type)
         if not isinstance(bundle_row, dict):
             continue
         actual = artifacts.get(artifact_type)
+        if artifact_type == "task_correctness_batch_summary" and actual is None:
+            continue
         bundle_present = bundle_row.get("present") is True or bundle_row.get("status") == "ok"
         if bundle_present and (actual is None or actual.status != "ok"):
             issues.append(_issue("error", "bundle_marks_missing_artifact_present", "Bundle marks an artifact present, but the actual artifact is missing or invalid.", artifact_type="workflow_bundle", artifact_path=artifact_path, metadata={"referenced_artifact_type": artifact_type}))
@@ -659,6 +679,9 @@ def _validate_manifest(
             continue
         if isinstance(value, str) and value.replace("\\", "/") != expected_path:
             issues.append(_issue("warning", "manifest_artifact_path_unexpected", "Workflow manifest artifact path does not match the known workflow location.", artifact_type="workflow_run_manifest", artifact_path=artifact_path, metadata={"field_path": f"artifact_paths.{manifest_key}", "expected_path": expected_path}))
+    task_correctness_path = manifest_paths.get("task_correctness_batch_summary")
+    if isinstance(task_correctness_path, str) and _is_absolute_path(task_correctness_path):
+        issues.append(_issue("error", "manifest_absolute_path_leak", "Workflow manifest contains an absolute artifact path.", artifact_type="workflow_run_manifest", artifact_path=artifact_path, metadata={"field_path": "artifact_paths.task_correctness_batch_summary", "redacted_value": "<absolute_path>"}))
 
     if manifest.get("config_used") is True:
         config_display = manifest.get("config_display_path")
@@ -690,6 +713,7 @@ def _cross_link_artifacts(payloads: dict[WorkflowArtifactType, dict[str, Any]], 
     scorecard = payloads.get("model_evaluation_scorecard")
     normality = payloads.get("normality_comparison_summary")
     resource = payloads.get("model_resource_summary")
+    task_correctness = payloads.get("task_correctness_batch_summary")
     bundle = payloads.get("workflow_bundle")
 
     if plan is not None and readiness is not None:
@@ -706,6 +730,9 @@ def _cross_link_artifacts(payloads: dict[WorkflowArtifactType, dict[str, Any]], 
         if normality is not None:
             for pair_id in sorted(_normality_pair_ids(normality) - scorecard_pair_ids):
                 issues.append(_issue("warning", "normality_pair_missing_from_scorecard", "Normality model pair is not represented in scorecard.", metadata={"pair_id": pair_id}))
+        if task_correctness is not None:
+            for pair_id in sorted(_task_correctness_pair_ids(task_correctness) - scorecard_pair_ids):
+                issues.append(_issue("warning", "task_correctness_pair_missing_from_scorecard", "Task correctness pair is not represented in scorecard.", metadata={"pair_id": pair_id}))
 
     if bundle is not None and plan is not None:
         summary = bundle.get("summary") if isinstance(bundle.get("summary"), dict) else {}
@@ -753,6 +780,7 @@ def _cross_link_summary(
     scorecard = payloads.get("model_evaluation_scorecard") or {}
     normality = payloads.get("normality_comparison_summary") or {}
     resource = payloads.get("model_resource_summary") or {}
+    task_correctness = payloads.get("task_correctness_batch_summary") or {}
     bundle = payloads.get("workflow_bundle") or {}
     manifest = payloads.get("workflow_run_manifest") or {}
     return {
@@ -763,6 +791,7 @@ def _cross_link_summary(
         "scorecard_pair_count": len(_dict_rows(scorecard.get("model_pairs"))),
         "normality_pair_count": len(_normality_pair_ids(normality)),
         "resource_pair_count": len(_resource_pair_ids(resource)),
+        "task_correctness_pair_count": len(_task_correctness_pair_ids(task_correctness)),
         "bundle_status": _safe_optional(bundle.get("status")),
         "manifest_status": _safe_optional(manifest.get("status")),
         "ok_artifact_count": sum(1 for artifact in artifacts.values() if artifact.status == "ok"),
@@ -799,9 +828,12 @@ def _duplicate_errors(
 def _expected_bundle_status(bundle_artifacts: dict[str, Any]) -> str | None:
     required = ("model_catalog", "model_comparison_plan", "readiness_report")
     optional = ("normality_comparison_summary", "model_resource_summary", "model_evaluation_scorecard")
+    supplemental = ("task_correctness_batch_summary",)
     if any(_bundle_artifact_status(bundle_artifacts, item) != "ok" for item in required):
         return "invalid"
     if any(_bundle_artifact_status(bundle_artifacts, item) != "ok" for item in optional):
+        return "partial"
+    if any(_bundle_artifact_status(bundle_artifacts, item) in {"missing", "invalid_input"} for item in supplemental):
         return "partial"
     return "complete"
 
@@ -857,7 +889,7 @@ def _scan_value_safety(
 def _raw_collection_present(value: Any) -> bool:
     if isinstance(value, dict):
         for key, child in value.items():
-            if str(key) in {"observations", "resource_observations", "events", "event_preview", "entries"}:
+            if str(key) in {"observations", "resource_observations", "events", "event_preview", "entries", "results"}:
                 return True
             if _raw_collection_present(child):
                 return True
@@ -899,6 +931,19 @@ def _normality_pair_ids(normality: dict[str, Any]) -> set[str]:
         pair_id = _pair_label_to_pair_id(str(label))
         if pair_id:
             result.add(pair_id)
+    return result
+
+
+def _task_correctness_pair_ids(task_correctness: dict[str, Any]) -> set[str]:
+    by_pair = task_correctness.get("by_pair") if isinstance(task_correctness.get("by_pair"), dict) else {}
+    result: set[str] = set()
+    for label, group in by_pair.items():
+        pair_id = None
+        if isinstance(group, dict):
+            pair_id = _text(group.get("pair_id"))
+        pair_id = pair_id or _text(label)
+        if pair_id:
+            result.add(_safe_text(pair_id))
     return result
 
 

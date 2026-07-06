@@ -28,6 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--normality-batch-summary", action="append", default=[], help="Optional normality batch summary.")
     parser.add_argument("--resource-observation", action="append", default=[], help="Optional resource observation JSON/JSONL.")
     parser.add_argument("--resource-summary", default=None, help="Optional existing model_resource_summary.json.")
+    parser.add_argument("--task-correctness-summary", default=None, help="Optional existing task_correctness_batch_summary.json.")
     parser.add_argument("--tag", action="append", default=[], help="Optional workflow tag. Repeatable.")
     parser.add_argument("--workflow-id", default=None, help="Optional workflow id.")
     parser.add_argument("--write-markdown-previews", action="store_true", default=False)
@@ -73,6 +74,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 normality_batch_summary_paths=args.normality_batch_summary,
                 resource_observation_paths=args.resource_observation,
                 resource_summary_path=args.resource_summary,
+                task_correctness_summary_path=args.task_correctness_summary,
                 tags=args.tag,
                 write_markdown_previews=args.write_markdown_previews,
             )
@@ -89,6 +91,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "readiness_status": result.readiness_status,
         "scorecard_path": result.artifact_paths.get("model_evaluation_scorecard"),
         "bundle_path": result.artifact_paths.get("workflow_bundle"),
+        "task_correctness_summary_path": result.artifact_paths.get("task_correctness_batch_summary"),
         "warning_count": len(result.warnings),
         "no_runtime_execution": result.no_runtime_execution,
     }
@@ -105,6 +108,7 @@ def _invalid_payload(error: str) -> dict[str, object]:
         "readiness_status": None,
         "scorecard_path": None,
         "bundle_path": None,
+        "task_correctness_summary_path": None,
         "warning_count": 0,
         "no_runtime_execution": True,
         "error": error,
@@ -122,6 +126,8 @@ def _config_conflict(args: argparse.Namespace) -> str | None:
         return "config_conflicts_with_resource_observation"
     if args.resource_summary:
         return "config_conflicts_with_resource_summary"
+    if args.task_correctness_summary:
+        return "config_conflicts_with_task_correctness_summary"
     if args.write_markdown_previews:
         return "config_conflicts_with_write_markdown_previews"
     if args.repetitions != 1:

@@ -19,6 +19,7 @@ from src.agent.model_evaluation_workflow_runner import (
     ModelEvaluationWorkflowRunConfig,
     run_offline_model_evaluation_workflow,
 )
+from src.agent.model_task_correctness_evaluation import TASK_CORRECTNESS_BATCH_SUMMARY_FILENAME
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -113,6 +114,73 @@ def _resource_observation_path(tmp_path: Path) -> Path:
     return _write_json(tmp_path / "inputs" / "resource_observations.json", rows)
 
 
+def _task_correctness_summary_path(tmp_path: Path) -> Path:
+    return _write_json(
+        tmp_path / "inputs" / TASK_CORRECTNESS_BATCH_SUMMARY_FILENAME,
+        {
+            "schema_version": "task_correctness_batch_summary_v1",
+            "summary_id": "artifact_validator_correctness",
+            "input_count": 1,
+            "evaluated_count": 1,
+            "invalid_count": 0,
+            "passed_count": 1,
+            "failed_count": 0,
+            "partial_count": 0,
+            "skipped_count": 0,
+            "mean_correctness_score": 1.0,
+            "by_pair": {
+                "second_model__to__first_model": {
+                    "pair_id": "second_model__to__first_model",
+                    "input_count": 1,
+                    "evaluated_count": 1,
+                    "invalid_count": 0,
+                    "passed_count": 1,
+                    "failed_count": 0,
+                    "partial_count": 0,
+                    "skipped_count": 0,
+                    "mean_correctness_score": 1.0,
+                    "failure_reasons": [],
+                    "warnings": [],
+                }
+            },
+            "by_scenario": {
+                "office_document_file_workflow_basic_v1": {
+                    "scenario_id": "office_document_file_workflow_basic_v1",
+                    "input_count": 1,
+                    "evaluated_count": 1,
+                    "invalid_count": 0,
+                    "passed_count": 1,
+                    "failed_count": 0,
+                    "partial_count": 0,
+                    "skipped_count": 0,
+                    "mean_correctness_score": 1.0,
+                    "failure_reasons": [],
+                    "warnings": [],
+                }
+            },
+            "results": [
+                {
+                    "schema_version": "task_correctness_evaluation_result_v1",
+                    "trial_id": "artifact_validator_correctness_trial",
+                    "scenario_id": "office_document_file_workflow_basic_v1",
+                    "pair_id": "second_model__to__first_model",
+                    "status": "passed",
+                    "task_success": True,
+                    "correctness_score": 1.0,
+                    "check_results": [],
+                    "failure_reasons": [],
+                    "warnings": [],
+                    "notes": ["synthetic_validator_correctness"],
+                    "no_runtime_execution": True,
+                }
+            ],
+            "warnings": [],
+            "notes": ["Synthetic validator correctness summary."],
+            "no_runtime_execution": True,
+        },
+    )
+
+
 def _complete_workflow(tmp_path: Path) -> Path:
     normality_input = _normality_batch_summary_path(tmp_path)
     resource_input = _resource_observation_path(tmp_path)
@@ -124,6 +192,21 @@ def _complete_workflow(tmp_path: Path) -> Path:
         )
     )
     return tmp_path / "workflow"
+
+
+def _complete_workflow_with_task_correctness(tmp_path: Path) -> tuple[Path, Path]:
+    normality_input = _normality_batch_summary_path(tmp_path)
+    resource_input = _resource_observation_path(tmp_path)
+    correctness_input = _task_correctness_summary_path(tmp_path)
+    run_offline_model_evaluation_workflow(
+        _workflow_config(
+            tmp_path,
+            normality_batch_summary_paths=[str(normality_input)],
+            resource_observation_paths=[str(resource_input)],
+            task_correctness_summary_path=str(correctness_input),
+        )
+    )
+    return tmp_path / "workflow", correctness_input
 
 
 def _partial_workflow(tmp_path: Path) -> Path:
@@ -165,6 +248,27 @@ def test_validates_complete_workflow_output_generated_from_runner_inputs(tmp_pat
     assert report.warning_count == 0
     assert report.cross_link_summary["plan_pair_count"] == 2
     assert report.cross_link_summary["scorecard_pair_count"] == 2
+
+
+def test_validates_explicit_task_correctness_artifact_from_runner(tmp_path: Path) -> None:
+    workflow_dir, correctness_path = _complete_workflow_with_task_correctness(tmp_path)
+
+    report = validate_model_evaluation_artifacts(
+        plan_path=workflow_dir / PLAN_PATH,
+        readiness_report_path=workflow_dir / READINESS_PATH,
+        normality_comparison_summary_path=workflow_dir / NORMALITY_PATH,
+        model_resource_summary_path=workflow_dir / RESOURCE_PATH,
+        task_correctness_summary_path=correctness_path,
+        scorecard_path=workflow_dir / SCORECARD_PATH,
+        workflow_bundle_path=workflow_dir / BUNDLE_PATH,
+        workflow_run_manifest_path=workflow_dir / MANIFEST_PATH,
+        base_dir=workflow_dir,
+    )
+
+    assert report.status == "valid"
+    assert report.error_count == 0
+    assert report.cross_link_summary["task_correctness_pair_count"] == 1
+    assert report.checked_artifacts["task_correctness_batch_summary"]["status"] == "ok"
 
 
 def test_validates_partial_workflow_output_with_optional_missing_as_warning(tmp_path: Path) -> None:
@@ -366,6 +470,28 @@ def test_cli_validates_explicit_artifact_paths(tmp_path: Path, capsys: pytest.Ca
     assert code == 0
     assert payload["status"] == "valid"
     assert payload["checked_artifact_count"] == 7
+
+
+def test_cli_validates_explicit_task_correctness_artifact(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workflow_dir, correctness_path = _complete_workflow_with_task_correctness(tmp_path)
+
+    code = validator_cli_main(
+        [
+            *_explicit_paths(workflow_dir),
+            "--task-correctness-summary",
+            str(correctness_path),
+            "--output-dir",
+            str(tmp_path / "validation"),
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 0
+    assert payload["status"] == "valid"
+    assert payload["checked_artifact_count"] == 8
 
 
 def test_cli_strict_returns_nonzero_on_warnings(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
