@@ -10,6 +10,7 @@ from .model_evaluation_artifact_registry import (
     MODEL_EVALUATION_COMPATIBILITY_REPORT,
     MODEL_EVALUATION_SCORECARD,
     MODEL_PAIR_MATRIX_RUN_SUMMARY,
+    MATRIX_RUN_ADAPTER_SUMMARY,
     MODEL_RESOURCE_SUMMARY,
     NORMALITY_COMPARISON_SUMMARY,
     READINESS_REPORT,
@@ -361,6 +362,23 @@ _CONTRACTS_BY_TYPE: dict[str, ArtifactSchemaContract] = {
             _optional("dry_run_count", "integer"),
             _optional("pair_summaries", "array"),
             _optional("scenario_summaries", "array"),
+        ),
+    ),
+    MATRIX_RUN_ADAPTER_SUMMARY: _contract(
+        MATRIX_RUN_ADAPTER_SUMMARY,
+        required=(
+            _field("schema_version", "string"),
+            _field("source_run_id", "string"),
+            _field("trial_count", "integer"),
+            _field("resource_observation_count", "integer"),
+            _field("normality_input_count", "integer"),
+            _field("normality_missing_trace_count", "integer"),
+            _field("warnings", "array"),
+            _field("no_runtime_execution", "boolean"),
+        ),
+        optional=(
+            _optional("adapter_id", "string"),
+            _optional("output_paths", "object"),
         ),
     ),
     TASK_CORRECTNESS_EVALUATION_RESULT: _contract(

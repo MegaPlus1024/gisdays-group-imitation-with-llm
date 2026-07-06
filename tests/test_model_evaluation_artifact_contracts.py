@@ -99,6 +99,27 @@ def _model_pair_matrix_run_summary_payload(**overrides: object) -> dict[str, Any
     return payload
 
 
+def _matrix_run_adapter_summary_payload(**overrides: object) -> dict[str, Any]:
+    payload = {
+        "schema_version": "matrix_run_adapter_summary_v1",
+        "adapter_id": "contract_adapter",
+        "source_run_id": "contract_matrix_run",
+        "trial_count": 1,
+        "resource_observation_count": 1,
+        "normality_input_count": 1,
+        "normality_missing_trace_count": 0,
+        "output_paths": {
+            "resource_observations": "model_resource_observations.jsonl",
+            "normality_inputs": "normality_judge_inputs.jsonl",
+            "adapter_summary": "matrix_run_adapter_summary.json",
+        },
+        "warnings": [],
+        "no_runtime_execution": True,
+    }
+    payload.update(overrides)
+    return payload
+
+
 def _task_correctness_result_payload(**overrides: object) -> dict[str, Any]:
     payload = {
         "schema_version": "task_correctness_evaluation_result_v1",
@@ -275,6 +296,15 @@ def test_valid_model_pair_matrix_run_summary_passes_contract_validation() -> Non
     issues = contracts.validate_artifact_against_contract(
         _model_pair_matrix_run_summary_payload(),
         registry.MODEL_PAIR_MATRIX_RUN_SUMMARY,
+    )
+
+    assert issues == []
+
+
+def test_valid_matrix_run_adapter_summary_passes_contract_validation() -> None:
+    issues = contracts.validate_artifact_against_contract(
+        _matrix_run_adapter_summary_payload(),
+        registry.MATRIX_RUN_ADAPTER_SUMMARY,
     )
 
     assert issues == []

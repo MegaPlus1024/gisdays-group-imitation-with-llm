@@ -7,6 +7,7 @@ from typing import Literal
 MODEL_CATALOG = "model_catalog"
 MODEL_COMPARISON_PLAN = "model_comparison_plan"
 MODEL_PAIR_MATRIX_RUN_SUMMARY = "model_pair_matrix_run_summary"
+MATRIX_RUN_ADAPTER_SUMMARY = "matrix_run_adapter_summary"
 TASK_CORRECTNESS_EVALUATION_RESULT = "task_correctness_evaluation_result"
 TASK_CORRECTNESS_BATCH_SUMMARY = "task_correctness_batch_summary"
 READINESS_REPORT = "readiness_report"
@@ -23,6 +24,7 @@ ArtifactType = Literal[
     "model_catalog",
     "model_comparison_plan",
     "model_pair_matrix_run_summary",
+    "matrix_run_adapter_summary",
     "task_correctness_evaluation_result",
     "task_correctness_batch_summary",
     "readiness_report",
@@ -94,6 +96,12 @@ _REGISTRY: tuple[ArtifactSchemaInfo, ...] = (
         schema_version="model_pair_matrix_run_summary_v1",
         default_filename="model_pair_matrix_run_summary.json",
         description="Offline model-pair matrix run summary.",
+    ),
+    ArtifactSchemaInfo(
+        artifact_type=MATRIX_RUN_ADAPTER_SUMMARY,
+        schema_version="matrix_run_adapter_summary_v1",
+        default_filename="matrix_run_adapter_summary.json",
+        description="Offline model-pair matrix adapter output summary.",
     ),
     ArtifactSchemaInfo(
         artifact_type=TASK_CORRECTNESS_EVALUATION_RESULT,
