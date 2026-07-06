@@ -62,6 +62,43 @@ def _readiness_payload(**overrides: object) -> dict[str, Any]:
     return payload
 
 
+def _model_pair_matrix_run_summary_payload(**overrides: object) -> dict[str, Any]:
+    payload = {
+        "schema_version": "model_pair_matrix_run_summary_v1",
+        "run_id": "contract_matrix_run",
+        "plan_id": "contract_plan",
+        "execution_mode": "dry_run",
+        "trial_count": 1,
+        "succeeded_count": 0,
+        "failed_count": 0,
+        "skipped_count": 0,
+        "dry_run_count": 1,
+        "pair_summaries": [],
+        "scenario_summaries": [],
+        "trial_results": [
+            {
+                "trial_id": "trial_1",
+                "scenario_id": "office_document_file_workflow_basic_v1",
+                "pair_id": "second_model__to__first_model",
+                "orchestrator_model_id": "second_model",
+                "executor_model_id": "first_model",
+                "status": "dry_run",
+                "task_success": None,
+                "correctness_score": None,
+                "warnings": [],
+                "notes": ["dry_run_no_runtime_execution"],
+                "no_runtime_execution": True,
+                "execution_mode": "dry_run",
+            }
+        ],
+        "warnings": [],
+        "notes": ["Offline matrix scaffold only; no model execution performed."],
+        "no_runtime_execution": True,
+    }
+    payload.update(overrides)
+    return payload
+
+
 def _bundle_payload(**overrides: object) -> dict[str, Any]:
     payload = {
         "schema_version": "model_evaluation_workflow_bundle_v1",
@@ -187,6 +224,15 @@ def test_valid_synthetic_model_comparison_plan_passes_contract_validation() -> N
     issues = contracts.validate_artifact_against_contract(
         _plan_payload(),
         registry.MODEL_COMPARISON_PLAN,
+    )
+
+    assert issues == []
+
+
+def test_valid_model_pair_matrix_run_summary_passes_contract_validation() -> None:
+    issues = contracts.validate_artifact_against_contract(
+        _model_pair_matrix_run_summary_payload(),
+        registry.MODEL_PAIR_MATRIX_RUN_SUMMARY,
     )
 
     assert issues == []

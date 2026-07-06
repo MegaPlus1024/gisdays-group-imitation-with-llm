@@ -6,6 +6,7 @@ from typing import Literal
 
 MODEL_CATALOG = "model_catalog"
 MODEL_COMPARISON_PLAN = "model_comparison_plan"
+MODEL_PAIR_MATRIX_RUN_SUMMARY = "model_pair_matrix_run_summary"
 READINESS_REPORT = "readiness_report"
 NORMALITY_COMPARISON_SUMMARY = "normality_comparison_summary"
 MODEL_RESOURCE_SUMMARY = "model_resource_summary"
@@ -19,6 +20,7 @@ MODEL_EVALUATION_COMPATIBILITY_REPORT = "model_evaluation_compatibility_report"
 ArtifactType = Literal[
     "model_catalog",
     "model_comparison_plan",
+    "model_pair_matrix_run_summary",
     "readiness_report",
     "normality_comparison_summary",
     "model_resource_summary",
@@ -82,6 +84,12 @@ _REGISTRY: tuple[ArtifactSchemaInfo, ...] = (
         required_for_workflow_bundle=True,
         required_for_workflow_output=True,
         description="Offline model comparison plan.",
+    ),
+    ArtifactSchemaInfo(
+        artifact_type=MODEL_PAIR_MATRIX_RUN_SUMMARY,
+        schema_version="model_pair_matrix_run_summary_v1",
+        default_filename="model_pair_matrix_run_summary.json",
+        description="Offline model-pair matrix run summary.",
     ),
     ArtifactSchemaInfo(
         artifact_type=READINESS_REPORT,
