@@ -1,0 +1,516 @@
+from __future__ import annotations
+
+import builtins
+import importlib
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from src.agent.model_pair_execution_readiness import (
+    validate_model_pair_execution_readiness,
+    write_model_pair_execution_readiness_summary,
+)
+from src.agent.model_pair_local_pipeline_entrypoint import (
+    is_runtime_execution_enabled,
+    run_local_model_pair_trial,
+    validate_local_entrypoint_runtime_config,
+)
+from src.agent.model_pair_pipeline_result_adapter import adapt_orchestrator_executor_pipeline_result
+from src.agent.model_pair_single_trial_execution import (
+    ModelPairSingleTrialExecutionConfig,
+    run_single_model_pair_trial,
+)
+from src.agent.model_pair_single_trial_operator_runner import (
+    ModelPairSingleTrialOperatorConfig,
+    load_entrypoint_from_ref,
+    run_single_trial_operator,
+)
+
+
+PAIR_ID = "second_model__to__first_model"
+SCENARIO_ID = "office_document_file_workflow_basic_v1"
+SCENARIO_PATH = "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json"
+LOCAL_ENTRYPOINT_REF = "src.agent.model_pair_local_pipeline_entrypoint:run_local_model_pair_trial"
+
+
+def _entrypoint_input(*, allow_runtime: bool | None = False, **overrides: object) -> dict[str, Any]:
+    execution_options: dict[str, Any] = {"no_runtime_execution": allow_runtime is not True}
+    if allow_runtime is not None:
+        execution_options["allow_runtime_execution"] = allow_runtime
+    payload: dict[str, Any] = {
+        "trial_id": f"{PAIR_ID}__{SCENARIO_ID}__r01",
+        "pair_id": PAIR_ID,
+        "scenario_id": SCENARIO_ID,
+        "scenario_path": SCENARIO_PATH,
+        "orchestrator_model_id": "second_model",
+        "executor_model_id": "first_model",
+        "task_summary": "Run one local model-pair entrypoint trial.",
+        "expected_outputs": {"checks": [{"type": "status_equals", "expected": "succeeded"}]},
+        "tags": ["local_entrypoint_test"],
+        "scenario_config": {"scenario_id": SCENARIO_ID, "scenario_path": SCENARIO_PATH, "max_group_steps": 1},
+        "role_config": {"agents": [{"agent_id": "office_agent", "role": "fixture"}]},
+        "model_bindings": {
+            "orchestrator": {"model_id": "second_model", "provider": "explicit_fixture"},
+            "executor": {"model_id": "first_model", "provider": "explicit_fixture"},
+        },
+        "execution_options": execution_options,
+        "metadata": {"explicit_runtime_opt_in": allow_runtime is True},
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _event(**overrides: object) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "group_step_index": 1,
+        "agent_id": "office_agent",
+        "task_id": "task_1",
+        "action": "office_create_docx",
+        "status": "success",
+        "summary": "Fake local entrypoint runtime helper selected a safe offline action.",
+        "metadata": {"execution_attempted": False, "execution_success": None},
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _fake_pipeline_result(**overrides: object) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "status": "completed",
+        "success": True,
+        "correctness_score": 0.98,
+        "group_history": [_event()],
+        "event_history": [_event(action="office_validate_docx")],
+        "activity_trace": [_event(action="office_record_summary")],
+        "artifacts": [{"path": "artifacts/local_entrypoint/report.docx"}],
+        "resource_observation": {
+            "runtime_mode": "fake_local_entrypoint",
+            "backend": "monkeypatched_local_entrypoint_helper",
+            "success": True,
+            "wall_time_s": 1.5,
+        },
+        "warnings": ["fake_helper_does_not_call_llama_server"],
+        "notes": ["synthetic_local_entrypoint_pipeline_result"],
+        "metadata": {"pipeline": "fake_local_entrypoint"},
+        "no_runtime_execution": False,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _plan(**overrides: object) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "schema_version": "model_comparison_plan_v1",
+        "plan_id": "model_pair_local_entrypoint_plan",
+        "candidate_pairs": [
+            {
+                "pair_id": PAIR_ID,
+                "orchestrator_model_id": "second_model",
+                "executor_model_id": "first_model",
+                "tags": ["local_entrypoint_test"],
+            }
+        ],
+        "scenarios": [
+            {
+                "scenario_id": SCENARIO_ID,
+                "scenario_path": SCENARIO_PATH,
+                "task_summary": "Run one local model-pair entrypoint trial.",
+            }
+        ],
+        "trials": [
+            {
+                "trial_id": f"{PAIR_ID}__{SCENARIO_ID}__r01",
+                "pair_id": PAIR_ID,
+                "scenario_id": SCENARIO_ID,
+                "repeat_index": 1,
+                "task_summary": "Run one local model-pair entrypoint trial.",
+                "expected_outputs": {"checks": [{"type": "status_equals", "expected": "succeeded"}]},
+                "tags": ["local_entrypoint_test"],
+                "no_runtime_execution": True,
+            }
+        ],
+        "no_runtime_execution": True,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _scenario_config(context: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "scenario_id": context["scenario_id"],
+        "scenario_path": context["scenario_path"],
+        "max_group_steps": 1,
+    }
+
+
+def _role_config(context: dict[str, Any]) -> dict[str, Any]:
+    return {"agents": [{"agent_id": "office_agent", "scenario_id": context["scenario_id"]}]}
+
+
+def _model_bindings(context: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "orchestrator": {"model_id": context["orchestrator_model_id"], "provider": "explicit_fixture"},
+        "executor": {"model_id": context["executor_model_id"], "provider": "explicit_fixture"},
+    }
+
+
+def _plan_path(tmp_path: Path, plan: dict[str, Any] | None = None) -> Path:
+    path = tmp_path / "plan.json"
+    path.write_text(json.dumps(plan or _plan(), ensure_ascii=False, indent=2), encoding="utf-8")
+    return path
+
+
+def _ready_summary_path(tmp_path: Path, plan: dict[str, Any] | None = None) -> Path:
+    summary = validate_model_pair_execution_readiness(
+        plan or _plan(),
+        role_config_resolver=_role_config,
+        scenario_config_resolver=_scenario_config,
+        model_binding_resolver=_model_bindings,
+    )
+    return write_model_pair_execution_readiness_summary(summary, tmp_path / "readiness")
+
+
+def _codes(result: dict[str, Any]) -> set[str]:
+    findings = result.get("findings", [])
+    if not isinstance(findings, list):
+        return set()
+    return {finding["code"] for finding in findings if isinstance(finding, dict) and "code" in finding}
+
+
+def test_no_runtime_input_returns_skipped_result() -> None:
+    result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=False))
+
+    assert result["status"] == "skipped"
+    assert result["task_success"] is False
+    assert result["error_code"] == "runtime_execution_not_enabled"
+    assert result["warnings"] == ["runtime_execution_not_enabled"]
+    assert result["metadata"]["entrypoint"] == "run_local_model_pair_trial"
+    assert result["metadata"]["no_runtime_execution"] is True
+    assert result["no_runtime_execution"] is True
+
+
+def test_no_runtime_input_does_not_call_existing_pipeline_helper(monkeypatch: pytest.MonkeyPatch) -> None:
+    import src.agent.model_pair_local_pipeline_entrypoint as local_entrypoint
+
+    def forbidden(_: dict[str, Any]) -> object:
+        raise AssertionError("existing pipeline helper must not run in no-runtime mode")
+
+    monkeypatch.setattr(local_entrypoint, "_run_existing_pipeline_entrypoint", forbidden)
+
+    result = local_entrypoint.run_local_model_pair_trial(_entrypoint_input(allow_runtime=False))
+
+    assert result["status"] == "skipped"
+
+
+def test_runtime_false_or_missing_is_safe() -> None:
+    false_result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=False))
+    missing_result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=None))
+
+    assert is_runtime_execution_enabled(_entrypoint_input(allow_runtime=False)) is False
+    assert is_runtime_execution_enabled(_entrypoint_input(allow_runtime=None)) is False
+    assert false_result["status"] == "skipped"
+    assert missing_result["status"] == "skipped"
+
+
+def test_runtime_true_validation_checks_required_fields() -> None:
+    payload = _entrypoint_input(
+        allow_runtime=True,
+        trial_id="",
+        pair_id=None,
+        scenario_id="",
+        orchestrator_model_id=None,
+        executor_model_id="",
+    )
+
+    codes = {finding["code"] for finding in validate_local_entrypoint_runtime_config(payload)}
+
+    assert "trial_id_missing" in codes
+    assert "pair_id_missing" in codes
+    assert "scenario_id_missing" in codes
+    assert "orchestrator_model_id_missing" in codes
+    assert "executor_model_id_missing" in codes
+
+
+def test_runtime_true_missing_model_bindings_returns_controlled_failed_result() -> None:
+    result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True, model_bindings={}))
+
+    assert result["status"] == "failed"
+    assert result["error_code"] == "local_pipeline_entrypoint_config_invalid"
+    assert "model_bindings_missing" in _codes(result)
+
+
+def test_runtime_true_missing_scenario_config_returns_controlled_failed_result() -> None:
+    result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True, scenario_config={}))
+
+    assert result["status"] == "failed"
+    assert result["error_code"] == "local_pipeline_entrypoint_config_invalid"
+    assert "scenario_config_missing" in _codes(result)
+
+
+def test_runtime_true_valid_config_calls_monkeypatched_helper_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.agent.model_pair_local_pipeline_entrypoint as local_entrypoint
+
+    calls: list[dict[str, Any]] = []
+
+    def fake_helper(entrypoint_input: dict[str, Any]) -> dict[str, Any]:
+        calls.append(entrypoint_input)
+        return _fake_pipeline_result()
+
+    monkeypatch.setattr(local_entrypoint, "_run_existing_pipeline_entrypoint", fake_helper)
+    result = local_entrypoint.run_local_model_pair_trial(_entrypoint_input(allow_runtime=True))
+
+    assert len(calls) == 1
+    assert result["status"] == "completed"
+    assert result["task_success"] is True
+    assert result["resource_observation"]["backend"] == "monkeypatched_local_entrypoint_helper"
+
+
+def test_monkeypatched_existing_pipeline_success_passes_through_safely(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.agent.model_pair_local_pipeline_entrypoint as local_entrypoint
+
+    monkeypatch.setattr(
+        local_entrypoint,
+        "_run_existing_pipeline_entrypoint",
+        lambda _: _fake_pipeline_result(artifact_dir="artifacts/local_entrypoint"),
+    )
+
+    result = local_entrypoint.run_local_model_pair_trial(_entrypoint_input(allow_runtime=True))
+
+    assert result["status"] == "completed"
+    assert result["task_success"] is True
+    assert result["artifact_refs"] == ["artifacts/local_entrypoint/report.docx", "artifacts/local_entrypoint"]
+    assert result["metadata"]["entrypoint"] == "run_local_model_pair_trial"
+    assert result["no_runtime_execution"] is False
+
+
+def test_monkeypatched_existing_pipeline_failure_passes_through_safely(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.agent.model_pair_local_pipeline_entrypoint as local_entrypoint
+
+    monkeypatch.setattr(
+        local_entrypoint,
+        "_run_existing_pipeline_entrypoint",
+        lambda _: _fake_pipeline_result(status="failed", success=False, failure_reason="fake_pipeline_failed"),
+    )
+
+    result = local_entrypoint.run_local_model_pair_trial(_entrypoint_input(allow_runtime=True))
+
+    assert result["status"] == "failed"
+    assert result["task_success"] is False
+    assert result["error_code"] == "fake_pipeline_failed"
+
+
+def test_existing_pipeline_exception_becomes_controlled_failed_result_without_raw_leak(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.agent.model_pair_local_pipeline_entrypoint as local_entrypoint
+
+    marker = "RAW_SECRET_EXCEPTION_DETAIL token=SECRET_TOKEN"
+
+    def fake_helper(_: dict[str, Any]) -> dict[str, Any]:
+        raise RuntimeError(marker)
+
+    monkeypatch.setattr(local_entrypoint, "_run_existing_pipeline_entrypoint", fake_helper)
+    result = local_entrypoint.run_local_model_pair_trial(_entrypoint_input(allow_runtime=True))
+    text = json.dumps(result, ensure_ascii=False)
+
+    assert result["status"] == "failed"
+    assert result["error_code"] == "local_pipeline_entrypoint_failed"
+    assert marker not in text
+    assert "RuntimeError" not in text
+    assert "SECRET_TOKEN" not in text
+
+
+def test_returned_shape_is_accepted_by_pipeline_result_adapter() -> None:
+    no_runtime = adapt_orchestrator_executor_pipeline_result(
+        run_local_model_pair_trial(_entrypoint_input(allow_runtime=False))
+    )
+    runtime = adapt_orchestrator_executor_pipeline_result(_fake_pipeline_result())
+
+    assert no_runtime["status"] == "skipped"
+    assert no_runtime["task_success"] is False
+    assert runtime["status"] == "succeeded"
+
+
+def test_entrypoint_loads_from_guarded_operator_ref() -> None:
+    entrypoint = load_entrypoint_from_ref(LOCAL_ENTRYPOINT_REF)
+
+    result = entrypoint(_entrypoint_input(allow_runtime=False))
+
+    assert result["status"] == "skipped"
+    assert result["error_code"] == "runtime_execution_not_enabled"
+
+
+def test_entrypoint_works_through_guarded_operator_runner_no_runtime(tmp_path: Path) -> None:
+    plan = _plan()
+    result = run_single_trial_operator(
+        ModelPairSingleTrialOperatorConfig(
+            plan_path=_plan_path(tmp_path, plan),
+            readiness_summary_path=_ready_summary_path(tmp_path, plan),
+            entrypoint_ref=LOCAL_ENTRYPOINT_REF,
+            output_dir=tmp_path / "single",
+            trial_id=plan["trials"][0]["trial_id"],
+        )
+    )
+
+    assert result["status"] == "skipped"
+    assert result["no_runtime_execution"] is True
+    assert result["trial_result"]["error_code"] == "runtime_execution_not_enabled"
+
+
+def test_entrypoint_works_through_single_trial_stack_with_monkeypatched_runtime_helper(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.agent.model_pair_local_pipeline_entrypoint as local_entrypoint
+
+    plan = _plan()
+    calls: list[dict[str, Any]] = []
+
+    def fake_helper(entrypoint_input: dict[str, Any]) -> dict[str, Any]:
+        calls.append(entrypoint_input)
+        return _fake_pipeline_result()
+
+    monkeypatch.setattr(local_entrypoint, "_run_existing_pipeline_entrypoint", fake_helper)
+    result = run_single_model_pair_trial(
+        plan,
+        pipeline_entrypoint=local_entrypoint.run_local_model_pair_trial,
+        config=ModelPairSingleTrialExecutionConfig(
+            output_dir=tmp_path / "single_runtime_fake",
+            trial_id=plan["trials"][0]["trial_id"],
+            allow_runtime_execution=True,
+            readiness_summary_path=_ready_summary_path(tmp_path, plan),
+            role_config_resolver=_role_config,
+            scenario_config_resolver=_scenario_config,
+            model_binding_resolver=_model_bindings,
+        ),
+    )
+
+    assert result["status"] == "succeeded"
+    assert result["no_runtime_execution"] is False
+    assert len(calls) == 1
+    assert calls[0]["execution_options"]["allow_runtime_execution"] is True
+
+
+def test_raw_prompt_response_fields_are_not_copied(monkeypatch: pytest.MonkeyPatch) -> None:
+    import src.agent.model_pair_local_pipeline_entrypoint as local_entrypoint
+
+    marker = "RAW_PROMPT_RESPONSE_MARKER_SHOULD_NOT_COPY"
+    monkeypatch.setattr(
+        local_entrypoint,
+        "_run_existing_pipeline_entrypoint",
+        lambda _: _fake_pipeline_result(
+            group_history=[_event(raw_prompt=marker, raw_response=marker, raw_model_output=marker)],
+            metadata={"raw_prompt": marker, "raw_response": marker},
+        ),
+    )
+
+    result = local_entrypoint.run_local_model_pair_trial(_entrypoint_input(allow_runtime=True))
+    text = json.dumps(result, ensure_ascii=False)
+
+    assert marker not in text
+    assert "raw_prompt" not in text
+    assert "raw_response" not in text
+
+
+def test_absolute_paths_are_redacted(monkeypatch: pytest.MonkeyPatch) -> None:
+    import src.agent.model_pair_local_pipeline_entrypoint as local_entrypoint
+
+    windows_path = "\\".join(["C:", "Users", "Example", "secret", "artifact.txt"])
+    monkeypatch.setattr(
+        local_entrypoint,
+        "_run_existing_pipeline_entrypoint",
+        lambda _: _fake_pipeline_result(group_history=[_event(summary=f"opened {windows_path}")]),
+    )
+
+    result = local_entrypoint.run_local_model_pair_trial(_entrypoint_input(allow_runtime=True))
+    text = json.dumps(result, ensure_ascii=False)
+
+    assert windows_path not in text
+    assert "<absolute_path>" in text
+
+
+def test_secret_like_text_is_redacted(monkeypatch: pytest.MonkeyPatch) -> None:
+    import src.agent.model_pair_local_pipeline_entrypoint as local_entrypoint
+
+    monkeypatch.setattr(
+        local_entrypoint,
+        "_run_existing_pipeline_entrypoint",
+        lambda _: _fake_pipeline_result(warnings=["token=SECRET_TOKEN"], notes=["api_key=SECRET_KEY"]),
+    )
+
+    result = local_entrypoint.run_local_model_pair_trial(_entrypoint_input(allow_runtime=True))
+    text = json.dumps(result, ensure_ascii=False)
+
+    assert "SECRET_TOKEN" not in text
+    assert "SECRET_KEY" not in text
+    assert "<redacted_secret>" in text
+
+
+def test_no_model_http_llama_browser_office_imports_or_gguf_reads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_exists = Path.exists
+    original_read_text = Path.read_text
+    original_import = builtins.__import__
+
+    def forbid_gguf_exists(self: Path) -> bool:
+        if self.suffix.lower() == ".gguf":
+            raise AssertionError("unexpected GGUF exists check")
+        return original_exists(self)
+
+    def forbid_gguf_read_text(self: Path, *args: object, **kwargs: object) -> str:
+        if self.suffix.lower() == ".gguf":
+            raise AssertionError("unexpected GGUF read")
+        return original_read_text(self, *args, **kwargs)
+
+    def forbid_runtime_import(name: str, *args: object, **kwargs: object) -> object:
+        if name.split(".", maxsplit=1)[0] in {
+            "httpx",
+            "requests",
+            "openai",
+            "playwright",
+            "selenium",
+            "torch",
+            "llama_cpp",
+            "docx",
+            "openpyxl",
+            "pptx",
+            "win32com",
+        }:
+            raise AssertionError("local entrypoint must not import runtime clients")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "exists", forbid_gguf_exists)
+    monkeypatch.setattr(Path, "read_text", forbid_gguf_read_text)
+    monkeypatch.setattr(builtins, "__import__", forbid_runtime_import)
+
+    import src.agent.model_pair_local_pipeline_entrypoint as local_entrypoint
+
+    importlib.reload(local_entrypoint)
+    result = local_entrypoint.run_local_model_pair_trial(_entrypoint_input(allow_runtime=False))
+
+    assert result["status"] == "skipped"
+    assert result["no_runtime_execution"] is True
+
+
+def test_no_reports_or_experiments_are_written(monkeypatch: pytest.MonkeyPatch) -> None:
+    original_write_text = Path.write_text
+
+    def forbid_reports_or_experiments_write(self: Path, *args: object, **kwargs: object) -> int:
+        if "reports" in self.parts or "experiments" in self.parts:
+            raise AssertionError("unexpected reports/experiments write")
+        return original_write_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", forbid_reports_or_experiments_write)
+
+    result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=False))
+
+    assert result["status"] == "skipped"

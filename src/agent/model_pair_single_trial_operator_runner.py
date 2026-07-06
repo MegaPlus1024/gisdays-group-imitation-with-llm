@@ -140,6 +140,10 @@ def _current_single_trial_api() -> Callable[..., dict[str, Any]]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run one guarded model-pair trial from explicit offline artifacts and an explicit entrypoint.",
+        epilog=(
+            "Project-owned local entrypoint target: "
+            "src.agent.model_pair_local_pipeline_entrypoint:run_local_model_pair_trial"
+        ),
     )
     parser.add_argument("--plan", dest="plan_path")
     parser.add_argument("--readiness-summary", dest="readiness_summary_path")

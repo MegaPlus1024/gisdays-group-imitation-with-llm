@@ -110,12 +110,14 @@ def _normalized_status(
 ) -> tuple[str, str | None]:
     default = _safe_status(default_status)
     success = _optional_bool(success_hint)
-    if success is False:
-        return "failed", None
     if raw_status:
         lowered = raw_status.lower()
         if lowered in _SKIPPED_STATUSES:
             return "skipped", None
+    if success is False:
+        return "failed", None
+    if raw_status:
+        lowered = raw_status.lower()
         if lowered in _FAILURE_STATUSES:
             return "failed", None
         if lowered in _SUCCESS_STATUSES:
