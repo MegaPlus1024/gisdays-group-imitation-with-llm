@@ -1,0 +1,25 @@
+{
+  "schema_version": "model_evaluation_workflow_config_v1",
+  "workflow_id": "offline_model_eval_example_v1",
+  "model_catalog_path": "configs/model_catalog.example.json",
+  "scenario_paths": [
+    "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json"
+  ],
+  "output_dir": "artifacts/offline_model_eval_example",
+  "repetitions_per_pair": 1,
+  "include_self_pairs": true,
+  "include_role_mismatch_pairs": false,
+  "normality_batch_summary_paths": [],
+  "resource_observation_paths": [],
+  "resource_summary_path": null,
+  "tags": [
+    "offline",
+    "example",
+    "no-runtime"
+  ],
+  "write_markdown_previews": false,
+  "notes": [
+    "Example config only; do not use as production recommendation.",
+    "No model execution is performed by the offline workflow runner."
+  ]
+}

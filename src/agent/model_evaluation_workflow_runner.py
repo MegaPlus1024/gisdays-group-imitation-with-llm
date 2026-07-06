@@ -33,10 +33,32 @@ from .normality_comparison import (
 
 
 MODEL_EVALUATION_WORKFLOW_RUN_SCHEMA_VERSION = "model_evaluation_workflow_run_v1"
+MODEL_EVALUATION_WORKFLOW_CONFIG_SCHEMA_VERSION = "model_evaluation_workflow_config_v1"
 WORKFLOW_RUN_MANIFEST_FILENAME = "workflow_run_manifest.json"
 DEFAULT_WORKFLOW_ID = "offline_model_evaluation_workflow"
 
 WorkflowRunStatus = Literal["ok", "partial", "invalid", "write_failed"]
+
+_WORKFLOW_CONFIG_ALLOWED_KEYS = {
+    "schema_version",
+    "workflow_id",
+    "model_catalog_path",
+    "scenario_paths",
+    "output_dir",
+    "repetitions_per_pair",
+    "include_self_pairs",
+    "include_role_mismatch_pairs",
+    "normality_batch_summary_paths",
+    "resource_observation_paths",
+    "resource_summary_path",
+    "tags",
+    "write_markdown_previews",
+    "notes",
+}
+
+
+class ModelEvaluationWorkflowConfigError(ValueError):
+    """Controlled config-loading error without local path or secret disclosure."""
 
 
 class ModelEvaluationWorkflowRunConfig(BaseModel):
@@ -52,8 +74,13 @@ class ModelEvaluationWorkflowRunConfig(BaseModel):
     resource_summary_path: str | None = None
     tags: list[str] = Field(default_factory=list)
     write_markdown_previews: bool = False
+    notes: list[str] = Field(default_factory=list)
+    config_used: bool = False
+    config_schema_version: str | None = None
+    config_display_path: str | None = None
+    output_dir_overridden: bool = False
 
-    @field_validator("workflow_id", "resource_summary_path")
+    @field_validator("workflow_id", "resource_summary_path", "config_schema_version", "config_display_path")
     @classmethod
     def validate_optional_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -83,7 +110,7 @@ class ModelEvaluationWorkflowRunConfig(BaseModel):
             raise ValueError("scenario paths must not contain duplicates.")
         return cleaned
 
-    @field_validator("normality_batch_summary_paths", "resource_observation_paths", "tags")
+    @field_validator("normality_batch_summary_paths", "resource_observation_paths", "tags", "notes")
     @classmethod
     def validate_text_lists(cls, value: list[str]) -> list[str]:
         cleaned = [_clean_text(item) for item in value]
@@ -98,7 +125,14 @@ class ModelEvaluationWorkflowRunConfig(BaseModel):
             raise ValueError("repetitions_per_pair must be >= 1.")
         return value
 
-    @field_validator("include_self_pairs", "include_role_mismatch_pairs", "write_markdown_previews", mode="before")
+    @field_validator(
+        "include_self_pairs",
+        "include_role_mismatch_pairs",
+        "write_markdown_previews",
+        "config_used",
+        "output_dir_overridden",
+        mode="before",
+    )
     @classmethod
     def validate_flags(cls, value: object) -> object:
         if not isinstance(value, bool):
@@ -127,6 +161,104 @@ class ModelEvaluationWorkflowRunResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     no_runtime_execution: bool = True
     manifest_path_relative: str | None = None
+    config_used: bool = False
+    config_schema_version: str | None = None
+    config_display_path: str | None = None
+    output_dir_overridden: bool = False
+    tags: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+def load_model_evaluation_workflow_config(
+    path: str | Path,
+    *,
+    output_dir_override: str | Path | None = None,
+) -> ModelEvaluationWorkflowRunConfig:
+    config_path = Path(path)
+    try:
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ModelEvaluationWorkflowConfigError("config_file_missing") from exc
+    except OSError as exc:
+        raise ModelEvaluationWorkflowConfigError("config_file_unreadable") from exc
+    except json.JSONDecodeError as exc:
+        raise ModelEvaluationWorkflowConfigError("config_json_malformed") from exc
+
+    config = workflow_run_config_from_dict(
+        payload,
+        config_dir=config_path.parent,
+        output_dir_override=output_dir_override,
+    )
+    config.config_display_path = _display_path(config_path, base_dir=Path.cwd())
+    return config
+
+
+def workflow_run_config_from_dict(
+    data: dict[str, Any],
+    *,
+    config_dir: str | Path | None = None,
+    output_dir_override: str | Path | None = None,
+) -> ModelEvaluationWorkflowRunConfig:
+    if not isinstance(data, dict):
+        raise ModelEvaluationWorkflowConfigError("config_payload_not_object")
+
+    unknown_keys = sorted(set(data) - _WORKFLOW_CONFIG_ALLOWED_KEYS)
+    if unknown_keys:
+        keys = ",".join(_safe_text(key, max_chars=80) for key in unknown_keys[:8])
+        raise ModelEvaluationWorkflowConfigError(f"config_unknown_keys:{keys}")
+
+    schema_version = data.get("schema_version")
+    if schema_version != MODEL_EVALUATION_WORKFLOW_CONFIG_SCHEMA_VERSION:
+        raise ModelEvaluationWorkflowConfigError("config_schema_version_unsupported")
+
+    output_dir = (
+        _config_output_path(str(output_dir_override), field_name="output_dir")
+        if output_dir_override is not None
+        else _required_config_output_path(data, "output_dir")
+    )
+
+    payload = {
+        "workflow_id": _optional_config_text(data.get("workflow_id"), "workflow_id"),
+        "model_catalog_path": _config_input_path(
+            _required_config_text(data, "model_catalog_path"),
+            field_name="model_catalog_path",
+            config_dir=config_dir,
+        ),
+        "scenario_paths": _config_relative_path_list(data.get("scenario_paths"), "scenario_paths"),
+        "output_dir": output_dir,
+        "repetitions_per_pair": data.get("repetitions_per_pair", 1),
+        "include_self_pairs": data.get("include_self_pairs", True),
+        "include_role_mismatch_pairs": data.get("include_role_mismatch_pairs", False),
+        "normality_batch_summary_paths": [
+            _config_input_path(path, field_name="normality_batch_summary_path", config_dir=config_dir)
+            for path in _config_string_list(
+                data.get("normality_batch_summary_paths", []),
+                "normality_batch_summary_paths",
+            )
+        ],
+        "resource_observation_paths": [
+            _config_input_path(path, field_name="resource_observation_path", config_dir=config_dir)
+            for path in _config_string_list(
+                data.get("resource_observation_paths", []),
+                "resource_observation_paths",
+            )
+        ],
+        "resource_summary_path": _config_optional_input_path(
+            data.get("resource_summary_path"),
+            field_name="resource_summary_path",
+            config_dir=config_dir,
+        ),
+        "tags": _config_string_list(data.get("tags", []), "tags"),
+        "write_markdown_previews": data.get("write_markdown_previews", False),
+        "notes": _config_string_list(data.get("notes", []), "notes"),
+        "config_used": True,
+        "config_schema_version": MODEL_EVALUATION_WORKFLOW_CONFIG_SCHEMA_VERSION,
+        "output_dir_overridden": output_dir_override is not None,
+    }
+    try:
+        return ModelEvaluationWorkflowRunConfig.model_validate(payload)
+    except ValueError as exc:
+        raise ModelEvaluationWorkflowConfigError("config_validation_failed") from exc
 
 
 def run_offline_model_evaluation_workflow(
@@ -136,6 +268,7 @@ def run_offline_model_evaluation_workflow(
     workflow_id = cfg.workflow_id or DEFAULT_WORKFLOW_ID
     output_dir = Path(cfg.output_dir)
     output_display = _display_path(output_dir, base_dir=output_dir.parent)
+    config_metadata = _config_metadata_from_config(cfg)
     artifact_paths: dict[str, str | None] = {
         "model_catalog": _display_path(cfg.model_catalog_path, base_dir=output_dir),
         "model_comparison_plan": None,
@@ -156,6 +289,7 @@ def run_offline_model_evaluation_workflow(
             output_display=output_display,
             artifact_paths=artifact_paths,
             warnings=["output_dir_write_failed"],
+            config_metadata=config_metadata,
         )
 
     try:
@@ -195,6 +329,7 @@ def run_offline_model_evaluation_workflow(
             output_display=output_display,
             artifact_paths=artifact_paths,
             warnings=[f"required_artifact_build_failed:{exc.__class__.__name__}"],
+            config_metadata=config_metadata,
         )
         return _write_manifest_or_write_failed(result, output_dir)
 
@@ -290,6 +425,7 @@ def run_offline_model_evaluation_workflow(
             readiness_error_count=readiness_error_count,
             readiness_warning_count=readiness_warning_count,
             warnings=[*warnings, f"final_artifact_build_failed:{exc.__class__.__name__}"],
+            config_metadata=config_metadata,
         )
         return _write_manifest_or_write_failed(result, output_dir)
 
@@ -311,6 +447,7 @@ def run_offline_model_evaluation_workflow(
         readiness_error_count=readiness_error_count,
         readiness_warning_count=readiness_warning_count,
         warnings=warnings,
+        config_metadata=config_metadata,
     )
     return _write_manifest_or_write_failed(result, output_dir)
 
@@ -337,6 +474,99 @@ def _coerce_config(
     if isinstance(config, ModelEvaluationWorkflowRunConfig):
         return config
     return ModelEvaluationWorkflowRunConfig.model_validate(config)
+
+
+def _required_config_text(data: dict[str, Any], field_name: str) -> str:
+    if field_name not in data:
+        raise ModelEvaluationWorkflowConfigError(f"{field_name}_required")
+    return _config_text(data[field_name], field_name)
+
+
+def _required_config_output_path(data: dict[str, Any], field_name: str) -> str:
+    if field_name not in data:
+        raise ModelEvaluationWorkflowConfigError(f"{field_name}_required")
+    return _config_output_path(data[field_name], field_name=field_name)
+
+
+def _optional_config_text(value: Any, field_name: str) -> str | None:
+    if value is None:
+        return None
+    return _safe_text(_config_text(value, field_name))
+
+
+def _config_string_list(value: Any, field_name: str) -> list[str]:
+    if not isinstance(value, list):
+        raise ModelEvaluationWorkflowConfigError(f"{field_name}_must_be_list")
+    return [_config_text(item, field_name) for item in value]
+
+
+def _config_relative_path_list(value: Any, field_name: str) -> list[str]:
+    items = _config_string_list(value, field_name)
+    if not items:
+        raise ModelEvaluationWorkflowConfigError(f"{field_name}_required")
+    return [
+        _config_relative_input_path(item, field_name=f"{field_name}_item")
+        for item in items
+    ]
+
+
+def _config_optional_input_path(
+    value: Any,
+    *,
+    field_name: str,
+    config_dir: str | Path | None,
+) -> str | None:
+    if value is None:
+        return None
+    return _config_input_path(_config_text(value, field_name), field_name=field_name, config_dir=config_dir)
+
+
+def _config_input_path(
+    value: str,
+    *,
+    field_name: str,
+    config_dir: str | Path | None,
+) -> str:
+    path_text = _config_relative_input_path(value, field_name=field_name)
+    if config_dir is None:
+        return path_text
+    repo_candidate = Path.cwd() / path_text
+    if repo_candidate.exists():
+        return path_text
+    config_candidate = Path(config_dir) / path_text
+    if config_candidate.exists():
+        return str(config_candidate.resolve(strict=False))
+    return path_text
+
+
+def _config_relative_input_path(value: str, *, field_name: str) -> str:
+    text = _config_text(value, field_name).replace("\\", "/")
+    _reject_config_path_expansion(text, field_name=field_name)
+    try:
+        _validate_safe_relative_path(text, field_name=field_name)
+    except ValueError as exc:
+        raise ModelEvaluationWorkflowConfigError(f"{field_name}_unsafe") from exc
+    return text
+
+
+def _config_output_path(value: Any, *, field_name: str) -> str:
+    text = _config_text(value, field_name)
+    _reject_config_path_expansion(text, field_name=field_name)
+    return text
+
+
+def _config_text(value: Any, field_name: str) -> str:
+    if not isinstance(value, str):
+        raise ModelEvaluationWorkflowConfigError(f"{field_name}_must_be_string")
+    cleaned = value.strip()
+    if not cleaned:
+        raise ModelEvaluationWorkflowConfigError(f"{field_name}_required")
+    return cleaned
+
+
+def _reject_config_path_expansion(value: str, *, field_name: str) -> None:
+    if value.startswith("~") or "$" in value or "%" in value:
+        raise ModelEvaluationWorkflowConfigError(f"{field_name}_path_expansion_not_allowed")
 
 
 def _workflow_status(
@@ -387,7 +617,9 @@ def _result(
     readiness_error_count: int = 0,
     readiness_warning_count: int = 0,
     warnings: list[str] | None = None,
+    config_metadata: dict[str, Any] | None = None,
 ) -> ModelEvaluationWorkflowRunResult:
+    metadata = config_metadata or {}
     return ModelEvaluationWorkflowRunResult(
         status=status,
         workflow_id=_safe_text(workflow_id),
@@ -400,7 +632,24 @@ def _result(
         readiness_error_count=readiness_error_count,
         readiness_warning_count=readiness_warning_count,
         warnings=sorted(set(_safe_text(warning) for warning in (warnings or []))),
+        config_used=bool(metadata.get("config_used", False)),
+        config_schema_version=_safe_optional_text(metadata.get("config_schema_version")),
+        config_display_path=_safe_optional_text(metadata.get("config_display_path")),
+        output_dir_overridden=bool(metadata.get("output_dir_overridden", False)),
+        tags=[_safe_text(tag) for tag in metadata.get("tags", [])],
+        notes=[_safe_text(note) for note in metadata.get("notes", [])],
     )
+
+
+def _config_metadata_from_config(config: ModelEvaluationWorkflowRunConfig) -> dict[str, Any]:
+    return {
+        "config_used": config.config_used,
+        "config_schema_version": config.config_schema_version,
+        "config_display_path": config.config_display_path,
+        "output_dir_overridden": config.output_dir_overridden,
+        "tags": list(config.tags),
+        "notes": list(config.notes),
+    }
 
 
 def _clean_text(value: str) -> str:
