@@ -1,0 +1,70 @@
+{
+  "candidate_pairs": [
+    {
+      "executor_model_id": "first_model",
+      "no_runtime_execution": true,
+      "orchestrator_model_id": "second_model",
+      "pair_id": "second_model__to__first_model",
+      "pair_label": "second_model->first_model",
+      "tags": [
+        "golden_fixture"
+      ]
+    },
+    {
+      "executor_model_id": "second_model",
+      "no_runtime_execution": true,
+      "orchestrator_model_id": "second_model",
+      "pair_id": "second_model__to__second_model",
+      "pair_label": "second_model->second_model",
+      "tags": [
+        "golden_fixture"
+      ]
+    }
+  ],
+  "created_by": "golden_fixture_pack",
+  "model_catalog_summary": {
+    "enabled_count": 2,
+    "model_count": 2,
+    "model_ids": [
+      "first_model",
+      "second_model"
+    ],
+    "schema_version": "model_catalog_v1"
+  },
+  "no_runtime_execution": true,
+  "notes": [
+    "Synthetic offline fixture only; no model execution performed.",
+    "Not a production recommendation."
+  ],
+  "plan_id": "golden_offline_model_evaluation_plan",
+  "scenario_count": 1,
+  "scenarios": [
+    {
+      "scenario_id": "office_document_file_workflow_basic_v1",
+      "scenario_path": "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json"
+    }
+  ],
+  "schema_version": "model_comparison_plan_v1",
+  "tags": [
+    "golden_fixture"
+  ],
+  "trials": [
+    {
+      "executor_model_id": "first_model",
+      "no_runtime_execution": true,
+      "orchestrator_model_id": "second_model",
+      "pair_id": "second_model__to__first_model",
+      "scenario_id": "office_document_file_workflow_basic_v1",
+      "trial_id": "golden_trial_second_to_first"
+    },
+    {
+      "executor_model_id": "second_model",
+      "no_runtime_execution": true,
+      "orchestrator_model_id": "second_model",
+      "pair_id": "second_model__to__second_model",
+      "scenario_id": "office_document_file_workflow_basic_v1",
+      "trial_id": "golden_trial_second_to_second"
+    }
+  ],
+  "warnings": []
+}

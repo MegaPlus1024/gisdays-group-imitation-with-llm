@@ -1,0 +1,177 @@
+{
+  "evaluated_entries": 2,
+  "failed_entries": 0,
+  "group_by": [
+    "model_pair",
+    "scenario_id",
+    "tag"
+  ],
+  "groups": {
+    "by_model_pair": {
+      "second_model->first_model": {
+        "entry_count": 1,
+        "evaluated_count": 1,
+        "failed_count": 0,
+        "label_counts": {
+          "normal": 1
+        },
+        "mean_overall_score": 0.88,
+        "model_pairs": [
+          "second_model->first_model"
+        ],
+        "scenario_ids": [
+          "office_document_file_workflow_basic_v1"
+        ],
+        "status_counts": {
+          "ok": 1
+        },
+        "tags": [
+          "golden_fixture"
+        ],
+        "top_findings": [],
+        "trial_ids": [
+          "golden_trial_second_to_first"
+        ]
+      },
+      "second_model->second_model": {
+        "entry_count": 1,
+        "evaluated_count": 1,
+        "failed_count": 0,
+        "label_counts": {
+          "normal": 1
+        },
+        "mean_overall_score": 0.91,
+        "model_pairs": [
+          "second_model->second_model"
+        ],
+        "scenario_ids": [
+          "office_document_file_workflow_basic_v1"
+        ],
+        "status_counts": {
+          "ok": 1
+        },
+        "tags": [
+          "golden_fixture"
+        ],
+        "top_findings": [],
+        "trial_ids": [
+          "golden_trial_second_to_second"
+        ]
+      }
+    },
+    "by_scenario_id": {
+      "office_document_file_workflow_basic_v1": {
+        "entry_count": 2,
+        "evaluated_count": 2,
+        "failed_count": 0,
+        "label_counts": {
+          "normal": 2
+        },
+        "mean_overall_score": 0.895,
+        "model_pairs": [
+          "second_model->first_model",
+          "second_model->second_model"
+        ],
+        "scenario_ids": [
+          "office_document_file_workflow_basic_v1"
+        ],
+        "status_counts": {
+          "ok": 2
+        },
+        "tags": [
+          "golden_fixture"
+        ],
+        "top_findings": [],
+        "trial_ids": [
+          "golden_trial_second_to_first",
+          "golden_trial_second_to_second"
+        ]
+      }
+    },
+    "by_tag": {
+      "golden_fixture": {
+        "entry_count": 2,
+        "evaluated_count": 2,
+        "failed_count": 0,
+        "label_counts": {
+          "normal": 2
+        },
+        "mean_overall_score": 0.895,
+        "model_pairs": [
+          "second_model->first_model",
+          "second_model->second_model"
+        ],
+        "scenario_ids": [
+          "office_document_file_workflow_basic_v1"
+        ],
+        "status_counts": {
+          "ok": 2
+        },
+        "tags": [
+          "golden_fixture"
+        ],
+        "top_findings": [],
+        "trial_ids": [
+          "golden_trial_second_to_first",
+          "golden_trial_second_to_second"
+        ]
+      }
+    }
+  },
+  "input_summary_count": 1,
+  "leaderboard": [
+    {
+      "abnormal_count": 0,
+      "evaluated_count": 1,
+      "failed_count": 0,
+      "label_counts": {
+        "normal": 1
+      },
+      "mean_overall_score": 0.91,
+      "note": "Offline normality comparison; prototype metric, not a production ranking.",
+      "orchestrator": "second_model",
+      "executor": "second_model",
+      "pair_label": "second_model->second_model",
+      "status_counts": {
+        "ok": 1
+      },
+      "suspicious_count": 0
+    },
+    {
+      "abnormal_count": 0,
+      "evaluated_count": 1,
+      "failed_count": 0,
+      "label_counts": {
+        "normal": 1
+      },
+      "mean_overall_score": 0.88,
+      "note": "Offline normality comparison; prototype metric, not a production ranking.",
+      "orchestrator": "second_model",
+      "executor": "first_model",
+      "pair_label": "second_model->first_model",
+      "status_counts": {
+        "ok": 1
+      },
+      "suspicious_count": 0
+    }
+  ],
+  "model_catalog_used": true,
+  "notes": [
+    "Synthetic offline fixture only; no model execution performed.",
+    "Not a production recommendation."
+  ],
+  "overall": {
+    "entry_count": 2,
+    "evaluated_count": 2,
+    "failed_count": 0,
+    "label_counts": {
+      "normal": 2
+    },
+    "mean_overall_score": 0.895
+  },
+  "schema_version": "normality_comparison_v1",
+  "status": "ok",
+  "total_entries": 2,
+  "valid_summary_count": 1,
+  "warnings": []
+}

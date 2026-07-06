@@ -1,0 +1,64 @@
+{
+  "artifact_count": 7,
+  "checked_artifacts": {
+    "model_comparison_plan": {
+      "path": "plan/model_comparison_plan.json",
+      "present": true,
+      "status": "ok"
+    },
+    "model_evaluation_scorecard": {
+      "path": "scorecard/model_evaluation_scorecard.json",
+      "present": true,
+      "status": "ok"
+    },
+    "model_resource_summary": {
+      "path": "resource/model_resource_summary.json",
+      "present": true,
+      "status": "ok"
+    },
+    "normality_comparison_summary": {
+      "path": "normality/normality_comparison_summary.json",
+      "present": true,
+      "status": "ok"
+    },
+    "readiness_report": {
+      "path": "readiness/model_comparison_readiness_report.json",
+      "present": true,
+      "status": "ok"
+    },
+    "workflow_bundle": {
+      "path": "bundle/model_evaluation_workflow_bundle.json",
+      "present": true,
+      "status": "ok"
+    },
+    "workflow_run_manifest": {
+      "path": "workflow_run_manifest.json",
+      "present": true,
+      "status": "ok"
+    }
+  },
+  "cross_link_summary": {
+    "bundle_status": "complete",
+    "manifest_status": "ok",
+    "normality_pair_count": 2,
+    "ok_artifact_count": 7,
+    "plan_pair_count": 2,
+    "plan_trial_count": 2,
+    "readiness_candidate_pair_count": 2,
+    "readiness_trial_count": 2,
+    "resource_pair_count": 2,
+    "scorecard_pair_count": 2
+  },
+  "error_count": 0,
+  "issue_count": 0,
+  "issues": [],
+  "no_runtime_execution": true,
+  "notes": [
+    "Synthetic offline fixture only; no model execution performed.",
+    "Not a production recommendation."
+  ],
+  "schema_version": "model_evaluation_artifact_validation_v1",
+  "status": "valid",
+  "validation_id": "golden_model_evaluation_artifact_validation",
+  "warning_count": 0
+}

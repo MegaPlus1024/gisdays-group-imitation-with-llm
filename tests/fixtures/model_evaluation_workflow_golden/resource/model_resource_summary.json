@@ -1,0 +1,144 @@
+{
+  "catalog_metadata": {
+    "model_count": 2,
+    "schema_version": "model_catalog_v1"
+  },
+  "groups": {
+    "by_model": {
+      "first_model": {
+        "failure_count": 0,
+        "group_type": "model",
+        "max_peak_ram_gb": 2.4,
+        "mean_peak_ram_gb": 2.4,
+        "mean_wall_time_s": 1.2,
+        "observation_count": 1,
+        "runtime_modes": [
+          "offline_fixture"
+        ],
+        "scenario_ids": [
+          "office_document_file_workflow_basic_v1"
+        ],
+        "success_count": 1,
+        "success_rate": 1.0,
+        "tags": [
+          "golden_fixture"
+        ]
+      },
+      "second_model": {
+        "failure_count": 0,
+        "group_type": "model",
+        "max_peak_ram_gb": 3.1,
+        "mean_peak_ram_gb": 2.75,
+        "mean_wall_time_s": 1.3,
+        "observation_count": 2,
+        "runtime_modes": [
+          "offline_fixture"
+        ],
+        "scenario_ids": [
+          "office_document_file_workflow_basic_v1"
+        ],
+        "success_count": 2,
+        "success_rate": 1.0,
+        "tags": [
+          "golden_fixture"
+        ]
+      }
+    },
+    "by_pair": {
+      "second_model__to__first_model": {
+        "failure_count": 0,
+        "group_type": "pair",
+        "max_peak_ram_gb": 2.4,
+        "mean_peak_ram_gb": 2.4,
+        "mean_wall_time_s": 1.2,
+        "observation_count": 1,
+        "runtime_modes": [
+          "offline_fixture"
+        ],
+        "scenario_ids": [
+          "office_document_file_workflow_basic_v1"
+        ],
+        "success_count": 1,
+        "success_rate": 1.0,
+        "tags": [
+          "golden_fixture"
+        ]
+      },
+      "second_model__to__second_model": {
+        "failure_count": 0,
+        "group_type": "pair",
+        "max_peak_ram_gb": 3.1,
+        "mean_peak_ram_gb": 3.1,
+        "mean_wall_time_s": 1.4,
+        "observation_count": 1,
+        "runtime_modes": [
+          "offline_fixture"
+        ],
+        "scenario_ids": [
+          "office_document_file_workflow_basic_v1"
+        ],
+        "success_count": 1,
+        "success_rate": 1.0,
+        "tags": [
+          "golden_fixture"
+        ]
+      }
+    },
+    "by_runtime_mode": {
+      "offline_fixture": {
+        "failure_count": 0,
+        "group_type": "runtime_mode",
+        "max_peak_ram_gb": 3.1,
+        "mean_peak_ram_gb": 2.75,
+        "mean_wall_time_s": 1.3,
+        "observation_count": 2,
+        "runtime_modes": [
+          "offline_fixture"
+        ],
+        "scenario_ids": [
+          "office_document_file_workflow_basic_v1"
+        ],
+        "success_count": 2,
+        "success_rate": 1.0,
+        "tags": [
+          "golden_fixture"
+        ]
+      }
+    },
+    "by_scenario": {
+      "office_document_file_workflow_basic_v1": {
+        "failure_count": 0,
+        "group_type": "scenario",
+        "max_peak_ram_gb": 3.1,
+        "mean_peak_ram_gb": 2.75,
+        "mean_wall_time_s": 1.3,
+        "observation_count": 2,
+        "runtime_modes": [
+          "offline_fixture"
+        ],
+        "scenario_ids": [
+          "office_document_file_workflow_basic_v1"
+        ],
+        "success_count": 2,
+        "success_rate": 1.0,
+        "tags": [
+          "golden_fixture"
+        ]
+      }
+    }
+  },
+  "input_count": 1,
+  "invalid_count": 0,
+  "notes": [
+    "Synthetic offline fixture only; no model execution performed.",
+    "Not a production recommendation."
+  ],
+  "observation_count": 2,
+  "schema_version": "model_resource_summary_v1",
+  "status": "ok",
+  "summary_id": "golden_model_resource_summary",
+  "tags": [
+    "golden_fixture"
+  ],
+  "warnings": []
+}

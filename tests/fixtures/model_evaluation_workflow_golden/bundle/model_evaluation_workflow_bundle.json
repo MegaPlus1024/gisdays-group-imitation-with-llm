@@ -1,0 +1,121 @@
+{
+  "artifacts": {
+    "model_catalog": {
+      "path": "model_catalog.json",
+      "present": true,
+      "status": "ok",
+      "summary": {
+        "enabled_count": 2,
+        "model_count": 2,
+        "model_ids": [
+          "first_model",
+          "second_model"
+        ],
+        "schema_version": "model_catalog_v1"
+      },
+      "warnings": []
+    },
+    "model_comparison_plan": {
+      "path": "plan/model_comparison_plan.json",
+      "present": true,
+      "status": "ok",
+      "summary": {
+        "candidate_pair_count": 2,
+        "no_runtime_execution": true,
+        "plan_id": "golden_offline_model_evaluation_plan",
+        "scenario_count": 1,
+        "trial_count": 2
+      },
+      "warnings": []
+    },
+    "model_evaluation_scorecard": {
+      "path": "scorecard/model_evaluation_scorecard.json",
+      "present": true,
+      "status": "ok",
+      "summary": {
+        "model_count": 2,
+        "model_pair_count": 2,
+        "scorecard_id": "golden_model_evaluation_scorecard",
+        "warnings_count": 0
+      },
+      "warnings": []
+    },
+    "model_resource_summary": {
+      "path": "resource/model_resource_summary.json",
+      "present": true,
+      "status": "ok",
+      "summary": {
+        "group_counts": {
+          "by_model": 2,
+          "by_pair": 2,
+          "by_runtime_mode": 1,
+          "by_scenario": 1
+        },
+        "invalid_count": 0,
+        "observation_count": 2,
+        "runtime_modes": [
+          "offline_fixture"
+        ]
+      },
+      "warnings": []
+    },
+    "normality_comparison_summary": {
+      "path": "normality/normality_comparison_summary.json",
+      "present": true,
+      "status": "ok",
+      "summary": {
+        "evaluated_entries": 2,
+        "failed_entries": 0,
+        "input_summary_count": 1,
+        "label_counts": {
+          "normal": 2
+        },
+        "top_model_pair": "second_model->second_model",
+        "total_entries": 2
+      },
+      "warnings": []
+    },
+    "readiness_report": {
+      "path": "readiness/model_comparison_readiness_report.json",
+      "present": true,
+      "status": "ok",
+      "summary": {
+        "candidate_pair_count": 2,
+        "error_count": 0,
+        "info_count": 0,
+        "issue_count": 0,
+        "readiness_status": "ready",
+        "trial_count": 2,
+        "warning_count": 0
+      },
+      "warnings": []
+    }
+  },
+  "bundle_id": "golden_model_evaluation_workflow_bundle",
+  "bundle_path_relative": "model_evaluation_workflow_bundle.json",
+  "markdown_preview_path_relative": null,
+  "no_runtime_execution": true,
+  "notes": [
+    "Synthetic offline fixture only; no model execution performed.",
+    "Not a production recommendation."
+  ],
+  "schema_version": "model_evaluation_workflow_bundle_v1",
+  "status": "complete",
+  "summary": {
+    "candidate_pair_count": 2,
+    "model_count": 2,
+    "no_runtime_execution": true,
+    "normality_evaluated_entries": 2,
+    "optional_artifacts_present": [
+      "normality_comparison_summary",
+      "model_resource_summary",
+      "model_evaluation_scorecard"
+    ],
+    "readiness_status": "ready",
+    "required_artifacts_ok": true,
+    "resource_observation_count": 2,
+    "scorecard_pair_count": 2,
+    "trial_count": 2
+  },
+  "warnings": []
+}

@@ -1,0 +1,113 @@
+{
+  "catalog_used": true,
+  "created_by": "golden_fixture_pack",
+  "model_count": 2,
+  "model_pair_count": 2,
+  "model_pairs": [
+    {
+      "executor_model_id": "first_model",
+      "normality_metrics": {
+        "evaluated_count": 1,
+        "label_counts": {
+          "normal": 1
+        },
+        "mean_overall_score": 0.88
+      },
+      "normality_rank": 2,
+      "orchestrator_model_id": "second_model",
+      "pair_id": "second_model__to__first_model",
+      "pair_label": "second_model->first_model",
+      "plan_metadata": {
+        "no_runtime_execution": true,
+        "planned_pair": true,
+        "trial_count": 1
+      },
+      "resource_metrics": {
+        "mean_peak_ram_gb": 2.4,
+        "mean_wall_time_s": 1.2,
+        "observation_count": 1,
+        "success_rate": 1.0
+      },
+      "sources": [
+        "model_comparison_plan",
+        "normality_comparison_summary",
+        "model_resource_summary"
+      ],
+      "tags": [
+        "golden_fixture"
+      ],
+      "warnings": []
+    },
+    {
+      "executor_model_id": "second_model",
+      "normality_metrics": {
+        "evaluated_count": 1,
+        "label_counts": {
+          "normal": 1
+        },
+        "mean_overall_score": 0.91
+      },
+      "normality_rank": 1,
+      "orchestrator_model_id": "second_model",
+      "pair_id": "second_model__to__second_model",
+      "pair_label": "second_model->second_model",
+      "plan_metadata": {
+        "no_runtime_execution": true,
+        "planned_pair": true,
+        "trial_count": 1
+      },
+      "resource_metrics": {
+        "mean_peak_ram_gb": 3.1,
+        "mean_wall_time_s": 1.4,
+        "observation_count": 1,
+        "success_rate": 1.0
+      },
+      "sources": [
+        "model_comparison_plan",
+        "normality_comparison_summary",
+        "model_resource_summary"
+      ],
+      "tags": [
+        "golden_fixture"
+      ],
+      "warnings": []
+    }
+  ],
+  "models": [
+    {
+      "model_id": "first_model",
+      "pair_count": 1,
+      "roles": [
+        "executor"
+      ]
+    },
+    {
+      "model_id": "second_model",
+      "pair_count": 2,
+      "roles": [
+        "orchestrator",
+        "executor"
+      ]
+    }
+  ],
+  "no_runtime_execution": true,
+  "normality_summary_used": true,
+  "notes": [
+    "Synthetic offline fixture only; no model execution performed.",
+    "Not a production recommendation."
+  ],
+  "overall": {
+    "model_count": 2,
+    "model_pair_count": 2,
+    "no_runtime_execution": true,
+    "pairs_with_normality_metrics": 2,
+    "pairs_with_plan_metadata": 2,
+    "pairs_with_resource_metrics": 2
+  },
+  "plan_used": true,
+  "resource_summary_used": true,
+  "schema_version": "model_evaluation_scorecard_v1",
+  "scorecard_id": "golden_model_evaluation_scorecard",
+  "status": "ok",
+  "warnings": []
+}

@@ -1,0 +1,31 @@
+{
+  "artifact_paths": {
+    "model_catalog": "model_catalog.json",
+    "model_comparison_plan": "plan/model_comparison_plan.json",
+    "model_evaluation_scorecard": "scorecard/model_evaluation_scorecard.json",
+    "model_resource_summary": "resource/model_resource_summary.json",
+    "normality_comparison_summary": "normality/normality_comparison_summary.json",
+    "readiness_report": "readiness/model_comparison_readiness_report.json",
+    "workflow_bundle": "bundle/model_evaluation_workflow_bundle.json",
+    "workflow_run_manifest": "workflow_run_manifest.json"
+  },
+  "config_used": false,
+  "model_count": 2,
+  "candidate_pair_count": 2,
+  "trial_count": 2,
+  "no_runtime_execution": true,
+  "notes": [
+    "Synthetic offline fixture only; no model execution performed.",
+    "Not a production recommendation."
+  ],
+  "readiness_error_count": 0,
+  "readiness_status": "ready",
+  "readiness_warning_count": 0,
+  "schema_version": "model_evaluation_workflow_run_v1",
+  "status": "ok",
+  "tags": [
+    "golden_fixture"
+  ],
+  "warnings": [],
+  "workflow_id": "golden_offline_model_evaluation_workflow"
+}

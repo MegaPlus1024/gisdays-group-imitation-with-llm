@@ -1,0 +1,37 @@
+{
+  "models": [
+    {
+      "display_name": "first_model",
+      "enabled": true,
+      "model_id": "first_model",
+      "roles": {
+        "executor_candidate": true,
+        "judge_candidate": false,
+        "orchestrator_candidate": false
+      },
+      "tags": [
+        "synthetic",
+        "offline_fixture"
+      ]
+    },
+    {
+      "display_name": "second_model",
+      "enabled": true,
+      "model_id": "second_model",
+      "roles": {
+        "executor_candidate": true,
+        "judge_candidate": true,
+        "orchestrator_candidate": true
+      },
+      "tags": [
+        "synthetic",
+        "offline_fixture"
+      ]
+    }
+  ],
+  "notes": [
+    "Synthetic offline fixture only; no model execution performed.",
+    "Not a production recommendation."
+  ],
+  "schema_version": "model_catalog_v1"
+}

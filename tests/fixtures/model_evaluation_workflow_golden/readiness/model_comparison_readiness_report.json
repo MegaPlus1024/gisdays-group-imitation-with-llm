@@ -1,0 +1,20 @@
+{
+  "candidate_pair_count": 2,
+  "issues": [],
+  "no_runtime_execution": true,
+  "notes": [
+    "Synthetic offline fixture only; no model execution performed.",
+    "Not a production recommendation."
+  ],
+  "plan_id": "golden_offline_model_evaluation_plan",
+  "scenario_count": 1,
+  "schema_version": "model_comparison_readiness_v1",
+  "status": "ready",
+  "summary": {
+    "error_count": 0,
+    "info_count": 0,
+    "issue_count": 0,
+    "warning_count": 0
+  },
+  "trial_count": 2
+}
