@@ -1,0 +1,187 @@
+{
+  "aggregate_command": {
+    "argv": [
+      ".\\.venv\\Scripts\\python.exe",
+      "scripts/aggregate_mini_matrix_results.py",
+      "--output-dir",
+      "artifacts/mini_matrix_summaries/phase_8_26_mini_matrix_r3",
+      "--summary-id",
+      "phase_8_26_mini_matrix_r3",
+      "--run-output-dir",
+      "artifacts/single_trial_runs/phase_8_26_mini_matrix_r1",
+      "--run-output-dir",
+      "artifacts/single_trial_runs/phase_8_26_mini_matrix_r2",
+      "--run-output-dir",
+      "artifacts/single_trial_runs/phase_8_26_mini_matrix_r3"
+    ],
+    "command": ".\\.venv\\Scripts\\python.exe scripts/aggregate_mini_matrix_results.py --output-dir artifacts/mini_matrix_summaries/phase_8_26_mini_matrix_r3 --summary-id phase_8_26_mini_matrix_r3 --run-output-dir artifacts/single_trial_runs/phase_8_26_mini_matrix_r1 --run-output-dir artifacts/single_trial_runs/phase_8_26_mini_matrix_r2 --run-output-dir artifacts/single_trial_runs/phase_8_26_mini_matrix_r3",
+    "name": "aggregate_mini_matrix_results",
+    "no_runtime_execution": true,
+    "output_dir": "artifacts/mini_matrix_summaries/phase_8_26_mini_matrix_r3"
+  },
+  "no_runtime_execution": true,
+  "notes": [
+    "Prepared commands only; packet builder does not execute runtime.",
+    "Run each repeat manually after starting endpoints.",
+    "Run postprocess commands after each completed repeat."
+  ],
+  "packet_dir": "artifacts/first_run_packets/phase_8_26_mini_matrix_r3",
+  "plan_path": "artifacts/first_run_packets/phase_8_26_mini_matrix_r3/model_pair_plan.json",
+  "readiness_summary_path": "artifacts/first_run_packets/phase_8_26_mini_matrix_r3/model_pair_execution_readiness_summary.json",
+  "repeats": [
+    {
+      "local_pipeline_config_path": "artifacts/first_run_packets/phase_8_26_mini_matrix_r3/local_pipeline_config.r01.json",
+      "output_dir": "artifacts/single_trial_runs/phase_8_26_mini_matrix_r1",
+      "postprocess_commands": [
+        {
+          "argv": [
+            ".\\.venv\\Scripts\\python.exe",
+            "scripts/summarize_office_execution_artifacts.py",
+            "--trial-result",
+            "artifacts/single_trial_runs/phase_8_26_mini_matrix_r1/model_pair_single_trial_result.json",
+            "--output",
+            "artifacts/single_trial_runs/phase_8_26_mini_matrix_r1/office_execution_artifact_summary.json"
+          ],
+          "command": ".\\.venv\\Scripts\\python.exe scripts/summarize_office_execution_artifacts.py --trial-result artifacts/single_trial_runs/phase_8_26_mini_matrix_r1/model_pair_single_trial_result.json --output artifacts/single_trial_runs/phase_8_26_mini_matrix_r1/office_execution_artifact_summary.json",
+          "name": "office_execution_artifact_summary",
+          "no_runtime_execution": true
+        }
+      ],
+      "repeat_index": 1,
+      "run_id": "phase_8_26_mini_matrix_r1",
+      "run_script_path": "artifacts/first_run_packets/phase_8_26_mini_matrix_r3/run_repeat_01.ps1",
+      "runtime_command": {
+        "argv": [
+          ".\\.venv\\Scripts\\python.exe",
+          "scripts/run_single_trial_controlled.py",
+          "--plan",
+          "artifacts/first_run_packets/phase_8_26_mini_matrix_r3/model_pair_plan.json",
+          "--readiness-summary",
+          "artifacts/first_run_packets/phase_8_26_mini_matrix_r3/model_pair_execution_readiness_summary.json",
+          "--entrypoint",
+          "src.agent.model_pair_local_pipeline_entrypoint:run_local_model_pair_trial",
+          "--local-pipeline-config",
+          "artifacts/first_run_packets/phase_8_26_mini_matrix_r3/local_pipeline_config.r01.json",
+          "--output-dir",
+          "artifacts/single_trial_runs/phase_8_26_mini_matrix_r1",
+          "--trial-id",
+          "office_document_file_workflow_basic_v1__second_model__to__first_model__r01",
+          "--allow-runtime-execution",
+          "--confirm-runtime-execution",
+          "SINGLE_TRIAL_RUNTIME_OPT_IN",
+          "--auto-matrix-adapter-outputs",
+          "--run-id",
+          "phase_8_26_mini_matrix_r1",
+          "--tag",
+          "controlled_mini_matrix"
+        ],
+        "command": ".\\.venv\\Scripts\\python.exe scripts/run_single_trial_controlled.py --plan artifacts/first_run_packets/phase_8_26_mini_matrix_r3/model_pair_plan.json --readiness-summary artifacts/first_run_packets/phase_8_26_mini_matrix_r3/model_pair_execution_readiness_summary.json --entrypoint src.agent.model_pair_local_pipeline_entrypoint:run_local_model_pair_trial --local-pipeline-config artifacts/first_run_packets/phase_8_26_mini_matrix_r3/local_pipeline_config.r01.json --output-dir artifacts/single_trial_runs/phase_8_26_mini_matrix_r1 --trial-id office_document_file_workflow_basic_v1__second_model__to__first_model__r01 --allow-runtime-execution --confirm-runtime-execution SINGLE_TRIAL_RUNTIME_OPT_IN --auto-matrix-adapter-outputs --run-id phase_8_26_mini_matrix_r1 --tag controlled_mini_matrix",
+        "no_runtime_execution": true
+      },
+      "trial_id": "office_document_file_workflow_basic_v1__second_model__to__first_model__r01"
+    },
+    {
+      "local_pipeline_config_path": "artifacts/first_run_packets/phase_8_26_mini_matrix_r3/local_pipeline_config.r02.json",
+      "output_dir": "artifacts/single_trial_runs/phase_8_26_mini_matrix_r2",
+      "postprocess_commands": [
+        {
+          "argv": [
+            ".\\.venv\\Scripts\\python.exe",
+            "scripts/summarize_office_execution_artifacts.py",
+            "--trial-result",
+            "artifacts/single_trial_runs/phase_8_26_mini_matrix_r2/model_pair_single_trial_result.json",
+            "--output",
+            "artifacts/single_trial_runs/phase_8_26_mini_matrix_r2/office_execution_artifact_summary.json"
+          ],
+          "command": ".\\.venv\\Scripts\\python.exe scripts/summarize_office_execution_artifacts.py --trial-result artifacts/single_trial_runs/phase_8_26_mini_matrix_r2/model_pair_single_trial_result.json --output artifacts/single_trial_runs/phase_8_26_mini_matrix_r2/office_execution_artifact_summary.json",
+          "name": "office_execution_artifact_summary",
+          "no_runtime_execution": true
+        }
+      ],
+      "repeat_index": 2,
+      "run_id": "phase_8_26_mini_matrix_r2",
+      "run_script_path": "artifacts/first_run_packets/phase_8_26_mini_matrix_r3/run_repeat_02.ps1",
+      "runtime_command": {
+        "argv": [
+          ".\\.venv\\Scripts\\python.exe",
+          "scripts/run_single_trial_controlled.py",
+          "--plan",
+          "artifacts/first_run_packets/phase_8_26_mini_matrix_r3/model_pair_plan.json",
+          "--readiness-summary",
+          "artifacts/first_run_packets/phase_8_26_mini_matrix_r3/model_pair_execution_readiness_summary.json",
+          "--entrypoint",
+          "src.agent.model_pair_local_pipeline_entrypoint:run_local_model_pair_trial",
+          "--local-pipeline-config",
+          "artifacts/first_run_packets/phase_8_26_mini_matrix_r3/local_pipeline_config.r02.json",
+          "--output-dir",
+          "artifacts/single_trial_runs/phase_8_26_mini_matrix_r2",
+          "--trial-id",
+          "office_document_file_workflow_basic_v1__second_model__to__first_model__r02",
+          "--allow-runtime-execution",
+          "--confirm-runtime-execution",
+          "SINGLE_TRIAL_RUNTIME_OPT_IN",
+          "--auto-matrix-adapter-outputs",
+          "--run-id",
+          "phase_8_26_mini_matrix_r2",
+          "--tag",
+          "controlled_mini_matrix"
+        ],
+        "command": ".\\.venv\\Scripts\\python.exe scripts/run_single_trial_controlled.py --plan artifacts/first_run_packets/phase_8_26_mini_matrix_r3/model_pair_plan.json --readiness-summary artifacts/first_run_packets/phase_8_26_mini_matrix_r3/model_pair_execution_readiness_summary.json --entrypoint src.agent.model_pair_local_pipeline_entrypoint:run_local_model_pair_trial --local-pipeline-config artifacts/first_run_packets/phase_8_26_mini_matrix_r3/local_pipeline_config.r02.json --output-dir artifacts/single_trial_runs/phase_8_26_mini_matrix_r2 --trial-id office_document_file_workflow_basic_v1__second_model__to__first_model__r02 --allow-runtime-execution --confirm-runtime-execution SINGLE_TRIAL_RUNTIME_OPT_IN --auto-matrix-adapter-outputs --run-id phase_8_26_mini_matrix_r2 --tag controlled_mini_matrix",
+        "no_runtime_execution": true
+      },
+      "trial_id": "office_document_file_workflow_basic_v1__second_model__to__first_model__r02"
+    },
+    {
+      "local_pipeline_config_path": "artifacts/first_run_packets/phase_8_26_mini_matrix_r3/local_pipeline_config.r03.json",
+      "output_dir": "artifacts/single_trial_runs/phase_8_26_mini_matrix_r3",
+      "postprocess_commands": [
+        {
+          "argv": [
+            ".\\.venv\\Scripts\\python.exe",
+            "scripts/summarize_office_execution_artifacts.py",
+            "--trial-result",
+            "artifacts/single_trial_runs/phase_8_26_mini_matrix_r3/model_pair_single_trial_result.json",
+            "--output",
+            "artifacts/single_trial_runs/phase_8_26_mini_matrix_r3/office_execution_artifact_summary.json"
+          ],
+          "command": ".\\.venv\\Scripts\\python.exe scripts/summarize_office_execution_artifacts.py --trial-result artifacts/single_trial_runs/phase_8_26_mini_matrix_r3/model_pair_single_trial_result.json --output artifacts/single_trial_runs/phase_8_26_mini_matrix_r3/office_execution_artifact_summary.json",
+          "name": "office_execution_artifact_summary",
+          "no_runtime_execution": true
+        }
+      ],
+      "repeat_index": 3,
+      "run_id": "phase_8_26_mini_matrix_r3",
+      "run_script_path": "artifacts/first_run_packets/phase_8_26_mini_matrix_r3/run_repeat_03.ps1",
+      "runtime_command": {
+        "argv": [
+          ".\\.venv\\Scripts\\python.exe",
+          "scripts/run_single_trial_controlled.py",
+          "--plan",
+          "artifacts/first_run_packets/phase_8_26_mini_matrix_r3/model_pair_plan.json",
+          "--readiness-summary",
+          "artifacts/first_run_packets/phase_8_26_mini_matrix_r3/model_pair_execution_readiness_summary.json",
+          "--entrypoint",
+          "src.agent.model_pair_local_pipeline_entrypoint:run_local_model_pair_trial",
+          "--local-pipeline-config",
+          "artifacts/first_run_packets/phase_8_26_mini_matrix_r3/local_pipeline_config.r03.json",
+          "--output-dir",
+          "artifacts/single_trial_runs/phase_8_26_mini_matrix_r3",
+          "--trial-id",
+          "office_document_file_workflow_basic_v1__second_model__to__first_model__r03",
+          "--allow-runtime-execution",
+          "--confirm-runtime-execution",
+          "SINGLE_TRIAL_RUNTIME_OPT_IN",
+          "--auto-matrix-adapter-outputs",
+          "--run-id",
+          "phase_8_26_mini_matrix_r3",
+          "--tag",
+          "controlled_mini_matrix"
+        ],
+        "command": ".\\.venv\\Scripts\\python.exe scripts/run_single_trial_controlled.py --plan artifacts/first_run_packets/phase_8_26_mini_matrix_r3/model_pair_plan.json --readiness-summary artifacts/first_run_packets/phase_8_26_mini_matrix_r3/model_pair_execution_readiness_summary.json --entrypoint src.agent.model_pair_local_pipeline_entrypoint:run_local_model_pair_trial --local-pipeline-config artifacts/first_run_packets/phase_8_26_mini_matrix_r3/local_pipeline_config.r03.json --output-dir artifacts/single_trial_runs/phase_8_26_mini_matrix_r3 --trial-id office_document_file_workflow_basic_v1__second_model__to__first_model__r03 --allow-runtime-execution --confirm-runtime-execution SINGLE_TRIAL_RUNTIME_OPT_IN --auto-matrix-adapter-outputs --run-id phase_8_26_mini_matrix_r3 --tag controlled_mini_matrix",
+        "no_runtime_execution": true
+      },
+      "trial_id": "office_document_file_workflow_basic_v1__second_model__to__first_model__r03"
+    }
+  ],
+  "schema_version": "controlled_mini_matrix_commands_v1"
+}

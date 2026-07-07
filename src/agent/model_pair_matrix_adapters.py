@@ -277,6 +277,7 @@ def _normality_metadata(trial: dict[str, Any], *, source_run_id: str) -> dict[st
         "task_success": trial.get("task_success") if isinstance(trial.get("task_success"), bool) else None,
         "correctness_score": trial.get("correctness_score"),
         "error_code": _optional_text(trial.get("error_code")),
+        "repeat_index": _int_or_none(trial.get("repeat_index")),
         "no_runtime_execution": True,
         "trial_warnings": _string_list(trial.get("warnings")),
         "trial_notes": _string_list(trial.get("notes")),

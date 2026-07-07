@@ -26,6 +26,7 @@ from src.agent.model_pair_matrix_runner import (
     write_model_pair_matrix_run_summary,
 )
 from src.agent.model_pair_matrix_runner_cli import main as matrix_cli_main
+from src.agent.model_pair_mini_matrix_aggregation import aggregate_mini_matrix_results
 from src.agent.model_resource_evaluation import summarize_model_resource_observations
 
 
@@ -52,6 +53,12 @@ def _plan(**overrides: object):
 
 def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    return path
 
 
 def test_builds_trial_requests_from_model_comparison_plan() -> None:
@@ -320,6 +327,125 @@ def test_resource_observation_shape_is_compatible_with_resource_evaluator() -> N
     assert resource_summary.status == "ok"
     assert resource_summary.groups["by_pair"][request.pair_id].observation_count == 1
     assert resource_summary.groups["by_pair"][request.pair_id].success_count == 1
+
+
+def _write_fake_mini_matrix_repeat(
+    root: Path,
+    run_id: str,
+    *,
+    status: str = "succeeded",
+    task_success: bool = True,
+    correctness_score: float | None = 1.0,
+    execution_success_count: int = 2,
+    office_artifact_count: int = 2,
+) -> Path:
+    run_dir = root / run_id
+    run_dir.mkdir(parents=True)
+    group_history = [
+        {
+            "task_id": f"t{index}",
+            "action": "office_append_docx_section",
+            "metadata": {
+                "validation_accepted": True,
+                "execution_attempted": True,
+                "execution_success": index <= execution_success_count,
+                "action_execution_enabled": True,
+            },
+        }
+        for index in range(1, 3)
+    ]
+    _write_json(
+        run_dir / "model_pair_single_trial_result.json",
+        {
+            "run_id": run_id,
+            "trial_id": f"{SCENARIO_PATH}__second_model__to__first_model__{run_id}",
+            "scenario_id": "office_document_file_workflow_basic_v1",
+            "pair_id": "second_model__to__first_model",
+            "status": status,
+            "task_success": task_success,
+            "correctness_score": correctness_score,
+            "group_history": group_history,
+            "warnings": [] if status == "succeeded" else ["fake_failed_repeat"],
+        },
+    )
+    _write_json(
+        run_dir / "model_pair_single_trial_matrix_summary.json",
+        {
+            "run_id": run_id,
+            "trial_count": 1,
+            "succeeded_count": 1 if status == "succeeded" else 0,
+            "failed_count": 1 if status == "failed" else 0,
+            "warnings": [],
+        },
+    )
+    _write_json(
+        run_dir / "office_execution_artifact_summary.json",
+        {
+            "run_id": run_id,
+            "artifact_count": office_artifact_count,
+            "readable_count": office_artifact_count,
+            "warnings": [],
+        },
+    )
+    _write_json(
+        run_dir / "matrix_adapters" / "matrix_run_adapter_summary.json",
+        {
+            "source_run_id": run_id,
+            "normality_input_count": 1,
+            "resource_observation_count": 1,
+            "warnings": [],
+        },
+    )
+    return run_dir
+
+
+def test_mini_matrix_aggregator_combines_three_successful_repeats(tmp_path: Path) -> None:
+    run_dirs = [
+        _write_fake_mini_matrix_repeat(tmp_path, "phase_8_26_mini_matrix_r1"),
+        _write_fake_mini_matrix_repeat(tmp_path, "phase_8_26_mini_matrix_r2"),
+        _write_fake_mini_matrix_repeat(tmp_path, "phase_8_26_mini_matrix_r3"),
+    ]
+
+    summary = aggregate_mini_matrix_results(run_dirs, summary_id="phase_8_26_mini_matrix_r3")
+    payload_text = json.dumps(summary, ensure_ascii=False)
+
+    assert summary["repeat_count"] == 3
+    assert summary["succeeded_count"] == 3
+    assert summary["task_success_count"] == 3
+    assert summary["execution_attempted_count"] == 6
+    assert summary["execution_success_count"] == 6
+    assert summary["office_artifact_count"] == 6
+    assert summary["office_artifact_readable_count"] == 6
+    assert summary["normality_input_count"] == 3
+    assert summary["mean_correctness_score"] == 1.0
+    assert str(tmp_path) not in payload_text
+
+
+def test_mini_matrix_aggregator_handles_failed_repeat_without_crashing(tmp_path: Path) -> None:
+    run_dirs = [
+        _write_fake_mini_matrix_repeat(tmp_path, "phase_8_26_mini_matrix_r1"),
+        _write_fake_mini_matrix_repeat(
+            tmp_path,
+            "phase_8_26_mini_matrix_r2",
+            status="failed",
+            task_success=False,
+            correctness_score=None,
+            execution_success_count=1,
+            office_artifact_count=0,
+        ),
+        _write_fake_mini_matrix_repeat(tmp_path, "phase_8_26_mini_matrix_r3"),
+    ]
+
+    summary = aggregate_mini_matrix_results(run_dirs)
+
+    assert summary["repeat_count"] == 3
+    assert summary["succeeded_count"] == 2
+    assert summary["failed_count"] == 1
+    assert summary["task_failure_count"] == 1
+    assert summary["execution_attempted_count"] == 6
+    assert summary["execution_success_count"] == 5
+    assert summary["office_artifact_count"] == 4
+    assert "fake_failed_repeat" in summary["warnings"]
 
 
 def test_no_reports_or_experiments_files_are_written(tmp_path: Path) -> None:

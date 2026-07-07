@@ -1,0 +1,17 @@
+{
+  "allow_runtime_execution": false,
+  "findings": [],
+  "model_pair_count": 1,
+  "no_runtime_execution": true,
+  "not_ready_trial_count": 0,
+  "notes": [
+    "Readiness validation only; no runtime execution performed."
+  ],
+  "ready_trial_count": 3,
+  "scenario_count": 1,
+  "schema_version": "model_pair_execution_readiness_v1",
+  "status": "ready",
+  "tags": [],
+  "trial_count": 3,
+  "warnings": []
+}

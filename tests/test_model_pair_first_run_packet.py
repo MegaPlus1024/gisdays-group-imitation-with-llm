@@ -18,6 +18,7 @@ from src.agent.model_pair_first_run_packet import (
     build_first_single_trial_run_packet,
     main as packet_main,
 )
+from src.agent.model_pair_mini_matrix_packet import build_controlled_mini_matrix_packet
 
 
 PAIR_ID = "second_model__to__first_model"
@@ -731,3 +732,125 @@ def test_packet_builder_accepts_compact_repair_execute_v3_config(
     assert copied_config["out_dir"] == "artifacts/single_trial_runs/phase_8_24_docx_precreate_retry/pipeline"
     assert "artifacts/first_run_packets/phase_8_24_docx_precreate_retry/local_pipeline_config.json" in command["argv"]
     assert "artifacts/single_trial_runs/phase_8_24_docx_precreate_retry" in command["argv"]
+
+
+def test_controlled_mini_matrix_packet_creates_three_repeat_configs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = _fixture_workspace(
+        tmp_path,
+        monkeypatch,
+        local_config_overrides={
+            "execute_actions": True,
+            "action_parameter_repair": {
+                "enabled": True,
+                "office_default_output_dir": "artifacts/single_trial_runs/base/pipeline/workspace/office_outputs",
+                "create_missing_docx_for_append": True,
+            },
+            "office_real_document_enabled": True,
+            "office_real_document_artifact_root": "artifacts/single_trial_runs/base/pipeline/workspace",
+        },
+    )
+
+    summary = build_controlled_mini_matrix_packet(
+        output_dir="packets/mini",
+        base_local_pipeline_config_path=paths["local_pipeline_config_path"],
+        model_catalog_path=paths["model_catalog_path"],
+        scenario_id=SCENARIO_ID,
+        pair_id=PAIR_ID,
+        run_id_prefix="phase_8_26_mini_matrix",
+        repeat_count=3,
+        tags=("controlled_mini_matrix",),
+    )
+    commands = _json(summary["commands_path"])
+    plan = _json(summary["plan_path"])
+
+    assert summary["status"] == "ready"
+    assert summary["readiness_status"] == "ready"
+    assert summary["run_ids"] == [
+        "phase_8_26_mini_matrix_r1",
+        "phase_8_26_mini_matrix_r2",
+        "phase_8_26_mini_matrix_r3",
+    ]
+    assert [trial["repeat_index"] for trial in plan["trials"]] == [1, 2, 3]
+    assert [trial["trial_id"] for trial in plan["trials"]] == [
+        f"{SCENARIO_ID}__{PAIR_ID}__r01",
+        f"{SCENARIO_ID}__{PAIR_ID}__r02",
+        f"{SCENARIO_ID}__{PAIR_ID}__r03",
+    ]
+    assert len(commands["repeats"]) == 3
+    assert all(repeat["runtime_command"]["no_runtime_execution"] is True for repeat in commands["repeats"])
+
+
+def test_controlled_mini_matrix_repeat_configs_match_operator_output_dirs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = _fixture_workspace(
+        tmp_path,
+        monkeypatch,
+        local_config_overrides={
+            "execute_actions": True,
+            "action_parameter_repair": {"enabled": True},
+            "office_real_document_enabled": True,
+        },
+    )
+
+    summary = build_controlled_mini_matrix_packet(
+        output_dir="packets/mini",
+        base_local_pipeline_config_path=paths["local_pipeline_config_path"],
+        model_catalog_path=paths["model_catalog_path"],
+        scenario_id=SCENARIO_ID,
+        pair_id=PAIR_ID,
+        run_id_prefix="phase_8_26_mini_matrix",
+        repeat_count=3,
+        tags=("controlled_mini_matrix",),
+    )
+    commands = _json(summary["commands_path"])
+
+    for repeat in commands["repeats"]:
+        config = _json(repeat["local_pipeline_config_path"])
+        run_id = repeat["run_id"]
+        expected_output_dir = f"artifacts/single_trial_runs/{run_id}"
+        expected_pipeline_dir = f"{expected_output_dir}/pipeline"
+        assert repeat["output_dir"] == expected_output_dir
+        assert config["run_id"] == run_id
+        assert config["out_dir"] == expected_pipeline_dir
+        assert config["action_parameter_repair"]["office_default_output_dir"] == (
+            f"{expected_pipeline_dir}/workspace/office_outputs"
+        )
+        assert config["office_real_document_artifact_root"] == f"{expected_pipeline_dir}/workspace"
+        assert expected_output_dir in repeat["runtime_command"]["argv"]
+        assert repeat["local_pipeline_config_path"] in repeat["runtime_command"]["argv"]
+
+
+def test_controlled_mini_matrix_packet_commands_include_postprocess_and_aggregate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = _fixture_workspace(tmp_path, monkeypatch)
+
+    summary = build_controlled_mini_matrix_packet(
+        output_dir="packets/mini",
+        base_local_pipeline_config_path=paths["local_pipeline_config_path"],
+        model_catalog_path=paths["model_catalog_path"],
+        scenario_id=SCENARIO_ID,
+        pair_id=PAIR_ID,
+        run_id_prefix="phase_8_26_mini_matrix",
+        repeat_count=3,
+        tags=("controlled_mini_matrix",),
+    )
+    commands = _json(summary["commands_path"])
+
+    assert all(
+        repeat["postprocess_commands"][0]["name"] == "office_execution_artifact_summary"
+        for repeat in commands["repeats"]
+    )
+    assert all(
+        "scripts/summarize_office_execution_artifacts.py" in repeat["postprocess_commands"][0]["argv"]
+        for repeat in commands["repeats"]
+    )
+    assert commands["aggregate_command"]["name"] == "aggregate_mini_matrix_results"
+    assert commands["aggregate_command"]["output_dir"] == "artifacts/mini_matrix_summaries/phase_8_26_mini_matrix_r3"
+    assert "scripts/aggregate_mini_matrix_results.py" in commands["aggregate_command"]["argv"]

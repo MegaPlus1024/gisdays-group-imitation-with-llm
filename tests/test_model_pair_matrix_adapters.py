@@ -297,6 +297,17 @@ def test_normality_adapter_includes_office_execution_artifact_summary_metadata()
     assert metadata["office_execution_artifact_readable_count"] == 2
 
 
+def test_normality_adapter_metadata_includes_source_run_and_repeat_index() -> None:
+    trial = _trial(repeat_index=2, group_history=[_event(action="office_append_docx_section")])
+
+    inputs = build_normality_inputs_from_matrix_run_summary(
+        _matrix_summary(trial, run_id="phase_8_26_mini_matrix_r2")
+    )
+
+    assert inputs[0]["metadata"]["source_run_id"] == "phase_8_26_mini_matrix_r2"
+    assert inputs[0]["metadata"]["repeat_index"] == 2
+
+
 def test_writes_jsonl_resource_observations(tmp_path: Path) -> None:
     observations = build_resource_observations_from_matrix_run_summary(_matrix_summary(_trial()))
 

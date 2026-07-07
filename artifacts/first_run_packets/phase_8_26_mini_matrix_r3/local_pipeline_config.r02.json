@@ -1,0 +1,43 @@
+{
+  "action_parameter_repair": {
+    "create_missing_docx_for_append": true,
+    "enabled": true,
+    "office_default_output_dir": "artifacts/single_trial_runs/phase_8_26_mini_matrix_r2/pipeline/workspace/office_outputs"
+  },
+  "execute_actions": true,
+  "execution_options": {
+    "allow_runtime_execution": true,
+    "no_runtime_execution": false
+  },
+  "executor_base_url": "http://127.0.0.1:8081/v1",
+  "force": true,
+  "max_group_steps": 1,
+  "max_steps_per_agent": 1,
+  "mode": "controlled_single_trial",
+  "models_config_path": "configs/evaluation_models.json",
+  "notes": [
+    "Dual-endpoint compact executor prompt config with controlled DOCX append target precreate enabled.",
+    "Start second_model on port 8080 with alias second_model.",
+    "Start first_model on port 8081 with alias first_model.",
+    "Runtime execution still requires guarded operator confirmation.",
+    "Controlled mini-matrix repeat config for phase_8_26_mini_matrix_r2."
+  ],
+  "office_real_document_allow_formulas": false,
+  "office_real_document_artifact_root": "artifacts/single_trial_runs/phase_8_26_mini_matrix_r2/pipeline/workspace",
+  "office_real_document_enabled": true,
+  "office_real_document_max_file_bytes": 5000000,
+  "office_real_document_max_text_preview_chars": 500,
+  "orchestrator_base_url": "http://127.0.0.1:8080/v1",
+  "orchestrator_repair_attempts": 0,
+  "out_dir": "artifacts/single_trial_runs/phase_8_26_mini_matrix_r2/pipeline",
+  "prompt_budget": {
+    "compact_executor_context": true,
+    "executor_max_prompt_chars": 12000,
+    "max_history_items": 6,
+    "orchestrator_max_prompt_chars": 16000
+  },
+  "repair_attempts": 0,
+  "run_id": "phase_8_26_mini_matrix_r2",
+  "scenario_path": "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json",
+  "schema_version": "single_trial_local_pipeline_config_v1"
+}
