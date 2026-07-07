@@ -1,0 +1,15 @@
+{
+  "api_key_env": "OPENAI_API_KEY",
+  "judge_is_evaluated_model": false,
+  "judge_is_independent_from_tested_pair": true,
+  "max_output_tokens": 2000,
+  "model": "CONFIGURE_FLAGSHIP_MODEL_ID",
+  "notes": [
+    "Do not store API keys in this file.",
+    "This config is for future guarded API judge execution; Phase 8.28 does not call APIs."
+  ],
+  "provider": "external_api",
+  "response_format": "json_schema",
+  "schema_version": "flagship_api_judge_config_v1",
+  "temperature": 0
+}
