@@ -6,6 +6,8 @@ This repository now has both the original single-agent evidence base and a conso
 
 - Single-agent evidence: two local GGUF models across two behavioral scenarios, N=3 per model/scenario, summarized in `reports/experiments/final_evaluation_report.md`.
 - Multi-agent orchestrator/executor evidence: fake MVP, local POC, repeated group trials, simple/heavy pair matrices, runtime probe, GPU smoke, and corrected bounded stress v2.
+- Latest Phase 8 controlled office-evaluation status is documented in `docs/status/phase_8_current_state_for_leadership.md` and `docs/status/phase_8_technical_status.md`.
+- Latest confirmed controlled mini-matrix: 3/3 repeats succeeded, 6/6 office actions executed successfully, 6/6 DOCX artifacts were generated and readable, deterministic mean correctness is 1.0. Semantic LLM judge scoring is guarded and has not been run yet.
 - Preliminary quality-focused pair: `second_model -> second_model`.
 - Resource-balanced/simple-scenario pair: `second_model -> first_model`.
 - `first_model` is not recommended as orchestrator in the current tests.
@@ -75,7 +77,7 @@ Important limitations:
 - pair-matrix and runtime-probe evidence covers two short group scenarios so far; no long stress test has been run;
 - GPU smoke is short and not a stress test; first wall-time result was roughly comparable, not a meaningful speedup claim;
 - browser behavior is simulated-only;
-- office behavior is stub/file-based;
+- earlier office behavior was stub/file-based; Phase 8 now includes a guarded real document-file office backend for controlled DOCX/XLSX/PPTX-style action validation and DOCX artifact execution;
 - no git/mail actions are included;
 - GGUF model files are not included in the repository;
 - no final production model recommendation is made.

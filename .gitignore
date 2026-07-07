@@ -29,6 +29,11 @@ logs/smoke/*.txt
 tmp/
 temp/
 
+# Runtime/generated evaluation outputs
+artifacts/single_trial_runs/
+artifacts/mini_matrix_summaries/
+artifacts/judge_prompt_packs/
+
 # Local models
 models/gguf/*.gguf
 models/**/*.gguf
@@ -46,6 +51,7 @@ dist/
 
 # Local config
 configs/runtime.local.json
+configs/judge/*.local.json
 
 # Local credentials
 *.key
