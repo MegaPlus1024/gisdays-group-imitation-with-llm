@@ -192,6 +192,60 @@ def _next_action(action: str, parameters: dict[str, object] | None = None) -> pi
     )
 
 
+class _FakeBridgeOutput:
+    def __init__(self, raw_result: ScriptExecutionResult) -> None:
+        self.success = raw_result.success
+        self.raw_result = raw_result
+
+    def model_dump(self, *, mode: str = "json") -> dict[str, object]:
+        del mode
+        return {
+            "action": self.raw_result.action,
+            "success": self.raw_result.success,
+            "raw_result": self.raw_result.model_dump(mode="json"),
+        }
+
+
+class _RecordingBridge:
+    def __init__(self, *, fail_precreate: bool = False, append_success: bool = True) -> None:
+        self.fail_precreate = fail_precreate
+        self.append_success = append_success
+        self.calls: list[dict[str, object]] = []
+
+    def execute_next_action(self, next_action, *, run_id, agent_id, step_index):  # type: ignore[no-untyped-def]
+        del run_id, agent_id, step_index
+        path = next_action.parameters.get("path")
+        self.calls.append({"action": next_action.action, "path": path})
+        if next_action.action == "office_create_docx" and self.fail_precreate:
+            return _FakeBridgeOutput(
+                ScriptExecutionResult(
+                    action=next_action.action,
+                    success=False,
+                    error_type="office_dependency_missing",
+                    error_message="Optional python-docx dependency is not installed.",
+                    metadata={"office_app_opened": False},
+                )
+            )
+        if next_action.action == "office_append_docx_section" and not self.append_success:
+            return _FakeBridgeOutput(
+                ScriptExecutionResult(
+                    action=next_action.action,
+                    success=False,
+                    error_type="office_docx_file_missing",
+                    error_message="DOCX document does not exist.",
+                    metadata={"path_relative": path},
+                )
+            )
+        return _FakeBridgeOutput(
+            ScriptExecutionResult(
+                action=next_action.action,
+                success=True,
+                output="ok",
+                metadata={"output_path": path, "office_app_opened": False},
+            )
+        )
+
+
 def test_parse_valid_orchestrator_plan_json() -> None:
     raw = json.dumps(
         {
@@ -767,6 +821,247 @@ def test_executor_attempt_repairs_append_docx_no_extension_before_fake_bridge() 
     assert attempt.parameter_repair["expected_extension"] == ".docx"
 
 
+def test_append_docx_safe_missing_path_precreates_when_enabled() -> None:
+    registry = pipeline.load_script_registry(PROJECT_ROOT / "configs/script_registry.example.json")
+    role = pipeline.load_role_template(PROJECT_ROOT / "configs/roles/office_document_worker.example.json")
+    scenario = pipeline.load_orchestrator_executor_scenario(
+        PROJECT_ROOT / "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json"
+    )
+    out_dir = PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_24_docx_precreate_retry/pipeline"
+    action_path = (
+        "artifacts/single_trial_runs/phase_8_24_docx_precreate_retry/"
+        "pipeline/workspace/office_outputs/missing_target.docx"
+    )
+    bridge = _RecordingBridge()
+
+    attempt = pipeline._executor_attempt_from_result(
+        provider_result=pipeline.ExecutorProviderResult(
+            raw_model_output=json.dumps(
+                _next_action(
+                    "office_append_docx_section",
+                    {"path": action_path, "paragraphs": ["Controlled note."]},
+                ).model_dump(mode="json")
+            )
+        ),
+        attempt_index=0,
+        attempt_type="initial",
+        agent=_agent_spec(),
+        task=_task(),
+        state=_bloated_agent_state(),
+        role_template=role,
+        registry=registry,
+        bridge=bridge,  # type: ignore[arg-type]
+        group_step_index=1,
+        agent_step_index=1,
+        execute_actions=True,
+        scenario=scenario,
+        out_dir=out_dir,
+        project_root=PROJECT_ROOT,
+        action_parameter_repair=ActionParameterRepairConfig(
+            enabled=True,
+            create_missing_docx_for_append=True,
+        ),
+        latency_ms=1.0,
+    )
+
+    assert attempt.error_type is None
+    assert attempt.execution_attempted is True
+    assert attempt.execution_success is True
+    assert [call["action"] for call in bridge.calls] == ["office_create_docx", "office_append_docx_section"]
+    assert bridge.calls[0]["path"] == action_path
+    assert attempt.precreate_metadata is not None
+    assert attempt.precreate_metadata["precreated_missing_document"] is True
+    assert attempt.precreate_metadata["precreated_document_type"] == "docx"
+    assert attempt.precreate_metadata["precreate_reason"] == "append_target_missing"
+    assert attempt.precreate_metadata["path_source"] == "safe_model_path"
+
+
+def test_append_docx_precreate_disabled_preserves_missing_file_failure() -> None:
+    registry = pipeline.load_script_registry(PROJECT_ROOT / "configs/script_registry.example.json")
+    role = pipeline.load_role_template(PROJECT_ROOT / "configs/roles/office_document_worker.example.json")
+    scenario = pipeline.load_orchestrator_executor_scenario(
+        PROJECT_ROOT / "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json"
+    )
+    out_dir = PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_24_docx_precreate_disabled/pipeline"
+    action_path = (
+        "artifacts/single_trial_runs/phase_8_24_docx_precreate_disabled/"
+        "pipeline/workspace/office_outputs/missing_target.docx"
+    )
+    bridge = _RecordingBridge(append_success=False)
+
+    attempt = pipeline._executor_attempt_from_result(
+        provider_result=pipeline.ExecutorProviderResult(
+            raw_model_output=json.dumps(
+                _next_action(
+                    "office_append_docx_section",
+                    {"path": action_path, "paragraphs": ["Controlled note."]},
+                ).model_dump(mode="json")
+            )
+        ),
+        attempt_index=0,
+        attempt_type="initial",
+        agent=_agent_spec(),
+        task=_task(),
+        state=_bloated_agent_state(),
+        role_template=role,
+        registry=registry,
+        bridge=bridge,  # type: ignore[arg-type]
+        group_step_index=1,
+        agent_step_index=1,
+        execute_actions=True,
+        scenario=scenario,
+        out_dir=out_dir,
+        project_root=PROJECT_ROOT,
+        action_parameter_repair=ActionParameterRepairConfig(enabled=True),
+        latency_ms=1.0,
+    )
+
+    assert attempt.error_type == "office_docx_file_missing"
+    assert attempt.precreate_metadata is None
+    assert [call["action"] for call in bridge.calls] == ["office_append_docx_section"]
+
+
+def test_append_docx_existing_path_is_not_precreated_again(tmp_path: Path) -> None:
+    project_root = tmp_path
+    out_dir = project_root / "artifacts/single_trial_runs/phase_8_24_existing/pipeline"
+    action_path = "artifacts/single_trial_runs/phase_8_24_existing/pipeline/workspace/office_outputs/existing.docx"
+    existing_path = project_root / action_path
+    existing_path.parent.mkdir(parents=True)
+    existing_path.write_bytes(b"placeholder")
+    bridge = _RecordingBridge()
+
+    result = pipeline._maybe_precreate_missing_docx_for_append(
+        next_action=_next_action(
+            "office_append_docx_section",
+            {"path": action_path, "paragraphs": ["Controlled note."]},
+        ),
+        bridge=bridge,  # type: ignore[arg-type]
+        agent=_agent_spec(),
+        task=_task(),
+        agent_step_index=1,
+        config=ActionParameterRepairConfig(enabled=True, create_missing_docx_for_append=True),
+        out_dir=out_dir,
+        project_root=project_root,
+        parameter_repair=None,
+    )
+
+    assert result.output is None
+    assert result.metadata is None
+    assert bridge.calls == []
+
+
+def test_append_docx_workspace_prefix_lookalike_is_not_precreated(tmp_path: Path) -> None:
+    project_root = tmp_path
+    out_dir = project_root / "artifacts/single_trial_runs/phase_8_24_existing/pipeline"
+    action_path = "artifacts/single_trial_runs/phase_8_24_existing/pipeline/workspace_extra/missing.docx"
+    bridge = _RecordingBridge()
+
+    result = pipeline._maybe_precreate_missing_docx_for_append(
+        next_action=_next_action(
+            "office_append_docx_section",
+            {"path": action_path, "paragraphs": ["Controlled note."]},
+        ),
+        bridge=bridge,  # type: ignore[arg-type]
+        agent=_agent_spec(),
+        task=_task(),
+        agent_step_index=1,
+        config=ActionParameterRepairConfig(enabled=True, create_missing_docx_for_append=True),
+        out_dir=out_dir,
+        project_root=project_root,
+        parameter_repair=None,
+    )
+
+    assert result.output is None
+    assert result.metadata is None
+    assert bridge.calls == []
+
+
+def test_append_docx_precreate_dependency_missing_stops_before_append() -> None:
+    registry = pipeline.load_script_registry(PROJECT_ROOT / "configs/script_registry.example.json")
+    role = pipeline.load_role_template(PROJECT_ROOT / "configs/roles/office_document_worker.example.json")
+    scenario = pipeline.load_orchestrator_executor_scenario(
+        PROJECT_ROOT / "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json"
+    )
+    out_dir = PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_24_docx_precreate_retry/pipeline"
+    action_path = (
+        "artifacts/single_trial_runs/phase_8_24_docx_precreate_retry/"
+        "pipeline/workspace/office_outputs/dependency_missing.docx"
+    )
+    bridge = _RecordingBridge(fail_precreate=True)
+
+    attempt = pipeline._executor_attempt_from_result(
+        provider_result=pipeline.ExecutorProviderResult(
+            raw_model_output=json.dumps(
+                _next_action(
+                    "office_append_docx_section",
+                    {"path": action_path, "paragraphs": ["Controlled note."]},
+                ).model_dump(mode="json")
+            )
+        ),
+        attempt_index=0,
+        attempt_type="initial",
+        agent=_agent_spec(),
+        task=_task(),
+        state=_bloated_agent_state(),
+        role_template=role,
+        registry=registry,
+        bridge=bridge,  # type: ignore[arg-type]
+        group_step_index=1,
+        agent_step_index=1,
+        execute_actions=True,
+        scenario=scenario,
+        out_dir=out_dir,
+        project_root=PROJECT_ROOT,
+        action_parameter_repair=ActionParameterRepairConfig(
+            enabled=True,
+            create_missing_docx_for_append=True,
+        ),
+        latency_ms=1.0,
+    )
+
+    assert attempt.error_type == "office_dependency_missing"
+    assert attempt.execution_attempted is True
+    assert attempt.execution_success is False
+    assert [call["action"] for call in bridge.calls] == ["office_create_docx"]
+    assert attempt.precreate_metadata is not None
+    assert attempt.precreate_metadata["precreate_success"] is False
+    assert attempt.precreate_metadata["precreate_error_type"] == "office_dependency_missing"
+
+
+def test_group_history_includes_docx_precreate_metadata() -> None:
+    record = pipeline._history_from_attempt(
+        pipeline.ExecutorActionAttempt(
+            group_step_index=1,
+            agent_step_index=1,
+            agent_id="document_summary_agent",
+            task_id="t1",
+            raw_model_output="{}",
+            parse_success=True,
+            action="office_append_docx_section",
+            next_action=_next_action(
+                "office_append_docx_section",
+                {
+                    "path": "artifacts/single_trial_runs/x/pipeline/workspace/office_outputs/t1.docx",
+                    "paragraphs": ["note"],
+                },
+            ).model_dump(mode="json"),
+            validation_accepted=True,
+            execution_attempted=True,
+            execution_success=True,
+            precreate_metadata={
+                "precreated_missing_document": True,
+                "precreated_document_type": "docx",
+                "precreate_reason": "append_target_missing",
+            },
+        ),
+        action_execution_enabled=True,
+    )
+
+    assert record.status == "success"
+    assert record.metadata["precreate_metadata"]["precreated_missing_document"] is True
+    assert record.metadata["precreate_metadata"]["precreated_document_type"] == "docx"
+
+
 def test_non_office_actions_are_not_repaired_generically() -> None:
     result = pipeline._apply_action_parameter_repair(
         next_action=_next_action("create_file"),
@@ -917,6 +1212,7 @@ def test_compact_executor_prompt_uses_docx_example_for_append_action() -> None:
     text = json.dumps(messages, ensure_ascii=False)
 
     assert "office_append_docx_section" in text
+    assert "prefer office_create_docx" in text
     assert "path" in text
     assert ".docx" in text
     assert "office_outputs" in text

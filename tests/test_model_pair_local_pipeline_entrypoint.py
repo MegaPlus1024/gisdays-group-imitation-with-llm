@@ -580,6 +580,35 @@ def test_config_build_helper_accepts_compact_repair_execute_v2_config(
     assert [name for name, _ in calls] == ["config"]
 
 
+def test_config_build_helper_accepts_compact_repair_execute_v3_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_fake_existing_pipeline_module(monkeypatch)
+    local_config = json.loads(
+        Path("configs/local_pipeline/single_trial_local_pipeline.dual_endpoint.compact_repair_execute_v3.example.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    config = build_orchestrator_executor_run_config_from_local_pipeline_config(
+        _entrypoint_input(allow_runtime=True, local_pipeline_config=local_config)
+    )
+
+    assert config.payload["mode"] == "local"
+    assert config.payload["run_id"] == "phase_8_24_docx_precreate_retry"
+    assert config.payload["out_dir"] == "artifacts/single_trial_runs/phase_8_24_docx_precreate_retry/pipeline"
+    assert config.payload["execute_actions"] is True
+    assert config.payload["action_parameter_repair"]["create_missing_docx_for_append"] is True
+    assert config.payload["action_parameter_repair"]["office_default_output_dir"].endswith(
+        "phase_8_24_docx_precreate_retry/pipeline/workspace/office_outputs"
+    )
+    assert config.payload["office_real_document_enabled"] is True
+    assert config.payload["office_real_document_artifact_root"].endswith(
+        "phase_8_24_docx_precreate_retry/pipeline/workspace"
+    )
+    assert [name for name, _ in calls] == ["config"]
+
+
 def test_effective_config_preview_reports_dual_endpoint_packet_without_runtime() -> None:
     local_config = json.loads(
         Path("artifacts/first_run_packets/phase_8_17_dual_endpoint/local_pipeline_config.json").read_text(

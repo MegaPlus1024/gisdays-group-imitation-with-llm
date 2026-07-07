@@ -37,6 +37,9 @@ DUAL_ENDPOINT_COMPACT_REPAIR_EXECUTE_CONFIG_PATH = Path(
 DUAL_ENDPOINT_COMPACT_REPAIR_EXECUTE_V2_CONFIG_PATH = Path(
     "configs/local_pipeline/single_trial_local_pipeline.dual_endpoint.compact_repair_execute_v2.example.json"
 )
+DUAL_ENDPOINT_COMPACT_REPAIR_EXECUTE_V3_CONFIG_PATH = Path(
+    "configs/local_pipeline/single_trial_local_pipeline.dual_endpoint.compact_repair_execute_v3.example.json"
+)
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> Path:
@@ -681,3 +684,50 @@ def test_packet_builder_accepts_compact_repair_execute_v2_config(
     )
     assert copied_config["office_real_document_enabled"] is True
     assert "--allow-runtime-execution" in command["argv"]
+
+
+def test_packet_builder_accepts_compact_repair_execute_v3_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = _fixture_workspace(
+        tmp_path,
+        monkeypatch,
+        local_config_overrides={
+            "run_id": "phase_8_24_docx_precreate_retry",
+            "out_dir": "artifacts/single_trial_runs/phase_8_24_docx_precreate_retry/pipeline",
+            "execute_actions": True,
+            "action_parameter_repair": {
+                "enabled": True,
+                "office_default_output_dir": (
+                    "artifacts/single_trial_runs/phase_8_24_docx_precreate_retry/"
+                    "pipeline/workspace/office_outputs"
+                ),
+                "create_missing_docx_for_append": True,
+            },
+            "office_real_document_enabled": True,
+            "office_real_document_artifact_root": (
+                "artifacts/single_trial_runs/phase_8_24_docx_precreate_retry/pipeline/workspace"
+            ),
+        },
+    )
+
+    summary = build_first_single_trial_run_packet(
+        output_dir="artifacts/first_run_packets/phase_8_24_docx_precreate_retry",
+        model_catalog_path=paths["model_catalog_path"],
+        scenario_id=SCENARIO_ID,
+        pair_id=PAIR_ID,
+        local_pipeline_config_path=paths["local_pipeline_config_path"],
+        run_id="phase_8_24_docx_precreate_retry",
+        tags=("controlled_single_trial",),
+    )
+    copied_config = _json(Path(summary["local_pipeline_config_path"]))
+    command = _json(Path(summary["command_path"]))
+
+    assert summary["status"] == "ready"
+    assert summary["readiness_status"] == "ready"
+    assert copied_config["run_id"] == "phase_8_24_docx_precreate_retry"
+    assert copied_config["action_parameter_repair"]["create_missing_docx_for_append"] is True
+    assert copied_config["out_dir"] == "artifacts/single_trial_runs/phase_8_24_docx_precreate_retry/pipeline"
+    assert "artifacts/first_run_packets/phase_8_24_docx_precreate_retry/local_pipeline_config.json" in command["argv"]
+    assert "artifacts/single_trial_runs/phase_8_24_docx_precreate_retry" in command["argv"]

@@ -207,6 +207,7 @@ class ExecutorActionAttempt(BaseModel):
     error_message: str | None = None
     error_diagnostics: dict[str, Any] | None = None
     parameter_repair: dict[str, Any] | None = None
+    precreate_metadata: dict[str, Any] | None = None
 
 
 class ExecutorAgentTrajectory(BaseModel):
@@ -353,6 +354,7 @@ class PromptBudgetConfig(BaseModel):
 class ActionParameterRepairConfig(BaseModel):
     enabled: bool = False
     office_default_output_dir: str | None = None
+    create_missing_docx_for_append: bool = False
 
     @field_validator("office_default_output_dir")
     @classmethod
@@ -1157,6 +1159,8 @@ class OrchestratorExecutorRunner:
                             error["diagnostics"] = attempt.error_diagnostics
                         if attempt.parameter_repair is not None:
                             error["parameter_repair"] = attempt.parameter_repair
+                        if attempt.precreate_metadata is not None:
+                            error["precreate_metadata"] = attempt.precreate_metadata
                         errors.append(error)
 
         activity_profiles = {
@@ -1936,6 +1940,9 @@ def _executor_prompt_hints(
             "Do not include leading slashes.",
             "Do not include '..' traversal.",
             "Do not touch models/gguf/, .venv/, or .git/.",
+            "For new DOCX documents, prefer office_create_docx.",
+            "Use office_append_docx_section only for an existing .docx or a controlled default .docx path.",
+            "DOCX action paths must end in .docx.",
         ],
         "json_only_example": json_only_example,
     }
@@ -2797,6 +2804,26 @@ def _executor_attempt_from_result(
         return attempt
 
     if execute_actions:
+        precreate_result = _maybe_precreate_missing_docx_for_append(
+            next_action=next_action,
+            bridge=bridge,
+            agent=agent,
+            task=task,
+            agent_step_index=agent_step_index,
+            config=action_parameter_repair,
+            out_dir=out_dir,
+            project_root=project_root,
+            parameter_repair=attempt.parameter_repair,
+        )
+        if precreate_result.metadata is not None:
+            attempt.precreate_metadata = precreate_result.metadata
+        if precreate_result.output is not None and not precreate_result.output.success:
+            attempt.execution_attempted = True
+            attempt.execution_success = False
+            attempt.execution_result = precreate_result.output.model_dump(mode="json")
+            attempt.error_type = precreate_result.output.raw_result.error_type or "execution_failed"
+            attempt.error_message = precreate_result.output.raw_result.error_message or "Execution failed."
+            return attempt
         output = bridge.execute_next_action(
             next_action,
             run_id=agent.agent_id,
@@ -2892,6 +2919,12 @@ _OFFICE_CREATE_ACTION_EXTENSIONS = {
 @dataclass(frozen=True)
 class ActionParameterRepairResult:
     next_action: NextAction
+    metadata: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class DocxAppendPrecreateResult:
+    output: Any | None = None
     metadata: dict[str, Any] | None = None
 
 
@@ -3041,6 +3074,84 @@ def _safe_path_slug(value: str) -> str:
     return text[:80] or "item"
 
 
+def _maybe_precreate_missing_docx_for_append(
+    *,
+    next_action: NextAction,
+    bridge: ScriptExecutionBridge,
+    agent: GroupAgentSpec,
+    task: OrchestratorPlanTask,
+    agent_step_index: int,
+    config: ActionParameterRepairConfig,
+    out_dir: Path,
+    project_root: Path,
+    parameter_repair: dict[str, Any] | None,
+) -> DocxAppendPrecreateResult:
+    if next_action.action != "office_append_docx_section" or not config.create_missing_docx_for_append:
+        return DocxAppendPrecreateResult()
+    path = next_action.parameters.get("path")
+    if not isinstance(path, str) or not path.strip():
+        return DocxAppendPrecreateResult()
+    normalized_path = path.strip().replace("\\", "/")
+    if not _is_safe_relative_artifact_path(normalized_path):
+        return DocxAppendPrecreateResult()
+    if PurePosixPath(normalized_path).suffix.lower() != ".docx":
+        return DocxAppendPrecreateResult()
+    workspace_root = _safe_relative_workspace_root(project_root, out_dir)
+    try:
+        PurePosixPath(normalized_path).relative_to(PurePosixPath(workspace_root))
+    except ValueError:
+        return DocxAppendPrecreateResult()
+    resolved_path = (project_root / normalized_path).resolve()
+    try:
+        resolved_path.relative_to(project_root.resolve())
+    except ValueError:
+        return DocxAppendPrecreateResult()
+    if resolved_path.exists():
+        return DocxAppendPrecreateResult()
+
+    precreate_action = NextAction(
+        action="office_create_docx",
+        parameters={
+            "path": normalized_path,
+            "paragraphs": [],
+            "metadata": {
+                "source_action": "office_append_docx_section",
+                "precreate_reason": "append_target_missing",
+            },
+        },
+        reason="Create a controlled missing DOCX target before appending.",
+        expected_result="A minimal DOCX exists for the append action.",
+    )
+    output = bridge.execute_next_action(
+        precreate_action,
+        run_id=f"{agent.agent_id}_docx_precreate",
+        agent_id=agent.agent_id,
+        step_index=agent_step_index,
+    )
+    metadata: dict[str, Any] = {
+        "precreate_attempted": True,
+        "precreated_missing_document": output.success,
+        "precreated_document_type": "docx",
+        "precreate_reason": "append_target_missing",
+        "precreate_action": "office_create_docx",
+        "precreate_success": output.success,
+        "path": normalized_path,
+        "path_source": _docx_precreate_path_source(parameter_repair),
+    }
+    if not output.success:
+        metadata["precreate_error_type"] = output.raw_result.error_type
+    return DocxAppendPrecreateResult(output=output, metadata=metadata)
+
+
+def _docx_precreate_path_source(parameter_repair: dict[str, Any] | None) -> str:
+    if not isinstance(parameter_repair, dict):
+        return "safe_model_path"
+    source = parameter_repair.get("path_source")
+    if isinstance(source, str) and source.strip():
+        return source.strip()
+    return "controlled_default_or_safe_model_path"
+
+
 def _office_path_extension_issue(next_action: NextAction) -> dict[str, Any] | None:
     expected = _OFFICE_ACTION_EXTENSIONS.get(next_action.action)
     if expected is None:
@@ -3165,6 +3276,8 @@ def _history_from_attempt(
         metadata["diagnostics"] = attempt.error_diagnostics
     if attempt.parameter_repair is not None:
         metadata["parameter_repair"] = attempt.parameter_repair
+    if attempt.precreate_metadata is not None:
+        metadata["precreate_metadata"] = attempt.precreate_metadata
     return GroupHistoryRecord(
         group_step_index=attempt.group_step_index,
         agent_id=attempt.agent_id,
@@ -3381,6 +3494,7 @@ def _per_agent_attempt_rows(result: OrchestratorExecutorRunResult) -> list[dict[
                     "validation_accepted": attempt.validation_accepted,
                     "validation_issues": attempt.validation_issues,
                     "parameter_repair": attempt.parameter_repair,
+                    "precreate_metadata": attempt.precreate_metadata,
                     "virtual_network_policy": attempt.virtual_network_policy,
                     "execution_attempted": attempt.execution_attempted,
                     "execution_success": attempt.execution_success,
@@ -3486,6 +3600,7 @@ def _write_artifacts(
                 "validation_accepted": attempt.validation_accepted,
                 "validation_issues": attempt.validation_issues,
                 "parameter_repair": attempt.parameter_repair,
+                "precreate_metadata": attempt.precreate_metadata,
             }
             for trajectory in result.per_agent_results
             for attempt in trajectory.attempts
@@ -3501,6 +3616,7 @@ def _write_artifacts(
                 "execution_attempted": attempt.execution_attempted,
                 "execution_success": attempt.execution_success,
                 "execution_result": attempt.execution_result,
+                "precreate_metadata": attempt.precreate_metadata,
             }
             for trajectory in result.per_agent_results
             for attempt in trajectory.attempts
