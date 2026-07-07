@@ -19,9 +19,19 @@ _FORBIDDEN_OUTPUT_DIR_PARTS = {"reports", "experiments"}
 class LocalPipelineEntrypointConfigurationError(RuntimeError):
     """Controlled local entrypoint setup error safe to expose as an error code."""
 
-    def __init__(self, code: str = "local_pipeline_entrypoint_not_configured") -> None:
+    def __init__(
+        self,
+        code: str = "local_pipeline_entrypoint_not_configured",
+        *,
+        failure_stage: str | None = None,
+        exception: Exception | None = None,
+        required_fields_missing: list[str] | None = None,
+    ) -> None:
         super().__init__(code)
         self.code = code
+        self.failure_stage = failure_stage
+        self.exception = exception
+        self.required_fields_missing = list(required_fields_missing or [])
 
 
 def run_local_model_pair_trial(entrypoint_input: Mapping[str, Any]) -> dict[str, Any]:
@@ -31,29 +41,43 @@ def run_local_model_pair_trial(entrypoint_input: Mapping[str, Any]) -> dict[str,
     findings = validate_local_entrypoint_runtime_config(entrypoint_input)
     errors = [finding for finding in findings if finding.get("severity") == "error"]
     if errors:
+        error_code = _validation_error_code(errors)
         return _failed_result(
-            "local_pipeline_entrypoint_config_invalid",
+            error_code,
             entrypoint_input=entrypoint_input,
             findings=findings,
             notes=["Local pipeline entrypoint runtime config is invalid."],
+            diagnostics=_failure_diagnostics(
+                "validation",
+                required_fields_missing=_required_fields_from_findings(errors),
+            ),
         )
 
     try:
         pipeline_result = _run_existing_pipeline_entrypoint(entrypoint_input)
     except LocalPipelineEntrypointConfigurationError as exc:
+        diagnostics = _failure_diagnostics(
+            exc.failure_stage or "configuration",
+            exc.exception,
+            required_fields_missing=exc.required_fields_missing,
+        )
+        code = _safe_local_error_code(exc.code)
         return _failed_result(
-            _safe_local_error_code(exc.code),
+            code,
             entrypoint_input=entrypoint_input,
             findings=[
                 _finding(
                     "error",
-                    _safe_local_error_code(exc.code),
-                    message="Local pipeline entrypoint is not configured for runtime execution.",
+                    code,
+                    message=_failure_message(code),
+                    diagnostics=diagnostics,
                 )
             ],
-            notes=["Local pipeline entrypoint runtime path is not configured."],
+            notes=[_failure_message(code)],
+            diagnostics=diagnostics,
         )
-    except Exception:
+    except Exception as exc:
+        diagnostics = _failure_diagnostics("entrypoint", exc)
         return _failed_result(
             "local_pipeline_entrypoint_failed",
             entrypoint_input=entrypoint_input,
@@ -62,12 +86,31 @@ def run_local_model_pair_trial(entrypoint_input: Mapping[str, Any]) -> dict[str,
                     "error",
                     "local_pipeline_entrypoint_failed",
                     message="Local pipeline entrypoint failed before producing a result.",
+                    diagnostics=diagnostics,
                 )
             ],
             notes=["Local pipeline entrypoint failed before producing a result."],
+            diagnostics=diagnostics,
         )
 
-    return _safe_pipeline_result(pipeline_result, entrypoint_input=entrypoint_input)
+    try:
+        return _safe_pipeline_result(pipeline_result, entrypoint_input=entrypoint_input)
+    except Exception as exc:
+        diagnostics = _failure_diagnostics("sanitize", exc)
+        return _failed_result(
+            "local_pipeline_result_sanitize_failed",
+            entrypoint_input=entrypoint_input,
+            findings=[
+                _finding(
+                    "error",
+                    "local_pipeline_result_sanitize_failed",
+                    message="Local pipeline result could not be safely sanitized.",
+                    diagnostics=diagnostics,
+                )
+            ],
+            notes=["Local pipeline result could not be safely sanitized."],
+            diagnostics=diagnostics,
+        )
 
 
 def is_runtime_execution_enabled(entrypoint_input: Mapping[str, Any]) -> bool:
@@ -179,34 +222,84 @@ def validate_local_entrypoint_runtime_config(entrypoint_input: Mapping[str, Any]
     return findings
 
 
-def _run_existing_pipeline_entrypoint(entrypoint_input: Mapping[str, Any]) -> Any:
+def build_orchestrator_executor_run_config_from_local_pipeline_config(
+    entrypoint_input: Mapping[str, Any],
+) -> Any:
+    """Build the existing pipeline run config without instantiating or running the runner."""
+
     pipeline_module = importlib.import_module("src.agent.orchestrator_executor_pipeline")
     config_cls = getattr(pipeline_module, "OrchestratorExecutorRunConfig", None)
-    runner_cls = getattr(pipeline_module, "OrchestratorExecutorRunner", None)
-    if config_cls is None or runner_cls is None:
-        raise LocalPipelineEntrypointConfigurationError("local_pipeline_entrypoint_runtime_dependency_missing")
+    if config_cls is None:
+        raise LocalPipelineEntrypointConfigurationError(
+            "local_pipeline_run_config_build_failed",
+            failure_stage="run_config_build",
+            required_fields_missing=["OrchestratorExecutorRunConfig"],
+        )
 
     config_payload = _existing_pipeline_config_payload(entrypoint_input)
     try:
         if callable(getattr(config_cls, "model_validate", None)):
-            config = config_cls.model_validate(config_payload)
-        else:
-            config = config_cls(**config_payload)
+            return config_cls.model_validate(config_payload)
+        return config_cls(**config_payload)
+    except LocalPipelineEntrypointConfigurationError:
+        raise
+    except Exception as exc:
+        raise LocalPipelineEntrypointConfigurationError(
+            "local_pipeline_run_config_build_failed",
+            failure_stage="run_config_build",
+            exception=exc,
+            required_fields_missing=_required_run_config_fields_missing(config_payload),
+        ) from exc
+
+
+def _run_existing_pipeline_entrypoint(entrypoint_input: Mapping[str, Any]) -> Any:
+    pipeline_module = importlib.import_module("src.agent.orchestrator_executor_pipeline")
+    runner_cls = getattr(pipeline_module, "OrchestratorExecutorRunner", None)
+    if runner_cls is None:
+        raise LocalPipelineEntrypointConfigurationError(
+            "local_pipeline_runner_init_failed",
+            failure_stage="runner_init",
+            required_fields_missing=["OrchestratorExecutorRunner"],
+        )
+
+    config = build_orchestrator_executor_run_config_from_local_pipeline_config(entrypoint_input)
+    try:
         runner = runner_cls(config)
     except LocalPipelineEntrypointConfigurationError:
         raise
     except Exception as exc:
-        raise LocalPipelineEntrypointConfigurationError("local_pipeline_entrypoint_config_invalid") from exc
+        raise LocalPipelineEntrypointConfigurationError(
+            "local_pipeline_runner_init_failed",
+            failure_stage="runner_init",
+            exception=exc,
+        ) from exc
     run = getattr(runner, "run", None)
     if not callable(run):
-        raise LocalPipelineEntrypointConfigurationError("local_pipeline_entrypoint_runtime_dependency_missing")
-    return run()
+        raise LocalPipelineEntrypointConfigurationError(
+            "local_pipeline_runner_init_failed",
+            failure_stage="runner_init",
+            required_fields_missing=["run"],
+        )
+    try:
+        return run()
+    except LocalPipelineEntrypointConfigurationError:
+        raise
+    except Exception as exc:
+        raise LocalPipelineEntrypointConfigurationError(
+            "local_pipeline_runner_run_failed",
+            failure_stage="runner_run",
+            exception=exc,
+        ) from exc
 
 
 def _existing_pipeline_config_payload(entrypoint_input: Mapping[str, Any]) -> dict[str, Any]:
     local_config = _local_pipeline_config(entrypoint_input)
     if local_config is None:
-        raise LocalPipelineEntrypointConfigurationError("local_pipeline_entrypoint_runtime_dependency_missing")
+        raise LocalPipelineEntrypointConfigurationError(
+            "local_pipeline_run_config_build_failed",
+            failure_stage="run_config_build",
+            required_fields_missing=["local_pipeline_config"],
+        )
     payload = dict(local_config)
     payload.setdefault("scenario_path", _safe_optional_text(entrypoint_input.get("scenario_path")))
     payload.setdefault("run_id", _safe_optional_text(entrypoint_input.get("trial_id")) or "local_model_pair_trial")
@@ -256,13 +349,26 @@ def _local_pipeline_config_candidates(entrypoint_input: Mapping[str, Any]) -> li
 def _validate_existing_pipeline_out_dir(value: Any) -> None:
     text = _safe_optional_text(value)
     if not text:
-        raise LocalPipelineEntrypointConfigurationError("local_pipeline_entrypoint_runtime_dependency_missing")
+        raise LocalPipelineEntrypointConfigurationError(
+            "local_pipeline_run_config_build_failed",
+            failure_stage="run_config_build",
+            required_fields_missing=["out_dir"],
+        )
     try:
         parts = [part.lower() for part in Path(text).parts]
     except TypeError as exc:
-        raise LocalPipelineEntrypointConfigurationError("local_pipeline_entrypoint_config_invalid") from exc
+        raise LocalPipelineEntrypointConfigurationError(
+            "local_pipeline_run_config_build_failed",
+            failure_stage="run_config_build",
+            exception=exc,
+            required_fields_missing=["out_dir"],
+        ) from exc
     if set(parts) & _FORBIDDEN_OUTPUT_DIR_PARTS or _is_docs_ai_final_path(parts):
-        raise LocalPipelineEntrypointConfigurationError("local_pipeline_entrypoint_output_dir_forbidden")
+        raise LocalPipelineEntrypointConfigurationError(
+            "local_pipeline_run_config_build_failed",
+            failure_stage="run_config_build",
+            required_fields_missing=[],
+        )
 
 
 def _is_docs_ai_final_path(parts: list[str]) -> bool:
@@ -300,8 +406,19 @@ def _failed_result(
     entrypoint_input: Mapping[str, Any],
     findings: list[dict[str, Any]],
     notes: list[str],
+    diagnostics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     warning_codes = [error_code, *(finding["code"] for finding in findings if finding.get("code"))]
+    metadata = {
+        "entrypoint": LOCAL_MODEL_PAIR_PIPELINE_ENTRYPOINT,
+        "no_runtime_execution": False,
+        "findings": findings,
+        "trial_id": entrypoint_input.get("trial_id"),
+        "pair_id": entrypoint_input.get("pair_id"),
+        "scenario_id": entrypoint_input.get("scenario_id"),
+    }
+    if diagnostics:
+        metadata["diagnostics"] = diagnostics
     return _safe_mapping(
         {
             "status": "failed",
@@ -314,14 +431,7 @@ def _failed_result(
             "resource_observation": {},
             "warnings": sorted(set(_safe_text_list(warning_codes))),
             "notes": notes,
-            "metadata": {
-                "entrypoint": LOCAL_MODEL_PAIR_PIPELINE_ENTRYPOINT,
-                "no_runtime_execution": False,
-                "findings": findings,
-                "trial_id": entrypoint_input.get("trial_id"),
-                "pair_id": entrypoint_input.get("pair_id"),
-                "scenario_id": entrypoint_input.get("scenario_id"),
-            },
+            "metadata": metadata,
             "findings": findings,
             "no_runtime_execution": False,
         }
@@ -480,17 +590,91 @@ def _finding(
     trial_id: Any = None,
     pair_id: Any = None,
     scenario_id: Any = None,
+    diagnostics: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return _safe_mapping(
-        {
-            "severity": severity,
-            "code": code,
-            "trial_id": trial_id,
-            "pair_id": pair_id,
-            "scenario_id": scenario_id,
-            "message": message,
-        }
-    )
+    payload = {
+        "severity": severity,
+        "code": code,
+        "trial_id": trial_id,
+        "pair_id": pair_id,
+        "scenario_id": scenario_id,
+        "message": message,
+    }
+    if diagnostics:
+        payload["diagnostics"] = diagnostics
+    return _safe_mapping(payload)
+
+
+def _validation_error_code(errors: list[dict[str, Any]]) -> str:
+    codes = {str(finding.get("code")) for finding in errors if finding.get("code")}
+    if "local_pipeline_config_missing" in codes:
+        return "local_pipeline_config_missing"
+    if "local_pipeline_config_invalid" in codes:
+        return "local_pipeline_config_invalid"
+    return "local_pipeline_config_invalid"
+
+
+def _required_fields_from_findings(findings: list[dict[str, Any]]) -> list[str]:
+    fields: list[str] = []
+    for finding in findings:
+        code = _safe_optional_text(finding.get("code")) or ""
+        if code.endswith("_missing"):
+            fields.append(code.removesuffix("_missing"))
+    return sorted(set(fields))
+
+
+def _required_run_config_fields_missing(payload: Mapping[str, Any]) -> list[str]:
+    missing: list[str] = []
+    for field in ("models_config_path", "scenario_path", "out_dir", "run_id"):
+        if not _safe_optional_text(payload.get(field)):
+            missing.append(field)
+    return missing
+
+
+def _failure_diagnostics(
+    failure_stage: str,
+    exception: Exception | None = None,
+    *,
+    required_fields_missing: list[str] | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "failure_stage": _safe_text(failure_stage),
+        "exception_type": _safe_exception_type(exception),
+        "safe_message": _safe_exception_message(exception),
+        "required_fields_missing": _safe_text_list(required_fields_missing or []),
+    }
+    return _safe_mapping(payload)
+
+
+def _safe_exception_type(exception: Exception | None) -> str | None:
+    if exception is None:
+        return None
+    name = type(exception).__name__
+    if _secret_like_text(name):
+        return "Exception"
+    return _safe_text(name)
+
+
+def _safe_exception_message(exception: Exception | None) -> str | None:
+    if exception is None:
+        return None
+    text = str(exception).strip()
+    if not text:
+        return None
+    return _safe_text(text)
+
+
+def _failure_message(code: str) -> str:
+    messages = {
+        "local_pipeline_config_missing": "Local pipeline config is missing.",
+        "local_pipeline_config_invalid": "Local pipeline config is invalid.",
+        "local_pipeline_run_config_build_failed": "Local pipeline run config could not be built.",
+        "local_pipeline_runner_init_failed": "Local pipeline runner could not be initialized.",
+        "local_pipeline_runner_run_failed": "Local pipeline runner failed during run.",
+        "local_pipeline_result_sanitize_failed": "Local pipeline result could not be safely sanitized.",
+        "local_pipeline_entrypoint_failed": "Local pipeline entrypoint failed before producing a result.",
+    }
+    return messages.get(code, "Local pipeline entrypoint failed before producing a result.")
 
 
 def _safe_local_error_code(value: Any) -> str:
@@ -562,10 +746,15 @@ def _safe_text(value: str) -> str:
 
 
 def _redact_secret_text(value: str) -> str:
-    return re.sub(
+    text = re.sub(
         r"(?i)\b(api[_-]?key|token|secret|password|credential|auth)\s*[:=]\s*['\"]?[^,\s'\"]+",
         lambda match: f"{match.group(1)}=<redacted_secret>",
         value,
+    )
+    return re.sub(
+        r"(?i)\b(raw_prompt|raw_response|raw_output|raw_model_output|full_prompt|full_response|prompt_text|response_text)\s*[:=]\s*['\"]?[^,\s'\"]+",
+        "<redacted_raw_text>",
+        text,
     )
 
 

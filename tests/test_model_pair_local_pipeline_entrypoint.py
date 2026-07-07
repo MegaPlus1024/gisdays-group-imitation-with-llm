@@ -15,6 +15,7 @@ from src.agent.model_pair_execution_readiness import (
     write_model_pair_execution_readiness_summary,
 )
 from src.agent.model_pair_local_pipeline_entrypoint import (
+    build_orchestrator_executor_run_config_from_local_pipeline_config,
     is_runtime_execution_enabled,
     run_local_model_pair_trial,
     validate_local_entrypoint_runtime_config,
@@ -207,10 +208,19 @@ def _codes(result: dict[str, Any]) -> set[str]:
     return {finding["code"] for finding in findings if isinstance(finding, dict) and "code" in finding}
 
 
+def _diagnostics(result: dict[str, Any]) -> dict[str, Any]:
+    metadata = result.get("metadata")
+    if isinstance(metadata, dict) and isinstance(metadata.get("diagnostics"), dict):
+        return metadata["diagnostics"]
+    return {}
+
+
 def _install_fake_existing_pipeline_module(
     monkeypatch: pytest.MonkeyPatch,
     *,
     result: dict[str, Any] | None = None,
+    config_raises: bool = False,
+    runner_init_raises: bool = False,
     run_raises: bool = False,
 ) -> list[tuple[str, Any]]:
     calls: list[tuple[str, Any]] = []
@@ -223,17 +233,24 @@ def _install_fake_existing_pipeline_module(
         @classmethod
         def model_validate(cls, payload: dict[str, Any]) -> "FakeRunConfig":
             calls.append(("config", payload))
+            if config_raises:
+                raise TypeError("bad config C:\\Users\\Example\\secret\\cfg.json token=SECRET_TOKEN")
             return cls(payload)
 
     class FakeRunner:
         def __init__(self, config: FakeRunConfig) -> None:
             calls.append(("runner_init", config.payload))
+            if runner_init_raises:
+                raise RuntimeError("runner init failed api_key=SECRET_KEY")
             self.config = config
 
         def run(self) -> dict[str, Any]:
             calls.append(("run", self.config.payload))
             if run_raises:
-                raise RuntimeError("RAW_SECRET_EXCEPTION_DETAIL token=SECRET_TOKEN")
+                raise RuntimeError(
+                    "runner run failed at C:\\Users\\Example\\run.txt "
+                    "token=SECRET_TOKEN raw_prompt=DO_NOT_COPY"
+                )
             return result or _fake_pipeline_result()
 
     module.OrchestratorExecutorRunConfig = FakeRunConfig  # type: ignore[attr-defined]
@@ -296,12 +313,23 @@ def test_runtime_true_validation_checks_required_fields() -> None:
     assert "executor_model_id_missing" in codes
 
 
-def test_runtime_true_missing_local_pipeline_config_returns_dependency_missing() -> None:
+def test_runtime_true_missing_local_pipeline_config_returns_controlled_missing() -> None:
     result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True, local_pipeline_config=None))
 
     assert result["status"] == "failed"
-    assert result["error_code"] == "local_pipeline_entrypoint_config_invalid"
+    assert result["error_code"] == "local_pipeline_config_missing"
     assert "local_pipeline_config_missing" in _codes(result)
+    assert _diagnostics(result)["failure_stage"] == "validation"
+    assert "local_pipeline_config" in _diagnostics(result)["required_fields_missing"]
+
+
+def test_runtime_true_invalid_local_pipeline_config_returns_controlled_invalid() -> None:
+    result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True, local_pipeline_config="invalid"))
+
+    assert result["status"] == "failed"
+    assert result["error_code"] == "local_pipeline_config_invalid"
+    assert "local_pipeline_config_invalid" in _codes(result)
+    assert _diagnostics(result)["failure_stage"] == "validation"
 
 
 def test_local_entrypoint_accepts_nested_extra_config_compatibility_path(
@@ -355,7 +383,7 @@ def test_runtime_true_does_not_lazy_import_existing_pipeline_before_validation(
     result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True, scenario_config={}))
 
     assert result["status"] == "failed"
-    assert result["error_code"] == "local_pipeline_entrypoint_config_invalid"
+    assert result["error_code"] == "local_pipeline_config_invalid"
     assert "scenario_config_missing" in _codes(result)
     assert calls == []
 
@@ -393,6 +421,114 @@ def test_entrypoint_passes_expected_config_shape_to_existing_pipeline(
     assert config_payload["execute_actions"] is False
 
 
+def test_config_build_helper_accepts_first_run_packet_local_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_fake_existing_pipeline_module(monkeypatch)
+    local_config = json.loads(
+        Path("artifacts/first_run_packets/phase_8_13_first/local_pipeline_config.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    config = build_orchestrator_executor_run_config_from_local_pipeline_config(
+        _entrypoint_input(allow_runtime=True, local_pipeline_config=local_config)
+    )
+
+    assert config.payload["mode"] == "local"
+    assert config.payload["models_config_path"] == "configs/evaluation_models.json"
+    assert config.payload["scenario_path"] == SCENARIO_PATH
+    assert config.payload["out_dir"] == "artifacts/single_trial_runs/phase_8_11_first/pipeline"
+    assert config.payload["orchestrator_model_id"] == "second_model"
+    assert config.payload["executor_model_id"] == "first_model"
+    assert [name for name, _ in calls] == ["config"]
+
+
+def test_run_config_build_failure_returns_staged_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_existing_pipeline_module(monkeypatch, config_raises=True)
+
+    result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True))
+    text = json.dumps(result, ensure_ascii=False)
+
+    assert result["status"] == "failed"
+    assert result["error_code"] == "local_pipeline_run_config_build_failed"
+    assert _diagnostics(result)["failure_stage"] == "run_config_build"
+    assert _diagnostics(result)["exception_type"] == "TypeError"
+    assert "C:\\Users" not in text
+    assert "SECRET_TOKEN" not in text
+    assert "Traceback" not in text
+
+
+def test_runner_init_failure_returns_staged_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_existing_pipeline_module(monkeypatch, runner_init_raises=True)
+
+    result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True))
+    text = json.dumps(result, ensure_ascii=False)
+
+    assert result["status"] == "failed"
+    assert result["error_code"] == "local_pipeline_runner_init_failed"
+    assert _diagnostics(result)["failure_stage"] == "runner_init"
+    assert _diagnostics(result)["exception_type"] == "RuntimeError"
+    assert "SECRET_KEY" not in text
+    assert "Traceback" not in text
+
+
+def test_runner_run_failure_returns_staged_diagnostics_without_raw_leak(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_existing_pipeline_module(monkeypatch, run_raises=True)
+
+    result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True))
+    text = json.dumps(result, ensure_ascii=False)
+
+    assert result["status"] == "failed"
+    assert result["error_code"] == "local_pipeline_runner_run_failed"
+    assert _diagnostics(result)["failure_stage"] == "runner_run"
+    assert _diagnostics(result)["exception_type"] == "RuntimeError"
+    assert "SECRET_TOKEN" not in text
+    assert "DO_NOT_COPY" not in text
+    assert "raw_prompt" not in text
+    assert "C:\\Users" not in text
+    assert "Traceback" not in text
+
+
+def test_result_sanitize_failure_returns_staged_diagnostics_without_raw_leak(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.agent.model_pair_local_pipeline_entrypoint as local_entrypoint
+
+    monkeypatch.setattr(
+        local_entrypoint,
+        "_run_existing_pipeline_entrypoint",
+        lambda _: _fake_pipeline_result(),
+    )
+
+    def fail_sanitize(*_: object, **__: object) -> dict[str, Any]:
+        raise ValueError(
+            "sanitize failed C:\\Users\\Example\\raw.txt "
+            "api_key=SECRET_KEY raw_response=DO_NOT_COPY"
+        )
+
+    monkeypatch.setattr(local_entrypoint, "_safe_pipeline_result", fail_sanitize)
+
+    result = local_entrypoint.run_local_model_pair_trial(_entrypoint_input(allow_runtime=True))
+    text = json.dumps(result, ensure_ascii=False)
+
+    assert result["status"] == "failed"
+    assert result["error_code"] == "local_pipeline_result_sanitize_failed"
+    assert _diagnostics(result)["failure_stage"] == "sanitize"
+    assert _diagnostics(result)["exception_type"] == "ValueError"
+    assert "SECRET_KEY" not in text
+    assert "DO_NOT_COPY" not in text
+    assert "raw_response" not in text
+    assert "C:\\Users" not in text
+    assert "Traceback" not in text
+
+
 def test_runtime_true_missing_model_bindings_returns_controlled_failed_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -401,7 +537,7 @@ def test_runtime_true_missing_model_bindings_returns_controlled_failed_result(
     result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True, model_bindings={}))
 
     assert result["status"] == "failed"
-    assert result["error_code"] == "local_pipeline_entrypoint_config_invalid"
+    assert result["error_code"] == "local_pipeline_config_invalid"
     assert "model_bindings_missing" in _codes(result)
     assert calls == []
 
@@ -414,7 +550,7 @@ def test_runtime_true_missing_scenario_config_returns_controlled_failed_result(
     result = run_local_model_pair_trial(_entrypoint_input(allow_runtime=True, scenario_config={}))
 
     assert result["status"] == "failed"
-    assert result["error_code"] == "local_pipeline_entrypoint_config_invalid"
+    assert result["error_code"] == "local_pipeline_config_invalid"
     assert "scenario_config_missing" in _codes(result)
     assert calls == []
 
@@ -521,9 +657,11 @@ def test_existing_pipeline_exception_becomes_controlled_failed_result_without_ra
 
     assert result["status"] == "failed"
     assert result["error_code"] == "local_pipeline_entrypoint_failed"
+    assert _diagnostics(result)["failure_stage"] == "entrypoint"
+    assert _diagnostics(result)["exception_type"] == "RuntimeError"
     assert marker not in text
-    assert "RuntimeError" not in text
     assert "SECRET_TOKEN" not in text
+    assert "Traceback" not in text
 
 
 def test_existing_pipeline_runner_exception_becomes_controlled_failed_without_raw_leak(
@@ -535,8 +673,10 @@ def test_existing_pipeline_runner_exception_becomes_controlled_failed_without_ra
     text = json.dumps(result, ensure_ascii=False)
 
     assert result["status"] == "failed"
-    assert result["error_code"] == "local_pipeline_entrypoint_failed"
-    assert "RAW_SECRET_EXCEPTION_DETAIL" not in text
+    assert result["error_code"] == "local_pipeline_runner_run_failed"
+    assert _diagnostics(result)["failure_stage"] == "runner_run"
+    assert "DO_NOT_COPY" not in text
+    assert "raw_prompt" not in text
     assert "SECRET_TOKEN" not in text
     assert "Traceback" not in text
 
