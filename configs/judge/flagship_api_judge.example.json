@@ -1,15 +1,19 @@
 {
   "api_key_env": "OPENAI_API_KEY",
+  "base_url": "https://api.openai.com/v1",
   "judge_is_evaluated_model": false,
   "judge_is_independent_from_tested_pair": true,
   "max_output_tokens": 2000,
   "model": "CONFIGURE_FLAGSHIP_MODEL_ID",
   "notes": [
     "Do not store API keys in this file.",
-    "This config is for future guarded API judge execution; Phase 8.28 does not call APIs."
+    "Model id is operator-configured; judge is not part of evaluated pair.",
+    "This config is for future guarded API judge execution and requires explicit operator opt-in."
   ],
-  "provider": "external_api",
+  "provider": "openai_responses_api",
+  "reasoning_effort": "high",
   "response_format": "json_schema",
   "schema_version": "flagship_api_judge_config_v1",
-  "temperature": 0
+  "temperature": 0,
+  "timeout_seconds": 120
 }
