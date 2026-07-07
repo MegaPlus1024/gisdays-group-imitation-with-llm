@@ -1216,6 +1216,32 @@ Safeguards and limitations:
 - no mail/git/calendar/email actions were added;
 - no LLM-as-a-judge/API judge/model runtime was touched by this evidence step.
 
+## Phase 9.10 Guarded Playwright suite execution path
+
+Phase 9.10 implements the next browser step after the successful single guarded smoke: a bounded suite execution path that remains operator-gated.
+
+What changed:
+
+- the Playwright operator now supports `first_scenario_only`, `scenario_id` and `suite` execution scopes;
+- a separate `configs/autonomous_runtime/playwright_suite_operator.example.json` config covers the four fixture-backed browser scenarios with explicit limits;
+- suite mode produces `autonomous_browser_playwright_suite_summary_v1` data in `playwright_suite_summary.json`;
+- the suite summary records scenario counts, action counts, required action coverage, expected result counts and loopback URL diagnostics;
+- the guarded action layer covers the eight controlled browser actions: `browser_open_url`, `browser_click`, `browser_extract_text`, `browser_fill`, `browser_submit`, `browser_wait`, `browser_search` and `browser_snapshot`;
+- the smoke evidence summarizer now accepts both smoke and suite summary schemas;
+- the operator packet includes a separate guarded suite command for manual operator use.
+
+Verification status:
+
+- implemented and covered by fake/offline automated tests;
+- suite readiness dry-run is supported;
+- no real Playwright/Chromium suite run is claimed yet.
+
+Safeguards and limitations:
+
+- Codex automated checks do not launch browser, Playwright, Chromium, local HTTP server, models, Office, external network or LLM judge;
+- suite execution remains guarded by explicit operator flags;
+- browser status remains partial until an operator-run guarded suite summary is produced and converted into committed evidence.
+
 ## Итоговая сводка статусов
 
 | Статус | Количество подпунктов |
@@ -1230,8 +1256,8 @@ Safeguards and limitations:
 ## Краткий вывод
 
 - Полностью закрыто: базовая agent architecture, локальная модельная интеграция, roles/context/script formats, script registry, action selection, execution bridge, history/error logging, file/shell/office document actions, controlled single-trial and mini-matrix prototype evidence.
-- Частично закрыто и продвинуто Phase 9.1/9.2/9.3/9.4/9.5/9.6/9.7/9.8/9.9: autonomous multi-agent runtime foundation, deterministic scheduler, shared state/task board, runtime loop, stop policy, error recovery, resource locks, virtual environment metadata, fixture-backed browser runtime integration, config-driven autonomous browser scenario evidence, expanded browser fixture coverage with click navigation, synthetic form workflow, wait action, dependencies, browser coverage summary, 4-scenario browser suite aggregation, guarded Playwright operator readiness/packet path, actual guarded Playwright execution implementation, post-smoke fixture URL/HTTP status fixes and successful guarded Playwright smoke evidence.
+- Частично закрыто и продвинуто Phase 9.1/9.2/9.3/9.4/9.5/9.6/9.7/9.8/9.9/9.10: autonomous multi-agent runtime foundation, deterministic scheduler, shared state/task board, runtime loop, stop policy, error recovery, resource locks, virtual environment metadata, fixture-backed browser runtime integration, config-driven autonomous browser scenario evidence, expanded browser fixture coverage with click navigation, synthetic form workflow, wait action, dependencies, browser coverage summary, 4-scenario browser suite aggregation, guarded Playwright operator readiness/packet path, actual guarded Playwright execution implementation, post-smoke fixture URL/HTTP status fixes, successful guarded Playwright smoke evidence and bounded guarded Playwright suite execution path.
 - Частично закрыто: virtual network simulation, production browser automation, broad behavioral normality evaluation, model comparison breadth, resource/capacity sizing, GPU/stress evidence, final configuration for further development.
 - Не закрыто: mail/git/other application actions.
-- Для полного закрытия ТЗ нужны: broader guarded browser coverage beyond one smoke scenario, guarded semantic LLM-as-a-judge run later, larger N, stronger resource/capacity measurements, ясная граница virtual network scope, optional mail/git actions only if separately approved under safety policy.
+- Для полного закрытия ТЗ нужны: manual operator-run guarded browser suite evidence, guarded semantic LLM-as-a-judge run later, larger N, stronger resource/capacity measurements, ясная граница virtual network scope, optional mail/git actions only if separately approved under safety policy.
 - Production recommendation не делается: текущий результат является исследовательским prototype conclusion.

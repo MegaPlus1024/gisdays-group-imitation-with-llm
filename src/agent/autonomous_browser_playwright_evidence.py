@@ -10,8 +10,11 @@ from urllib.parse import urlparse
 
 EVIDENCE_SCHEMA_VERSION = "autonomous_browser_playwright_smoke_evidence_v1"
 SMOKE_SUMMARY_SCHEMA_VERSION = "autonomous_browser_playwright_smoke_summary_v1"
+SUITE_SUMMARY_SCHEMA_VERSION = "autonomous_browser_playwright_suite_summary_v1"
 SUCCESS_EVIDENCE_LEVEL = "guarded_real_browser_smoke_succeeded"
 FAILED_EVIDENCE_LEVEL = "guarded_real_browser_smoke_not_succeeded"
+SUITE_SUCCESS_EVIDENCE_LEVEL = "guarded_real_browser_suite_succeeded"
+SUITE_FAILED_EVIDENCE_LEVEL = "guarded_real_browser_suite_not_succeeded"
 REQUIRED_LOGICAL_URLS = (
     "https://local.intranet/tickets/1",
     "https://docs.local/docs/policy",
@@ -43,15 +46,24 @@ class PlaywrightSmokeEvidence:
     actions_failed: int
     expected_results_total: int
     expected_results_passed: int
+    expected_results_failed: int
     logical_urls_visited: tuple[str, ...]
     served_url_policy: dict[str, Any]
     browser_backend: dict[str, Any]
     scenario_scope: dict[str, Any]
     evidence_level: str
     limitations: tuple[str, ...]
+    scenario_count: int | None = None
+    scenarios_attempted: int | None = None
+    scenarios_succeeded: int | None = None
+    scenarios_failed: int | None = None
+    required_actions: tuple[str, ...] = ()
+    required_actions_covered: tuple[str, ...] = ()
+    required_actions_missing: tuple[str, ...] = ()
+    overall_action_coverage_ratio: float | None = None
 
     def to_report(self) -> dict[str, Any]:
-        return {
+        report = {
             "schema_version": self.schema_version,
             "source_schema_version": self.source_schema_version,
             "operator_id": self.operator_id,
@@ -62,6 +74,7 @@ class PlaywrightSmokeEvidence:
             "actions_failed": self.actions_failed,
             "expected_results_total": self.expected_results_total,
             "expected_results_passed": self.expected_results_passed,
+            "expected_results_failed": self.expected_results_failed,
             "logical_urls_visited": list(self.logical_urls_visited),
             "served_url_policy": self.served_url_policy,
             "browser_backend": self.browser_backend,
@@ -69,6 +82,20 @@ class PlaywrightSmokeEvidence:
             "evidence_level": self.evidence_level,
             "limitations": list(self.limitations),
         }
+        if self.scenario_count is not None:
+            report.update(
+                {
+                    "scenario_count": self.scenario_count,
+                    "scenarios_attempted": self.scenarios_attempted,
+                    "scenarios_succeeded": self.scenarios_succeeded,
+                    "scenarios_failed": self.scenarios_failed,
+                    "required_actions": list(self.required_actions),
+                    "required_actions_covered": list(self.required_actions_covered),
+                    "required_actions_missing": list(self.required_actions_missing),
+                    "overall_action_coverage_ratio": self.overall_action_coverage_ratio,
+                }
+            )
+        return report
 
 
 def validate_playwright_smoke_summary(summary: Mapping[str, Any]) -> PlaywrightSmokeEvidence:
@@ -77,14 +104,20 @@ def validate_playwright_smoke_summary(summary: Mapping[str, Any]) -> PlaywrightS
     _reject_unsafe_strings(summary)
 
     source_schema_version = _string(summary.get("schema_version"), "schema_version")
-    if source_schema_version != SMOKE_SUMMARY_SCHEMA_VERSION:
-        raise PlaywrightSmokeEvidenceError("unexpected smoke summary schema_version.")
+    if source_schema_version == SMOKE_SUMMARY_SCHEMA_VERSION:
+        return _validate_smoke_summary(summary, source_schema_version)
+    if source_schema_version == SUITE_SUMMARY_SCHEMA_VERSION:
+        return _validate_suite_summary(summary, source_schema_version)
+    raise PlaywrightSmokeEvidenceError("unexpected Playwright summary schema_version.")
 
+
+def _validate_smoke_summary(summary: Mapping[str, Any], source_schema_version: str) -> PlaywrightSmokeEvidence:
     actions_attempted = _int(summary.get("actions_attempted"), "actions_attempted")
     actions_succeeded = _int(summary.get("actions_succeeded"), "actions_succeeded")
     actions_failed = _int(summary.get("actions_failed"), "actions_failed")
     expected_results = _list(summary.get("expected_results"), "expected_results")
     expected_results_passed = sum(1 for item in expected_results if isinstance(item, Mapping) and item.get("passed") is True)
+    expected_results_failed = len(expected_results) - expected_results_passed
     logical_urls = tuple(_string_list(summary.get("logical_urls_visited"), "logical_urls_visited"))
     served_urls = tuple(_served_urls(summary))
     _validate_served_urls(served_urls)
@@ -116,6 +149,7 @@ def validate_playwright_smoke_summary(summary: Mapping[str, Any]) -> PlaywrightS
         actions_failed=actions_failed,
         expected_results_total=len(expected_results),
         expected_results_passed=expected_results_passed,
+        expected_results_failed=expected_results_failed,
         logical_urls_visited=logical_urls,
         served_url_policy={
             "loopback_only": True,
@@ -126,6 +160,79 @@ def validate_playwright_smoke_summary(summary: Mapping[str, Any]) -> PlaywrightS
         scenario_scope=dict(_mapping(summary.get("scenario_scope"), "scenario_scope")),
         evidence_level=SUCCESS_EVIDENCE_LEVEL if passed else FAILED_EVIDENCE_LEVEL,
         limitations=LIMITATIONS,
+    )
+
+
+def _validate_suite_summary(summary: Mapping[str, Any], source_schema_version: str) -> PlaywrightSmokeEvidence:
+    actions_attempted = _int(summary.get("actions_attempted"), "actions_attempted")
+    actions_succeeded = _int(summary.get("actions_succeeded"), "actions_succeeded")
+    actions_failed = _int(summary.get("actions_failed"), "actions_failed")
+    expected_results_total = _int(summary.get("expected_results_total"), "expected_results_total")
+    expected_results_passed = _int(summary.get("expected_results_passed"), "expected_results_passed")
+    expected_results_failed = _int(summary.get("expected_results_failed"), "expected_results_failed")
+    logical_urls = tuple(_string_list(summary.get("logical_urls_visited"), "logical_urls_visited"))
+    served_urls = tuple(_served_urls(summary))
+    _validate_served_urls(served_urls)
+    required_actions = tuple(_string_list(summary.get("required_actions"), "required_actions"))
+    required_actions_covered = tuple(_string_list(summary.get("required_actions_covered"), "required_actions_covered"))
+    required_actions_missing = tuple(_string_list(summary.get("required_actions_missing"), "required_actions_missing"))
+    scenario_count = _int(summary.get("scenario_count"), "scenario_count")
+    scenarios_attempted = _int(summary.get("scenarios_attempted"), "scenarios_attempted")
+    scenarios_succeeded = _int(summary.get("scenarios_succeeded"), "scenarios_succeeded")
+    scenarios_failed = _int(summary.get("scenarios_failed"), "scenarios_failed")
+    status = _string(summary.get("status"), "status")
+    error_code = summary.get("error_code")
+    no_runtime_execution = summary.get("no_runtime_execution")
+    passed = (
+        status == "succeeded"
+        and error_code is None
+        and no_runtime_execution is False
+        and scenario_count >= 1
+        and scenarios_attempted == scenario_count
+        and scenarios_succeeded == scenario_count
+        and scenarios_failed == 0
+        and actions_attempted > 0
+        and actions_succeeded == actions_attempted
+        and actions_failed == 0
+        and expected_results_total > 0
+        and expected_results_passed == expected_results_total
+        and expected_results_failed == 0
+        and bool(required_actions)
+        and set(required_actions).issubset(set(required_actions_covered))
+        and not required_actions_missing
+        and bool(served_urls)
+    )
+
+    return PlaywrightSmokeEvidence(
+        schema_version=EVIDENCE_SCHEMA_VERSION,
+        source_schema_version=source_schema_version,
+        operator_id=_string(summary.get("operator_id"), "operator_id"),
+        status=status,
+        passed=passed,
+        actions_attempted=actions_attempted,
+        actions_succeeded=actions_succeeded,
+        actions_failed=actions_failed,
+        expected_results_total=expected_results_total,
+        expected_results_passed=expected_results_passed,
+        expected_results_failed=expected_results_failed,
+        logical_urls_visited=logical_urls,
+        served_url_policy={
+            "loopback_only": True,
+            "served_urls_checked": len(served_urls),
+            "served_url_prefix": "http://127.0.0.1:8765/",
+        },
+        browser_backend=dict(_mapping(summary.get("browser_backend"), "browser_backend")),
+        scenario_scope={"mode": "suite"},
+        evidence_level=SUITE_SUCCESS_EVIDENCE_LEVEL if passed else SUITE_FAILED_EVIDENCE_LEVEL,
+        limitations=LIMITATIONS,
+        scenario_count=scenario_count,
+        scenarios_attempted=scenarios_attempted,
+        scenarios_succeeded=scenarios_succeeded,
+        scenarios_failed=scenarios_failed,
+        required_actions=required_actions,
+        required_actions_covered=required_actions_covered,
+        required_actions_missing=required_actions_missing,
+        overall_action_coverage_ratio=_number(summary.get("overall_action_coverage_ratio"), "overall_action_coverage_ratio"),
     )
 
 
@@ -168,15 +275,44 @@ def render_playwright_smoke_evidence_markdown(report: Mapping[str, Any]) -> str:
         "- Browser actions opened pages, extracted text, searched content and prepared snapshots.",
         "- Expected text markers were found.",
         "- No external network was required.",
-        "",
-        "## Evidence details",
-        "",
-        f"- Source schema: `{report.get('source_schema_version')}`",
-        f"- Operator id: `{report.get('operator_id')}`",
-        f"- Passed: `{str(report.get('passed')).lower()}`",
-        f"- Served URL policy: loopback_only={served_url_policy.get('loopback_only')}, checked={served_url_policy.get('served_urls_checked')}",
-        "- Logical URLs visited:",
     ]
+    if report.get("scenario_count") is not None:
+        lines.extend(
+            [
+                "- Suite mode attempted bounded fixture-backed scenarios.",
+                (
+                    "- Required browser actions covered: "
+                    f"{len(report.get('required_actions_covered') or [])}/{len(report.get('required_actions') or [])}"
+                ),
+            ]
+        )
+        missing_actions = report.get("required_actions_missing") or []
+        if missing_actions:
+            lines.append("- Required browser actions missing: " + ", ".join(f"`{item}`" for item in missing_actions))
+        lines.extend(
+            [
+                "",
+                "## Suite coverage",
+                "",
+                (
+                    "- Scenarios attempted/succeeded/failed: "
+                    f"{report.get('scenarios_attempted')}/{report.get('scenarios_succeeded')}/{report.get('scenarios_failed')}"
+                ),
+                f"- Overall action coverage ratio: {report.get('overall_action_coverage_ratio')}",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "## Evidence details",
+            "",
+            f"- Source schema: `{report.get('source_schema_version')}`",
+            f"- Operator id: `{report.get('operator_id')}`",
+            f"- Passed: `{str(report.get('passed')).lower()}`",
+            f"- Served URL policy: loopback_only={served_url_policy.get('loopback_only')}, checked={served_url_policy.get('served_urls_checked')}",
+            "- Logical URLs visited:",
+        ]
+    )
     lines.extend(f"  - `{url}`" for url in logical_urls)
     lines.extend(
         [
@@ -191,17 +327,22 @@ def render_playwright_smoke_evidence_markdown(report: Mapping[str, Any]) -> str:
 
 
 def _served_urls(summary: Mapping[str, Any]) -> list[str]:
-    diagnostics = summary.get("diagnostics", {})
-    if not isinstance(diagnostics, Mapping):
-        return []
-    actions = diagnostics.get("actions", [])
-    if not isinstance(actions, list):
-        return []
     urls: list[str] = []
-    for action in actions:
-        if isinstance(action, Mapping) and isinstance(action.get("served_url"), str):
-            urls.append(action["served_url"])
+    _collect_served_urls(summary, urls)
     return urls
+
+
+def _collect_served_urls(value: Any, urls: list[str]) -> None:
+    if isinstance(value, Mapping):
+        served_url = value.get("served_url")
+        if isinstance(served_url, str):
+            urls.append(served_url)
+        for child in value.values():
+            _collect_served_urls(child, urls)
+        return
+    if isinstance(value, list):
+        for child in value:
+            _collect_served_urls(child, urls)
 
 
 def _validate_served_urls(urls: tuple[str, ...]) -> None:
@@ -277,6 +418,12 @@ def _int(value: Any, label: str) -> int:
     if not isinstance(value, int):
         raise PlaywrightSmokeEvidenceError(f"{label} must be an integer.")
     return value
+
+
+def _number(value: Any, label: str) -> float:
+    if not isinstance(value, int | float):
+        raise PlaywrightSmokeEvidenceError(f"{label} must be a number.")
+    return float(value)
 
 
 def report_to_json(report: Mapping[str, Any]) -> str:

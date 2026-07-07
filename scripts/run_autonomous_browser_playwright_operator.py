@@ -22,6 +22,7 @@ from src.agent.autonomous_browser_playwright_operator import (
 )
 from src.agent.autonomous_browser_playwright_execution import (
     PlaywrightExecutionConfig,
+    run_guarded_playwright_suite,
     run_guarded_playwright_smoke,
 )
 from src.agent.autonomous_runtime_scenarios import (
@@ -34,6 +35,7 @@ def main(
     argv: list[str] | None = None,
     *,
     execution_runner: Callable[[PlaywrightExecutionConfig], Any] = run_guarded_playwright_smoke,
+    suite_execution_runner: Callable[[PlaywrightExecutionConfig], Any] = run_guarded_playwright_suite,
 ) -> int:
     parser = argparse.ArgumentParser(description="Prepare guarded Playwright browser operator readiness.")
     parser.add_argument("--config", required=True)
@@ -92,9 +94,10 @@ def main(
         _emit({"status": "not_ready", "readiness": readiness.to_dict(), "no_runtime_execution": True})
         return 1
 
-    summary = execution_runner(PlaywrightExecutionConfig.from_operator_config(config, repo_root=PROJECT_ROOT))
+    execution_config = PlaywrightExecutionConfig.from_operator_config(config, repo_root=PROJECT_ROOT)
+    summary = suite_execution_runner(execution_config) if _execution_scope_mode(config.execution_scope) == "suite" else execution_runner(execution_config)
     if config.output_dir:
-        output_path = Path(config.output_dir) / "playwright_smoke_summary.json"
+        output_path = Path(config.output_dir) / _summary_filename(config.execution_scope)
         write_autonomous_runtime_scenario_summary(summary.to_dict(), output_path)
     _emit(summary.to_dict())
     return 0 if summary.status == "succeeded" else 1
@@ -116,6 +119,15 @@ def _display_arg_path(value: str) -> str:
             return Path(value).resolve(strict=False).relative_to(Path.cwd().resolve(strict=False)).as_posix()
         except (OSError, ValueError):
             return Path(value).name
+
+
+def _execution_scope_mode(execution_scope: dict[str, Any]) -> str:
+    mode = execution_scope.get("mode", "first_scenario_only")
+    return str(mode)
+
+
+def _summary_filename(execution_scope: dict[str, Any]) -> str:
+    return "playwright_suite_summary.json" if _execution_scope_mode(execution_scope) == "suite" else "playwright_smoke_summary.json"
 
 
 def _emit(payload: dict[str, Any]) -> None:

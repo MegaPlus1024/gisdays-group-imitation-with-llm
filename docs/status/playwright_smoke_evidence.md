@@ -39,3 +39,7 @@
 - no external network
 - no mail/git actions
 - no LLM judge
+
+## Phase 9.10 note
+
+Phase 9.10 adds a bounded guarded Playwright suite execution path and a suite evidence parser, but this document remains evidence for the already completed single smoke run only. The suite path still requires a separate manual operator run before real suite success can be claimed.

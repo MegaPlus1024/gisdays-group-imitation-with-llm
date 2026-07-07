@@ -23,6 +23,19 @@ PACKET_SCHEMA_VERSION = "playwright_operator_packet_v1"
 REQUIRED_ALLOW_FLAG = "--allow-real-browser"
 REQUIRED_CONFIRM_FLAG = "--confirm-real-browser"
 REQUIRED_CONFIRM_VALUE = "BROWSER_RUNTIME_OPT_IN"
+SUPPORTED_EXECUTION_SCOPE_MODES = frozenset({"first_scenario_only", "scenario_id", "suite"})
+SUPPORTED_PLAYWRIGHT_ACTIONS = frozenset(
+    {
+        "browser_open_url",
+        "browser_click",
+        "browser_extract_text",
+        "browser_fill",
+        "browser_submit",
+        "browser_wait",
+        "browser_search",
+        "browser_snapshot",
+    }
+)
 
 
 class PlaywrightOperatorConfigError(ValueError):
@@ -217,6 +230,7 @@ def build_playwright_operator_commands(
     config_path: str = "configs/autonomous_runtime/playwright_operator.example.json",
 ) -> list[PlaywrightOperatorCommand]:
     safe_config_path = _safe_relative_path(config_path, "config_path")
+    suite_config_path = "configs/autonomous_runtime/playwright_suite_operator.example.json"
     dry_run = (
         ".\\.venv\\Scripts\\python.exe scripts/run_autonomous_browser_playwright_operator.py "
         f"--config {safe_config_path} --dry-run"
@@ -224,6 +238,11 @@ def build_playwright_operator_commands(
     guarded = (
         ".\\.venv\\Scripts\\python.exe scripts/run_autonomous_browser_playwright_operator.py "
         f"--config {safe_config_path} {config.required_guards.allow_flag} "
+        f"{config.required_guards.confirm_flag} {config.required_guards.confirm_value}"
+    )
+    guarded_suite = (
+        ".\\.venv\\Scripts\\python.exe scripts/run_autonomous_browser_playwright_operator.py "
+        f"--config {suite_config_path} {config.required_guards.allow_flag} "
         f"{config.required_guards.confirm_flag} {config.required_guards.confirm_value}"
     )
     return [
@@ -242,6 +261,17 @@ def build_playwright_operator_commands(
                 "Codex must not run this command.",
                 "Operator must install Playwright/Chromium separately if missing; Codex must not install dependencies.",
                 "Requires explicit operator approval and local fixture server/browser readiness.",
+            ),
+        ),
+        PlaywrightOperatorCommand(
+            name="operator_guarded_suite_real_browser",
+            argv=guarded_suite,
+            no_runtime_execution=False,
+            requires_operator=True,
+            notes=(
+                "Codex must not run this command.",
+                "Runs bounded suite mode over local fixture-backed scenarios only.",
+                "Requires explicit operator approval and local Playwright/Chromium readiness.",
             ),
         ),
     ]
@@ -315,8 +345,29 @@ def _validate_browser_backend(payload: Mapping[str, Any], checks: list[dict[str,
 
 def _validate_execution_scope(payload: Mapping[str, Any], checks: list[dict[str, Any]]) -> None:
     mode = payload.get("mode", "first_scenario_only")
-    max_actions = payload.get("max_browser_actions", 8)
-    _add_check(checks, "execution_scope_mode", mode == "first_scenario_only", mode)
+    _add_check(checks, "execution_scope_mode", isinstance(mode, str) and mode in SUPPORTED_EXECUTION_SCOPE_MODES, mode)
+    if mode == "suite":
+        max_scenarios = payload.get("max_scenarios")
+        max_actions = payload.get("max_browser_actions_per_scenario")
+        required_actions = payload.get("required_actions")
+        _add_check(checks, "execution_scope_max_scenarios", isinstance(max_scenarios, int) and 1 <= max_scenarios <= 20, max_scenarios)
+        _add_check(
+            checks,
+            "execution_scope_max_actions_per_scenario",
+            isinstance(max_actions, int) and 1 <= max_actions <= 100,
+            max_actions,
+        )
+        _add_check(checks, "execution_scope_required_actions", _valid_required_actions(required_actions), required_actions)
+        return
+    if mode == "scenario_id":
+        scenario_id = payload.get("scenario_id")
+        _add_check(
+            checks,
+            "execution_scope_scenario_id",
+            isinstance(scenario_id, str) and bool(scenario_id.strip()) and _safe_identifier_text(scenario_id),
+            scenario_id,
+        )
+    max_actions = payload.get("max_browser_actions", payload.get("max_browser_actions_per_scenario", 8))
     _add_check(checks, "execution_scope_max_actions", isinstance(max_actions, int) and 1 <= max_actions <= 100, max_actions)
 
 
@@ -418,9 +469,24 @@ def _required_id(value: Any, label: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise PlaywrightOperatorConfigError(f"{label} must be a non-empty string.")
     stripped = value.strip()
-    if any(ch in stripped for ch in ("\\", "/", ":", "\0")):
+    if not _safe_identifier_text(stripped):
         raise PlaywrightOperatorConfigError(f"{label} must be a safe identifier.")
     return stripped
+
+
+def _safe_identifier_text(value: str) -> bool:
+    return bool(value.strip()) and not any(ch in value for ch in ("\\", "/", ":", "\0"))
+
+
+def _valid_required_actions(value: Any) -> bool:
+    if not isinstance(value, list) or not value:
+        return False
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str) or item not in SUPPORTED_PLAYWRIGHT_ACTIONS or item in seen:
+            return False
+        seen.add(item)
+    return True
 
 
 def _dict(value: Any, label: str) -> dict[str, Any]:

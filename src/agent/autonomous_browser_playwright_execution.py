@@ -24,6 +24,19 @@ from .browser_fixture_resolver import (
 
 
 SMOKE_SUMMARY_SCHEMA_VERSION = "autonomous_browser_playwright_smoke_summary_v1"
+SUITE_SUMMARY_SCHEMA_VERSION = "autonomous_browser_playwright_suite_summary_v1"
+SUPPORTED_PLAYWRIGHT_ACTIONS = frozenset(
+    {
+        "browser_open_url",
+        "browser_click",
+        "browser_extract_text",
+        "browser_fill",
+        "browser_submit",
+        "browser_wait",
+        "browser_search",
+        "browser_snapshot",
+    }
+)
 
 
 class PlaywrightExecutionError(ValueError):
@@ -119,6 +132,73 @@ class PlaywrightExecutionSummary:
         }
 
 
+@dataclass(frozen=True)
+class PlaywrightSuiteExecutionSummary:
+    operator_id: str
+    status: str
+    error_code: str | None
+    fixture_server: dict[str, Any]
+    browser_backend: dict[str, Any]
+    scenario_count: int
+    scenarios_attempted: int
+    scenarios_succeeded: int
+    scenarios_failed: int
+    actions_attempted: int
+    actions_succeeded: int
+    actions_failed: int
+    required_actions: tuple[str, ...]
+    required_actions_covered: tuple[str, ...]
+    required_actions_missing: tuple[str, ...]
+    overall_action_coverage_ratio: float
+    scenario_summaries: tuple[dict[str, Any], ...]
+    expected_results_total: int
+    expected_results_passed: int
+    expected_results_failed: int
+    logical_urls_visited: tuple[str, ...]
+    duration_ms: int
+    diagnostics: dict[str, Any] = field(default_factory=dict)
+    no_runtime_execution: bool = False
+    schema_version: str = SUITE_SUMMARY_SCHEMA_VERSION
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "operator_id": self.operator_id,
+            "status": self.status,
+            "error_code": self.error_code,
+            "no_runtime_execution": self.no_runtime_execution,
+            "fixture_server": _jsonable(self.fixture_server),
+            "browser_backend": _jsonable(self.browser_backend),
+            "scenario_count": self.scenario_count,
+            "scenarios_attempted": self.scenarios_attempted,
+            "scenarios_succeeded": self.scenarios_succeeded,
+            "scenarios_failed": self.scenarios_failed,
+            "actions_attempted": self.actions_attempted,
+            "actions_succeeded": self.actions_succeeded,
+            "actions_failed": self.actions_failed,
+            "required_actions": list(self.required_actions),
+            "required_actions_covered": list(self.required_actions_covered),
+            "required_actions_missing": list(self.required_actions_missing),
+            "overall_action_coverage_ratio": self.overall_action_coverage_ratio,
+            "scenario_summaries": list(self.scenario_summaries),
+            "expected_results_total": self.expected_results_total,
+            "expected_results_passed": self.expected_results_passed,
+            "expected_results_failed": self.expected_results_failed,
+            "logical_urls_visited": list(self.logical_urls_visited),
+            "duration_ms": self.duration_ms,
+            "diagnostics": _jsonable(self.diagnostics),
+        }
+
+
+@dataclass(frozen=True)
+class _ScenarioRun:
+    scenario: AutonomousRuntimeScenario
+    results: tuple[PlaywrightExecutionResult, ...]
+    expected: tuple[dict[str, Any], ...]
+    status: str
+    error_code: str | None
+
+
 class PlaywrightBackend(Protocol):
     def run_action(
         self,
@@ -127,6 +207,7 @@ class PlaywrightBackend(Protocol):
         *,
         logical_url: str = "",
         expected_text: str | None = None,
+        parameters: Mapping[str, Any] | None = None,
     ) -> PlaywrightExecutionResult:
         ...
 
@@ -186,23 +267,57 @@ class RealPlaywrightBackend:
         *,
         logical_url: str = "",
         expected_text: str | None = None,
+        parameters: Mapping[str, Any] | None = None,
     ) -> PlaywrightExecutionResult:
         del expected_text
         if self._page is None:
             return _action_failure(action_name, logical_url, served_url, "playwright_page_not_ready")
         try:
+            params = dict(parameters or {})
             response: Any | None = None
-            requires_navigation = action_name in {"browser_open_url", "browser_click"}
-            if action_name in {"browser_open_url", "browser_click"}:
+            requires_navigation = False
+            action_notes: list[str] = []
+            if action_name == "browser_open_url":
+                requires_navigation = True
                 response = self._page.goto(served_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
+            elif action_name == "browser_click":
+                selector = _selector_from_params(params)
+                target_text = _string_param(params, "target_text") or _string_param(params, "text")
+                if selector:
+                    self._page.click(selector, timeout=self.timeout_ms)
+                elif target_text:
+                    self._page.get_by_text(target_text).click(timeout=self.timeout_ms)
+                else:
+                    requires_navigation = True
+                    response = self._page.goto(served_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
+                if not response and served_url and str(self._page.url) != served_url:
+                    response = self._page.goto(served_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
             elif action_name == "browser_wait":
-                self._page.wait_for_timeout(100)
+                wait_ms = _bounded_wait_ms(params)
+                self._page.wait_for_timeout(wait_ms)
+                action_notes.append("Fixture browser wait completed")
+            elif action_name == "browser_fill":
+                if str(self._page.url) != served_url:
+                    response = self._page.goto(served_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
+                fields = _fill_fields(params)
+                for name, value in fields.items():
+                    self._page.fill(f"input[name='{name}']", value, timeout=self.timeout_ms)
+                action_notes.append(f"Updated {len(fields)} fixture form field")
+            elif action_name == "browser_submit":
+                selector = _selector_from_params(params) or _form_submit_selector(params)
+                if selector:
+                    try:
+                        self._page.click(selector, timeout=self.timeout_ms)
+                    except Exception:
+                        pass
+                if served_url and str(self._page.url) != served_url:
+                    response = self._page.goto(served_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
             elif action_name in {"browser_extract_text", "browser_snapshot", "browser_search"}:
                 if str(self._page.url) != served_url:
                     requires_navigation = True
                     response = self._page.goto(served_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
             else:
-                return _action_failure(action_name, logical_url, served_url, "unsupported_playwright_smoke_action")
+                return _action_failure(action_name, logical_url, served_url, "unsupported_playwright_browser_action")
             if requires_navigation and response is None:
                 return _action_failure(action_name, logical_url, served_url, "browser_navigation_no_response")
             if response is not None:
@@ -215,7 +330,8 @@ class RealPlaywrightBackend:
                         "browser_http_error",
                         diagnostics={"http_status": status, "logical_url": logical_url},
                     )
-            text = str(self._page.inner_text("body", timeout=self.timeout_ms) or "")
+            body_text = str(self._page.inner_text("body", timeout=self.timeout_ms) or "")
+            text = " ".join([body_text, *action_notes])
             artifact_ref = "playwright_snapshot_placeholder" if action_name == "browser_snapshot" else None
             return PlaywrightExecutionResult(
                 action_name=action_name,
@@ -230,10 +346,11 @@ class RealPlaywrightBackend:
 
 
 class FakePlaywrightBackend:
-    def __init__(self, *, fail_with: str | None = None, http_status: int | None = None) -> None:
+    def __init__(self, *, fail_with: str | None = None, http_status: int | None = None, text_preview: str | None = None) -> None:
         self.fail_with = fail_with
         self.http_status = http_status
-        self.calls: list[tuple[str, str]] = []
+        self.text_preview = text_preview
+        self.calls: list[tuple[str, str, dict[str, Any]]] = []
 
     def __enter__(self) -> FakePlaywrightBackend:
         if self.fail_with in {"playwright_dependency_missing", "playwright_launch_failed"}:
@@ -250,8 +367,9 @@ class FakePlaywrightBackend:
         *,
         logical_url: str = "",
         expected_text: str | None = None,
+        parameters: Mapping[str, Any] | None = None,
     ) -> PlaywrightExecutionResult:
-        self.calls.append((action_name, served_url))
+        self.calls.append((action_name, served_url, dict(parameters or {})))
         if self.fail_with:
             return _action_failure(action_name, logical_url, served_url, self.fail_with)
         if self.http_status is not None and self.http_status >= 400:
@@ -267,7 +385,7 @@ class FakePlaywrightBackend:
             logical_url=logical_url,
             served_url=served_url,
             success=True,
-            text_preview=expected_text or "fake browser text",
+            text_preview=self.text_preview if self.text_preview is not None else expected_text or "fake browser text",
             artifact_ref="browser/fake/fake-snapshot-1.json" if action_name == "browser_snapshot" else None,
         )
 
@@ -384,62 +502,48 @@ def run_guarded_playwright_smoke(
 ) -> PlaywrightExecutionSummary:
     started = time.perf_counter()
     try:
-        scenario = _select_scenario(config)
-        steps = _selected_steps(scenario, config)
-        if not steps:
-            return _summary(config, "failed", "no_supported_browser_steps", started, [], [], scenario)
+        scenarios = _select_scenarios(config)
+        scenario = scenarios[0]
         server_obj = server or LocalFixtureHttpServer(repo_root=config.repo_root, **config.fixture_server)
         backend_obj = backend or _real_backend_from_config(config.browser_backend)
         with server_obj as running_server:
-            mapper = FixtureUrlMapper(
-                manifest_path=_fixture_manifest_path(scenario),
-                server_base_url=running_server.to_summary()["base_url"],
-                repo_root=config.repo_root,
-            )
             with backend_obj as running_backend:
-                results: list[PlaywrightExecutionResult] = []
-                expected: list[dict[str, Any]] = []
-                for step in steps:
-                    logical_url = _logical_url_for_step(step, results)
-                    try:
-                        served_url = mapper.map_logical_url(logical_url)
-                    except PlaywrightExecutionError as exc:
-                        result = _action_failure(step.action_name, logical_url, "", _safe_error_code(str(exc)))
-                        results.append(result)
-                        expected.append({"step_id": step.step_id, "expected_text": step.expected_text, "passed": False})
-                        break
-                    result = running_backend.run_action(
-                        step.action_name,
-                        served_url,
-                        logical_url=logical_url,
-                        expected_text=step.expected_text,
-                    )
-                    result = PlaywrightExecutionResult(
-                        action_name=result.action_name,
-                        logical_url=logical_url,
-                        served_url=served_url,
-                        success=result.success,
-                        text_preview=result.text_preview,
-                        artifact_ref=result.artifact_ref,
-                        error_code=result.error_code,
-                        diagnostics=result.diagnostics,
-                    )
-                    results.append(result)
-                    expected.append(
-                        {
-                            "step_id": step.step_id,
-                            "expected_text": step.expected_text,
-                            "passed": bool(result.success and (not step.expected_text or step.expected_text in result.text_preview)),
-                        }
-                    )
-                    if not result.success:
-                        break
-        status = "succeeded" if results and all(result.success for result in results) and all(item["passed"] for item in expected) else "failed"
-        error_code = None if status == "succeeded" else _first_error(results, expected)
-        return _summary(config, status, error_code, started, results, expected, scenario)
+                run = _run_scenario(config, scenario, running_server, running_backend)
+        return _summary(config, run.status, run.error_code, started, list(run.results), list(run.expected), scenario)
     except PlaywrightExecutionError as exc:
         code = _safe_error_code(str(exc))
         return _summary(config, "failed", code, started, [], [], None, diagnostics={"exception_type": exc.__class__.__name__})
+
+
+def run_guarded_playwright_suite(
+    config: PlaywrightExecutionConfig,
+    *,
+    backend: Any | None = None,
+    server: Any | None = None,
+) -> PlaywrightSuiteExecutionSummary:
+    started = time.perf_counter()
+    try:
+        scenarios = _select_scenarios(config)
+        server_obj = server or LocalFixtureHttpServer(repo_root=config.repo_root, **config.fixture_server)
+        backend_obj = backend or _real_backend_from_config(config.browser_backend)
+        runs: list[_ScenarioRun] = []
+        with server_obj as running_server:
+            with backend_obj as running_backend:
+                for scenario in scenarios:
+                    runs.append(_run_scenario(config, scenario, running_server, running_backend))
+                    if runs[-1].error_code == "browser_action_failed":
+                        break
+        return _suite_summary(config, started, scenarios, runs)
+    except PlaywrightExecutionError as exc:
+        return _suite_summary(
+            config,
+            started,
+            (),
+            (),
+            status="failed",
+            error_code=_safe_error_code(str(exc)),
+            diagnostics={"exception_type": exc.__class__.__name__},
+        )
 
 
 class FixtureUrlMapper:
@@ -467,8 +571,8 @@ class FixtureUrlMapper:
             return self._served_url_for_fixture_path(resolution.fixture_path_relative)
         except BrowserFixtureRouteNotFound:
             pass
-        except BrowserFixtureUrlDenied as exc:
-            raise PlaywrightExecutionError("logical_url_mapping_failed") from exc
+        except BrowserFixtureUrlDenied:
+            pass
         except BrowserFixtureResolverError as exc:
             raise PlaywrightExecutionError("logical_url_mapping_failed") from exc
         fallback = self._fallback_fixture_path(parsed)
@@ -537,21 +641,98 @@ class FixtureUrlMapper:
         return root
 
 
-def _select_scenario(config: PlaywrightExecutionConfig) -> AutonomousRuntimeScenario:
+def _select_scenarios(config: PlaywrightExecutionConfig) -> tuple[AutonomousRuntimeScenario, ...]:
     if config.scenario_path:
-        return load_autonomous_runtime_scenario(config.repo_root / config.scenario_path)
+        return (load_autonomous_runtime_scenario(config.repo_root / config.scenario_path),)
     if not config.scenario_suite_path:
         raise PlaywrightExecutionError("scenario_reference_missing")
     suite = load_autonomous_browser_scenario_suite(config.repo_root / config.scenario_suite_path)
     if not suite.scenario_paths:
         raise PlaywrightExecutionError("scenario_suite_empty")
-    return load_autonomous_runtime_scenario(config.repo_root / suite.scenario_paths[0])
+    scenarios = tuple(load_autonomous_runtime_scenario(config.repo_root / scenario_path) for scenario_path in suite.scenario_paths)
+    mode = str(config.execution_scope.get("mode", "first_scenario_only"))
+    if mode == "first_scenario_only":
+        return scenarios[:1]
+    if mode == "scenario_id":
+        scenario_id = str(config.execution_scope.get("scenario_id", "")).strip()
+        for scenario in scenarios:
+            if scenario.scenario_id == scenario_id:
+                return (scenario,)
+        raise PlaywrightExecutionError("scenario_id_not_found")
+    if mode == "suite":
+        max_scenarios = int(config.execution_scope.get("max_scenarios", len(scenarios)))
+        return scenarios[:max_scenarios]
+    raise PlaywrightExecutionError("unsupported_execution_scope_mode")
 
 
 def _selected_steps(scenario: AutonomousRuntimeScenario, config: PlaywrightExecutionConfig) -> tuple[AutonomousRuntimeScriptedStep, ...]:
-    max_actions = int(config.execution_scope.get("max_browser_actions", 8))
-    supported = {"browser_open_url", "browser_click", "browser_extract_text", "browser_wait", "browser_snapshot", "browser_search"}
-    return tuple(step for step in scenario.scripted_steps if step.action_name in supported)[:max_actions]
+    max_actions = _max_actions_for_scope(config)
+    return tuple(step for step in scenario.scripted_steps if step.action_name in SUPPORTED_PLAYWRIGHT_ACTIONS)[:max_actions]
+
+
+def _max_actions_for_scope(config: PlaywrightExecutionConfig) -> int:
+    if "max_browser_actions_per_scenario" in config.execution_scope:
+        return int(config.execution_scope.get("max_browser_actions_per_scenario", 12))
+    return int(config.execution_scope.get("max_browser_actions", 8))
+
+
+def _run_scenario(
+    config: PlaywrightExecutionConfig,
+    scenario: AutonomousRuntimeScenario,
+    running_server: Any,
+    running_backend: PlaywrightBackend,
+) -> _ScenarioRun:
+    steps = _selected_steps(scenario, config)
+    if not steps:
+        return _ScenarioRun(scenario=scenario, results=(), expected=(), status="failed", error_code="no_supported_browser_steps")
+    mapper = FixtureUrlMapper(
+        manifest_path=_fixture_manifest_path(scenario),
+        server_base_url=running_server.to_summary()["base_url"],
+        repo_root=config.repo_root,
+    )
+    results: list[PlaywrightExecutionResult] = []
+    expected: list[dict[str, Any]] = []
+    for step in steps:
+        logical_url = _logical_url_for_step(step, results)
+        try:
+            served_url = mapper.map_logical_url(logical_url)
+        except PlaywrightExecutionError as exc:
+            result = _action_failure(step.action_name, logical_url, "", _safe_error_code(str(exc)))
+            results.append(result)
+            expected.append(_expected_result(step, result))
+            break
+        result = running_backend.run_action(
+            step.action_name,
+            served_url,
+            logical_url=logical_url,
+            expected_text=step.expected_text,
+            parameters=step.parameters,
+        )
+        result = PlaywrightExecutionResult(
+            action_name=result.action_name,
+            logical_url=logical_url,
+            served_url=served_url,
+            success=result.success,
+            text_preview=result.text_preview,
+            artifact_ref=result.artifact_ref,
+            error_code=result.error_code,
+            diagnostics=result.diagnostics,
+        )
+        results.append(result)
+        expected.append(_expected_result(step, result))
+        if not result.success:
+            break
+    status = "succeeded" if results and all(result.success for result in results) and all(item["passed"] for item in expected) else "failed"
+    error_code = None if status == "succeeded" else _first_error(results, expected)
+    return _ScenarioRun(scenario=scenario, results=tuple(results), expected=tuple(expected), status=status, error_code=error_code)
+
+
+def _expected_result(step: AutonomousRuntimeScriptedStep, result: PlaywrightExecutionResult) -> dict[str, Any]:
+    return {
+        "step_id": step.step_id,
+        "expected_text": step.expected_text,
+        "passed": bool(result.success and (not step.expected_text or step.expected_text in result.text_preview)),
+    }
 
 
 def _logical_url_for_step(step: AutonomousRuntimeScriptedStep, previous: list[PlaywrightExecutionResult]) -> str:
@@ -563,6 +744,8 @@ def _logical_url_for_step(step: AutonomousRuntimeScriptedStep, previous: list[Pl
                 parsed = urlparse(base)
                 return f"{parsed.scheme}://{parsed.netloc}{value}"
             return value.strip()
+    if step.expected_url:
+        return step.expected_url
     if previous:
         return previous[-1].logical_url
     return "https://local.intranet/"
@@ -677,6 +860,111 @@ def _summary(
     )
 
 
+def _suite_summary(
+    config: PlaywrightExecutionConfig,
+    started: float,
+    scenarios: tuple[AutonomousRuntimeScenario, ...],
+    runs: tuple[_ScenarioRun, ...] | list[_ScenarioRun],
+    *,
+    status: str | None = None,
+    error_code: str | None = None,
+    diagnostics: dict[str, Any] | None = None,
+) -> PlaywrightSuiteExecutionSummary:
+    run_list = list(runs)
+    scenario_summaries = tuple(_scenario_summary(run) for run in run_list)
+    all_results = [result for run in run_list for result in run.results]
+    all_expected = [item for run in run_list for item in run.expected]
+    required_actions = _required_actions(config)
+    covered_actions = tuple(action for action in required_actions if any(result.action_name == action for result in all_results))
+    missing_actions = tuple(action for action in required_actions if action not in set(covered_actions))
+    action_failures = sum(1 for result in all_results if not result.success)
+    expected_failed = sum(1 for item in all_expected if item.get("passed") is not True)
+    scenarios_failed = sum(1 for run in run_list if run.status != "succeeded")
+    inferred_status = "succeeded" if run_list and scenarios_failed == 0 and action_failures == 0 and expected_failed == 0 and not missing_actions else "failed"
+    inferred_error = _suite_error_code(action_failures, expected_failed, missing_actions, run_list) if inferred_status == "failed" else None
+    diagnostics_payload = diagnostics or {"scenario_summaries": list(scenario_summaries)}
+    return PlaywrightSuiteExecutionSummary(
+        operator_id=config.operator_id,
+        status=status or inferred_status,
+        error_code=error_code if error_code is not None else inferred_error,
+        fixture_server={
+            "host": str(config.fixture_server.get("host", "")),
+            "port": config.fixture_server.get("port"),
+            "base_url": str(config.fixture_server.get("base_url", "")),
+            "fixture_root": str(config.fixture_server.get("fixture_root", "")),
+        },
+        browser_backend={
+            "type": str(config.browser_backend.get("type", "")),
+            "browser_name": str(config.browser_backend.get("browser_name", "")),
+            "headless": bool(config.browser_backend.get("headless", True)),
+        },
+        scenario_count=len(scenarios),
+        scenarios_attempted=len(run_list),
+        scenarios_succeeded=sum(1 for run in run_list if run.status == "succeeded"),
+        scenarios_failed=scenarios_failed,
+        actions_attempted=len(all_results),
+        actions_succeeded=sum(1 for result in all_results if result.success),
+        actions_failed=action_failures,
+        required_actions=required_actions,
+        required_actions_covered=covered_actions,
+        required_actions_missing=missing_actions,
+        overall_action_coverage_ratio=round(len(covered_actions) / len(required_actions), 4) if required_actions else 1.0,
+        scenario_summaries=scenario_summaries,
+        expected_results_total=len(all_expected),
+        expected_results_passed=sum(1 for item in all_expected if item.get("passed") is True),
+        expected_results_failed=expected_failed,
+        logical_urls_visited=tuple(dict.fromkeys(result.logical_url for result in all_results if result.logical_url)),
+        duration_ms=max(0, int((time.perf_counter() - started) * 1000)),
+        diagnostics=_sanitize_diagnostics(diagnostics_payload),
+    )
+
+
+def _scenario_summary(run: _ScenarioRun) -> dict[str, Any]:
+    actions_failed = sum(1 for result in run.results if not result.success)
+    expected_failed = sum(1 for item in run.expected if item.get("passed") is not True)
+    return {
+        "scenario_id": run.scenario.scenario_id,
+        "status": run.status,
+        "error_code": run.error_code,
+        "actions_attempted": len(run.results),
+        "actions_succeeded": sum(1 for result in run.results if result.success),
+        "actions_failed": actions_failed,
+        "actions_covered": list(dict.fromkeys(result.action_name for result in run.results)),
+        "expected_results_total": len(run.expected),
+        "expected_results_passed": sum(1 for item in run.expected if item.get("passed") is True),
+        "expected_results_failed": expected_failed,
+        "logical_urls_visited": list(dict.fromkeys(result.logical_url for result in run.results if result.logical_url)),
+        "diagnostics": {"actions": [result.to_dict() for result in run.results]},
+    }
+
+
+def _required_actions(config: PlaywrightExecutionConfig) -> tuple[str, ...]:
+    configured = config.execution_scope.get("required_actions")
+    if isinstance(configured, list):
+        values = tuple(str(item) for item in configured if isinstance(item, str) and item.strip())
+        if values:
+            return tuple(dict.fromkeys(values))
+    return tuple(sorted(SUPPORTED_PLAYWRIGHT_ACTIONS))
+
+
+def _suite_error_code(
+    action_failures: int,
+    expected_failed: int,
+    missing_actions: tuple[str, ...],
+    runs: list[_ScenarioRun],
+) -> str:
+    if action_failures:
+        return "browser_action_failed"
+    if expected_failed:
+        return "expected_result_failed"
+    if missing_actions:
+        return "required_action_coverage_failed"
+    for run in runs:
+        if run.error_code:
+            return run.error_code
+    return "playwright_suite_failed"
+
+
 def _action_failure(
     action_name: str,
     logical_url: str,
@@ -709,6 +997,48 @@ def _first_error(results: list[PlaywrightExecutionResult], expected: list[dict[s
         if item.get("passed") is not True:
             return "expected_result_failed"
     return "playwright_smoke_failed"
+
+
+def _string_param(payload: Mapping[str, Any], key: str) -> str | None:
+    value = payload.get(key)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _selector_from_params(payload: Mapping[str, Any]) -> str | None:
+    selector = _string_param(payload, "selector") or _string_param(payload, "target_selector")
+    if selector:
+        return selector
+    element_id = _string_param(payload, "element_id")
+    if element_id:
+        return f"#{element_id}"
+    return None
+
+
+def _form_submit_selector(payload: Mapping[str, Any]) -> str | None:
+    form_id = _string_param(payload, "form_id")
+    if form_id:
+        return f"form#{form_id} button[type='submit']"
+    return "button[type='submit']"
+
+
+def _fill_fields(payload: Mapping[str, Any]) -> dict[str, str]:
+    fields = payload.get("fields")
+    if not isinstance(fields, Mapping):
+        return {}
+    out: dict[str, str] = {}
+    for key, value in fields.items():
+        if isinstance(key, str) and isinstance(value, str) and key.strip():
+            out[key.strip()] = value
+    return out
+
+
+def _bounded_wait_ms(payload: Mapping[str, Any]) -> int:
+    value = payload.get("milliseconds", payload.get("wait_ms", payload.get("duration_ms", 100)))
+    if isinstance(value, int) and 0 <= value <= 5_000:
+        return value
+    return 100
 
 
 def _validate_loopback_host(host: str) -> None:

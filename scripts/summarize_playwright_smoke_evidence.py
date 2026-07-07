@@ -20,7 +20,7 @@ from src.agent.autonomous_browser_playwright_evidence import (
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Summarize a guarded Playwright smoke result as committed evidence.")
+    parser = argparse.ArgumentParser(description="Summarize a guarded Playwright smoke or suite result as committed evidence.")
     parser.add_argument("--summary", required=True)
     parser.add_argument("--output-doc", required=True)
     parser.add_argument("--output-json")

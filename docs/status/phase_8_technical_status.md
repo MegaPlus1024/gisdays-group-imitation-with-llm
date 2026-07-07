@@ -428,6 +428,33 @@ Limitations:
 - this is not production browser automation and not production deployment/hardening;
 - no external network, mail/git actions or LLM judge were involved.
 
+## 3.5 Phase 9.10 guarded Playwright suite path
+
+Phase 9.10 extends the guarded Playwright operator path from a single smoke scenario to a bounded suite execution mode.
+
+What changed:
+
+- `configs/autonomous_runtime/playwright_operator.example.json` remains the single-scenario smoke config;
+- `configs/autonomous_runtime/playwright_suite_operator.example.json` adds `execution_scope.mode: suite`, bounded `max_scenarios`, bounded `max_browser_actions_per_scenario` and required browser action coverage;
+- the execution layer now supports `first_scenario_only`, `scenario_id` and `suite` scope selection;
+- suite mode writes `playwright_suite_summary.json` with schema `autonomous_browser_playwright_suite_summary_v1`;
+- suite summaries aggregate scenario counts, browser action counts, required action coverage, expected result counts, logical URLs and loopback diagnostics;
+- Playwright action handling now includes the eight controlled browser actions: open URL, click, extract text, fill, submit, wait, search and snapshot;
+- the evidence summarizer accepts both smoke and suite summary schemas;
+- operator packets include readiness dry-run, guarded smoke and guarded suite commands.
+
+What is verified in code:
+
+- automated suite tests use fake backends and fake fixture servers only;
+- suite dry-run validates config/readiness without importing Playwright or starting a browser/server;
+- no real browser, Playwright, Chromium, external network, model runtime, Office runtime or LLM judge is launched by the automated checks.
+
+What is not claimed:
+
+- no committed evidence claims that the guarded suite was executed by the operator yet;
+- the existing committed evidence remains a single smoke run;
+- production browser automation remains out of scope.
+
 ## 4. Offline reproduction commands
 
 The following commands are intended for offline post-processing of already-produced artifacts. They do not start models or live API calls.
@@ -471,6 +498,12 @@ The following commands are intended for offline post-processing of already-produ
 ```powershell
 .\.venv\Scripts\python.exe scripts\run_autonomous_browser_playwright_operator.py `
   --config configs\autonomous_runtime\playwright_operator.example.json `
+  --dry-run
+```
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_autonomous_browser_playwright_operator.py `
+  --config configs\autonomous_runtime\playwright_suite_operator.example.json `
   --dry-run
 ```
 
