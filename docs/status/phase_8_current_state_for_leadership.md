@@ -77,3 +77,8 @@
 - Office action repair/precreate полезны для controlled flow, но требуют дальнейших negative tests.
 - Любой live API judge требует строгого контроля секретов, стоимости и provenance.
 - Production claims преждевременны до расширения сценариев, моделей и длительности прогонов.
+
+## 9. Дополнительный попунктный отчёт по ТЗ
+
+Подробная сверка с пунктами ТЗ вынесена в:
+`docs/status/tz_point_by_point_completion_report.md`
