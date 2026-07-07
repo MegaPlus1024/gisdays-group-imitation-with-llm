@@ -33,6 +33,7 @@ temp/
 artifacts/single_trial_runs/
 artifacts/mini_matrix_summaries/
 artifacts/judge_prompt_packs/
+artifacts/autonomous_runtime_summaries/
 
 # Local models
 models/gguf/*.gguf

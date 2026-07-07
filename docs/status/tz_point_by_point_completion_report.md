@@ -19,15 +19,16 @@
 - Semantic LLM judge score = not run yet.
 - Phase 9.1: добавлен autonomous multi-agent runtime foundation без live model/browser/API calls.
 - Phase 9.2: добавлен fixture-backed autonomous browser runtime integration без real browser/Playwright/Chromium/API calls.
+- Phase 9.3: добавлен config-driven autonomous browser scenario runner без real browser/model/API calls.
 
 ## 2. Краткая сводка выполнения
 
 | Раздел ТЗ | Статус | Краткий вывод |
 |-----------|--------|---------------|
 | Цель работы | Частично выполнено | Исследовательский прототип разработан и проверен на controlled office workflow; полная виртуальная сеть и production-readiness не закрыты. |
-| Общее описание | Частично выполнено | Оркестратор, роли, ресурсы, ограничения, локальная LLM, scripts, history и autonomous runtime foundation реализованы; production deployment и true parallel runtime отсутствуют. |
+| Общее описание | Частично выполнено | Оркестратор, роли, ресурсы, ограничения, локальная LLM, scripts, history, autonomous runtime foundation и config-driven browser scenario evidence реализованы; production deployment и true parallel runtime отсутствуют. |
 | 1. Проанализировать возможные средства реализации | Частично выполнено | Локальные модели, запуск, agent integration и форматы описаний проработаны; deployment/sizing остаются предварительными. |
-| 2. Спроектировать общую схему работы | Частично выполнено | Схема orchestrator/executor, agent state, registry, action selection, history, deterministic scheduler и shared task board реализована; production scheduler/deployment не реализован. |
+| 2. Спроектировать общую схему работы | Частично выполнено | Схема orchestrator/executor, agent state, registry, action selection, history, deterministic scheduler, shared task board and config-driven autonomous browser scenario реализована; production scheduler/deployment не реализован. |
 | 3. Подготовить минимальный набор параметризуемых скриптов активности | Частично выполнено | File, office, shell и browser fixture-backed runtime integration есть; mail/git actions не реализованы. |
 | 4. Реализовать прототип агента | Завершено | Агентный прототип с config/orchestrator state, local LLM client, action selection, script execution и history/errors реализован. |
 | 5. Провести эксперименты с разными локальными моделями | Частично выполнено | Есть сравнения двух локальных моделей, pair workflows и behavioral metrics; semantic judge и широкая scenario diversity не закрыты. |
@@ -47,7 +48,7 @@
 Разработать и проверить прототип группы программных агентов, имитирующих нормальную пользовательскую активность в виртуальной компьютерной сети.
 
 **Что выполнено:**
-Реализован research-prototype local LLM agent lab: single-agent pipeline, orchestrator/executor pipeline, controlled local pair workflow, virtual-network/policy scaffold, normality/resource evaluation, mini-matrix aggregation, guarded judge exchange, Phase 9.1 autonomous multi-agent runtime foundation и Phase 9.2 fixture-backed browser runtime integration. Phase 8 подтвердил controlled office workflow для пары `second_model -> first_model`.
+Реализован research-prototype local LLM agent lab: single-agent pipeline, orchestrator/executor pipeline, controlled local pair workflow, virtual-network/policy scaffold, normality/resource evaluation, mini-matrix aggregation, guarded judge exchange, Phase 9.1 autonomous multi-agent runtime foundation, Phase 9.2 fixture-backed browser runtime integration и Phase 9.3 config-driven autonomous browser scenario runner. Phase 8 подтвердил controlled office workflow для пары `second_model -> first_model`.
 
 **Доказательства:**
 - `README.md`
@@ -59,10 +60,13 @@
 - `src/agent/virtual_network_policy.py`
 - `src/agent/autonomous_multi_agent_runtime.py`
 - `src/agent/autonomous_browser_runtime.py`
+- `src/agent/autonomous_runtime_scenarios.py`
+- `configs/autonomous_runtime/browser_intranet_research_group_basic.example.json`
 - `tests/test_orchestrator_executor_pipeline.py`
 - `tests/test_virtual_network.py`
 - `tests/test_autonomous_multi_agent_runtime.py`
 - `tests/test_autonomous_browser_runtime.py`
+- `tests/test_autonomous_runtime_scenarios.py`
 
 **Проверенный результат:**
 3/3 controlled mini-matrix repeats succeeded, 6/6 office actions executed successfully, 6/6 DOCX artifacts generated/readable.
@@ -402,23 +406,27 @@ History layer is audit artifact storage plus runtime event-log foundation, not p
 Подготовить scripts for browser activity.
 
 **Что выполнено:**
-Реализованы browser activity scaffold, fixture-backed local intranet simulation, optional Playwright backend tests/scaffold and Phase 9.2 controlled autonomous browser runtime integration: session metadata, namespace-gated action validation, fixture-backed executor, browser verifier and runtime integration.
+Реализованы browser activity scaffold, fixture-backed local intranet simulation, optional Playwright backend tests/scaffold, Phase 9.2 controlled autonomous browser runtime integration and Phase 9.3 config-driven autonomous browser scenario: session metadata, namespace-gated action validation, fixture-backed executor, browser verifier, scripted decision provider, scenario loader/builder and offline CLI runner.
 
 **Доказательства:**
 - `src/agent/scripts/browser_activity.py`
 - `src/agent/scripts/browser_playwright_activity.py`
 - `src/agent/browser_fixture_resolver.py`
 - `src/agent/autonomous_browser_runtime.py`
+- `src/agent/autonomous_runtime_scenarios.py`
+- `configs/autonomous_runtime/browser_intranet_research_group_basic.example.json`
+- `scripts/run_autonomous_runtime_scenario.py`
 - `tests/test_browser_activity_script.py`
 - `tests/test_browser_playwright_scaffold.py`
 - `tests/test_browser_activity_fixture_backed.py`
 - `tests/test_autonomous_browser_runtime.py`
+- `tests/test_autonomous_runtime_scenarios.py`
 
 **Проверенный результат:**
-Offline browser scaffold and autonomous browser runtime tests pass. Fixture-backed executor reads repository fixtures only. Playwright real execution remains guarded and disabled by default.
+Offline browser scaffold, autonomous browser runtime and config-driven scenario tests pass. Fixture-backed executor reads repository fixtures only. Playwright real execution remains guarded and disabled by default.
 
 **Ограничения:**
-Real browser/Playwright/Chromium не запускались; browser automation is partially completed at controlled fixture-backed runtime layer, not as production browser automation.
+Real browser/Playwright/Chromium не запускались; browser automation is partially completed at controlled fixture-backed runtime/scenario layer, not as production browser automation.
 
 **Вывод по подпункту:**
 Подпункт частично выполнен.
@@ -1132,8 +1140,8 @@ Reporting is prepared, but full practical resource recommendation remains partia
 ## Краткий вывод
 
 - Полностью закрыто: базовая agent architecture, локальная модельная интеграция, roles/context/script formats, script registry, action selection, execution bridge, history/error logging, file/shell/office document actions, controlled single-trial and mini-matrix prototype evidence.
-- Частично закрыто и продвинуто Phase 9.1/9.2: autonomous multi-agent runtime foundation, deterministic scheduler, shared state/task board, runtime loop, stop policy, error recovery, resource locks, virtual environment metadata and fixture-backed browser runtime integration.
+- Частично закрыто и продвинуто Phase 9.1/9.2/9.3: autonomous multi-agent runtime foundation, deterministic scheduler, shared state/task board, runtime loop, stop policy, error recovery, resource locks, virtual environment metadata, fixture-backed browser runtime integration and config-driven autonomous browser scenario evidence.
 - Частично закрыто: virtual network simulation, production browser automation, broad behavioral normality evaluation, model comparison breadth, resource/capacity sizing, GPU/stress evidence, final configuration for further development.
 - Не закрыто: mail/git/other application actions.
-- Для полного закрытия ТЗ нужны: broader browser scenario validation and guarded real Playwright/Chromium execution only if separately approved, guarded semantic LLM-as-a-judge run later, расширение scenario families, larger N, stronger resource/capacity measurements, ясная граница virtual network scope, optional mail/git actions only if separately approved under safety policy.
+- Для полного закрытия ТЗ нужны: broader browser scenario coverage and guarded real Playwright/Chromium execution only if separately approved, guarded semantic LLM-as-a-judge run later, расширение scenario families, larger N, stronger resource/capacity measurements, ясная граница virtual network scope, optional mail/git actions only if separately approved under safety policy.
 - Production recommendation не делается: текущий результат является исследовательским prototype conclusion.

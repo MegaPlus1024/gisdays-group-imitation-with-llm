@@ -168,6 +168,40 @@ Limitations:
 - browser coverage is fixture-backed and deterministic, not broad production web automation;
 - mail/git/other application actions remain outside the approved scope.
 
+## Phase 9.3 Config-driven autonomous browser scenario
+
+Phase 9.3 adds a reproducible offline/config-driven browser scenario layer on top of the autonomous runtime foundation.
+
+What was added:
+
+- browser-only autonomous scenario config: `configs/autonomous_runtime/browser_intranet_research_group_basic.example.json`;
+- scenario loader/validator in `src/agent/autonomous_runtime_scenarios.py`;
+- deterministic `ScriptedRuntimeDecisionProvider` for reproducible dry-run tests;
+- builder that creates `AutonomousMultiAgentRuntime`, shared state, browser sessions, fixture-backed browser executor and browser action executor from config;
+- offline scenario runner CLI: `scripts/run_autonomous_runtime_scenario.py`;
+- scenario summary schema `autonomous_runtime_scenario_summary_v1` with runtime summary, browser session summaries and expected-result checks;
+- tests proving scheduler/shared state/browser actions work together end-to-end without real browser/model/API calls.
+
+What does not run:
+
+- no model client or LLM decision provider is created;
+- no real browser, Playwright or Chromium is launched;
+- no external HTTP/network request is made;
+- no API/HTTP judge or LLM-as-a-judge is launched;
+- no mail/git/calendar/other external app actions are added.
+
+Which TZ gaps this advances:
+
+- browser is now integrated into autonomous runtime at controlled fixture-backed scenario level;
+- scenario config describes agents, tasks, virtual environment, browser sessions, scripted browser steps, runtime policy and expected results;
+- runtime summaries can be reproduced offline from committed config and repository fixtures.
+
+Limitations:
+
+- this is an offline deterministic test harness, not production autonomous deployment;
+- scripted decisions are used for reproducibility and do not add an LLM planner;
+- real Playwright/Chromium execution and broader browser scenario coverage remain future guarded work.
+
 ## 4. Offline reproduction commands
 
 The following commands are intended for offline post-processing of already-produced artifacts. They do not start models or live API calls.
@@ -219,6 +253,7 @@ The following paths are runtime/generated or local-private and should remain out
 - `artifacts/single_trial_runs/`
 - `artifacts/mini_matrix_summaries/`
 - `artifacts/judge_prompt_packs/`
+- `artifacts/autonomous_runtime_summaries/`
 - `configs/judge/*.local.json`
 - `.env`
 - `*.key`
@@ -233,12 +268,12 @@ Committed packet/example files remain allowed, including `artifacts/first_run_pa
 - Semantic judge scoring is not available yet.
 - API judge provider integration needs a budgeted Phase 8.30 design and operator secret-handling path.
 - Autonomous multi-agent runtime foundation exists, but production long-running deployment and true parallel execution are not implemented.
-- Browser behavior is confirmed at the fixture-backed autonomous runtime layer only; real browser and real network behavior are not part of the confirmed run.
+- Browser behavior is confirmed at the fixture-backed autonomous runtime/scenario layer only; real browser and real network behavior are not part of the confirmed run.
 - Runtime artifacts are evidence for local work, but are not source-controlled.
 
 ## 8. Next technical stage
 
-The next practical stage should broaden browser fixture scenarios and, only if separately approved, add guarded operator-only Playwright execution checks without enabling arbitrary external app integrations.
+The next practical stage should broaden browser fixture scenario coverage and, only if separately approved, add guarded operator-only Playwright execution checks without enabling arbitrary external app integrations.
 
 Later semantic judge work remains separate and should stay guarded:
 
