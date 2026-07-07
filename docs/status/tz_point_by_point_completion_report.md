@@ -1095,7 +1095,7 @@ Prototype includes role/context configs, local model client, action selection, s
 3/3 controlled mini-matrix repeats succeeded; 6/6 office actions executed.
 
 **Ограничения:**
-Prototype is controlled and research-oriented. Autonomous runtime foundation and fixture-backed browser scenario suite exist, but production deployment and real-browser validation remain future work.
+Prototype is controlled and research-oriented. Autonomous runtime foundation, fixture-backed browser scenario suite and guarded Playwright operator readiness path exist, but production deployment and real-browser validation remain future work.
 
 **Вывод по подпункту:**
 Ожидаемый prototype result выполнен.
@@ -1140,8 +1140,8 @@ Reporting is prepared, but full practical resource recommendation remains partia
 ## Краткий вывод
 
 - Полностью закрыто: базовая agent architecture, локальная модельная интеграция, roles/context/script formats, script registry, action selection, execution bridge, history/error logging, file/shell/office document actions, controlled single-trial and mini-matrix prototype evidence.
-- Частично закрыто и продвинуто Phase 9.1/9.2/9.3/9.4/9.5: autonomous multi-agent runtime foundation, deterministic scheduler, shared state/task board, runtime loop, stop policy, error recovery, resource locks, virtual environment metadata, fixture-backed browser runtime integration, config-driven autonomous browser scenario evidence, expanded browser fixture coverage with click navigation, synthetic form workflow, wait action, dependencies, browser coverage summary and 4-scenario browser suite aggregation.
+- Частично закрыто и продвинуто Phase 9.1/9.2/9.3/9.4/9.5/9.6: autonomous multi-agent runtime foundation, deterministic scheduler, shared state/task board, runtime loop, stop policy, error recovery, resource locks, virtual environment metadata, fixture-backed browser runtime integration, config-driven autonomous browser scenario evidence, expanded browser fixture coverage with click navigation, synthetic form workflow, wait action, dependencies, browser coverage summary, 4-scenario browser suite aggregation and guarded Playwright operator readiness/packet path.
 - Частично закрыто: virtual network simulation, production browser automation, broad behavioral normality evaluation, model comparison breadth, resource/capacity sizing, GPU/stress evidence, final configuration for further development.
 - Не закрыто: mail/git/other application actions.
-- Для полного закрытия ТЗ нужны: guarded real Playwright/Chromium execution only if separately approved or additional fixture-backed browser breadth, guarded semantic LLM-as-a-judge run later, larger N, stronger resource/capacity measurements, ясная граница virtual network scope, optional mail/git actions only if separately approved under safety policy.
+- Для полного закрытия ТЗ нужны: operator-approved real Playwright/Chromium smoke run and summary or additional fixture-backed browser breadth if deferred, guarded semantic LLM-as-a-judge run later, larger N, stronger resource/capacity measurements, ясная граница virtual network scope, optional mail/git actions only if separately approved under safety policy.
 - Production recommendation не делается: текущий результат является исследовательским prototype conclusion.

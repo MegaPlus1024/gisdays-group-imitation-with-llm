@@ -288,6 +288,42 @@ Limitations:
 - real Playwright/Chromium execution remains a guarded future/operator-only path;
 - mail/git/other application actions remain out of scope.
 
+## Phase 9.6 Guarded Playwright operator path
+
+Phase 9.6 prepares a guarded operator-only path for future real Playwright/Chromium browser checks without launching a browser during automated development/testing.
+
+What was added:
+
+- operator config example: `configs/autonomous_runtime/playwright_operator.example.json`;
+- static readiness/packet module: `src/agent/autonomous_browser_playwright_operator.py`;
+- guarded CLI runner: `scripts/run_autonomous_browser_playwright_operator.py`;
+- required guard contract:
+  - `--allow-real-browser`;
+  - `--confirm-real-browser BROWSER_RUNTIME_OPT_IN`;
+- packet builder support for README, commands JSON, readiness summary and config copy;
+- fake/offline tests proving dry-run and guard refusal do not import Playwright, start a fixture server, launch a browser, run models or call judges.
+
+Current behavior:
+
+- default/dry-run mode validates config, suite/scenario paths, browser namespace, fixture server settings, backend settings, safe output paths and exact guard flags;
+- runner refuses real-browser execution without both guards;
+- when both guards are present, Phase 9.6 still returns `real_browser_execution_not_implemented` rather than launching a browser;
+- fixture-backed browser scenario suite remains the primary automated test path.
+
+What does not run:
+
+- no real browser, Playwright or Chromium is launched;
+- no `playwright install` or browser dependency check is run;
+- no local HTTP fixture server is started;
+- no model client, API/HTTP judge or LLM-as-a-judge is launched;
+- no mail/git/calendar/other external app action namespace is added.
+
+Limitations:
+
+- real browser execution is prepared but not performed or validated;
+- the next browser step, if approved, is an operator-run local Playwright smoke check against the fixture server;
+- this is still not production autonomous browser deployment.
+
 ## 4. Offline reproduction commands
 
 The following commands are intended for offline post-processing of already-produced artifacts. They do not start models or live API calls.
@@ -325,6 +361,12 @@ The following commands are intended for offline post-processing of already-produ
 .\.venv\Scripts\python.exe scripts\run_autonomous_browser_scenario_suite.py `
   --suite configs\autonomous_runtime\browser_scenario_suite.example.json `
   --output artifacts\autonomous_runtime_summaries\browser_scenario_suite.summary.json `
+  --dry-run
+```
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_autonomous_browser_playwright_operator.py `
+  --config configs\autonomous_runtime\playwright_operator.example.json `
   --dry-run
 ```
 
@@ -366,7 +408,7 @@ Committed packet/example files remain allowed, including `artifacts/first_run_pa
 
 ## 8. Next technical stage
 
-The next practical stage should either add more fixture-backed browser scenario breadth or, only if separately approved, add guarded operator-only Playwright execution checks without enabling arbitrary external app integrations.
+The next practical stage should be an operator-approved real Playwright smoke run against local fixtures, or additional fixture-backed browser breadth if real browser execution remains deferred.
 
 Later semantic judge work remains separate and should stay guarded:
 

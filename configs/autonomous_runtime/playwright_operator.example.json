@@ -1,0 +1,24 @@
+{
+  "schema_version": "playwright_operator_config_v1",
+  "operator_id": "browser_suite_playwright_operator_v1",
+  "scenario_suite_path": "configs/autonomous_runtime/browser_scenario_suite.example.json",
+  "fixture_server": {
+    "host": "127.0.0.1",
+    "port": 8765,
+    "fixture_root": "tests/fixtures/local_intranet/office_site_v1",
+    "base_url": "http://127.0.0.1:8765"
+  },
+  "browser_backend": {
+    "type": "playwright",
+    "headless": true,
+    "browser_name": "chromium",
+    "launch_timeout_seconds": 30
+  },
+  "output_dir": "artifacts/autonomous_runtime_summaries/playwright_operator",
+  "required_guards": {
+    "allow_flag": "--allow-real-browser",
+    "confirm_flag": "--confirm-real-browser",
+    "confirm_value": "BROWSER_RUNTIME_OPT_IN"
+  },
+  "no_secrets": true
+}
