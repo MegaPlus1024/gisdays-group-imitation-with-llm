@@ -343,6 +343,19 @@ def test_preserves_embedded_http_urls_while_redacting_paths_and_secrets() -> Non
     assert "SECRET_TOKEN" not in text
 
 
+def test_adapter_sanitizer_preserves_runtime_urls_and_secret_queries() -> None:
+    import src.agent.model_pair_pipeline_result_adapter as adapter_module
+
+    assert adapter_module._safe_text("http://127.0.0.1:8080/v1") == "http://127.0.0.1:8080/v1"
+    assert adapter_module._safe_text("http://127.0.0.1:8081/v1") == "http://127.0.0.1:8081/v1"
+    assert adapter_module._safe_text("https://example.test/v1") == "https://example.test/v1"
+    assert adapter_module._safe_text("wss://127.0.0.1:8081/ws") == "wss://127.0.0.1:8081/ws"
+    assert (
+        adapter_module._safe_text("http://host/v1?token=secret")
+        == "http://host/v1?token=<redacted_secret>"
+    )
+
+
 def test_drops_raw_prompt_response_fields_and_bounds_long_text() -> None:
     marker = "RAW_PROMPT_RESPONSE_MARKER_SHOULD_NOT_COPY"
     result = adapt_orchestrator_executor_pipeline_result(

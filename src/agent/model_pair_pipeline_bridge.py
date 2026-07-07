@@ -87,14 +87,30 @@ def _safe_optional_text(value: Any) -> str | None:
 
 def _safe_text(value: str) -> str:
     text = _redact_secret_text(value)
+    if re.fullmatch(r"/(?:v\d+/)?chat/completions", text.strip()):
+        return text.strip()
+    url_placeholders: dict[str, str] = {}
+
+    def preserve_url(match: re.Match[str]) -> str:
+        placeholder = f"__SAFE_URL_{len(url_placeholders)}__"
+        url_placeholders[placeholder] = _safe_url_text(match.group(0))
+        return placeholder
+
+    text = re.sub(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s\"']+", preserve_url, text)
     text = re.sub(r"[A-Za-z]:[\\/][^\s\"']+", "<absolute_path>", text)
     text = re.sub(r"(?<!\w)/(?:[^\s\"']+/)+[^\s\"']+", "<absolute_path>", text)
     text = re.sub(r"\\\\[^\s\"']+", "<absolute_path>", text)
     if _is_absolute_path(text):
         text = "<absolute_path>"
+    for placeholder, url in url_placeholders.items():
+        text = text.replace(placeholder, url)
     if len(text) > _MAX_TEXT_CHARS:
         return text[:_MAX_TEXT_CHARS] + "...[truncated]"
     return text
+
+
+def _safe_url_text(value: str) -> str:
+    return re.sub(r"://[^/\s:@]+:[^/\s@]+@", "://<redacted_secret>@", value)
 
 
 def _redact_secret_text(value: str) -> str:

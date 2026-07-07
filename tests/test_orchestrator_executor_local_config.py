@@ -178,6 +178,40 @@ def test_effective_runtime_warnings_use_overridden_base_urls_and_preserve_api_mo
     )
 
 
+def test_pipeline_sanitizer_preserves_runtime_urls_and_secret_queries() -> None:
+    assert pipeline._safe_text("http://127.0.0.1:8080/v1") == "http://127.0.0.1:8080/v1"
+    assert pipeline._safe_text("http://127.0.0.1:8081/v1") == "http://127.0.0.1:8081/v1"
+    assert pipeline._safe_text("https://example.test/v1") == "https://example.test/v1"
+    assert pipeline._safe_text("wss://127.0.0.1:8081/ws") == "wss://127.0.0.1:8081/ws"
+    assert pipeline._safe_text("http://host/v1?token=secret") == "http://host/v1?token=<redacted_secret>"
+
+
+def test_local_http_error_uses_path_only_endpoint_diagnostics() -> None:
+    model = pipeline.OrchestratorModelConfig(
+        model_id="second_model",
+        base_url="http://127.0.0.1:8080/v1",
+        model_name="second_model.gguf",
+        api_model="second_model",
+    )
+    payload = {
+        "model": "second_model",
+        "messages": [{"role": "user", "content": "shape only"}],
+        "temperature": 0.0,
+        "max_tokens": 1,
+    }
+    error = pipeline._local_model_http_error(
+        pipeline.httpx.ConnectError("Request URL is missing an 'http://' or 'https://' protocol."),
+        model=model,
+        payload=payload,
+        url="http://127.0.0.1:8080/v1/chat/completions",
+    )
+
+    assert error.error_code == "local_model_http_error"
+    assert error.diagnostics["endpoint_path"] == "/v1/chat/completions"
+    assert "http://127.0.0.1:8080" not in error.diagnostics["endpoint_path"]
+    assert pipeline._endpoint_path("htt<absolute_path>/chat/completions") == "/chat/completions"
+
+
 def test_cli_accepts_base_url_overrides_and_fake_mode_remains_offline(tmp_path: Path) -> None:
     out_dir = tmp_path / "cli_override_artifacts"
     completed = subprocess.run(

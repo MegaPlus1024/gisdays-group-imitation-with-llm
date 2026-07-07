@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import copy
 import importlib
 import json
 import sys
@@ -358,6 +359,41 @@ def test_wrapper_lifts_local_pipeline_config_to_entrypoint_input() -> None:
 
     assert payload["local_pipeline_config"]["run_id"] == "lift_test"
     assert payload["extra_config"]["local_pipeline_config"]["run_id"] == "lift_test"
+
+
+def test_wrapper_passes_raw_dual_endpoint_config_without_mutating_input() -> None:
+    extra_config = {
+        "local_pipeline_config": _local_pipeline_config(
+            run_id="dual_endpoint_raw",
+            orchestrator_base_url="http://127.0.0.1:8080/v1",
+            executor_base_url="http://127.0.0.1:8081/v1",
+        )
+    }
+    before = copy.deepcopy(extra_config)
+
+    payload = build_pipeline_entrypoint_input(
+        _entrypoint_input(allow_runtime=False, local_pipeline_config=None),
+        extra_config=extra_config,
+    )
+    payload["local_pipeline_config"]["orchestrator_base_url"] = "changed"
+
+    assert extra_config == before
+    assert payload["extra_config"]["local_pipeline_config"]["orchestrator_base_url"] == "http://127.0.0.1:8080/v1"
+    assert payload["extra_config"]["local_pipeline_config"]["executor_base_url"] == "http://127.0.0.1:8081/v1"
+    assert "htt<absolute_path>" not in json.dumps(payload, ensure_ascii=False)
+
+
+def test_local_entrypoint_sanitizer_preserves_runtime_urls_and_secret_queries() -> None:
+    import src.agent.model_pair_local_pipeline_entrypoint as local_entrypoint
+
+    assert local_entrypoint._safe_text("http://127.0.0.1:8080/v1") == "http://127.0.0.1:8080/v1"
+    assert local_entrypoint._safe_text("http://127.0.0.1:8081/v1") == "http://127.0.0.1:8081/v1"
+    assert local_entrypoint._safe_text("https://example.test/v1") == "https://example.test/v1"
+    assert local_entrypoint._safe_text("ws://127.0.0.1:8080/ws") == "ws://127.0.0.1:8080/ws"
+    assert (
+        local_entrypoint._safe_text("http://host/v1?token=secret")
+        == "http://host/v1?token=<redacted_secret>"
+    )
 
 
 def test_example_local_pipeline_config_is_safe_relative_json() -> None:
@@ -842,7 +878,12 @@ def test_entrypoint_works_through_single_trial_stack_with_monkeypatched_runtime_
             role_config_resolver=_role_config,
             scenario_config_resolver=_scenario_config,
             model_binding_resolver=_model_bindings,
-            extra_config={"local_pipeline_config": _local_pipeline_config()},
+            extra_config={
+                "local_pipeline_config": _local_pipeline_config(
+                    orchestrator_base_url="http://127.0.0.1:8080/v1",
+                    executor_base_url="http://127.0.0.1:8081/v1",
+                )
+            },
         ),
     )
 
@@ -851,6 +892,8 @@ def test_entrypoint_works_through_single_trial_stack_with_monkeypatched_runtime_
     assert len(calls) == 1
     assert calls[0]["execution_options"]["allow_runtime_execution"] is True
     assert calls[0]["local_pipeline_config"]["out_dir"] == "artifacts/local_pipeline_runs/phase_8_10_test"
+    assert calls[0]["local_pipeline_config"]["orchestrator_base_url"] == "http://127.0.0.1:8080/v1"
+    assert calls[0]["local_pipeline_config"]["executor_base_url"] == "http://127.0.0.1:8081/v1"
 
 
 def test_guarded_operator_runner_runtime_path_uses_fake_existing_pipeline_only(

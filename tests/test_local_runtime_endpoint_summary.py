@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+import src.agent.local_runtime_endpoint_summary as endpoint_summary
 from src.agent.local_runtime_endpoint_summary import (
     LOCAL_RUNTIME_ENDPOINT_SUMMARY_SCHEMA_VERSION,
     main as endpoint_summary_main,
@@ -123,6 +124,23 @@ def test_endpoint_summary_uses_dual_endpoint_overrides(
     assert summary["shared_endpoint"] is False
     assert summary["warnings"] == []
     assert summary["no_runtime_execution"] is True
+
+
+def test_endpoint_sanitizer_preserves_runtime_urls_and_secret_queries() -> None:
+    windows_path = "\\".join(["C:", "Users", "Example", "secret", "models.json"])
+
+    assert endpoint_summary._safe_text("http://127.0.0.1:8080/v1") == "http://127.0.0.1:8080/v1"
+    assert endpoint_summary._safe_text("http://127.0.0.1:8081/v1") == "http://127.0.0.1:8081/v1"
+    assert endpoint_summary._safe_text("https://example.test/v1") == "https://example.test/v1"
+    assert endpoint_summary._safe_text("ws://127.0.0.1:8080/ws") == "ws://127.0.0.1:8080/ws"
+    assert (
+        endpoint_summary._safe_text("http://host/v1?token=secret")
+        == "http://host/v1?token=<redacted_secret>"
+    )
+    text = endpoint_summary._safe_text(f"see http://127.0.0.1:8080/v1 while reading {windows_path}")
+    assert "http://127.0.0.1:8080/v1" in text
+    assert windows_path not in text
+    assert "<absolute_path>" in text
 
 
 def test_detects_missing_endpoint_fields(

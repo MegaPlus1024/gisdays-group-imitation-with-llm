@@ -89,12 +89,12 @@ def build_pipeline_entrypoint_input(
     }
 
     if extra_config:
-        safe_extra_config = _safe_mapping(extra_config)
-        entrypoint_input["extra_config"] = safe_extra_config
-        local_pipeline_config = safe_extra_config.get("local_pipeline_config")
+        raw_extra_config = _copy_raw_mapping(extra_config)
+        entrypoint_input["extra_config"] = raw_extra_config
+        local_pipeline_config = raw_extra_config.get("local_pipeline_config")
         if isinstance(local_pipeline_config, Mapping):
-            entrypoint_input["local_pipeline_config"] = local_pipeline_config
-    return _safe_mapping(entrypoint_input)
+            entrypoint_input["local_pipeline_config"] = _copy_raw_mapping(local_pipeline_config)
+    return entrypoint_input
 
 
 def make_explicit_pipeline_entrypoint_callable(
@@ -207,14 +207,30 @@ def _safe_optional_text(value: Any) -> str | None:
 
 def _safe_text(value: str) -> str:
     text = _redact_secret_text(value)
+    if re.fullmatch(r"/(?:v\d+/)?chat/completions", text.strip()):
+        return text.strip()
+    url_placeholders: dict[str, str] = {}
+
+    def preserve_url(match: re.Match[str]) -> str:
+        placeholder = f"__SAFE_URL_{len(url_placeholders)}__"
+        url_placeholders[placeholder] = _safe_url_text(match.group(0))
+        return placeholder
+
+    text = re.sub(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s\"']+", preserve_url, text)
     text = re.sub(r"[A-Za-z]:[\\/][^\s\"']+", "<absolute_path>", text)
     text = re.sub(r"(?<!\w)/(?:[^\s\"']+/)+[^\s\"']+", "<absolute_path>", text)
     text = re.sub(r"\\\\[^\s\"']+", "<absolute_path>", text)
     if _is_absolute_path(text):
         text = "<absolute_path>"
+    for placeholder, url in url_placeholders.items():
+        text = text.replace(placeholder, url)
     if len(text) > _MAX_TEXT_CHARS:
         return text[:_MAX_TEXT_CHARS] + "...[truncated]"
     return text
+
+
+def _safe_url_text(value: str) -> str:
+    return re.sub(r"://[^/\s:@]+:[^/\s@]+@", "://<redacted_secret>@", value)
 
 
 def _redact_secret_text(value: str) -> str:
@@ -282,3 +298,10 @@ def _safe_text_list(value: Any) -> list[str]:
 
 def _drop_none_values(payload: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in payload.items() if value is not None}
+
+
+def _copy_raw_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
+    try:
+        return copy.deepcopy(dict(value))
+    except Exception:
+        return dict(value)

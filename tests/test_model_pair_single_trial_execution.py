@@ -578,6 +578,66 @@ def test_result_paths_are_relative_and_safe(tmp_path: Path) -> None:
     assert "<absolute_path>" not in json.dumps(result, ensure_ascii=False)
 
 
+def test_single_trial_sanitizer_preserves_runtime_urls_and_secret_queries() -> None:
+    import src.agent.model_pair_single_trial_execution as single_module
+
+    assert single_module._safe_text("http://127.0.0.1:8080/v1") == "http://127.0.0.1:8080/v1"
+    assert single_module._safe_text("http://127.0.0.1:8081/v1") == "http://127.0.0.1:8081/v1"
+    assert single_module._safe_text("https://example.test/v1") == "https://example.test/v1"
+    assert single_module._safe_text("ws://127.0.0.1:8080/ws") == "ws://127.0.0.1:8080/ws"
+    assert (
+        single_module._safe_text("http://host/v1?token=secret")
+        == "http://host/v1?token=<redacted_secret>"
+    )
+
+
+def test_failed_pipeline_error_diagnostics_are_persisted_in_result_and_matrix(tmp_path: Path) -> None:
+    plan = _plan()
+    output_dir = tmp_path / "single_failed"
+    result = run_single_model_pair_trial(
+        plan,
+        pipeline_entrypoint=lambda _: _fake_pipeline_result(
+            status="failed",
+            success=False,
+            group_history=[],
+            errors=[
+                {
+                    "stage": "orchestrator",
+                    "error_type": "local_model_http_error",
+                    "error_message": "local_model_http_error: HTTP None for /v1/chat/completions",
+                    "diagnostics": {
+                        "error_code": "local_model_http_error",
+                        "endpoint_path": "/v1/chat/completions",
+                        "model_id": "second_model",
+                        "api_model": "second_model",
+                    },
+                }
+            ],
+            stopped_reason="local_model_http_error: HTTP None for /v1/chat/completions",
+            metadata={},
+            no_runtime_execution=False,
+        ),
+        config=ModelPairSingleTrialExecutionConfig(
+            output_dir=output_dir,
+            trial_id=plan["trials"][0]["trial_id"],
+            readiness_summary_path=_ready_summary_path(tmp_path, plan),
+            allow_runtime_execution=True,
+        ),
+    )
+    trial_payload = _json(output_dir / MODEL_PAIR_SINGLE_TRIAL_RESULT_FILENAME)
+    matrix_payload = _json(output_dir / MODEL_PAIR_SINGLE_TRIAL_MATRIX_SUMMARY_FILENAME)
+
+    assert result["status"] == "failed"
+    assert trial_payload["error_code"] == "local_model_http_error"
+    assert trial_payload["metadata"]["diagnostics"]["error_code"] == "local_model_http_error"
+    assert trial_payload["metadata"]["diagnostics"]["errors"][0]["diagnostics"]["endpoint_path"] == "/v1/chat/completions"
+    assert matrix_payload["trial_results"][0]["error_code"] == "local_model_http_error"
+    assert (
+        matrix_payload["trial_results"][0]["metadata"]["diagnostics"]["errors"][0]["diagnostics"]["endpoint_path"]
+        == "/v1/chat/completions"
+    )
+
+
 def test_secrets_and_absolute_paths_are_redacted(tmp_path: Path) -> None:
     windows_path = "\\".join(["C:", "Users", "Example", "secret", "artifact.txt"])
     plan = _plan()

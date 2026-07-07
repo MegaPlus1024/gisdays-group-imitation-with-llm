@@ -597,7 +597,11 @@ def _chat_completion_url(base_url: str) -> str:
 
 def _endpoint_path(url: str) -> str:
     parsed = urlsplit(url)
-    return parsed.path or "/chat/completions"
+    if parsed.path.startswith("/"):
+        return parsed.path
+    if "chat/completions" in url:
+        return "/chat/completions"
+    return "/chat/completions"
 
 
 def _request_shape(payload: dict[str, Any]) -> dict[str, Any]:
@@ -2834,6 +2838,8 @@ def _safe_response_excerpt(value: str) -> str:
 
 def _safe_text(value: str) -> str:
     text = _redact_secret_text(value)
+    if re.fullmatch(r"/(?:v\d+/)?chat/completions", text.strip()):
+        return text.strip()
     url_placeholders: dict[str, str] = {}
 
     def preserve_url(match: re.Match[str]) -> str:
@@ -2861,7 +2867,7 @@ def _safe_url_text(value: str) -> str:
 def _redact_secret_text(value: str) -> str:
     text = re.sub(
         r"(?i)['\"]?\b(api[_-]?key|token|secret|password|credential|auth)\b['\"]?\s*[:=]\s*['\"]?[^,\s'\"}]+",
-        "<redacted_secret>",
+        lambda match: f"{match.group(1)}=<redacted_secret>",
         value,
     )
     return re.sub(
