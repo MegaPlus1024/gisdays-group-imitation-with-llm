@@ -496,6 +496,13 @@ def test_config_build_helper_accepts_dual_endpoint_controlled_trial_config(
         "max_history_items": 6,
         "compact_executor_context": True,
     }
+    local_config["action_parameter_repair"] = {
+        "enabled": True,
+        "office_default_output_dir": (
+            "artifacts/single_trial_runs/phase_8_21_action_repair_retry/"
+            "pipeline/workspace/office_outputs"
+        ),
+    }
 
     config = build_orchestrator_executor_run_config_from_local_pipeline_config(
         _entrypoint_input(allow_runtime=True, local_pipeline_config=local_config)
@@ -508,6 +515,10 @@ def test_config_build_helper_accepts_dual_endpoint_controlled_trial_config(
     assert config.payload["executor_base_url"] == "http://127.0.0.1:8081/v1"
     assert config.payload["prompt_budget"]["executor_max_prompt_chars"] == 12000
     assert config.payload["prompt_budget"]["compact_executor_context"] is True
+    assert config.payload["action_parameter_repair"]["enabled"] is True
+    assert config.payload["action_parameter_repair"]["office_default_output_dir"].endswith(
+        "pipeline/workspace/office_outputs"
+    )
     assert config.payload["orchestrator_model_id"] == "second_model"
     assert config.payload["executor_model_id"] == "first_model"
     assert [name for name, _ in calls] == ["config"]

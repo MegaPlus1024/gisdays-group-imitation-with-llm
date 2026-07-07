@@ -19,6 +19,7 @@ from src.agent.state import (
     AgentState,
 )
 from src.agent.orchestrator_executor_pipeline import (
+    ActionParameterRepairConfig,
     ExecutorModelConfig,
     OrchestratorExecutorRunConfig,
     OrchestratorExecutorRunner,
@@ -149,6 +150,44 @@ def _bloated_agent_state() -> AgentState:
             },
             "raw_prompt": "RAW_PROMPT_MARKER_SHOULD_NOT_LEAK",
         },
+    )
+
+
+def _agent_spec(agent_id: str = "document_summary_agent") -> pipeline.GroupAgentSpec:
+    return pipeline.GroupAgentSpec(
+        agent_id=agent_id,
+        role_template_path="configs/roles/office_document_worker.example.json",
+        activity_profile_path="configs/activity_profiles/office_worker.json",
+        assigned_goal="Create a local office artifact.",
+        executor_model_id="first_model",
+    )
+
+
+def _task(task_id: str = "t1", agent_id: str = "document_summary_agent") -> pipeline.OrchestratorPlanTask:
+    return pipeline.OrchestratorPlanTask(
+        task_id=task_id,
+        agent_id=agent_id,
+        goal="Create a local office artifact.",
+        success_criteria="A valid office action is selected.",
+    )
+
+
+def _repair_config() -> ActionParameterRepairConfig:
+    return ActionParameterRepairConfig(
+        enabled=True,
+        office_default_output_dir=(
+            "artifacts/single_trial_runs/phase_8_21_action_repair_retry/"
+            "pipeline/workspace/office_outputs"
+        ),
+    )
+
+
+def _next_action(action: str, parameters: dict[str, object] | None = None) -> pipeline.NextAction:
+    return pipeline.NextAction(
+        action=action,
+        parameters=parameters or {},
+        reason="Select a safe local action.",
+        expected_result="The action validates.",
     )
 
 
@@ -334,6 +373,213 @@ def test_local_executor_request_diagnostics_include_prompt_budget_metadata() -> 
     assert shape["prompt_chars_after"] == 11800
     assert shape["compact_executor_context"] is True
     assert shape["max_tokens_present"] is True
+
+
+@pytest.mark.parametrize(
+    ("action", "extension"),
+    [
+        ("office_create_docx", ".docx"),
+        ("office_create_xlsx", ".xlsx"),
+        ("office_create_pptx", ".pptx"),
+    ],
+)
+def test_office_create_missing_path_gets_controlled_default(action: str, extension: str) -> None:
+    result = pipeline._apply_action_parameter_repair(
+        next_action=_next_action(action),
+        agent=_agent_spec(),
+        task=_task(),
+        config=_repair_config(),
+        out_dir=PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_21_action_repair_retry/pipeline",
+        project_root=PROJECT_ROOT,
+    )
+
+    path = result.next_action.parameters["path"]
+    assert path == (
+        "artifacts/single_trial_runs/phase_8_21_action_repair_retry/"
+        f"pipeline/workspace/office_outputs/t1_document_summary_agent{extension}"
+    )
+    assert result.metadata is not None
+    assert result.metadata["parameter_repair_applied"] is True
+    assert result.metadata["parameter_repair_type"] == "default_office_output_path"
+    assert result.metadata["repaired_parameters"] == ["path"]
+    assert result.metadata["path_source"] == "controlled_default"
+
+
+def test_office_create_existing_safe_path_is_preserved() -> None:
+    original = _next_action("office_create_docx", {"path": "artifacts/office_documents/manual.docx"})
+
+    result = pipeline._apply_action_parameter_repair(
+        next_action=original,
+        agent=_agent_spec(),
+        task=_task(),
+        config=_repair_config(),
+        out_dir=PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_21_action_repair_retry/pipeline",
+        project_root=PROJECT_ROOT,
+    )
+
+    assert result.next_action.parameters["path"] == "artifacts/office_documents/manual.docx"
+    assert result.metadata is None
+
+
+def test_office_create_unsafe_paths_are_not_silently_repaired() -> None:
+    registry = pipeline.load_script_registry(PROJECT_ROOT / "configs/script_registry.example.json")
+    role = pipeline.load_role_template(PROJECT_ROOT / "configs/roles/office_document_worker.example.json")
+    original = _next_action("office_create_docx", {"path": "C:/Users/m/out.docx"})
+
+    result = pipeline._apply_action_parameter_repair(
+        next_action=original,
+        agent=_agent_spec(),
+        task=_task(),
+        config=_repair_config(),
+        out_dir=PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_21_action_repair_retry/pipeline",
+        project_root=PROJECT_ROOT,
+    )
+    validation = pipeline.validate_next_action_against_registry(result.next_action, registry, role)
+
+    assert result.next_action.parameters["path"] == "C:/Users/m/out.docx"
+    assert result.metadata is None
+    assert validation.accepted is False
+    assert {issue.code for issue in validation.issues} >= {"unsafe_path"}
+
+
+def test_office_create_traversal_path_is_not_silently_repaired() -> None:
+    registry = pipeline.load_script_registry(PROJECT_ROOT / "configs/script_registry.example.json")
+    role = pipeline.load_role_template(PROJECT_ROOT / "configs/roles/office_document_worker.example.json")
+    original = _next_action("office_create_xlsx", {"path": "../tasks.xlsx"})
+
+    result = pipeline._apply_action_parameter_repair(
+        next_action=original,
+        agent=_agent_spec("document_tracker_agent"),
+        task=_task("t2", "document_tracker_agent"),
+        config=_repair_config(),
+        out_dir=PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_21_action_repair_retry/pipeline",
+        project_root=PROJECT_ROOT,
+    )
+    validation = pipeline.validate_next_action_against_registry(result.next_action, registry, role)
+
+    assert result.next_action.parameters["path"] == "../tasks.xlsx"
+    assert result.metadata is None
+    assert validation.accepted is False
+    assert {issue.code for issue in validation.issues} >= {"unsafe_path"}
+
+
+def test_office_path_repair_validates_after_repair() -> None:
+    registry = pipeline.load_script_registry(PROJECT_ROOT / "configs/script_registry.example.json")
+    role = pipeline.load_role_template(PROJECT_ROOT / "configs/roles/office_document_worker.example.json")
+
+    result = pipeline._apply_action_parameter_repair(
+        next_action=_next_action("office_create_docx"),
+        agent=_agent_spec(),
+        task=_task(),
+        config=_repair_config(),
+        out_dir=PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_21_action_repair_retry/pipeline",
+        project_root=PROJECT_ROOT,
+    )
+    validation = pipeline.validate_next_action_against_registry(result.next_action, registry, role)
+    scenario_issue = pipeline._scenario_action_constraint_issue(
+        next_action=result.next_action,
+        scenario=pipeline.load_orchestrator_executor_scenario(
+            PROJECT_ROOT / "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json"
+        ),
+        out_dir=PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_21_action_repair_retry/pipeline",
+        project_root=PROJECT_ROOT,
+    )
+
+    assert validation.accepted is True
+    assert scenario_issue is None
+
+
+def test_group_history_includes_parameter_repair_metadata() -> None:
+    record = pipeline._history_from_attempt(
+        pipeline.ExecutorActionAttempt(
+            group_step_index=1,
+            agent_step_index=1,
+            agent_id="document_summary_agent",
+            task_id="t1",
+            raw_model_output="{}",
+            parse_success=True,
+            action="office_create_docx",
+            next_action=_next_action(
+                "office_create_docx",
+                {"path": "artifacts/single_trial_runs/x/pipeline/workspace/office_outputs/t1.docx"},
+            ).model_dump(mode="json"),
+            validation_accepted=True,
+            parameter_repair={
+                "parameter_repair_applied": True,
+                "parameter_repair_type": "default_office_output_path",
+                "repaired_parameters": ["path"],
+                "path_source": "controlled_default",
+            },
+        )
+    )
+
+    assert record.status == "success"
+    assert record.metadata["parameter_repair"]["parameter_repair_applied"] is True
+    assert record.metadata["parameter_repair"]["path_source"] == "controlled_default"
+
+
+def test_non_office_actions_are_not_repaired_generically() -> None:
+    result = pipeline._apply_action_parameter_repair(
+        next_action=_next_action("create_file"),
+        agent=_agent_spec(),
+        task=_task(),
+        config=_repair_config(),
+        out_dir=PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_21_action_repair_retry/pipeline",
+        project_root=PROJECT_ROOT,
+    )
+
+    assert result.next_action.parameters == {}
+    assert result.metadata is None
+
+
+def test_office_create_wrong_extension_is_rejected() -> None:
+    issue = pipeline._office_create_path_extension_issue(
+        _next_action("office_create_pptx", {"path": "artifacts/office_documents/brief.docx"})
+    )
+
+    assert issue is not None
+    assert issue["code"] == "office_path_extension_mismatch"
+    assert issue["metadata"]["expected_extension"] == ".pptx"
+
+
+def test_compact_executor_prompt_keeps_office_required_path_guidance() -> None:
+    registry = pipeline.load_script_registry(PROJECT_ROOT / "configs/script_registry.example.json")
+    role = pipeline.load_role_template(PROJECT_ROOT / "configs/roles/office_document_worker.example.json")
+    agent = _agent_spec()
+    assignment = pipeline.AgentAssignment(
+        agent_id=agent.agent_id,
+        task_id="t1",
+        assigned_goal="Create a DOCX summary under the controlled workspace.",
+        executor_model_id="first_model",
+        success_criteria="Use office_create_docx with a path parameter.",
+        allowed_action_focus=["office_create_docx"],
+    )
+    state = pipeline._build_agent_state(
+        PROJECT_ROOT,
+        agent,
+        role,
+        registry,
+        assignment,
+        PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_21_action_repair_retry/pipeline",
+    )
+
+    messages, metadata = pipeline._executor_messages_with_budget(
+        PromptBuilder(PromptContractConfig(include_history_limit=6)),
+        state,
+        PromptBudgetConfig(
+            executor_max_prompt_chars=12000,
+            max_history_items=6,
+            compact_executor_context=True,
+        ),
+    )
+    text = json.dumps(messages, ensure_ascii=False)
+
+    assert "office_create_docx" in text
+    assert "path" in text
+    assert ".docx" in text
+    assert "office_outputs" in text
+    assert "NEXT_ACTION_OUTPUT_CONTRACT" in text
+    assert metadata["prompt_chars_after"] <= 12000
 
 
 def test_cli_help_works() -> None:

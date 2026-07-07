@@ -206,6 +206,7 @@ class ExecutorActionAttempt(BaseModel):
     error_type: str | None = None
     error_message: str | None = None
     error_diagnostics: dict[str, Any] | None = None
+    parameter_repair: dict[str, Any] | None = None
 
 
 class ExecutorAgentTrajectory(BaseModel):
@@ -349,6 +350,25 @@ class PromptBudgetConfig(BaseModel):
         return value
 
 
+class ActionParameterRepairConfig(BaseModel):
+    enabled: bool = False
+    office_default_output_dir: str | None = None
+
+    @field_validator("office_default_output_dir")
+    @classmethod
+    def validate_office_default_output_dir(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        raw = value.strip().replace("\\", "/")
+        if not raw:
+            raise ValueError("office_default_output_dir must be non-empty when provided.")
+        if not _is_safe_relative_artifact_path(raw):
+            raise ValueError("office_default_output_dir must be a safe relative artifact path.")
+        if not raw.endswith("/"):
+            raw += "/"
+        return raw
+
+
 class OrchestratorExecutorRunConfig(BaseModel):
     project_root: Path = Path(".")
     mode: GroupRunMode = "fake"
@@ -371,6 +391,7 @@ class OrchestratorExecutorRunConfig(BaseModel):
     execute_actions: bool | None = None
     force: bool = False
     prompt_budget: PromptBudgetConfig = Field(default_factory=PromptBudgetConfig)
+    action_parameter_repair: ActionParameterRepairConfig = Field(default_factory=ActionParameterRepairConfig)
 
     @field_validator("project_root")
     @classmethod
@@ -1069,6 +1090,7 @@ class OrchestratorExecutorRunner:
                     out_dir=out_dir,
                     project_root=self.config.project_root,
                     repair_attempts=self.config.repair_attempts,
+                    action_parameter_repair=self.config.action_parameter_repair,
                     virtual_network_spec=virtual_network_binding.spec if virtual_network_binding else None,
                 )
                 trajectory.attempts.extend(attempts)
@@ -1100,6 +1122,8 @@ class OrchestratorExecutorRunner:
                         }
                         if attempt.error_diagnostics is not None:
                             error["diagnostics"] = attempt.error_diagnostics
+                        if attempt.parameter_repair is not None:
+                            error["parameter_repair"] = attempt.parameter_repair
                         errors.append(error)
 
         activity_profiles = {
@@ -1930,19 +1954,25 @@ def _safe_action_examples(
                 if _path_allowed_by_roots(candidate, roots) and (project_root / candidate).exists():
                     examples.append({"path": candidate})
         else:
-            safe_out = _safe_relative_artifact_path(
-                project_root,
-                out_dir / "workspace" / f"{agent_id}_executor_note.md",
+            write_example = _write_action_path_example(
+                project_root=project_root,
+                descriptor=descriptor,
+                roots=roots,
+                agent_id=agent_id,
+                out_dir=out_dir,
             )
-            if _path_allowed_by_roots(safe_out, roots):
-                examples.append({"path": safe_out, "content": f"{agent_id} local group note.\n"})
+            if write_example:
+                examples.append(write_example)
 
-    if descriptor.safety.read_only:
-        for example in descriptor.examples:
-            path = example.get("path")
-            if isinstance(path, str) and roots and not _path_allowed_by_roots(path, roots):
+    for example in descriptor.examples:
+        path = example.get("path")
+        if isinstance(path, str):
+            normalized_path = path.replace("\\", "/")
+            if not _is_safe_relative_artifact_path(normalized_path):
                 continue
-            examples.append(dict(example))
+            if roots and not _path_allowed_by_roots(normalized_path, roots):
+                continue
+        examples.append(dict(example))
 
     deduped: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -1953,6 +1983,35 @@ def _safe_action_examples(
         seen.add(key)
         deduped.append(example)
     return deduped
+
+
+def _write_action_path_example(
+    *,
+    project_root: Path,
+    descriptor: Any,
+    roots: list[str],
+    agent_id: str,
+    out_dir: Path,
+) -> dict[str, Any]:
+    if descriptor.name in _OFFICE_CREATE_ACTION_EXTENSIONS:
+        safe_out = _default_office_output_path(
+            action_name=descriptor.name,
+            agent_id=agent_id,
+            task_id="task",
+            config=ActionParameterRepairConfig(enabled=True),
+            out_dir=out_dir,
+            project_root=project_root,
+        )
+        if _path_allowed_by_roots(safe_out, roots):
+            return {"path": safe_out}
+        return {}
+    safe_out = _safe_relative_artifact_path(
+        project_root,
+        out_dir / "workspace" / f"{agent_id}_executor_note.md",
+    )
+    if _path_allowed_by_roots(safe_out, roots):
+        return {"path": safe_out, "content": f"{agent_id} local group note.\n"}
+    return {}
 
 
 def _path_allowed_by_roots(path: str, roots: list[str]) -> bool:
@@ -1987,6 +2046,27 @@ def _next_action_json_example(
             "reason": "Create a safe local note for the assigned task.",
             "expected_result": "The note is written under an allowed project path.",
         }
+    for action_name in sorted(action_schemas):
+        schema = action_schemas[action_name]
+        parameters = schema.get("parameters") if isinstance(schema, Mapping) else {}
+        if not isinstance(parameters, Mapping) or "path" not in parameters:
+            continue
+        examples = schema.get("examples") if isinstance(schema, Mapping) else []
+        path = None
+        if isinstance(examples, list):
+            for example in examples:
+                if isinstance(example, Mapping) and isinstance(example.get("path"), str):
+                    path = example["path"]
+                    break
+        if path is None and safe_write_path_examples:
+            path = sorted(safe_write_path_examples)[0]
+        if path is not None:
+            return {
+                "action": action_name,
+                "parameters": {"path": path},
+                "reason": "Create a safe local artifact for the assigned task.",
+                "expected_result": "The artifact path is valid under the controlled workspace.",
+            }
     action_name = sorted(action_schemas)[0] if action_schemas else "read_file"
     return {
         "action": action_name,
@@ -2103,13 +2183,20 @@ def _minimal_executor_prompt_context(
     metadata = compact.get("metadata") if isinstance(compact.get("metadata"), Mapping) else {}
     hints = metadata.get("executor_prompt_hints") if isinstance(metadata, Mapping) else {}
     if isinstance(hints, Mapping):
+        allowed_action_focus = _limited_text_list(hints.get("allowed_action_focus"), 4)
+        allowed_actions = _limited_text_list(hints.get("allowed_actions"), 8)
         metadata = dict(metadata)
         metadata["executor_prompt_hints"] = {
             "agent_id": hints.get("agent_id"),
             "task_id": hints.get("task_id"),
             "assigned_goal": hints.get("assigned_goal"),
             "success_criteria": hints.get("success_criteria"),
-            "allowed_actions": _limited_text_list(hints.get("allowed_actions"), 8),
+            "allowed_action_focus": allowed_action_focus,
+            "allowed_actions": allowed_actions,
+            "action_schemas": _minimal_action_schemas(
+                hints.get("action_schemas"),
+                allowed_action_focus or allowed_actions,
+            ),
             "safe_path_roots": _limited_text_list(hints.get("safe_path_roots"), 8),
             "safe_existing_read_paths": _limited_text_list(hints.get("safe_existing_read_paths"), 4),
             "safe_write_path_examples": _limited_text_list(hints.get("safe_write_path_examples"), 4),
@@ -2119,11 +2206,69 @@ def _minimal_executor_prompt_context(
         compact["metadata"] = metadata
     compact["resources"] = {}
     compact["available_actions"] = [
-        {"name": item.get("name"), "parameters_schema": item.get("parameters_schema")}
+        {
+            "name": item.get("name"),
+            "parameters_schema": _minimal_parameters_schema(item.get("parameters_schema")),
+        }
         for item in compact.get("available_actions", [])
         if isinstance(item, Mapping)
-    ][:8]
+    ][:4]
     return compact
+
+
+def _minimal_action_schemas(value: Any, allowed_actions: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    names = _limited_text_list(allowed_actions, 4)
+    if not names:
+        names = [str(key) for key in list(value.keys())[:4]]
+    out: dict[str, Any] = {}
+    for action_name in names:
+        schema = value.get(action_name)
+        if not isinstance(schema, Mapping):
+            continue
+        required = set(_limited_text_list(schema.get("required_parameters"), 8))
+        out[action_name] = {
+            "required_parameters": sorted(required),
+            "parameters": _minimal_parameters_schema(schema.get("parameters"), required=required),
+            "examples": _minimal_path_examples(schema.get("examples")),
+        }
+    return out
+
+
+def _minimal_parameters_schema(value: Any, *, required: set[str] | None = None) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    required_names = required or {
+        str(key)
+        for key, item in value.items()
+        if isinstance(item, Mapping) and item.get("required") is True
+    }
+    keep_names = set(required_names)
+    if "path" in value:
+        keep_names.add("path")
+    out: dict[str, Any] = {}
+    for key, item in value.items():
+        key_text = str(key)
+        if key_text not in keep_names:
+            continue
+        if isinstance(item, Mapping):
+            out[key_text] = {
+                "type": _clip_text(item.get("type"), 40),
+                "required": item.get("required"),
+            }
+        else:
+            out[key_text] = _compact_json_value(item, max_chars=40)
+    return out
+
+
+def _minimal_path_examples(value: Any) -> list[dict[str, str]]:
+    if not isinstance(value, list | tuple):
+        return []
+    for item in value:
+        if isinstance(item, Mapping) and isinstance(item.get("path"), str):
+            return [{"path": _clip_text(item["path"], 180) or ""}]
+    return []
 
 
 def _compact_executor_prompt_hints(value: Mapping[str, Any]) -> dict[str, Any]:
@@ -2416,6 +2561,7 @@ def _run_executor_step(
     out_dir: Path,
     project_root: Path,
     repair_attempts: int,
+    action_parameter_repair: ActionParameterRepairConfig,
     virtual_network_spec: VirtualNetworkSpec | None = None,
 ) -> list[ExecutorActionAttempt]:
     agent_step_index = state.current_step
@@ -2487,6 +2633,7 @@ def _run_executor_step(
             scenario=scenario,
             out_dir=out_dir,
             project_root=project_root,
+            action_parameter_repair=action_parameter_repair,
             latency_ms=_elapsed_ms(started),
             virtual_network_spec=virtual_network_spec,
         )
@@ -2519,6 +2666,7 @@ def _executor_attempt_from_result(
     scenario: OrchestratorExecutorScenario,
     out_dir: Path,
     project_root: Path,
+    action_parameter_repair: ActionParameterRepairConfig,
     latency_ms: float,
     virtual_network_spec: VirtualNetworkSpec | None = None,
 ) -> ExecutorActionAttempt:
@@ -2542,12 +2690,33 @@ def _executor_attempt_from_result(
         attempt.error_message = str(exc)
         return attempt
 
+    repair_result = _apply_action_parameter_repair(
+        next_action=next_action,
+        agent=agent,
+        task=task,
+        config=action_parameter_repair,
+        out_dir=out_dir,
+        project_root=project_root,
+    )
+    next_action = repair_result.next_action
+    attempt.next_action = next_action.model_dump(mode="json")
+    if repair_result.metadata is not None:
+        attempt.parameter_repair = repair_result.metadata
+
     validation = validate_next_action_against_registry(next_action, registry, role_template)
     attempt.validation_accepted = validation.accepted
     attempt.validation_issues = [issue.model_dump(mode="json") for issue in validation.issues]
     if not validation.accepted:
         attempt.error_type = "validation_failed"
         attempt.error_message = ", ".join(issue.code for issue in validation.issues)
+        return attempt
+
+    extension_issue = _office_create_path_extension_issue(next_action)
+    if extension_issue is not None:
+        attempt.validation_accepted = False
+        attempt.validation_issues.append(extension_issue)
+        attempt.error_type = "validation_failed"
+        attempt.error_message = str(extension_issue["code"])
         return attempt
 
     scenario_issue = _scenario_action_constraint_issue(
@@ -2640,7 +2809,7 @@ def _scenario_action_constraint_issue(
 
 
 _ARTIFACT_WORKSPACE_FALLBACK = "experiments/multi_agent/orchestrator_executor/workspace"
-_SAFE_ARTIFACT_ROOTS = ("docs/", "configs/", "experiments/", "tests/")
+_SAFE_ARTIFACT_ROOTS = ("artifacts/", "docs/", "configs/", "experiments/", "tests/")
 _OFFICE_REAL_DOCUMENT_WRITE_ACTIONS = frozenset(
     {
         "office_create_docx",
@@ -2655,6 +2824,17 @@ _OFFICE_REAL_DOCUMENT_WRITE_ACTIONS = frozenset(
 _ARTIFACT_WORKSPACE_WRITE_ACTIONS = frozenset(
     {"create_file", "append_file", "office_create_document_stub"}
 ) | _OFFICE_REAL_DOCUMENT_WRITE_ACTIONS
+_OFFICE_CREATE_ACTION_EXTENSIONS = {
+    "office_create_docx": ".docx",
+    "office_create_xlsx": ".xlsx",
+    "office_create_pptx": ".pptx",
+}
+
+
+@dataclass(frozen=True)
+class ActionParameterRepairResult:
+    next_action: NextAction
+    metadata: dict[str, Any] | None = None
 
 
 def _safe_relative_workspace_root(project_root: Path, out_dir: Path) -> str:
@@ -2667,6 +2847,93 @@ def _safe_relative_workspace_root(project_root: Path, out_dir: Path) -> str:
     if not value.endswith("/"):
         value += "/"
     return value
+
+
+def _apply_action_parameter_repair(
+    *,
+    next_action: NextAction,
+    agent: GroupAgentSpec,
+    task: OrchestratorPlanTask,
+    config: ActionParameterRepairConfig,
+    out_dir: Path,
+    project_root: Path,
+) -> ActionParameterRepairResult:
+    if not config.enabled or next_action.action not in _OFFICE_CREATE_ACTION_EXTENSIONS:
+        return ActionParameterRepairResult(next_action=next_action)
+
+    params = dict(next_action.parameters or {})
+    existing_path = params.get("path")
+    if isinstance(existing_path, str) and existing_path.strip():
+        return ActionParameterRepairResult(next_action=next_action)
+    if existing_path is not None and not (isinstance(existing_path, str) and not existing_path.strip()):
+        return ActionParameterRepairResult(next_action=next_action)
+
+    repaired_path = _default_office_output_path(
+        action_name=next_action.action,
+        agent_id=agent.agent_id,
+        task_id=task.task_id,
+        config=config,
+        out_dir=out_dir,
+        project_root=project_root,
+    )
+    params["path"] = repaired_path
+    repaired_action = next_action.model_copy(update={"parameters": params})
+    return ActionParameterRepairResult(
+        next_action=repaired_action,
+        metadata={
+            "parameter_repair_applied": True,
+            "parameter_repair_type": "default_office_output_path",
+            "repaired_parameters": ["path"],
+            "path_source": "controlled_default",
+            "action": next_action.action,
+            "path": repaired_path,
+        },
+    )
+
+
+def _default_office_output_path(
+    *,
+    action_name: str,
+    agent_id: str,
+    task_id: str,
+    config: ActionParameterRepairConfig,
+    out_dir: Path,
+    project_root: Path,
+) -> str:
+    extension = _OFFICE_CREATE_ACTION_EXTENSIONS[action_name]
+    output_dir = config.office_default_output_dir or f"{_safe_relative_workspace_root(project_root, out_dir)}office_outputs/"
+    output_dir = output_dir.replace("\\", "/")
+    if not output_dir.endswith("/"):
+        output_dir += "/"
+    if not _is_safe_relative_artifact_path(output_dir):
+        output_dir = f"{_ARTIFACT_WORKSPACE_FALLBACK}/office_outputs/"
+    filename = f"{_safe_path_slug(task_id)}_{_safe_path_slug(agent_id)}{extension}"
+    return f"{output_dir}{filename}"
+
+
+def _safe_path_slug(value: str) -> str:
+    text = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value).strip())
+    text = text.strip("._-")
+    return text[:80] or "item"
+
+
+def _office_create_path_extension_issue(next_action: NextAction) -> dict[str, Any] | None:
+    expected = _OFFICE_CREATE_ACTION_EXTENSIONS.get(next_action.action)
+    if expected is None:
+        return None
+    path = next_action.parameters.get("path")
+    if not isinstance(path, str) or not path.strip():
+        return None
+    suffix = PurePosixPath(path.replace("\\", "/")).suffix.lower()
+    if suffix == expected:
+        return None
+    return {
+        "code": "office_path_extension_mismatch",
+        "field": "parameters.path",
+        "message": f"Action '{next_action.action}' requires a '{expected}' path.",
+        "layer": "safety_policy",
+        "metadata": {"expected_extension": expected},
+    }
 
 
 def _repair_executor_action(
@@ -2759,6 +3026,8 @@ def _history_from_attempt(
         metadata["virtual_network_policy"] = attempt.virtual_network_policy
     if attempt.error_diagnostics is not None:
         metadata["diagnostics"] = attempt.error_diagnostics
+    if attempt.parameter_repair is not None:
+        metadata["parameter_repair"] = attempt.parameter_repair
     return GroupHistoryRecord(
         group_step_index=attempt.group_step_index,
         agent_id=attempt.agent_id,
@@ -2955,6 +3224,7 @@ def _per_agent_attempt_rows(result: OrchestratorExecutorRunResult) -> list[dict[
                     "parsed_action": attempt.next_action,
                     "validation_accepted": attempt.validation_accepted,
                     "validation_issues": attempt.validation_issues,
+                    "parameter_repair": attempt.parameter_repair,
                     "virtual_network_policy": attempt.virtual_network_policy,
                     "execution_attempted": attempt.execution_attempted,
                     "execution_success": attempt.execution_success,
@@ -3059,6 +3329,7 @@ def _write_artifacts(
                 "attempt_type": attempt.attempt_type,
                 "validation_accepted": attempt.validation_accepted,
                 "validation_issues": attempt.validation_issues,
+                "parameter_repair": attempt.parameter_repair,
             }
             for trajectory in result.per_agent_results
             for attempt in trajectory.attempts
@@ -3179,6 +3450,7 @@ def _manifest(
         "orchestrator_repair_attempts": config.orchestrator_repair_attempts,
         "executor_repair_attempts": config.repair_attempts,
         "prompt_budget": config.prompt_budget.model_dump(mode="json"),
+        "action_parameter_repair": config.action_parameter_repair.model_dump(mode="json"),
         "orchestrator_model": orchestrator_model.model_dump(mode="json"),
         "executor_model": executor_model.model_dump(mode="json"),
         "runtime_overrides": {
@@ -3189,6 +3461,7 @@ def _manifest(
             "orchestrator_max_tokens": config.orchestrator_max_tokens,
             "orchestrator_temperature": config.orchestrator_temperature,
             "prompt_budget": config.prompt_budget.model_dump(mode="json"),
+            "action_parameter_repair": config.action_parameter_repair.model_dump(mode="json"),
         },
         "max_group_steps": scenario.max_group_steps,
         "max_steps_per_agent": scenario.max_steps_per_agent,

@@ -195,6 +195,45 @@ def test_config_accepts_prompt_budget_block(tmp_path: Path) -> None:
     assert config.prompt_budget.compact_executor_context is True
 
 
+def test_config_accepts_action_parameter_repair_block(tmp_path: Path) -> None:
+    config = _config(
+        tmp_path,
+        action_parameter_repair={
+            "enabled": True,
+            "office_default_output_dir": (
+                "artifacts/single_trial_runs/phase_8_21_action_repair_retry/"
+                "pipeline/workspace/office_outputs"
+            ),
+        },
+    )
+
+    assert config.action_parameter_repair.enabled is True
+    assert config.action_parameter_repair.office_default_output_dir == (
+        "artifacts/single_trial_runs/phase_8_21_action_repair_retry/"
+        "pipeline/workspace/office_outputs/"
+    )
+
+
+def test_action_parameter_repair_rejects_absolute_or_traversal_output_dir(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        _config(
+            tmp_path,
+            action_parameter_repair={
+                "enabled": True,
+                "office_default_output_dir": "C:/Users/m/out",
+            },
+        )
+
+    with pytest.raises(ValueError):
+        _config(
+            tmp_path,
+            action_parameter_repair={
+                "enabled": True,
+                "office_default_output_dir": "artifacts/../out",
+            },
+        )
+
+
 def test_pipeline_sanitizer_preserves_runtime_urls_and_secret_queries() -> None:
     assert pipeline._safe_text("http://127.0.0.1:8080/v1") == "http://127.0.0.1:8080/v1"
     assert pipeline._safe_text("http://127.0.0.1:8081/v1") == "http://127.0.0.1:8081/v1"

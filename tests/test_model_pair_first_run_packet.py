@@ -28,6 +28,9 @@ DUAL_ENDPOINT_CONFIG_PATH = Path("configs/local_pipeline/single_trial_local_pipe
 DUAL_ENDPOINT_COMPACT_CONFIG_PATH = Path(
     "configs/local_pipeline/single_trial_local_pipeline.dual_endpoint.compact.example.json"
 )
+DUAL_ENDPOINT_COMPACT_REPAIR_CONFIG_PATH = Path(
+    "configs/local_pipeline/single_trial_local_pipeline.dual_endpoint.compact_repair.example.json"
+)
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> Path:
@@ -233,6 +236,30 @@ def test_dual_endpoint_compact_example_config_is_safe_and_ready_for_retry() -> N
         assert ".." not in Path(payload[key]).parts
 
 
+def test_dual_endpoint_compact_repair_example_config_is_safe_and_ready_for_retry() -> None:
+    payload = _json(DUAL_ENDPOINT_COMPACT_REPAIR_CONFIG_PATH)
+
+    assert payload["schema_version"] == "single_trial_local_pipeline_config_v1"
+    assert payload["mode"] == "controlled_single_trial"
+    assert payload["out_dir"] == "artifacts/single_trial_runs/phase_8_21_action_repair_retry/pipeline"
+    assert payload["run_id"] == "phase_8_21_action_repair_retry"
+    assert payload["orchestrator_base_url"] == "http://127.0.0.1:8080/v1"
+    assert payload["executor_base_url"] == "http://127.0.0.1:8081/v1"
+    assert payload["prompt_budget"]["executor_max_prompt_chars"] == 12000
+    assert payload["prompt_budget"]["compact_executor_context"] is True
+    assert payload["action_parameter_repair"]["enabled"] is True
+    assert payload["action_parameter_repair"]["office_default_output_dir"] == (
+        "artifacts/single_trial_runs/phase_8_21_action_repair_retry/"
+        "pipeline/workspace/office_outputs"
+    )
+    for key in ("models_config_path", "scenario_path", "out_dir"):
+        assert not Path(payload[key]).is_absolute()
+        assert ".." not in Path(payload[key]).parts
+    repair_dir = Path(payload["action_parameter_repair"]["office_default_output_dir"])
+    assert not repair_dir.is_absolute()
+    assert ".." not in repair_dir.parts
+
+
 def test_packet_builder_accepts_and_preserves_dual_endpoint_config(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -292,6 +319,46 @@ def test_packet_builder_accepts_and_preserves_compact_prompt_budget_config(
     assert copied_config["prompt_budget"]["executor_max_prompt_chars"] == 12000
     assert copied_config["prompt_budget"]["compact_executor_context"] is True
     assert not Path(f"artifacts/single_trial_runs/phase_8_20_compact_retry").exists()
+
+
+def test_packet_builder_accepts_and_preserves_compact_repair_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _build_packet(
+        tmp_path,
+        monkeypatch,
+        run_id="phase_8_21_action_repair_retry",
+        local_config_overrides={
+            "mode": "controlled_single_trial",
+            "out_dir": "artifacts/single_trial_runs/phase_8_21_action_repair_retry/pipeline",
+            "run_id": "phase_8_21_action_repair_retry",
+            "orchestrator_base_url": "http://127.0.0.1:8080/v1",
+            "executor_base_url": "http://127.0.0.1:8081/v1",
+            "prompt_budget": {
+                "executor_max_prompt_chars": 12000,
+                "orchestrator_max_prompt_chars": 16000,
+                "max_history_items": 6,
+                "compact_executor_context": True,
+            },
+            "action_parameter_repair": {
+                "enabled": True,
+                "office_default_output_dir": (
+                    "artifacts/single_trial_runs/phase_8_21_action_repair_retry/"
+                    "pipeline/workspace/office_outputs"
+                ),
+            },
+        },
+    )
+
+    assert summary["status"] == "ready"
+    assert summary["readiness_status"] == "ready"
+    copied_config = _json(summary["local_pipeline_config_path"])
+    assert copied_config["action_parameter_repair"]["enabled"] is True
+    assert copied_config["action_parameter_repair"]["office_default_output_dir"].endswith(
+        "pipeline/workspace/office_outputs"
+    )
+    assert not Path("artifacts/single_trial_runs/phase_8_21_action_repair_retry").exists()
 
 
 def test_summary_paths_are_relative_and_do_not_expose_tmp_root(
