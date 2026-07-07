@@ -4,6 +4,7 @@ import json
 import platform
 import re
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -35,7 +36,7 @@ from .orchestrator_prompt_contract import (
     build_orchestrator_repair_messages,
     parse_orchestrator_plan_text,
 )
-from .prompt_contract import PromptBuilder
+from .prompt_contract import PromptBuilder, PromptContractConfig
 from .role_template import (
     RoleTemplate,
     load_role_template,
@@ -327,6 +328,27 @@ class OrchestratorExecutorScenario(BaseModel):
         return self
 
 
+class PromptBudgetConfig(BaseModel):
+    executor_max_prompt_chars: int | None = None
+    orchestrator_max_prompt_chars: int | None = None
+    max_history_items: int = 6
+    compact_executor_context: bool = False
+
+    @field_validator("executor_max_prompt_chars", "orchestrator_max_prompt_chars")
+    @classmethod
+    def validate_optional_positive_limit(cls, value: int | None) -> int | None:
+        if value is not None and value <= 0:
+            raise ValueError("prompt budget char limits must be > 0 when provided.")
+        return value
+
+    @field_validator("max_history_items")
+    @classmethod
+    def validate_max_history_items(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("prompt budget max_history_items must be >= 0.")
+        return value
+
+
 class OrchestratorExecutorRunConfig(BaseModel):
     project_root: Path = Path(".")
     mode: GroupRunMode = "fake"
@@ -348,6 +370,7 @@ class OrchestratorExecutorRunConfig(BaseModel):
     repair_attempts: int = 0
     execute_actions: bool | None = None
     force: bool = False
+    prompt_budget: PromptBudgetConfig = Field(default_factory=PromptBudgetConfig)
 
     @field_validator("project_root")
     @classmethod
@@ -552,11 +575,12 @@ def build_local_chat_completion_request_preview(
 ) -> dict[str, Any]:
     """Return a safe request-shape preview without message content or network I/O."""
     payload = _local_chat_completion_payload(model, messages or [])
+    request_metadata = {"estimated_prompt_chars": _messages_char_count(messages or [])}
     return {
         "model_id": model.model_id,
         "api_model": payload["model"],
         "endpoint_path": _endpoint_path(_chat_completion_url(model.base_url)),
-        "request_shape": _request_shape(payload),
+        "request_shape": _request_shape(payload, request_metadata=request_metadata),
     }
 
 
@@ -572,7 +596,12 @@ def _local_chat_completion_payload(
     }
 
 
-def _post_local_chat_completion(model: LocalChatModelConfig, messages: list[dict[str, str]]) -> str:
+def _post_local_chat_completion(
+    model: LocalChatModelConfig,
+    messages: list[dict[str, str]],
+    *,
+    request_metadata: dict[str, Any] | None = None,
+) -> str:
     payload = _local_chat_completion_payload(model, messages)
     url = _chat_completion_url(model.base_url)
     try:
@@ -581,9 +610,21 @@ def _post_local_chat_completion(model: LocalChatModelConfig, messages: list[dict
             response.raise_for_status()
             response_json = response.json()
     except httpx.HTTPStatusError as exc:
-        raise _local_model_http_error(exc, model=model, payload=payload, url=url) from exc
+        raise _local_model_http_error(
+            exc,
+            model=model,
+            payload=payload,
+            url=url,
+            request_metadata=request_metadata,
+        ) from exc
     except httpx.HTTPError as exc:
-        raise _local_model_http_error(exc, model=model, payload=payload, url=url) from exc
+        raise _local_model_http_error(
+            exc,
+            model=model,
+            payload=payload,
+            url=url,
+            request_metadata=request_metadata,
+        ) from exc
     return LocalLLMClient.extract_assistant_content(response_json)
 
 
@@ -604,9 +645,13 @@ def _endpoint_path(url: str) -> str:
     return "/chat/completions"
 
 
-def _request_shape(payload: dict[str, Any]) -> dict[str, Any]:
+def _request_shape(
+    payload: dict[str, Any],
+    *,
+    request_metadata: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     messages = payload.get("messages")
-    return {
+    shape = {
         "has_messages": isinstance(messages, list),
         "message_count": len(messages) if isinstance(messages, list) else 0,
         "has_tools": "tools" in payload,
@@ -615,6 +660,21 @@ def _request_shape(payload: dict[str, Any]) -> dict[str, Any]:
         "temperature_present": "temperature" in payload,
         "max_tokens_present": "max_tokens" in payload,
     }
+    if request_metadata:
+        for key in (
+            "estimated_prompt_chars",
+            "prompt_budget_applied",
+            "prompt_chars_before",
+            "prompt_chars_after",
+            "prompt_budget_max_chars",
+            "compact_executor_context",
+            "max_history_items",
+            "prompt_budget_strategy",
+        ):
+            value = request_metadata.get(key)
+            if isinstance(value, int | bool | str):
+                shape[key] = value
+    return shape
 
 
 def _local_model_http_error(
@@ -623,6 +683,7 @@ def _local_model_http_error(
     model: LocalChatModelConfig,
     payload: dict[str, Any],
     url: str,
+    request_metadata: dict[str, Any] | None = None,
 ) -> LocalModelHTTPError:
     status_code = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
     error_code = "local_model_http_bad_request" if status_code == 400 else "local_model_http_error"
@@ -635,7 +696,7 @@ def _local_model_http_error(
         "safe_response_excerpt": _safe_response_excerpt(
             exc.response.text if isinstance(exc, httpx.HTTPStatusError) else str(exc)
         ),
-        "request_shape": _request_shape(payload),
+        "request_shape": _request_shape(payload, request_metadata=request_metadata),
     }
     message = (
         f"{error_code}: HTTP {status_code} for {_endpoint_path(url)} "
@@ -736,9 +797,12 @@ class LocalOrchestratorPlanProvider:
 
 
 class LocalExecutorActionProvider:
-    def __init__(self, model: ExecutorModelConfig) -> None:
+    def __init__(self, model: ExecutorModelConfig, prompt_budget: PromptBudgetConfig | None = None) -> None:
         self.model = model
-        self.prompt_builder = PromptBuilder()
+        self.prompt_budget = prompt_budget or PromptBudgetConfig()
+        self.prompt_builder = PromptBuilder(
+            PromptContractConfig(include_history_limit=self.prompt_budget.max_history_items)
+        )
 
     def next_action(
         self,
@@ -751,8 +815,12 @@ class LocalExecutorActionProvider:
         out_dir: Path,
         project_root: Path,
     ) -> ExecutorProviderResult:
-        messages = self.prompt_builder.build_messages(state.to_prompt_context())
-        raw = self._chat(messages)
+        messages, prompt_budget_metadata = _executor_messages_with_budget(
+            self.prompt_builder,
+            state,
+            self.prompt_budget,
+        )
+        raw = self._chat(messages, request_metadata=prompt_budget_metadata)
         return ExecutorProviderResult(
             raw_model_output=raw,
             metadata={
@@ -767,6 +835,7 @@ class LocalExecutorActionProvider:
                 "agent_step_index": agent_step_index,
                 "out_dir": str(out_dir),
                 "project_root": str(project_root),
+                "prompt_budget": prompt_budget_metadata,
             },
         )
 
@@ -784,7 +853,11 @@ class LocalExecutorActionProvider:
         validation_issues: list[dict[str, Any]],
         error_message: str,
     ) -> ExecutorProviderResult:
-        messages = self.prompt_builder.build_messages(state.to_prompt_context())
+        messages, prompt_budget_metadata = _executor_messages_with_budget(
+            self.prompt_builder,
+            state,
+            self.prompt_budget,
+        )
         messages.append(
             {
                 "role": "user",
@@ -798,7 +871,8 @@ class LocalExecutorActionProvider:
                 ),
             }
         )
-        raw = self._chat(messages)
+        prompt_budget_metadata = _metadata_with_final_prompt_chars(prompt_budget_metadata, messages)
+        raw = self._chat(messages, request_metadata=prompt_budget_metadata)
         return ExecutorProviderResult(
             raw_model_output=raw,
             metadata={
@@ -813,11 +887,12 @@ class LocalExecutorActionProvider:
                 "agent_step_index": agent_step_index,
                 "out_dir": str(out_dir),
                 "project_root": str(project_root),
+                "prompt_budget": prompt_budget_metadata,
             },
         )
 
-    def _chat(self, messages: list[dict[str, str]]) -> str:
-        return _post_local_chat_completion(self.model, messages)
+    def _chat(self, messages: list[dict[str, str]], *, request_metadata: dict[str, Any] | None = None) -> str:
+        return _post_local_chat_completion(self.model, messages, request_metadata=request_metadata)
 
 
 class OrchestratorExecutorRunner:
@@ -874,7 +949,7 @@ class OrchestratorExecutorRunner:
         executor_provider = self.executor_provider or (
             FakeExecutorActionProvider()
             if self.config.mode == "fake"
-            else LocalExecutorActionProvider(executor_model)
+            else _local_executor_provider(executor_model, self.config.prompt_budget)
         )
 
         (
@@ -1548,6 +1623,19 @@ def _apply_runtime_overrides(
     )
 
 
+def _local_executor_provider(
+    executor_model: ExecutorModelConfig,
+    prompt_budget: PromptBudgetConfig,
+) -> ExecutorActionProvider:
+    try:
+        return LocalExecutorActionProvider(executor_model, prompt_budget=prompt_budget)
+    except TypeError as exc:
+        try:
+            return LocalExecutorActionProvider(executor_model)
+        except TypeError:
+            raise exc
+
+
 def _allowed_action_names(registry: ScriptRegistry, role_template: RoleTemplate) -> set[str]:
     role_allowed = role_template.constraints.allowed_action_names
     if role_allowed:
@@ -1906,6 +1994,347 @@ def _next_action_json_example(
         "reason": "Select the safest available action for the assigned task.",
         "expected_result": "A valid local action is selected.",
     }
+
+
+def _executor_messages_with_budget(
+    prompt_builder: PromptBuilder,
+    state: AgentState,
+    budget: PromptBudgetConfig,
+) -> tuple[list[dict[str, str]], dict[str, Any]]:
+    full_context = state.to_prompt_context()
+    full_messages = prompt_builder.build_messages(full_context)
+    before_chars = _messages_char_count(full_messages)
+    messages = full_messages
+    strategy = "full_context"
+
+    if budget.compact_executor_context:
+        compact_context = _compact_executor_prompt_context(
+            full_context,
+            max_history_items=budget.max_history_items,
+        )
+        messages = prompt_builder.build_messages(compact_context)
+        strategy = "compact_executor_context"
+
+    after_chars = _messages_char_count(messages)
+    max_chars = budget.executor_max_prompt_chars
+    if max_chars is not None and after_chars > max_chars:
+        minimal_context = _minimal_executor_prompt_context(
+            full_context,
+            max_history_items=budget.max_history_items,
+        )
+        minimal_messages = prompt_builder.build_messages(minimal_context)
+        minimal_chars = _messages_char_count(minimal_messages)
+        if minimal_chars < after_chars:
+            messages = minimal_messages
+            after_chars = minimal_chars
+            strategy = "minimal_executor_context"
+
+    applied = strategy != "full_context" or after_chars != before_chars
+    metadata = {
+        "estimated_prompt_chars": after_chars,
+        "prompt_budget_applied": applied,
+        "prompt_chars_before": before_chars,
+        "prompt_chars_after": after_chars,
+        "prompt_budget_max_chars": max_chars,
+        "compact_executor_context": bool(budget.compact_executor_context),
+        "max_history_items": budget.max_history_items,
+        "prompt_budget_strategy": strategy,
+    }
+    return messages, {key: value for key, value in metadata.items() if value is not None}
+
+
+def _metadata_with_final_prompt_chars(
+    metadata: dict[str, Any],
+    messages: list[dict[str, str]],
+) -> dict[str, Any]:
+    updated = dict(metadata)
+    final_chars = _messages_char_count(messages)
+    updated["estimated_prompt_chars"] = final_chars
+    updated["prompt_chars_after"] = final_chars
+    return updated
+
+
+def _messages_char_count(messages: list[dict[str, str]]) -> int:
+    total = 0
+    for message in messages:
+        total += len(str(message.get("role") or ""))
+        total += len(str(message.get("content") or ""))
+    return total
+
+
+def _compact_executor_prompt_context(
+    context: Mapping[str, Any],
+    *,
+    max_history_items: int,
+) -> dict[str, Any]:
+    metadata = context.get("metadata") if isinstance(context.get("metadata"), Mapping) else {}
+    hints = metadata.get("executor_prompt_hints") if isinstance(metadata, Mapping) else {}
+    compact_metadata: dict[str, Any] = {}
+    if isinstance(hints, Mapping):
+        compact_metadata["executor_prompt_hints"] = _compact_executor_prompt_hints(hints)
+    virtual_network = metadata.get("virtual_network") if isinstance(metadata, Mapping) else None
+    if isinstance(virtual_network, Mapping):
+        compact_metadata["virtual_network"] = _compact_virtual_network(virtual_network)
+    for key in ("assigned_goal", "executor_model_id", "orchestrator_task_id"):
+        value = metadata.get(key) if isinstance(metadata, Mapping) else None
+        if isinstance(value, str | int | float | bool):
+            compact_metadata[key] = _clip_text(value)
+
+    return {
+        "agent_id": _clip_text(context.get("agent_id")),
+        "role": _compact_role(context.get("role")),
+        "objective": _compact_objective(context.get("objective")),
+        "environment": _compact_environment(context.get("environment")),
+        "resources": _compact_resources(context.get("resources")),
+        "constraints": _compact_constraints(context.get("constraints")),
+        "available_actions": _compact_available_actions(context.get("available_actions")),
+        "history": _compact_history(context.get("history"), max_history_items=max_history_items),
+        "current_step": context.get("current_step"),
+        "metadata": compact_metadata,
+    }
+
+
+def _minimal_executor_prompt_context(
+    context: Mapping[str, Any],
+    *,
+    max_history_items: int,
+) -> dict[str, Any]:
+    compact = _compact_executor_prompt_context(context, max_history_items=max_history_items)
+    metadata = compact.get("metadata") if isinstance(compact.get("metadata"), Mapping) else {}
+    hints = metadata.get("executor_prompt_hints") if isinstance(metadata, Mapping) else {}
+    if isinstance(hints, Mapping):
+        metadata = dict(metadata)
+        metadata["executor_prompt_hints"] = {
+            "agent_id": hints.get("agent_id"),
+            "task_id": hints.get("task_id"),
+            "assigned_goal": hints.get("assigned_goal"),
+            "success_criteria": hints.get("success_criteria"),
+            "allowed_actions": _limited_text_list(hints.get("allowed_actions"), 8),
+            "safe_path_roots": _limited_text_list(hints.get("safe_path_roots"), 8),
+            "safe_existing_read_paths": _limited_text_list(hints.get("safe_existing_read_paths"), 4),
+            "safe_write_path_examples": _limited_text_list(hints.get("safe_write_path_examples"), 4),
+            "path_rules": _limited_text_list(hints.get("path_rules"), 8),
+            "json_only_example": hints.get("json_only_example"),
+        }
+        compact["metadata"] = metadata
+    compact["resources"] = {}
+    compact["available_actions"] = [
+        {"name": item.get("name"), "parameters_schema": item.get("parameters_schema")}
+        for item in compact.get("available_actions", [])
+        if isinstance(item, Mapping)
+    ][:8]
+    return compact
+
+
+def _compact_executor_prompt_hints(value: Mapping[str, Any]) -> dict[str, Any]:
+    allowed_actions = _limited_text_list(value.get("allowed_actions"), 12)
+    action_schemas = value.get("action_schemas")
+    compact_schemas: dict[str, Any] = {}
+    if isinstance(action_schemas, Mapping):
+        for action_name in allowed_actions:
+            schema = action_schemas.get(action_name)
+            if not isinstance(schema, Mapping):
+                continue
+            compact_schemas[action_name] = {
+                "description": _clip_text(schema.get("description"), 180),
+                "required_parameters": _limited_text_list(schema.get("required_parameters"), 12),
+                "parameters": _compact_action_parameters(schema.get("parameters")),
+                "allowed_file_roots": _limited_text_list(schema.get("allowed_file_roots"), 12),
+                "forbidden_file_roots": _limited_text_list(schema.get("forbidden_file_roots"), 12),
+                "allowed_shell_commands": _limited_text_list(schema.get("allowed_shell_commands"), 6),
+                "examples": _limited_json_list(schema.get("examples"), 1),
+            }
+    return {
+        "agent_id": _clip_text(value.get("agent_id")),
+        "role_id": _clip_text(value.get("role_id")),
+        "task_id": _clip_text(value.get("task_id")),
+        "assigned_goal": _clip_text(value.get("assigned_goal"), 300),
+        "success_criteria": _clip_text(value.get("success_criteria"), 240),
+        "allowed_action_focus": _limited_text_list(value.get("allowed_action_focus"), 6),
+        "allowed_actions": allowed_actions,
+        "action_schemas": compact_schemas,
+        "safe_path_roots": _limited_text_list(value.get("safe_path_roots"), 12),
+        "safe_existing_read_paths": _limited_text_list(value.get("safe_existing_read_paths"), 8),
+        "safe_write_path_examples": _limited_text_list(value.get("safe_write_path_examples"), 8),
+        "path_rules": _limited_text_list(value.get("path_rules"), 10),
+        "json_only_example": _compact_json_value(value.get("json_only_example")),
+    }
+
+
+def _compact_role(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {
+        "name": _clip_text(value.get("name")),
+        "description": _clip_text(value.get("description"), 240),
+        "constraints": _limited_text_list(value.get("constraints"), 8),
+    }
+
+
+def _compact_objective(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {
+        "primary": _clip_text(value.get("primary"), 300),
+        "success_criteria": _limited_text_list(value.get("success_criteria"), 6, max_chars=180),
+    }
+
+
+def _compact_environment(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    out = {
+        "runtime": _clip_text(value.get("runtime")),
+        "network_allowed": value.get("network_allowed"),
+        "notes": _limited_text_list(value.get("notes"), 4),
+    }
+    virtual_network = value.get("virtual_network")
+    if isinstance(virtual_network, Mapping):
+        out["virtual_network"] = _compact_virtual_network(virtual_network)
+    return out
+
+
+def _compact_resources(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    out = {
+        "files": _limited_text_list(value.get("files"), 8),
+        "directories": _limited_text_list(value.get("directories"), 8),
+        "endpoints": _limited_text_list(value.get("endpoints"), 8),
+        "notes": _limited_text_list(value.get("notes"), 6, max_chars=180),
+    }
+    virtual_network = value.get("virtual_network")
+    if isinstance(virtual_network, Mapping):
+        out["virtual_network"] = _compact_virtual_network(virtual_network)
+    return out
+
+
+def _compact_constraints(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {
+        "no_internet": value.get("no_internet"),
+        "no_model_download": value.get("no_model_download"),
+        "no_full_agent_loop": value.get("no_full_agent_loop"),
+        "allowed_file_roots": _limited_text_list(value.get("allowed_file_roots"), 12),
+        "forbidden_file_roots": _limited_text_list(value.get("forbidden_file_roots"), 12),
+        "notes": _limited_text_list(value.get("notes"), 6, max_chars=180),
+    }
+
+
+def _compact_available_actions(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    rows: list[dict[str, Any]] = []
+    for item in value[:16]:
+        if not isinstance(item, Mapping):
+            continue
+        rows.append(
+            {
+                "name": _clip_text(item.get("name")),
+                "description": _clip_text(item.get("description"), 180),
+                "parameters_schema": _compact_action_parameters(item.get("parameters_schema")),
+                "safety_notes": _limited_text_list(item.get("safety_notes"), 2, max_chars=180),
+            }
+        )
+    return rows
+
+
+def _compact_action_parameters(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    out: dict[str, Any] = {}
+    for key, item in list(value.items())[:20]:
+        if isinstance(item, Mapping):
+            out[str(key)] = {
+                "type": _clip_text(item.get("type")),
+                "required": item.get("required"),
+                "description": _clip_text(item.get("description"), 120),
+            }
+        else:
+            out[str(key)] = _compact_json_value(item)
+    return out
+
+
+def _compact_history(value: Any, *, max_history_items: int) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or max_history_items <= 0:
+        return []
+    rows: list[dict[str, Any]] = []
+    for item in value[-max_history_items:]:
+        if not isinstance(item, Mapping):
+            continue
+        rows.append(
+            {
+                "step": item.get("step"),
+                "action": _clip_text(item.get("action")),
+                "parameters": _compact_json_value(item.get("parameters")),
+                "status": _clip_text(item.get("status")),
+                "summary": _clip_text(item.get("summary"), 180),
+                "error": _clip_text(item.get("error"), 180),
+            }
+        )
+    return rows
+
+
+def _compact_virtual_network(value: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "network_id": _clip_text(value.get("network_id")),
+        "host_id": _clip_text(value.get("host_id")),
+        "host_display_name": _clip_text(value.get("host_display_name")),
+        "host_role": _clip_text(value.get("host_role")),
+        "metadata_only": value.get("metadata_only"),
+        "allowed_service_ids": _limited_text_list(value.get("allowed_service_ids"), 8),
+        "allowed_url_prefixes": _limited_text_list(value.get("allowed_url_prefixes"), 8),
+    }
+
+
+def _limited_text_list(value: Any, limit: int, *, max_chars: int = 160) -> list[str]:
+    if not isinstance(value, list | tuple | set):
+        return []
+    return [_clip_text(item, max_chars) for item in list(value)[:limit] if item is not None]
+
+
+def _limited_json_list(value: Any, limit: int) -> list[Any]:
+    if not isinstance(value, list | tuple):
+        return []
+    return [_compact_json_value(item) for item in list(value)[:limit]]
+
+
+def _compact_json_value(value: Any, *, max_items: int = 12, max_chars: int = 160) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            str(key): _compact_json_value(item, max_items=max_items, max_chars=max_chars)
+            for key, item in list(value.items())[:max_items]
+            if not _secret_like_key_text(str(key))
+        }
+    if isinstance(value, list):
+        return [_compact_json_value(item, max_items=max_items, max_chars=max_chars) for item in value[:max_items]]
+    if isinstance(value, tuple):
+        return [_compact_json_value(item, max_items=max_items, max_chars=max_chars) for item in value[:max_items]]
+    if isinstance(value, str):
+        return _clip_text(value, max_chars)
+    if isinstance(value, int | float | bool) or value is None:
+        return value
+    return _clip_text(value, max_chars)
+
+
+def _secret_like_key_text(value: str) -> bool:
+    return bool(
+        re.search(
+            r"(?i)\b(raw_prompt|raw_response|raw_output|raw_model_output|full_prompt|full_response|"
+            r"prompt_text|response_text|api[_-]?key|token|secret|password|credential|auth)\b",
+            value,
+        )
+    )
+
+
+def _clip_text(value: Any, max_chars: int = 160) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + "...[truncated]"
 
 
 def _executor_repair_user_message(
@@ -2749,6 +3178,7 @@ def _manifest(
         "orchestrator_temperature": orchestrator_model.temperature,
         "orchestrator_repair_attempts": config.orchestrator_repair_attempts,
         "executor_repair_attempts": config.repair_attempts,
+        "prompt_budget": config.prompt_budget.model_dump(mode="json"),
         "orchestrator_model": orchestrator_model.model_dump(mode="json"),
         "executor_model": executor_model.model_dump(mode="json"),
         "runtime_overrides": {
@@ -2758,6 +3188,7 @@ def _manifest(
             "executor_model_name": config.executor_model_name,
             "orchestrator_max_tokens": config.orchestrator_max_tokens,
             "orchestrator_temperature": config.orchestrator_temperature,
+            "prompt_budget": config.prompt_budget.model_dump(mode="json"),
         },
         "max_group_steps": scenario.max_group_steps,
         "max_steps_per_agent": scenario.max_steps_per_agent,

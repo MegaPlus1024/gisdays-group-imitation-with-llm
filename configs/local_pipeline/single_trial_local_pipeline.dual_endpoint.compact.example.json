@@ -1,0 +1,32 @@
+{
+  "schema_version": "single_trial_local_pipeline_config_v1",
+  "mode": "controlled_single_trial",
+  "models_config_path": "configs/evaluation_models.json",
+  "scenario_path": "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json",
+  "out_dir": "artifacts/single_trial_runs/phase_8_20_compact_retry/pipeline",
+  "run_id": "phase_8_20_compact_retry",
+  "orchestrator_base_url": "http://127.0.0.1:8080/v1",
+  "executor_base_url": "http://127.0.0.1:8081/v1",
+  "max_group_steps": 1,
+  "max_steps_per_agent": 1,
+  "repair_attempts": 0,
+  "orchestrator_repair_attempts": 0,
+  "execute_actions": false,
+  "force": true,
+  "prompt_budget": {
+    "executor_max_prompt_chars": 12000,
+    "orchestrator_max_prompt_chars": 16000,
+    "max_history_items": 6,
+    "compact_executor_context": true
+  },
+  "execution_options": {
+    "allow_runtime_execution": true,
+    "no_runtime_execution": false
+  },
+  "notes": [
+    "Dual-endpoint compact executor prompt config for controlled single-trial runtime.",
+    "Start second_model on port 8080 with alias second_model.",
+    "Start first_model on port 8081 with alias first_model.",
+    "Runtime execution still requires guarded operator confirmation."
+  ]
+}

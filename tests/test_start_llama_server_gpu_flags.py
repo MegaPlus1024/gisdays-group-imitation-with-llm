@@ -83,6 +83,14 @@ def test_gpu_dry_run_emits_supported_gpu_flags(tmp_path: Path) -> None:
     assert "--flash-attn auto" in completed.stdout
 
 
+def test_context_size_flag_is_passed_to_llama_server_dry_run(tmp_path: Path) -> None:
+    completed = _run_dry_run(tmp_path, "-CtxSize", "12288")
+
+    assert completed.returncode == 0, completed.stderr
+    assert "Ctx size:      12288" in completed.stdout
+    assert "--ctx-size 12288" in completed.stdout
+
+
 def test_empty_optional_gpu_values_are_not_emitted(tmp_path: Path) -> None:
     completed = _run_dry_run(tmp_path, "-TensorSplit", "")
 

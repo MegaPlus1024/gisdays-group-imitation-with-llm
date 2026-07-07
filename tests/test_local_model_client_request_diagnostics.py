@@ -55,6 +55,7 @@ def test_request_preview_uses_api_model_without_prompt_content() -> None:
         "has_stream": False,
         "temperature_present": True,
         "max_tokens_present": True,
+        "estimated_prompt_chars": len("user") + len("PROMPT_DO_NOT_COPY"),
     }
     assert "PROMPT_DO_NOT_COPY" not in json.dumps(preview, ensure_ascii=False)
 

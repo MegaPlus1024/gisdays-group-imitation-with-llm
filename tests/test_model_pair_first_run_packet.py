@@ -25,6 +25,9 @@ SCENARIO_ID = "office_document_file_workflow_basic_v1"
 RUN_ID = "phase_8_12_first"
 TRIAL_ID = f"{SCENARIO_ID}__{PAIR_ID}__r01"
 DUAL_ENDPOINT_CONFIG_PATH = Path("configs/local_pipeline/single_trial_local_pipeline.dual_endpoint.example.json")
+DUAL_ENDPOINT_COMPACT_CONFIG_PATH = Path(
+    "configs/local_pipeline/single_trial_local_pipeline.dual_endpoint.compact.example.json"
+)
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> Path:
@@ -212,6 +215,24 @@ def test_dual_endpoint_example_config_is_safe_and_packet_ready() -> None:
         assert ".." not in Path(payload[key]).parts
 
 
+def test_dual_endpoint_compact_example_config_is_safe_and_ready_for_retry() -> None:
+    payload = _json(DUAL_ENDPOINT_COMPACT_CONFIG_PATH)
+
+    assert payload["schema_version"] == "single_trial_local_pipeline_config_v1"
+    assert payload["mode"] == "controlled_single_trial"
+    assert payload["out_dir"] == "artifacts/single_trial_runs/phase_8_20_compact_retry/pipeline"
+    assert payload["run_id"] == "phase_8_20_compact_retry"
+    assert payload["orchestrator_base_url"] == "http://127.0.0.1:8080/v1"
+    assert payload["executor_base_url"] == "http://127.0.0.1:8081/v1"
+    assert payload["prompt_budget"]["executor_max_prompt_chars"] == 12000
+    assert payload["prompt_budget"]["orchestrator_max_prompt_chars"] == 16000
+    assert payload["prompt_budget"]["max_history_items"] == 6
+    assert payload["prompt_budget"]["compact_executor_context"] is True
+    for key in ("models_config_path", "scenario_path", "out_dir"):
+        assert not Path(payload[key]).is_absolute()
+        assert ".." not in Path(payload[key]).parts
+
+
 def test_packet_builder_accepts_and_preserves_dual_endpoint_config(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -240,6 +261,37 @@ def test_packet_builder_accepts_and_preserves_dual_endpoint_config(
     assert str(summary["local_pipeline_config_path"]) in command["argv"]
     assert "artifacts/single_trial_runs/phase_8_17_dual_endpoint" in command["argv"]
     assert command["no_runtime_execution"] is True
+
+
+def test_packet_builder_accepts_and_preserves_compact_prompt_budget_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _build_packet(
+        tmp_path,
+        monkeypatch,
+        run_id="phase_8_20_compact_retry",
+        local_config_overrides={
+            "mode": "controlled_single_trial",
+            "out_dir": "artifacts/single_trial_runs/phase_8_20_compact_retry/pipeline",
+            "run_id": "phase_8_20_compact_retry",
+            "orchestrator_base_url": "http://127.0.0.1:8080/v1",
+            "executor_base_url": "http://127.0.0.1:8081/v1",
+            "prompt_budget": {
+                "executor_max_prompt_chars": 12000,
+                "orchestrator_max_prompt_chars": 16000,
+                "max_history_items": 6,
+                "compact_executor_context": True,
+            },
+        },
+    )
+
+    assert summary["status"] == "ready"
+    assert summary["readiness_status"] == "ready"
+    copied_config = _json(summary["local_pipeline_config_path"])
+    assert copied_config["prompt_budget"]["executor_max_prompt_chars"] == 12000
+    assert copied_config["prompt_budget"]["compact_executor_context"] is True
+    assert not Path(f"artifacts/single_trial_runs/phase_8_20_compact_retry").exists()
 
 
 def test_summary_paths_are_relative_and_do_not_expose_tmp_root(

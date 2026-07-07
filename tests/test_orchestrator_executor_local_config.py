@@ -178,6 +178,23 @@ def test_effective_runtime_warnings_use_overridden_base_urls_and_preserve_api_mo
     )
 
 
+def test_config_accepts_prompt_budget_block(tmp_path: Path) -> None:
+    config = _config(
+        tmp_path,
+        prompt_budget={
+            "executor_max_prompt_chars": 12000,
+            "orchestrator_max_prompt_chars": 16000,
+            "max_history_items": 6,
+            "compact_executor_context": True,
+        },
+    )
+
+    assert config.prompt_budget.executor_max_prompt_chars == 12000
+    assert config.prompt_budget.orchestrator_max_prompt_chars == 16000
+    assert config.prompt_budget.max_history_items == 6
+    assert config.prompt_budget.compact_executor_context is True
+
+
 def test_pipeline_sanitizer_preserves_runtime_urls_and_secret_queries() -> None:
     assert pipeline._safe_text("http://127.0.0.1:8080/v1") == "http://127.0.0.1:8080/v1"
     assert pipeline._safe_text("http://127.0.0.1:8081/v1") == "http://127.0.0.1:8081/v1"

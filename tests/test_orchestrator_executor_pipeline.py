@@ -7,9 +7,22 @@ from pathlib import Path
 
 import pytest
 
+import src.agent.orchestrator_executor_pipeline as pipeline
+from src.agent.prompt_contract import PromptBuilder, PromptContractConfig
+from src.agent.state import (
+    ActionHistoryEntry,
+    ActionSpec,
+    AgentConstraints,
+    AgentObjective,
+    AgentResources,
+    AgentRole,
+    AgentState,
+)
 from src.agent.orchestrator_executor_pipeline import (
+    ExecutorModelConfig,
     OrchestratorExecutorRunConfig,
     OrchestratorExecutorRunner,
+    PromptBudgetConfig,
 )
 from src.agent.orchestrator_prompt_contract import (
     OrchestratorPlanJSONError,
@@ -47,6 +60,96 @@ def _json(path: Path) -> dict[str, object]:
 
 def _jsonl(path: Path) -> list[dict[str, object]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def _bloated_agent_state() -> AgentState:
+    action_schemas = {
+        f"action_{index}": {
+            "description": "Long registry action description. " * 60,
+            "required_parameters": ["path", "content"],
+            "parameters": {
+                "path": {
+                    "type": "string",
+                    "required": True,
+                    "description": "Relative project path under safe roots. " * 30,
+                },
+                "content": {
+                    "type": "string",
+                    "required": False,
+                    "description": "Short local note content. " * 30,
+                },
+            },
+            "allowed_file_roots": ["artifacts/single_trial_runs/phase_8_20_compact_retry/workspace/"],
+            "forbidden_file_roots": ["models/gguf/", ".venv/", ".git/"],
+            "allowed_shell_commands": [],
+            "examples": [{"path": f"artifacts/example_{index}.md", "content": "example " * 80}],
+        }
+        for index in range(12)
+    }
+    return AgentState(
+        agent_id="document_summary_agent",
+        role=AgentRole(
+            name="document_summary_agent",
+            description="Summarize safe local project document workflow state. " * 50,
+            constraints=["Use local files only. " * 20],
+        ),
+        objective=AgentObjective(
+            primary="TASK_SENTINEL summarize controlled local document workflow.",
+            success_criteria=["Return one valid NextAction JSON object."],
+        ),
+        resources=AgentResources(
+            files=[f"configs/example_{index}.json" for index in range(40)],
+            notes=["Large resource note. " * 80 for _ in range(10)],
+        ),
+        constraints=AgentConstraints(
+            allowed_file_roots=["configs/", "docs/", "artifacts/"],
+            forbidden_file_roots=["models/gguf/", ".venv/", ".git/"],
+        ),
+        available_actions=[
+            ActionSpec(
+                name=f"action_{index}",
+                description="Large action description. " * 80,
+                parameters_schema=action_schemas[f"action_{index}"]["parameters"],
+                safety_notes=["Do not touch forbidden paths. " * 20],
+            )
+            for index in range(12)
+        ],
+        history=[
+            ActionHistoryEntry(
+                step=index,
+                action="read_file",
+                parameters={"path": f"configs/history_{index}.json", "content": "history " * 100},
+                status="success",
+                summary="Historical action summary. " * 40,
+            )
+            for index in range(1, 12)
+        ],
+        current_step=12,
+        metadata={
+            "assigned_goal": "TASK_SENTINEL summarize controlled local document workflow.",
+            "orchestrator_task_id": "t1",
+            "executor_prompt_hints": {
+                "agent_id": "document_summary_agent",
+                "role_id": "document_summary_agent",
+                "task_id": "t1",
+                "assigned_goal": "TASK_SENTINEL summarize controlled local document workflow.",
+                "success_criteria": "Return one valid NextAction JSON object.",
+                "allowed_actions": list(action_schemas),
+                "action_schemas": action_schemas,
+                "safe_path_roots": ["configs/", "docs/", "artifacts/"],
+                "safe_existing_read_paths": [f"configs/example_{index}.json" for index in range(40)],
+                "safe_write_path_examples": [f"artifacts/out_{index}.md" for index in range(40)],
+                "path_rules": ["Use relative project paths only.", "Do not use absolute paths."],
+                "json_only_example": {
+                    "action": "action_0",
+                    "parameters": {"path": "configs/example_0.json"},
+                    "reason": "Read safe local input.",
+                    "expected_result": "Local input is available.",
+                },
+            },
+            "raw_prompt": "RAW_PROMPT_MARKER_SHOULD_NOT_LEAK",
+        },
+    )
 
 
 def test_parse_valid_orchestrator_plan_json() -> None:
@@ -165,6 +268,72 @@ def test_fake_mode_does_not_call_http_client(tmp_path: Path, monkeypatch: pytest
     result = OrchestratorExecutorRunner(_config(tmp_path)).run()
 
     assert result.status == "completed"
+
+
+def test_executor_compact_prompt_budget_reduces_context_and_preserves_contract() -> None:
+    state = _bloated_agent_state()
+    builder = PromptBuilder(PromptContractConfig(include_history_limit=20))
+
+    messages, metadata = pipeline._executor_messages_with_budget(
+        builder,
+        state,
+        PromptBudgetConfig(
+            executor_max_prompt_chars=12000,
+            max_history_items=3,
+            compact_executor_context=True,
+        ),
+    )
+    text = json.dumps(messages, ensure_ascii=False)
+
+    assert metadata["prompt_budget_applied"] is True
+    assert metadata["prompt_chars_before"] > metadata["prompt_chars_after"]
+    assert metadata["estimated_prompt_chars"] == metadata["prompt_chars_after"]
+    assert metadata["prompt_budget_strategy"] in {"compact_executor_context", "minimal_executor_context"}
+    assert "NEXT_ACTION_OUTPUT_CONTRACT" in text
+    assert "TASK_SENTINEL" in text
+    assert "document_summary_agent" in text
+    assert "RAW_PROMPT_MARKER_SHOULD_NOT_LEAK" not in text
+    assert metadata["prompt_chars_after"] <= 12000
+
+
+def test_local_executor_request_diagnostics_include_prompt_budget_metadata() -> None:
+    model = ExecutorModelConfig(
+        model_id="first_model",
+        base_url="http://127.0.0.1:8081/v1",
+        model_name="first_model.gguf",
+        api_model="first_model",
+    )
+    payload = {
+        "model": "first_model",
+        "messages": [{"role": "user", "content": "shape only"}],
+        "temperature": 0.0,
+        "max_tokens": 1,
+    }
+
+    error = pipeline._local_model_http_error(
+        pipeline.httpx.ConnectError("offline shape check"),
+        model=model,
+        payload=payload,
+        url="http://127.0.0.1:8081/v1/chat/completions",
+        request_metadata={
+            "estimated_prompt_chars": 11800,
+            "prompt_budget_applied": True,
+            "prompt_chars_before": 42000,
+            "prompt_chars_after": 11800,
+            "prompt_budget_max_chars": 12000,
+            "compact_executor_context": True,
+            "max_history_items": 6,
+            "prompt_budget_strategy": "compact_executor_context",
+        },
+    )
+
+    shape = error.diagnostics["request_shape"]
+    assert shape["estimated_prompt_chars"] == 11800
+    assert shape["prompt_budget_applied"] is True
+    assert shape["prompt_chars_before"] == 42000
+    assert shape["prompt_chars_after"] == 11800
+    assert shape["compact_executor_context"] is True
+    assert shape["max_tokens_present"] is True
 
 
 def test_cli_help_works() -> None:
