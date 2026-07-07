@@ -141,6 +141,49 @@ def test_adapts_dict_failure_and_skipped_results() -> None:
     assert skipped["task_success"] is None
 
 
+def test_failed_pipeline_result_errors_become_safe_diagnostics() -> None:
+    windows_path = "\\".join(["C:", "Users", "Example", "secret", "run.txt"])
+    result = adapt_orchestrator_executor_pipeline_result(
+        _pipeline_result(
+            status="failed",
+            success=False,
+            group_history=[],
+            errors=[
+                {
+                    "stage": "orchestrator",
+                    "error_type": "local_model_http_error",
+                    "error_message": (
+                        "Request URL is missing protocol for "
+                        "http://127.0.0.1:8080/v1/chat/completions "
+                        f"{windows_path} token=SECRET_TOKEN raw_response=DO_NOT_COPY"
+                    ),
+                    "diagnostics": {
+                        "endpoint_path": "/v1/chat/completions",
+                        "api_model": "second_model",
+                    },
+                }
+            ],
+            artifact_dir="artifacts/single_trial_runs/phase_8_17_dual_endpoint/pipeline",
+        )
+    )
+    text = json.dumps(result, ensure_ascii=False)
+
+    assert result["status"] == "failed"
+    assert result["error_code"] == "local_model_http_error"
+    assert result["metadata"]["diagnostics"]["pipeline_status"] == "failed"
+    assert result["metadata"]["diagnostics"]["error_code"] == "local_model_http_error"
+    assert result["metadata"]["diagnostics"]["errors"][0]["stage"] == "orchestrator"
+    assert result["metadata"]["diagnostics"]["errors"][0]["diagnostics"]["endpoint_path"] == "/v1/chat/completions"
+    assert result["metadata"]["diagnostics"]["errors"][0]["diagnostics"]["api_model"] == "second_model"
+    assert result["group_history"] == []
+    assert "http://127.0.0.1:8080/v1/chat/completions" in text
+    assert "htt<absolute_path>" not in text
+    assert "C:\\Users" not in text
+    assert "SECRET_TOKEN" not in text
+    assert "DO_NOT_COPY" not in text
+    assert "raw_response" not in text
+
+
 def test_unknown_status_gets_warning_and_controlled_status() -> None:
     failed = adapt_orchestrator_executor_pipeline_result(_pipeline_result(status="mystery", success=None))
     skipped = adapt_orchestrator_executor_pipeline_result(

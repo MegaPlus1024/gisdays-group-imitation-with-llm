@@ -15,6 +15,7 @@ from src.agent.model_pair_execution_readiness import (
     write_model_pair_execution_readiness_summary,
 )
 from src.agent.model_pair_local_pipeline_entrypoint import (
+    build_effective_local_pipeline_model_config_preview,
     build_orchestrator_executor_run_config_from_local_pipeline_config,
     is_runtime_execution_enabled,
     run_local_model_pair_trial,
@@ -468,6 +469,30 @@ def test_config_build_helper_accepts_dual_endpoint_controlled_trial_config(
     assert [name for name, _ in calls] == ["config"]
 
 
+def test_effective_config_preview_reports_dual_endpoint_packet_without_runtime() -> None:
+    local_config = json.loads(
+        Path("artifacts/first_run_packets/phase_8_17_dual_endpoint/local_pipeline_config.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    preview = build_effective_local_pipeline_model_config_preview(
+        _entrypoint_input(allow_runtime=True, local_pipeline_config=local_config)
+    )
+    text = json.dumps(preview, ensure_ascii=False)
+
+    assert preview["status"] == "resolved"
+    assert preview["orchestrator_model_id"] == "second_model"
+    assert preview["executor_model_id"] == "first_model"
+    assert preview["orchestrator_base_url"] == "http://127.0.0.1:8080/v1"
+    assert preview["executor_base_url"] == "http://127.0.0.1:8081/v1"
+    assert preview["orchestrator_api_model"] == "second_model"
+    assert preview["executor_api_model"] == "first_model"
+    assert preview["shared_endpoint"] is False
+    assert preview["no_runtime_execution"] is True
+    assert "htt<absolute_path>" not in text
+
+
 def test_run_config_build_failure_returns_staged_diagnostics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -647,6 +672,56 @@ def test_monkeypatched_existing_pipeline_failure_passes_through_safely(
     assert result["status"] == "failed"
     assert result["task_success"] is False
     assert result["error_code"] == "fake_pipeline_failed"
+
+
+def test_monkeypatched_existing_pipeline_failed_result_preserves_safe_error_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.agent.model_pair_local_pipeline_entrypoint as local_entrypoint
+
+    windows_path = "\\".join(["C:", "Users", "Example", "secret", "run.txt"])
+    monkeypatch.setattr(
+        local_entrypoint,
+        "_run_existing_pipeline_entrypoint",
+        lambda _: _fake_pipeline_result(
+            status="failed",
+            success=False,
+            group_history=[],
+            errors=[
+                {
+                    "stage": "orchestrator",
+                    "error_type": "local_model_http_error",
+                    "error_message": (
+                        "Request URL is missing protocol for "
+                        "http://127.0.0.1:8080/v1/chat/completions "
+                        f"{windows_path} token=SECRET_TOKEN raw_prompt=DO_NOT_COPY"
+                    ),
+                    "diagnostics": {
+                        "endpoint_path": "/v1/chat/completions",
+                        "api_model": "second_model",
+                    },
+                }
+            ],
+            artifact_dir="artifacts/single_trial_runs/phase_8_17_dual_endpoint/pipeline",
+        ),
+    )
+
+    result = local_entrypoint.run_local_model_pair_trial(_entrypoint_input(allow_runtime=True))
+    text = json.dumps(result, ensure_ascii=False)
+
+    assert result["status"] == "failed"
+    assert result["error_code"] == "local_model_http_error"
+    assert _diagnostics(result)["pipeline_status"] == "failed"
+    assert _diagnostics(result)["error_code"] == "local_model_http_error"
+    assert _diagnostics(result)["errors"][0]["stage"] == "orchestrator"
+    assert _diagnostics(result)["errors"][0]["diagnostics"]["endpoint_path"] == "/v1/chat/completions"
+    assert _diagnostics(result)["errors"][0]["diagnostics"]["api_model"] == "second_model"
+    assert "http://127.0.0.1:8080/v1/chat/completions" in text
+    assert "htt<absolute_path>" not in text
+    assert "C:\\Users" not in text
+    assert "SECRET_TOKEN" not in text
+    assert "DO_NOT_COPY" not in text
+    assert "raw_prompt" not in text
 
 
 def test_existing_pipeline_failed_result_passes_adapter_with_fake_module(

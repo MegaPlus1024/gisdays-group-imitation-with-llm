@@ -135,6 +135,49 @@ def test_manifest_records_runtime_overrides_with_mocked_local_providers(
     assert manifest["runtime_overrides"]["executor_base_url"] == "http://127.0.0.1:8082/v1"
 
 
+def test_effective_runtime_warnings_use_overridden_base_urls_and_preserve_api_model(
+    tmp_path: Path,
+) -> None:
+    orchestrator = pipeline.OrchestratorModelConfig(
+        model_id="second_model",
+        base_url="http://127.0.0.1:8080/v1",
+        model_name="second_model.gguf",
+        api_model="second_model",
+    )
+    executor = pipeline.ExecutorModelConfig(
+        model_id="first_model",
+        base_url="http://127.0.0.1:8080/v1",
+        model_name="first_model.gguf",
+        api_model="first_model",
+    )
+    config = _config(
+        tmp_path,
+        orchestrator_base_url="http://127.0.0.1:8080/v1",
+        executor_base_url="http://127.0.0.1:8081/v1",
+        orchestrator_model_name=None,
+        executor_model_name=None,
+    )
+
+    effective_orchestrator, effective_executor = pipeline._apply_runtime_overrides(
+        orchestrator,
+        executor,
+        config,
+    )
+
+    assert effective_orchestrator.base_url == "http://127.0.0.1:8080/v1"
+    assert effective_executor.base_url == "http://127.0.0.1:8081/v1"
+    assert effective_orchestrator.api_model == "second_model"
+    assert effective_executor.api_model == "first_model"
+    assert (
+        "local_mode_uses_same_base_url_for_orchestrator_and_executor; manual runtime coordination may be required"
+        not in pipeline._runtime_warnings("local", effective_orchestrator, effective_executor)
+    )
+    assert (
+        "local_mode_uses_same_base_url_for_orchestrator_and_executor; manual runtime coordination may be required"
+        in pipeline._runtime_warnings("local", orchestrator, executor)
+    )
+
+
 def test_cli_accepts_base_url_overrides_and_fake_mode_remains_offline(tmp_path: Path) -> None:
     out_dir = tmp_path / "cli_override_artifacts"
     completed = subprocess.run(

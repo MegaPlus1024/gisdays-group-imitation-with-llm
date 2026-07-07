@@ -281,6 +281,10 @@ def _metadata(
     request: ModelPairTrialExecutionRequest | None,
 ) -> dict[str, Any]:
     metadata = _safe_value(dict(payload.get("metadata"))) if isinstance(payload.get("metadata"), Mapping) else {}
+    if not isinstance(metadata.get("diagnostics"), Mapping):
+        diagnostics = _pipeline_failure_diagnostics(payload)
+        if diagnostics:
+            metadata["diagnostics"] = diagnostics
     metadata["adapter_name"] = PIPELINE_RESULT_ADAPTER_NAME
     metadata["source_result_type"] = _source_result_type(pipeline_result)
     metadata["pipeline_status_raw"] = raw_status
@@ -293,6 +297,33 @@ def _metadata(
             "executor_model_id": request.executor_model_id,
         }
     return _safe_value(metadata)
+
+
+def _pipeline_failure_diagnostics(payload: Mapping[str, Any]) -> dict[str, Any] | None:
+    status = (_optional_text(_first_value(payload, "status", "state", "result_status")) or "").lower()
+    error_rows = [_safe_value(_payload_dict(item)) for item in _list_value(payload.get("errors"))[:10]]
+    error_rows = [row for row in error_rows if row]
+    error_code = _error_code(payload)
+    failure_reason = _optional_text(payload.get("failure_reason"))
+    stopped_reason = _optional_text(payload.get("stopped_reason"))
+    summary = _optional_text(_first_value(payload, "summary", "message", "error_message"))
+    if status not in {"failed", "failure", "error", "errored", "completed_with_failures"} and not any(
+        [error_rows, error_code, failure_reason, stopped_reason, summary]
+    ):
+        return None
+    diagnostics: dict[str, Any] = {
+        "pipeline_status": status or None,
+        "error_code": error_code,
+        "failure_reason": failure_reason,
+        "stopped_reason": stopped_reason,
+        "summary": summary,
+        "error_count": len(_list_value(payload.get("errors"))),
+        "errors": error_rows,
+    }
+    artifact_refs = _artifact_refs(payload)
+    if artifact_refs:
+        diagnostics["artifact_refs"] = artifact_refs
+    return _safe_value({key: value for key, value in diagnostics.items() if value not in (None, [], {})})
 
 
 def _source_result_type(value: Any) -> str:
@@ -365,6 +396,8 @@ def _string_list(value: Any) -> list[str]:
 
 def _safe_text(value: str) -> str:
     text = _redact_secret_text(value)
+    if re.fullmatch(r"/(?:v\d+/)?chat/completions", text.strip()):
+        return text.strip()
     url_placeholders: dict[str, str] = {}
 
     def preserve_url(match: re.Match[str]) -> str:
@@ -390,10 +423,15 @@ def _safe_text(value: str) -> str:
 
 
 def _redact_secret_text(value: str) -> str:
-    return re.sub(
+    text = re.sub(
         r"(?i)['\"]?\b(api[_-]?key|token|secret|password|credential|auth)\b['\"]?\s*[:=]\s*['\"]?[^,\s'\"}]+",
         "<redacted_secret>",
         value,
+    )
+    return re.sub(
+        r"(?i)['\"]?\b(raw_prompt|raw_response|raw_output|raw_model_output|full_prompt|full_response|prompt_text|response_text)\b['\"]?\s*[:=]\s*['\"]?[^,\s'\"}]+",
+        "<redacted_raw_text>",
+        text,
     )
 
 

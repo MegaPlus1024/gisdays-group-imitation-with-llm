@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import importlib
+import json
 import re
 from collections.abc import Mapping
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -252,6 +253,57 @@ def build_orchestrator_executor_run_config_from_local_pipeline_config(
         ) from exc
 
 
+def build_effective_local_pipeline_model_config_preview(entrypoint_input: Mapping[str, Any]) -> dict[str, Any]:
+    """Build a safe no-runtime preview of effective local model endpoints."""
+
+    try:
+        payload = _existing_pipeline_config_payload(entrypoint_input)
+    except LocalPipelineEntrypointConfigurationError as exc:
+        return _safe_mapping(
+            {
+                "status": "invalid",
+                "error_code": exc.code,
+                "no_runtime_execution": True,
+            }
+        )
+
+    models_by_id = _load_models_config_for_preview(payload.get("models_config_path"))
+    orchestrator_model_id = _safe_optional_text(payload.get("orchestrator_model_id"))
+    executor_model_id = _safe_optional_text(payload.get("executor_model_id"))
+    orchestrator_model = models_by_id.get(orchestrator_model_id or "", {})
+    executor_model = models_by_id.get(executor_model_id or "", {})
+    orchestrator_base_url = _safe_optional_text(payload.get("orchestrator_base_url")) or _safe_optional_text(
+        orchestrator_model.get("base_url")
+    )
+    executor_base_url = _safe_optional_text(payload.get("executor_base_url")) or _safe_optional_text(
+        executor_model.get("base_url")
+    )
+    orchestrator_api_model = _safe_optional_text(orchestrator_model.get("api_model")) or _safe_optional_text(
+        orchestrator_model.get("model_name")
+    )
+    executor_api_model = _safe_optional_text(executor_model.get("api_model")) or _safe_optional_text(
+        executor_model.get("model_name")
+    )
+
+    return _safe_mapping(
+        {
+            "status": "resolved" if orchestrator_base_url and executor_base_url else "missing",
+            "orchestrator_model_id": orchestrator_model_id,
+            "executor_model_id": executor_model_id,
+            "orchestrator_base_url": orchestrator_base_url,
+            "executor_base_url": executor_base_url,
+            "orchestrator_api_model": orchestrator_api_model,
+            "executor_api_model": executor_api_model,
+            "shared_endpoint": (
+                bool(orchestrator_base_url)
+                and bool(executor_base_url)
+                and orchestrator_base_url == executor_base_url
+            ),
+            "no_runtime_execution": True,
+        }
+    )
+
+
 def _run_existing_pipeline_entrypoint(entrypoint_input: Mapping[str, Any]) -> Any:
     pipeline_module = importlib.import_module("src.agent.orchestrator_executor_pipeline")
     runner_cls = getattr(pipeline_module, "OrchestratorExecutorRunner", None)
@@ -309,6 +361,27 @@ def _existing_pipeline_config_payload(entrypoint_input: Mapping[str, Any]) -> di
         payload["mode"] = "local"
     _validate_existing_pipeline_out_dir(payload.get("out_dir"))
     return {key: value for key, value in payload.items() if value is not None}
+
+
+def _load_models_config_for_preview(value: Any) -> dict[str, Mapping[str, Any]]:
+    path_text = _safe_optional_text(value)
+    if not path_text:
+        return {}
+    try:
+        payload = json.loads(Path(path_text).read_text(encoding="utf-8"))
+    except (OSError, TypeError, json.JSONDecodeError):
+        return {}
+    rows = payload.get("models") if isinstance(payload, Mapping) else None
+    if not isinstance(rows, list):
+        return {}
+    models: dict[str, Mapping[str, Any]] = {}
+    for row in rows[:_MAX_LIST_ITEMS]:
+        if not isinstance(row, Mapping):
+            continue
+        model_id = _safe_optional_text(row.get("model_id"))
+        if model_id:
+            models[model_id] = row
+    return models
 
 
 def _local_pipeline_config(entrypoint_input: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -447,6 +520,10 @@ def _safe_pipeline_result(
 ) -> dict[str, Any]:
     payload = _payload_dict(pipeline_result)
     metadata = _safe_mapping(payload.get("metadata")) if isinstance(payload.get("metadata"), Mapping) else {}
+    if not isinstance(metadata.get("diagnostics"), Mapping):
+        diagnostics = _pipeline_failure_diagnostics(payload)
+        if diagnostics:
+            metadata["diagnostics"] = diagnostics
     metadata.update(
         {
             "entrypoint": LOCAL_MODEL_PAIR_PIPELINE_ENTRYPOINT,
@@ -521,6 +598,10 @@ def _activity_trace(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
+def _list_value(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
 def _history_rows(value: Any) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     if not isinstance(value, list):
@@ -574,7 +655,40 @@ def _error_code(payload: Mapping[str, Any]) -> str | None:
     text = _safe_optional_text(error)
     if text and _looks_like_safe_error_code(text):
         return text
+    for item in _list_value(payload.get("errors")):
+        row = _payload_dict(item)
+        for key in ("error_code", "error_type", "type", "code", "stage"):
+            text = _safe_optional_text(row.get(key))
+            if text and _looks_like_safe_error_code(text):
+                return text
     return None
+
+
+def _pipeline_failure_diagnostics(payload: Mapping[str, Any]) -> dict[str, Any] | None:
+    status = (_safe_optional_text(_first_value(payload, "status", "state", "result_status")) or "").lower()
+    error_rows = [_safe_mapping(_payload_dict(item)) for item in _list_value(payload.get("errors"))[:10]]
+    error_rows = [row for row in error_rows if row]
+    error_code = _error_code(payload)
+    failure_reason = _safe_optional_text(payload.get("failure_reason"))
+    stopped_reason = _safe_optional_text(payload.get("stopped_reason"))
+    summary = _safe_optional_text(_first_value(payload, "summary", "message", "error_message"))
+    if status not in {"failed", "failure", "error", "errored", "completed_with_failures"} and not any(
+        [error_rows, error_code, failure_reason, stopped_reason, summary]
+    ):
+        return None
+    diagnostics: dict[str, Any] = {
+        "pipeline_status": status or None,
+        "error_code": error_code,
+        "failure_reason": failure_reason,
+        "stopped_reason": stopped_reason,
+        "summary": summary,
+        "error_count": len(_list_value(payload.get("errors"))),
+        "errors": error_rows,
+    }
+    artifact_refs = _artifact_refs(payload)
+    if artifact_refs:
+        diagnostics["artifact_refs"] = artifact_refs
+    return _safe_mapping({key: value for key, value in diagnostics.items() if value not in (None, [], {})})
 
 
 def _first_value(payload: Mapping[str, Any], *keys: str) -> Any:
@@ -737,6 +851,8 @@ def _safe_text_list(value: Any) -> list[str]:
 
 def _safe_text(value: str) -> str:
     text = _redact_secret_text(value)
+    if re.fullmatch(r"/(?:v\d+/)?chat/completions", text.strip()):
+        return text.strip()
     url_placeholders: dict[str, str] = {}
 
     def preserve_url(match: re.Match[str]) -> str:
