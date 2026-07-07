@@ -103,6 +103,8 @@ def test_local_mode_providers_receive_separate_base_urls(
     assert captured["executor"]["base_url"] == "http://127.0.0.1:8082/v1"
     assert captured["orchestrator"]["model_name"] == "second_model.gguf"
     assert captured["executor"]["model_name"] == "first_model.gguf"
+    assert captured["orchestrator"]["api_model"] == "second_model.gguf"
+    assert captured["executor"]["api_model"] == "first_model.gguf"
 
 
 def test_manifest_records_runtime_overrides_with_mocked_local_providers(
@@ -127,6 +129,8 @@ def test_manifest_records_runtime_overrides_with_mocked_local_providers(
     assert manifest["executor_model_id"] == "first_model"
     assert manifest["orchestrator_base_url"] == "http://127.0.0.1:8081/v1"
     assert manifest["executor_base_url"] == "http://127.0.0.1:8082/v1"
+    assert manifest["orchestrator_api_model"] == "second_model.gguf"
+    assert manifest["executor_api_model"] == "first_model.gguf"
     assert manifest["runtime_overrides"]["orchestrator_base_url"] == "http://127.0.0.1:8081/v1"
     assert manifest["runtime_overrides"]["executor_base_url"] == "http://127.0.0.1:8082/v1"
 
@@ -184,7 +188,9 @@ def test_start_llama_server_port_dry_run_is_documented() -> None:
 
     assert "[int]$Port = 8080" in script
     assert "-Port <port>" in script
+    assert "-ApiModel <alias>" in script
     assert "--port $Port" in script
+    assert "--alias" in script
     assert "-DryRun" in script
 
 

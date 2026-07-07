@@ -18,6 +18,7 @@ class EvaluationModelSpec(BaseModel):
     aliases: list[str] = Field(default_factory=list)
     display_name: str
     model_name: str
+    api_model: str | None = None
     upstream_model_name: str | None = None
     gguf_path: str
     quantization: str
@@ -50,11 +51,11 @@ class EvaluationModelSpec(BaseModel):
             raise ValueError("Evaluation model string fields must be non-empty.")
         return value
 
-    @field_validator("upstream_model_name")
+    @field_validator("api_model", "upstream_model_name")
     @classmethod
     def validate_optional_non_empty(cls, value: str | None) -> str | None:
         if value is not None and not value.strip():
-            raise ValueError("upstream_model_name must be non-empty when provided.")
+            raise ValueError("optional model string fields must be non-empty when provided.")
         return value
 
     @field_validator("aliases")

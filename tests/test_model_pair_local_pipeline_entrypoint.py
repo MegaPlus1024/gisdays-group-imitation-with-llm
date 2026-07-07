@@ -817,6 +817,35 @@ def test_absolute_paths_are_redacted(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "<absolute_path>" in text
 
 
+def test_embedded_http_urls_are_not_mangled_by_path_redaction(monkeypatch: pytest.MonkeyPatch) -> None:
+    import src.agent.model_pair_local_pipeline_entrypoint as local_entrypoint
+
+    windows_path = "\\".join(["C:", "Users", "Example", "secret", "artifact.txt"])
+    monkeypatch.setattr(
+        local_entrypoint,
+        "_run_existing_pipeline_entrypoint",
+        lambda _: _fake_pipeline_result(
+            group_history=[
+                _event(
+                    summary=(
+                        "Client error '400 Bad Request' for url "
+                        "'http://127.0.0.1:8080/v1/chat/completions' "
+                        f"while reading {windows_path} token=SECRET_TOKEN"
+                    )
+                )
+            ]
+        ),
+    )
+
+    result = local_entrypoint.run_local_model_pair_trial(_entrypoint_input(allow_runtime=True))
+    text = json.dumps(result, ensure_ascii=False)
+
+    assert "http://127.0.0.1:8080/v1/chat/completions" in text
+    assert "htt<absolute_path>" not in text
+    assert windows_path not in text
+    assert "SECRET_TOKEN" not in text
+
+
 def test_secret_like_text_is_redacted(monkeypatch: pytest.MonkeyPatch) -> None:
     import src.agent.model_pair_local_pipeline_entrypoint as local_entrypoint
 

@@ -391,8 +391,8 @@ def _safe_text(value: str) -> str:
 
 def _redact_secret_text(value: str) -> str:
     return re.sub(
-        r"(?i)\b(api[_-]?key|token|secret|password|credential|auth)\s*[:=]\s*['\"]?[^,\s'\"]+",
-        lambda match: f"{match.group(1)}=<redacted_secret>",
+        r"(?i)['\"]?\b(api[_-]?key|token|secret|password|credential|auth)\b['\"]?\s*[:=]\s*['\"]?[^,\s'\"}]+",
+        "<redacted_secret>",
         value,
     )
 

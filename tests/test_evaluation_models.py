@@ -64,6 +64,7 @@ def test_resolve_known_model_id() -> None:
 
     assert model.model_id == "first_model"
     assert model.model_name == "first_model.gguf"
+    assert model.api_model == "first_model"
 
 
 def test_resolve_second_model_and_legacy_alias() -> None:
@@ -86,6 +87,11 @@ def test_duplicate_alias_rejected() -> None:
     second = _first_model_payload(model_id="two", aliases=["legacy"])
     with pytest.raises(ValueError, match="model aliases must be unique"):
         EvaluationModelsConfig.model_validate({"models": [first, second]})
+
+
+def test_empty_api_model_rejected() -> None:
+    with pytest.raises(ValueError, match="optional model string fields"):
+        EvaluationModelSpec.model_validate(_first_model_payload(api_model=" "))
 
 
 def test_alias_conflicting_with_model_id_rejected() -> None:

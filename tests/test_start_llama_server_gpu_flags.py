@@ -41,6 +41,7 @@ def test_default_dry_run_does_not_emit_gpu_flags(tmp_path: Path) -> None:
 
     assert completed.returncode == 0, completed.stderr
     assert "--ctx-size 4096" in completed.stdout
+    assert "--alias" not in completed.stdout
     assert "--n-gpu-layers" not in completed.stdout
     assert "--main-gpu" not in completed.stdout
     assert "--device none" not in completed.stdout
@@ -87,6 +88,14 @@ def test_empty_optional_gpu_values_are_not_emitted(tmp_path: Path) -> None:
 
     assert completed.returncode == 0, completed.stderr
     assert "--tensor-split" not in completed.stdout
+
+
+def test_api_model_alias_is_emitted_when_requested(tmp_path: Path) -> None:
+    completed = _run_dry_run(tmp_path, "-ApiModel", "first_model")
+
+    assert completed.returncode == 0, completed.stderr
+    assert "API model:     first_model" in completed.stdout
+    assert "--alias first_model" in completed.stdout
 
 
 def test_cpu_only_uses_device_none_and_rejects_gpu_placement(tmp_path: Path) -> None:

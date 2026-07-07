@@ -277,6 +277,29 @@ def test_redacts_absolute_paths_and_secret_like_text() -> None:
     assert "<redacted_secret>" in text
 
 
+def test_preserves_embedded_http_urls_while_redacting_paths_and_secrets() -> None:
+    windows_path = "\\".join(["C:", "Users", "Example", "secret", "report.docx"])
+    result = adapt_orchestrator_executor_pipeline_result(
+        _pipeline_result(
+            group_history=[
+                _history_event(
+                    summary=(
+                        "Client error '400 Bad Request' for url "
+                        "'http://127.0.0.1:8080/v1/chat/completions' "
+                        f"while reading {windows_path} token=SECRET_TOKEN"
+                    ),
+                )
+            ],
+        )
+    )
+    text = json.dumps(result, ensure_ascii=False)
+
+    assert "http://127.0.0.1:8080/v1/chat/completions" in text
+    assert "htt<absolute_path>" not in text
+    assert windows_path not in text
+    assert "SECRET_TOKEN" not in text
+
+
 def test_drops_raw_prompt_response_fields_and_bounds_long_text() -> None:
     marker = "RAW_PROMPT_RESPONSE_MARKER_SHOULD_NOT_COPY"
     result = adapt_orchestrator_executor_pipeline_result(

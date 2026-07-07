@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Literal, Protocol
+from urllib.parse import urlsplit
 
 import httpx
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -68,6 +69,7 @@ from .virtual_network_policy import evaluate_virtual_network_action_policy
 GroupRunMode = Literal["fake", "local"]
 GroupRunStatus = Literal["completed", "completed_with_failures", "failed"]
 ModelRole = Literal["orchestrator", "executor"]
+_MAX_SAFE_TEXT_CHARS = 800
 
 
 class OrchestratorModelConfig(BaseModel):
@@ -75,6 +77,7 @@ class OrchestratorModelConfig(BaseModel):
     role: Literal["orchestrator"] = "orchestrator"
     base_url: str
     model_name: str
+    api_model: str | None = None
     temperature: float = 0.0
     max_tokens: int = 512
     timeout_seconds: float = 120.0
@@ -85,9 +88,20 @@ class ExecutorModelConfig(BaseModel):
     role: Literal["executor"] = "executor"
     base_url: str
     model_name: str
+    api_model: str | None = None
     temperature: float = 0.0
     max_tokens: int = 512
     timeout_seconds: float = 120.0
+
+
+LocalChatModelConfig = OrchestratorModelConfig | ExecutorModelConfig
+
+
+class LocalModelHTTPError(RuntimeError):
+    def __init__(self, error_code: str, message: str, diagnostics: dict[str, Any]) -> None:
+        super().__init__(message)
+        self.error_code = error_code
+        self.diagnostics = diagnostics
 
 
 class AgentAssignment(BaseModel):
@@ -190,6 +204,7 @@ class ExecutorActionAttempt(BaseModel):
     selection_latency_ms: float | None = None
     error_type: str | None = None
     error_message: str | None = None
+    error_diagnostics: dict[str, Any] | None = None
 
 
 class ExecutorAgentTrajectory(BaseModel):
@@ -531,6 +546,116 @@ class FakeExecutorActionProvider:
         )
 
 
+def build_local_chat_completion_request_preview(
+    model: LocalChatModelConfig,
+    messages: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    """Return a safe request-shape preview without message content or network I/O."""
+    payload = _local_chat_completion_payload(model, messages or [])
+    return {
+        "model_id": model.model_id,
+        "api_model": payload["model"],
+        "endpoint_path": _endpoint_path(_chat_completion_url(model.base_url)),
+        "request_shape": _request_shape(payload),
+    }
+
+
+def _local_chat_completion_payload(
+    model: LocalChatModelConfig,
+    messages: list[dict[str, str]],
+) -> dict[str, Any]:
+    return {
+        "model": _api_model_name(model),
+        "messages": messages,
+        "temperature": model.temperature,
+        "max_tokens": model.max_tokens,
+    }
+
+
+def _post_local_chat_completion(model: LocalChatModelConfig, messages: list[dict[str, str]]) -> str:
+    payload = _local_chat_completion_payload(model, messages)
+    url = _chat_completion_url(model.base_url)
+    try:
+        with httpx.Client(timeout=model.timeout_seconds, trust_env=False) as client:
+            response = client.post(url, json=payload)
+            response.raise_for_status()
+            response_json = response.json()
+    except httpx.HTTPStatusError as exc:
+        raise _local_model_http_error(exc, model=model, payload=payload, url=url) from exc
+    except httpx.HTTPError as exc:
+        raise _local_model_http_error(exc, model=model, payload=payload, url=url) from exc
+    return LocalLLMClient.extract_assistant_content(response_json)
+
+
+def _api_model_name(model: LocalChatModelConfig) -> str:
+    return (model.api_model or model.model_name).strip()
+
+
+def _chat_completion_url(base_url: str) -> str:
+    return f"{base_url.rstrip('/')}/chat/completions"
+
+
+def _endpoint_path(url: str) -> str:
+    parsed = urlsplit(url)
+    return parsed.path or "/chat/completions"
+
+
+def _request_shape(payload: dict[str, Any]) -> dict[str, Any]:
+    messages = payload.get("messages")
+    return {
+        "has_messages": isinstance(messages, list),
+        "message_count": len(messages) if isinstance(messages, list) else 0,
+        "has_tools": "tools" in payload,
+        "has_response_format": "response_format" in payload,
+        "has_stream": "stream" in payload,
+        "temperature_present": "temperature" in payload,
+        "max_tokens_present": "max_tokens" in payload,
+    }
+
+
+def _local_model_http_error(
+    exc: httpx.HTTPError,
+    *,
+    model: LocalChatModelConfig,
+    payload: dict[str, Any],
+    url: str,
+) -> LocalModelHTTPError:
+    status_code = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
+    error_code = "local_model_http_bad_request" if status_code == 400 else "local_model_http_error"
+    diagnostics = {
+        "error_code": error_code,
+        "http_status": status_code,
+        "endpoint_path": _endpoint_path(url),
+        "model_id": model.model_id,
+        "api_model": payload.get("model"),
+        "safe_response_excerpt": _safe_response_excerpt(
+            exc.response.text if isinstance(exc, httpx.HTTPStatusError) else str(exc)
+        ),
+        "request_shape": _request_shape(payload),
+    }
+    message = (
+        f"{error_code}: HTTP {status_code} for {_endpoint_path(url)} "
+        f"model_id={model.model_id} api_model={payload.get('model')}"
+    )
+    return LocalModelHTTPError(error_code, message, diagnostics)
+
+
+def _exception_error_code(exc: Exception) -> str:
+    if isinstance(exc, LocalModelHTTPError):
+        return exc.error_code
+    return exc.__class__.__name__
+
+
+def _exception_safe_message(exc: Exception) -> str:
+    return _safe_text(str(exc) or exc.__class__.__name__)
+
+
+def _exception_diagnostics(exc: Exception) -> dict[str, Any] | None:
+    if isinstance(exc, LocalModelHTTPError):
+        return dict(exc.diagnostics)
+    return None
+
+
 class LocalOrchestratorPlanProvider:
     def __init__(self, model: OrchestratorModelConfig) -> None:
         self.model = model
@@ -559,6 +684,8 @@ class LocalOrchestratorPlanProvider:
             prompt_messages=messages,
             metadata={
                 "provider": "local_orchestrator",
+                "model_id": self.model.model_id,
+                "api_model": _api_model_name(self.model),
                 "base_url": self.model.base_url,
                 "max_tokens": self.model.max_tokens,
                 "temperature": self.model.temperature,
@@ -592,6 +719,8 @@ class LocalOrchestratorPlanProvider:
             prompt_messages=messages,
             metadata={
                 "provider": "local_orchestrator_repair",
+                "model_id": self.model.model_id,
+                "api_model": _api_model_name(self.model),
                 "base_url": self.model.base_url,
                 "max_tokens": self.model.max_tokens,
                 "temperature": self.model.temperature,
@@ -599,17 +728,7 @@ class LocalOrchestratorPlanProvider:
         )
 
     def _chat(self, messages: list[dict[str, str]]) -> str:
-        payload = {
-            "model": self.model.model_name,
-            "messages": messages,
-            "temperature": self.model.temperature,
-            "max_tokens": self.model.max_tokens,
-        }
-        with httpx.Client(timeout=self.model.timeout_seconds, trust_env=False) as client:
-            response = client.post(f"{self.model.base_url.rstrip('/')}/chat/completions", json=payload)
-            response.raise_for_status()
-            response_json = response.json()
-        return LocalLLMClient.extract_assistant_content(response_json)
+        return _post_local_chat_completion(self.model, messages)
 
 
 class LocalExecutorActionProvider:
@@ -634,6 +753,8 @@ class LocalExecutorActionProvider:
             raw_model_output=raw,
             metadata={
                 "provider": "local_executor",
+                "model_id": self.model.model_id,
+                "api_model": _api_model_name(self.model),
                 "base_url": self.model.base_url,
                 "agent_id": agent.agent_id,
                 "task_id": task.task_id,
@@ -678,6 +799,8 @@ class LocalExecutorActionProvider:
             raw_model_output=raw,
             metadata={
                 "provider": "local_executor_repair",
+                "model_id": self.model.model_id,
+                "api_model": _api_model_name(self.model),
                 "base_url": self.model.base_url,
                 "agent_id": agent.agent_id,
                 "task_id": task.task_id,
@@ -690,17 +813,7 @@ class LocalExecutorActionProvider:
         )
 
     def _chat(self, messages: list[dict[str, str]]) -> str:
-        payload = {
-            "model": self.model.model_name,
-            "messages": messages,
-            "temperature": self.model.temperature,
-            "max_tokens": self.model.max_tokens,
-        }
-        with httpx.Client(timeout=self.model.timeout_seconds, trust_env=False) as client:
-            response = client.post(f"{self.model.base_url.rstrip('/')}/chat/completions", json=payload)
-            response.raise_for_status()
-            response_json = response.json()
-        return LocalLLMClient.extract_assistant_content(response_json)
+        return _post_local_chat_completion(self.model, messages)
 
 
 class OrchestratorExecutorRunner:
@@ -893,21 +1006,22 @@ class OrchestratorExecutorRunner:
                 )
                 for attempt in attempts:
                     if attempt.error_type:
-                        errors.append(
-                            {
-                                "stage": "executor",
-                                "agent_id": agent.agent_id,
-                                "task_id": task.task_id,
-                                "group_step_index": group_step,
-                                "agent_step_index": attempt.agent_step_index,
-                                "attempt_index": attempt.attempt_index,
-                                "attempt_type": attempt.attempt_type,
-                                "error_type": attempt.error_type,
-                                "error_message": attempt.error_message,
-                                "validation_issues": attempt.validation_issues,
-                                "virtual_network_policy": attempt.virtual_network_policy,
-                            }
-                        )
+                        error = {
+                            "stage": "executor",
+                            "agent_id": agent.agent_id,
+                            "task_id": task.task_id,
+                            "group_step_index": group_step,
+                            "agent_step_index": attempt.agent_step_index,
+                            "attempt_index": attempt.attempt_index,
+                            "attempt_type": attempt.attempt_type,
+                            "error_type": attempt.error_type,
+                            "error_message": attempt.error_message,
+                            "validation_issues": attempt.validation_issues,
+                            "virtual_network_policy": attempt.virtual_network_policy,
+                        }
+                        if attempt.error_diagnostics is not None:
+                            error["diagnostics"] = attempt.error_diagnostics
+                        errors.append(error)
 
         activity_profiles = {
             agent.agent_id: load_activity_profile(self.config.project_path(agent.activity_profile_path))
@@ -1003,20 +1117,47 @@ def _run_orchestrator_plan_stage(
     for attempt_index in range(0, repair_attempts + 1):
         attempt_type: Literal["initial", "repair"] = "initial" if attempt_index == 0 else "repair"
         started = time.perf_counter()
-        if attempt_type == "initial":
-            provider_result = orchestrator_provider.create_plan(
-                scenario=scenario,
-                agents=scenario.agents,
-                agent_action_names=agent_action_names,
+        try:
+            if attempt_type == "initial":
+                provider_result = orchestrator_provider.create_plan(
+                    scenario=scenario,
+                    agents=scenario.agents,
+                    agent_action_names=agent_action_names,
+                )
+            else:
+                provider_result = _repair_orchestrator_plan(
+                    orchestrator_provider=orchestrator_provider,
+                    scenario=scenario,
+                    agent_action_names=agent_action_names,
+                    previous_raw_output=previous_raw,
+                    error_message=previous_error,
+                )
+        except Exception as exc:
+            diagnostics = _exception_diagnostics(exc)
+            metadata: dict[str, Any] = {}
+            if diagnostics is not None:
+                metadata["diagnostics"] = diagnostics
+            safe_message = _exception_safe_message(exc)
+            attempts.append(
+                OrchestratorPlanAttempt(
+                    attempt_index=attempt_index,
+                    attempt_type=attempt_type,
+                    parse_error=safe_message,
+                    latency_ms=_elapsed_ms(started),
+                    metadata=metadata,
+                )
             )
-        else:
-            provider_result = _repair_orchestrator_plan(
-                orchestrator_provider=orchestrator_provider,
-                scenario=scenario,
-                agent_action_names=agent_action_names,
-                previous_raw_output=previous_raw,
-                error_message=previous_error,
-            )
+            error = {
+                "stage": "orchestrator",
+                "attempt_index": attempt_index,
+                "attempt_type": attempt_type,
+                "error_type": _exception_error_code(exc),
+                "error_message": safe_message,
+            }
+            if diagnostics is not None:
+                error["diagnostics"] = diagnostics
+            errors.append(error)
+            break
         latency_ms = _elapsed_ms(started)
         attempt, maybe_plan = _orchestrator_attempt_from_result(
             attempt_index=attempt_index,
@@ -1357,6 +1498,7 @@ def _orchestrator_model_config(spec: EvaluationModelSpec) -> OrchestratorModelCo
         model_id=spec.model_id,
         base_url=spec.base_url,
         model_name=spec.model_name,
+        api_model=spec.api_model,
         temperature=spec.temperature,
         max_tokens=spec.max_tokens,
         timeout_seconds=spec.timeout_seconds,
@@ -1368,6 +1510,7 @@ def _executor_model_config(spec: EvaluationModelSpec) -> ExecutorModelConfig:
         model_id=spec.model_id,
         base_url=spec.base_url,
         model_name=spec.model_name,
+        api_model=spec.api_model,
         temperature=spec.temperature,
         max_tokens=spec.max_tokens,
         timeout_seconds=spec.timeout_seconds,
@@ -1387,8 +1530,10 @@ def _apply_runtime_overrides(
         executor_updates["base_url"] = config.executor_base_url.rstrip("/")
     if config.orchestrator_model_name:
         orchestrator_updates["model_name"] = config.orchestrator_model_name
+        orchestrator_updates["api_model"] = config.orchestrator_model_name
     if config.executor_model_name:
         executor_updates["model_name"] = config.executor_model_name
+        executor_updates["api_model"] = config.executor_model_name
     if config.orchestrator_max_tokens is not None:
         orchestrator_updates["max_tokens"] = config.orchestrator_max_tokens
     if config.orchestrator_temperature is not None:
@@ -1875,6 +2020,7 @@ def _run_executor_step(
                     error_message=previous_error,
                 )
         except Exception as exc:
+            diagnostics = _exception_diagnostics(exc)
             attempts.append(
                 ExecutorActionAttempt(
                     group_step_index=group_step_index,
@@ -1885,8 +2031,9 @@ def _run_executor_step(
                     attempt_type=attempt_type,
                     raw_model_output="",
                     selection_latency_ms=_elapsed_ms(started),
-                    error_type=exc.__class__.__name__,
-                    error_message=str(exc) or exc.__class__.__name__,
+                    error_type=_exception_error_code(exc),
+                    error_message=_exception_safe_message(exc),
+                    error_diagnostics=diagnostics,
                 )
             )
             break
@@ -2177,6 +2324,8 @@ def _history_from_attempt(
         metadata["virtual_network"] = virtual_network_metadata
     if attempt.virtual_network_policy is not None:
         metadata["virtual_network_policy"] = attempt.virtual_network_policy
+    if attempt.error_diagnostics is not None:
+        metadata["diagnostics"] = attempt.error_diagnostics
     return GroupHistoryRecord(
         group_step_index=attempt.group_step_index,
         agent_id=attempt.agent_id,
@@ -2590,6 +2739,8 @@ def _manifest(
         "executor_base_url": executor_model.base_url,
         "orchestrator_model_name": orchestrator_model.model_name,
         "executor_model_name": executor_model.model_name,
+        "orchestrator_api_model": _api_model_name(orchestrator_model),
+        "executor_api_model": _api_model_name(executor_model),
         "orchestrator_max_tokens": orchestrator_model.max_tokens,
         "orchestrator_temperature": orchestrator_model.temperature,
         "orchestrator_repair_attempts": config.orchestrator_repair_attempts,
@@ -2675,6 +2826,57 @@ Pair quality score: `{result.quality_metrics.pair_quality_score}`
 
 This artifact was produced by the sequential MVP runner. It is useful as a structural group-agent prototype, not as a production scheduler or measured capacity result.
 """
+
+
+def _safe_response_excerpt(value: str) -> str:
+    return _safe_text(value)
+
+
+def _safe_text(value: str) -> str:
+    text = _redact_secret_text(value)
+    url_placeholders: dict[str, str] = {}
+
+    def preserve_url(match: re.Match[str]) -> str:
+        placeholder = f"__SAFE_URL_{len(url_placeholders)}__"
+        url_placeholders[placeholder] = _safe_url_text(match.group(0))
+        return placeholder
+
+    text = re.sub(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s\"']+", preserve_url, text)
+    text = re.sub(r"[A-Za-z]:[\\/][^\s\"']+", "<absolute_path>", text)
+    text = re.sub(r"(?<!\w)/(?:[^\s\"']+/)+[^\s\"']+", "<absolute_path>", text)
+    text = re.sub(r"\\\\[^\s\"']+", "<absolute_path>", text)
+    if _is_absolute_path(text):
+        text = "<absolute_path>"
+    for placeholder, url in url_placeholders.items():
+        text = text.replace(placeholder, url)
+    if len(text) > _MAX_SAFE_TEXT_CHARS:
+        return text[:_MAX_SAFE_TEXT_CHARS] + "...[truncated]"
+    return text
+
+
+def _safe_url_text(value: str) -> str:
+    return re.sub(r"://[^/\s:@]+:[^/\s@]+@", "://<redacted_secret>@", value)
+
+
+def _redact_secret_text(value: str) -> str:
+    text = re.sub(
+        r"(?i)['\"]?\b(api[_-]?key|token|secret|password|credential|auth)\b['\"]?\s*[:=]\s*['\"]?[^,\s'\"}]+",
+        "<redacted_secret>",
+        value,
+    )
+    return re.sub(
+        r"(?i)['\"]?\b(raw_prompt|raw_response|raw_output|raw_model_output|full_prompt|full_response|prompt_text|response_text)\b['\"]?\s*[:=]\s*['\"]?[^,\s'\"}]+",
+        "<redacted_raw_text>",
+        text,
+    )
+
+
+def _is_absolute_path(value: str) -> bool:
+    return (
+        PureWindowsPath(value).is_absolute()
+        or PurePosixPath(value).is_absolute()
+        or bool(re.match(r"^[A-Za-z]:", value))
+    )
 
 
 def _final_orchestrator_error(attempts: list[OrchestratorPlanAttempt]) -> str:

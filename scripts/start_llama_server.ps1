@@ -2,6 +2,7 @@ param(
   [string]$ModelId,
   [string]$ModelsConfig = "configs\evaluation_models.json",
   [string]$ModelPath,
+  [string]$ApiModel,
   [string]$HostAddress = "127.0.0.1",
   [Alias("Host")]
   [string]$HostAlias,
@@ -31,7 +32,7 @@ function Show-Usage {
   $scriptName = Split-Path -Leaf $PSCommandPath
   @"
 Usage:
-  .\scripts\$scriptName [-ModelId <id>] [-ModelsConfig <path>] [-ModelPath <path>] [-Host <host>] [-Port <port>] [-CtxSize <tokens>] [-GpuLayers <n|all|auto>] [-MainGpu <index>] [-SplitMode <none|layer|row|tensor>] [-TensorSplit <weights>] [-BatchSize <n>] [-UBatchSize <n>] [-Threads <n>] [-FlashAttention <on|off|auto>] [-CpuOnly] [-ServerPath <path>] [-DryRun]
+  .\scripts\$scriptName [-ModelId <id>] [-ModelsConfig <path>] [-ModelPath <path>] [-ApiModel <alias>] [-Host <host>] [-Port <port>] [-CtxSize <tokens>] [-GpuLayers <n|all|auto>] [-MainGpu <index>] [-SplitMode <none|layer|row|tensor>] [-TensorSplit <weights>] [-BatchSize <n>] [-UBatchSize <n>] [-Threads <n>] [-FlashAttention <on|off|auto>] [-CpuOnly] [-ServerPath <path>] [-DryRun]
   .\scripts\$scriptName -Help
 
 Defaults:
@@ -46,6 +47,7 @@ Examples:
   .\scripts\$scriptName
   .\scripts\$scriptName -ModelId first_model
   .\scripts\$scriptName -ModelId second_model
+  .\scripts\$scriptName -ModelId second_model -ApiModel second_model
   .\scripts\$scriptName -Port 8081
   .\scripts\$scriptName -ModelPath "C:\path\to\model.gguf"
   .\scripts\$scriptName -ServerPath "C:\path\to\llama-server.exe"
@@ -238,7 +240,8 @@ function Build-LlamaServerArgs {
     [Parameter(Mandatory = $true)]
     [int]$PortValue,
     [Parameter(Mandatory = $true)]
-    [int]$CtxSizeValue
+    [int]$CtxSizeValue,
+    [string]$ApiModelValue
   )
 
   if ($CpuOnly -and (
@@ -260,6 +263,7 @@ function Build-LlamaServerArgs {
   $argsList.Add([string]$PortValue)
   $argsList.Add("--ctx-size")
   $argsList.Add([string]$CtxSizeValue)
+  Add-OptionalArgument -Arguments $argsList -Flag "--alias" -Value $ApiModelValue
 
   if ($CpuOnly) {
     $argsList.Add("--device")
@@ -320,6 +324,14 @@ if (-not $ModelPath) {
   $ModelPath = "models\gguf\first_model.gguf"
 }
 
+if (-not $ApiModel -and $SelectedModel) {
+  if ($SelectedModel.PSObject.Properties.Name -contains "api_model" -and $SelectedModel.api_model) {
+    $ApiModel = [string]$SelectedModel.api_model
+  } elseif ($SelectedModel.model_id) {
+    $ApiModel = [string]$SelectedModel.model_id
+  }
+}
+
 $ResolvedModelPath = Resolve-PathValue -PathValue $ModelPath -BasePath $ProjectRoot
 if (-not (Test-Path -LiteralPath $ResolvedModelPath -PathType Leaf)) {
   throw @"
@@ -344,6 +356,9 @@ if ($ModelId) {
     Write-Host "Resolved id:   $($SelectedModel.model_id)"
   }
   Write-Host "Model name:    $($SelectedModel.model_name)"
+}
+if ($ApiModel) {
+  Write-Host "API model:     $ApiModel"
 }
 Write-Host "Model path:    $ResolvedModelPath"
 Write-Host "Server path:   $ResolvedServerPath"
@@ -376,7 +391,7 @@ if ($FlashAttention) {
 }
 Write-Host ""
 
-$CommandArgs = Build-LlamaServerArgs -ModelPathValue $ResolvedModelPath -HostValue $HostAddress -PortValue $Port -CtxSizeValue $CtxSize
+$CommandArgs = Build-LlamaServerArgs -ModelPathValue $ResolvedModelPath -HostValue $HostAddress -PortValue $Port -CtxSizeValue $CtxSize -ApiModelValue $ApiModel
 
 if ($DryRun) {
   Write-Host "Dry run: server was not started."
