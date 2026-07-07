@@ -67,6 +67,7 @@ class PlaywrightOperatorConfig:
     fixture_server: dict[str, Any] = field(default_factory=dict)
     browser_backend: dict[str, Any] = field(default_factory=dict)
     output_dir: str = "artifacts/autonomous_runtime_summaries/playwright_operator"
+    execution_scope: dict[str, Any] = field(default_factory=dict)
     required_guards: PlaywrightOperatorGuard = field(default_factory=PlaywrightOperatorGuard)
     no_secrets: bool = True
 
@@ -83,6 +84,7 @@ class PlaywrightOperatorConfig:
             fixture_server=_dict(payload.get("fixture_server", {}), "fixture_server"),
             browser_backend=_dict(payload.get("browser_backend", {}), "browser_backend"),
             output_dir=_safe_relative_path(str(payload.get("output_dir", "")), "output_dir"),
+            execution_scope=_dict(payload.get("execution_scope", {}), "execution_scope"),
             required_guards=PlaywrightOperatorGuard.from_dict(guards_payload),
             no_secrets=_bool(payload.get("no_secrets", False), "no_secrets"),
         )
@@ -96,6 +98,7 @@ class PlaywrightOperatorConfig:
             "fixture_server": dict(self.fixture_server),
             "browser_backend": dict(self.browser_backend),
             "output_dir": self.output_dir,
+            "execution_scope": dict(self.execution_scope),
             "required_guards": self.required_guards.to_dict(),
             "no_secrets": self.no_secrets,
         }
@@ -202,6 +205,7 @@ def validate_playwright_operator_config(
     _validate_fixture_server(config.fixture_server, root, checks)
     _validate_browser_backend(config.browser_backend, checks)
     _add_check(checks, "output_dir_safe", _path_safe(config.output_dir), config.output_dir)
+    _validate_execution_scope(config.execution_scope, checks)
     _validate_scenario_reference(config, root, checks)
 
     return PlaywrightOperatorReadiness(ready=all(item["passed"] for item in checks), checks=tuple(checks))
@@ -236,6 +240,7 @@ def build_playwright_operator_commands(
             requires_operator=True,
             notes=(
                 "Codex must not run this command.",
+                "Operator must install Playwright/Chromium separately if missing; Codex must not install dependencies.",
                 "Requires explicit operator approval and local fixture server/browser readiness.",
             ),
         ),
@@ -308,6 +313,13 @@ def _validate_browser_backend(payload: Mapping[str, Any], checks: list[dict[str,
     _add_check(checks, "browser_timeout", isinstance(timeout, int) and timeout > 0, timeout)
 
 
+def _validate_execution_scope(payload: Mapping[str, Any], checks: list[dict[str, Any]]) -> None:
+    mode = payload.get("mode", "first_scenario_only")
+    max_actions = payload.get("max_browser_actions", 8)
+    _add_check(checks, "execution_scope_mode", mode == "first_scenario_only", mode)
+    _add_check(checks, "execution_scope_max_actions", isinstance(max_actions, int) and 1 <= max_actions <= 100, max_actions)
+
+
 def _validate_scenario_reference(config: PlaywrightOperatorConfig, root: Path, checks: list[dict[str, Any]]) -> None:
     has_suite = bool(config.scenario_suite_path)
     has_scenario = bool(config.scenario_path)
@@ -354,6 +366,7 @@ def _packet_readme(config: PlaywrightOperatorConfig, commands: tuple[PlaywrightO
         "Codex must not run the guarded real-browser command.",
         "",
         "This packet is a readiness/operator handoff only. It does not launch Playwright, Chromium, a local HTTP server, models, Office, or an LLM judge.",
+        "If Playwright or Chromium is missing, the operator must install it manually outside Codex.",
         "",
         "Required guards:",
         f"- `{config.required_guards.allow_flag}`",

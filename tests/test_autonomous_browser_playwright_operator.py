@@ -9,6 +9,8 @@ from typing import Any
 
 import pytest
 
+import scripts.run_autonomous_browser_playwright_operator as runner_module
+from src.agent.autonomous_browser_playwright_execution import PlaywrightExecutionConfig
 from src.agent.autonomous_browser_playwright_operator import (
     REQUIRED_ALLOW_FLAG,
     REQUIRED_CONFIRM_FLAG,
@@ -47,6 +49,7 @@ def test_config_example_loads() -> None:
     assert config.schema_version == "playwright_operator_config_v1"
     assert config.operator_id == "browser_suite_playwright_operator_v1"
     assert config.scenario_suite_path == "configs/autonomous_runtime/browser_scenario_suite.example.json"
+    assert config.execution_scope == {"mode": "first_scenario_only", "max_browser_actions": 8}
 
 
 def test_readiness_validates_safe_config() -> None:
@@ -87,6 +90,28 @@ def test_readiness_rejects_config_without_guard_requirements(tmp_path: Path) -> 
 
     with pytest.raises(PlaywrightOperatorConfigError, match="required_guards"):
         _load_payload(payload, tmp_path)
+
+
+def test_readiness_rejects_unsupported_execution_scope_mode(tmp_path: Path) -> None:
+    payload = _payload()
+    payload["execution_scope"] = {"mode": "all_scenarios", "max_browser_actions": 8}
+    config = _load_payload(payload, tmp_path)
+    readiness = validate_playwright_operator_config(config, repo_root=PROJECT_ROOT)
+
+    checks = {item["name"]: item for item in readiness.to_dict()["checks"]}
+    assert readiness.ready is False
+    assert checks["execution_scope_mode"]["passed"] is False
+
+
+def test_readiness_rejects_invalid_execution_scope_action_limit(tmp_path: Path) -> None:
+    payload = _payload()
+    payload["execution_scope"] = {"mode": "first_scenario_only", "max_browser_actions": 0}
+    config = _load_payload(payload, tmp_path)
+    readiness = validate_playwright_operator_config(config, repo_root=PROJECT_ROOT)
+
+    checks = {item["name"]: item for item in readiness.to_dict()["checks"]}
+    assert readiness.ready is False
+    assert checks["execution_scope_max_actions"]["passed"] is False
 
 
 def test_dry_run_does_not_import_playwright(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -178,29 +203,46 @@ def test_runner_with_one_missing_guard_refuses() -> None:
     assert payload["error"] == f"missing_required_guard:{REQUIRED_ALLOW_FLAG}"
 
 
-def test_runner_with_both_guards_returns_not_implemented_without_browser() -> None:
-    result = subprocess.run(
+def test_runner_with_both_guards_invokes_injected_execution_runner(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[PlaywrightExecutionConfig] = []
+
+    class FakeSummary:
+        status = "succeeded"
+
+        def to_dict(self) -> dict[str, Any]:
+            return {
+                "schema_version": "autonomous_browser_playwright_smoke_summary_v1",
+                "status": self.status,
+                "no_runtime_execution": False,
+                "browser_backend": {"type": "playwright", "browser_name": "chromium", "headless": True},
+                "actions_attempted": 1,
+            }
+
+    def fake_runner(config: PlaywrightExecutionConfig) -> FakeSummary:
+        calls.append(config)
+        return FakeSummary()
+
+    monkeypatch.setattr(runner_module, "write_autonomous_runtime_scenario_summary", lambda *args, **kwargs: None)
+    rc = runner_module.main(
         [
-            sys.executable,
-            str(RUNNER_PATH),
             "--config",
             str(CONFIG_PATH),
             "--allow-real-browser",
             "--confirm-real-browser",
             REQUIRED_CONFIRM_VALUE,
         ],
-        cwd=PROJECT_ROOT,
-        check=False,
-        capture_output=True,
-        text=True,
+        execution_runner=fake_runner,
     )
-    payload = json.loads(result.stdout)
+    payload = json.loads(capsys.readouterr().out)
 
-    assert result.returncode == 1
-    assert payload["status"] == "not_implemented"
-    assert payload["error"] == "real_browser_execution_not_implemented"
-    assert payload["browser_launched"] is False
-    assert payload["playwright_imported"] is False
+    assert rc == 0
+    assert payload["status"] == "succeeded"
+    assert payload["no_runtime_execution"] is False
+    assert len(calls) == 1
+    assert calls[0].operator_id == "browser_suite_playwright_operator_v1"
 
 
 def test_packet_builder_emits_commands_and_readme(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -233,6 +275,7 @@ def test_packet_commands_include_both_guards(tmp_path: Path, monkeypatch: pytest
     assert REQUIRED_ALLOW_FLAG in guarded["argv"]
     assert f"{REQUIRED_CONFIRM_FLAG} {REQUIRED_CONFIRM_VALUE}" in guarded["argv"]
     assert guarded["requires_operator"] is True
+    assert not any("playwright install" in command["argv"].lower() for command in commands["commands"])
 
 
 def test_packet_does_not_include_secrets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

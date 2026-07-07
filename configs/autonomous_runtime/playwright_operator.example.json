@@ -15,6 +15,10 @@
     "launch_timeout_seconds": 30
   },
   "output_dir": "artifacts/autonomous_runtime_summaries/playwright_operator",
+  "execution_scope": {
+    "mode": "first_scenario_only",
+    "max_browser_actions": 8
+  },
   "required_guards": {
     "allow_flag": "--allow-real-browser",
     "confirm_flag": "--confirm-real-browser",

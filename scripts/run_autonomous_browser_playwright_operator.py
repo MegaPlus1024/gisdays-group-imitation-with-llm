@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 
@@ -19,13 +20,21 @@ from src.agent.autonomous_browser_playwright_operator import (
     load_playwright_operator_config,
     validate_playwright_operator_config,
 )
+from src.agent.autonomous_browser_playwright_execution import (
+    PlaywrightExecutionConfig,
+    run_guarded_playwright_smoke,
+)
 from src.agent.autonomous_runtime_scenarios import (
     AutonomousRuntimeScenarioValidationError,
     write_autonomous_runtime_scenario_summary,
 )
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(
+    argv: list[str] | None = None,
+    *,
+    execution_runner: Callable[[PlaywrightExecutionConfig], Any] = run_guarded_playwright_smoke,
+) -> int:
     parser = argparse.ArgumentParser(description="Prepare guarded Playwright browser operator readiness.")
     parser.add_argument("--config", required=True)
     parser.add_argument("--dry-run", action="store_true")
@@ -79,17 +88,16 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    _emit(
-        {
-            "status": "not_implemented",
-            "error": "real_browser_execution_not_implemented",
-            "readiness": readiness.to_dict(),
-            "no_runtime_execution": True,
-            "browser_launched": False,
-            "playwright_imported": False,
-        }
-    )
-    return 1
+    if not readiness.ready:
+        _emit({"status": "not_ready", "readiness": readiness.to_dict(), "no_runtime_execution": True})
+        return 1
+
+    summary = execution_runner(PlaywrightExecutionConfig.from_operator_config(config, repo_root=PROJECT_ROOT))
+    if config.output_dir:
+        output_path = Path(config.output_dir) / "playwright_smoke_summary.json"
+        write_autonomous_runtime_scenario_summary(summary.to_dict(), output_path)
+    _emit(summary.to_dict())
+    return 0 if summary.status == "succeeded" else 1
 
 
 def _guard_error(allow_real_browser: bool, confirm_real_browser: str | None) -> str | None:

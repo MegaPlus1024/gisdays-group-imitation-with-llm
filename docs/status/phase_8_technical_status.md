@@ -324,6 +324,45 @@ Limitations:
 - the next browser step, if approved, is an operator-run local Playwright smoke check against the fixture server;
 - this is still not production autonomous browser deployment.
 
+## Phase 9.7 Guarded Playwright execution implementation
+
+Phase 9.7 implements the actual guarded Playwright smoke execution path behind the two explicit operator guards, while preserving offline/default behavior for Codex and automated tests.
+
+What was added:
+
+- execution module: `src/agent/autonomous_browser_playwright_execution.py`;
+- lazy `RealPlaywrightBackend` that imports Playwright only inside the guarded execution context;
+- injectable `FakePlaywrightBackend` and fakeable local fixture server interface for offline tests;
+- stdlib-based local fixture HTTP server for operator-run smoke checks, constrained to loopback host and safe relative fixture roots;
+- logical URL mapping from fixture scenario domains such as `local.intranet`, `docs.local` and `portal.local` to loopback fixture URLs;
+- smoke summary schema `autonomous_browser_playwright_smoke_summary_v1`;
+- runner integration so the guarded path calls the execution function only after readiness succeeds and both guards are present;
+- execution scope config with `mode: first_scenario_only` and bounded `max_browser_actions`;
+- packet/readme notes that the operator must install Playwright/Chromium separately if missing and Codex must not install dependencies.
+
+Current behavior:
+
+- `--dry-run` remains readiness-only and does not start a server, import Playwright, launch Chromium, run models or call judges;
+- missing or incomplete guards still return refusal with `no_runtime_execution: true`;
+- both guards now route to the real execution function, which is intended for manual operator use only;
+- if Playwright is missing, the guarded path returns structured `playwright_dependency_missing`;
+- if browser launch fails, the guarded path returns structured `playwright_launch_failed`;
+- automated tests use fakes and do not launch a real browser or a real fixture server.
+
+What does not run in Codex:
+
+- no real browser, Playwright or Chromium is launched;
+- no `playwright install` is run;
+- no local HTTP fixture server is started for a real run;
+- no model client, API/HTTP judge or LLM-as-a-judge is launched;
+- no mail/git/calendar/other external app action namespace is added.
+
+Limitations:
+
+- real Playwright smoke success is not claimed yet because the guarded command has not been run by the operator;
+- browser TZ status advances from readiness-only to implemented guarded execution path, but manual smoke evidence is still needed;
+- this remains a controlled local fixture smoke path, not production browser automation or production hardening.
+
 ## 4. Offline reproduction commands
 
 The following commands are intended for offline post-processing of already-produced artifacts. They do not start models or live API calls.
