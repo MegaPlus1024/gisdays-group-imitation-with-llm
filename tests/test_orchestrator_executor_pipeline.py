@@ -380,11 +380,15 @@ def test_local_executor_request_diagnostics_include_prompt_budget_metadata() -> 
     ("action", "extension"),
     [
         ("office_create_docx", ".docx"),
+        ("office_append_docx_section", ".docx"),
         ("office_create_xlsx", ".xlsx"),
+        ("office_update_xlsx_cell", ".xlsx"),
+        ("office_append_xlsx_row", ".xlsx"),
         ("office_create_pptx", ".pptx"),
+        ("office_add_pptx_slide", ".pptx"),
     ],
 )
-def test_office_create_missing_path_gets_controlled_default(action: str, extension: str) -> None:
+def test_office_write_missing_path_gets_controlled_default(action: str, extension: str) -> None:
     result = pipeline._apply_action_parameter_repair(
         next_action=_next_action(action),
         agent=_agent_spec(),
@@ -404,10 +408,56 @@ def test_office_create_missing_path_gets_controlled_default(action: str, extensi
     assert result.metadata["parameter_repair_type"] == "default_office_output_path"
     assert result.metadata["repaired_parameters"] == ["path"]
     assert result.metadata["path_source"] == "controlled_default"
+    assert result.metadata["expected_extension"] == extension
 
 
-def test_office_create_existing_safe_path_is_preserved() -> None:
-    original = _next_action("office_create_docx", {"path": "artifacts/office_documents/manual.docx"})
+def test_office_append_docx_blank_path_gets_controlled_default() -> None:
+    result = pipeline._apply_action_parameter_repair(
+        next_action=_next_action("office_append_docx_section", {"path": "   ", "paragraphs": ["note"]}),
+        agent=_agent_spec(),
+        task=_task(),
+        config=_repair_config(),
+        out_dir=PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_21_action_repair_retry/pipeline",
+        project_root=PROJECT_ROOT,
+    )
+
+    assert result.next_action.parameters["path"].endswith("t1_document_summary_agent.docx")
+    assert result.metadata is not None
+    assert result.metadata["parameter_repair_type"] == "default_office_output_path"
+    assert result.metadata["expected_extension"] == ".docx"
+
+
+def test_office_append_docx_safe_no_extension_path_gets_extension_repair() -> None:
+    result = pipeline._apply_action_parameter_repair(
+        next_action=_next_action(
+            "office_append_docx_section",
+            {
+                "path": (
+                    "artifacts/single_trial_runs/phase_8_23_office_extension_retry/"
+                    "pipeline/workspace/office_outputs/summary"
+                ),
+                "paragraphs": ["note"],
+            },
+        ),
+        agent=_agent_spec(),
+        task=_task(),
+        config=_repair_config(),
+        out_dir=PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_23_office_extension_retry/pipeline",
+        project_root=PROJECT_ROOT,
+    )
+
+    assert result.next_action.parameters["path"].endswith("/summary.docx")
+    assert result.metadata is not None
+    assert result.metadata["parameter_repair_type"] == "office_path_extension_repair"
+    assert result.metadata["path_source"] == "model_path_with_extension_repair"
+    assert result.metadata["expected_extension"] == ".docx"
+
+
+def test_office_append_docx_existing_safe_path_is_preserved() -> None:
+    original = _next_action(
+        "office_append_docx_section",
+        {"path": "artifacts/single_trial_runs/x/pipeline/workspace/office_outputs/manual.docx"},
+    )
 
     result = pipeline._apply_action_parameter_repair(
         next_action=original,
@@ -418,7 +468,7 @@ def test_office_create_existing_safe_path_is_preserved() -> None:
         project_root=PROJECT_ROOT,
     )
 
-    assert result.next_action.parameters["path"] == "artifacts/office_documents/manual.docx"
+    assert result.next_action.parameters["path"] == "artifacts/single_trial_runs/x/pipeline/workspace/office_outputs/manual.docx"
     assert result.metadata is None
 
 
@@ -459,6 +509,27 @@ def test_office_create_traversal_path_is_not_silently_repaired() -> None:
     validation = pipeline.validate_next_action_against_registry(result.next_action, registry, role)
 
     assert result.next_action.parameters["path"] == "../tasks.xlsx"
+    assert result.metadata is None
+    assert validation.accepted is False
+    assert {issue.code for issue in validation.issues} >= {"unsafe_path"}
+
+
+def test_office_append_docx_traversal_path_is_not_silently_repaired() -> None:
+    registry = pipeline.load_script_registry(PROJECT_ROOT / "configs/script_registry.example.json")
+    role = pipeline.load_role_template(PROJECT_ROOT / "configs/roles/office_document_worker.example.json")
+    original = _next_action("office_append_docx_section", {"path": "../tasks.docx", "paragraphs": ["note"]})
+
+    result = pipeline._apply_action_parameter_repair(
+        next_action=original,
+        agent=_agent_spec(),
+        task=_task(),
+        config=_repair_config(),
+        out_dir=PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_21_action_repair_retry/pipeline",
+        project_root=PROJECT_ROOT,
+    )
+    validation = pipeline.validate_next_action_against_registry(result.next_action, registry, role)
+
+    assert result.next_action.parameters["path"] == "../tasks.docx"
     assert result.metadata is None
     assert validation.accepted is False
     assert {issue.code for issue in validation.issues} >= {"unsafe_path"}
@@ -618,6 +689,84 @@ def test_executor_attempt_executes_controlled_office_action_with_fake_bridge() -
     )
 
 
+def test_executor_attempt_repairs_append_docx_no_extension_before_fake_bridge() -> None:
+    registry = pipeline.load_script_registry(PROJECT_ROOT / "configs/script_registry.example.json")
+    role = pipeline.load_role_template(PROJECT_ROOT / "configs/roles/office_document_worker.example.json")
+    scenario = pipeline.load_orchestrator_executor_scenario(
+        PROJECT_ROOT / "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json"
+    )
+    out_dir = PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_23_office_extension_retry/pipeline"
+    action_path = (
+        "artifacts/single_trial_runs/phase_8_23_office_extension_retry/"
+        "pipeline/workspace/office_outputs/t1_document_summary_agent"
+    )
+
+    class FakeBridge:
+        def __init__(self) -> None:
+            self.paths: list[str] = []
+
+        def execute_next_action(self, next_action, *, run_id, agent_id, step_index):  # type: ignore[no-untyped-def]
+            del run_id, agent_id, step_index
+            self.paths.append(next_action.parameters["path"])
+            raw = ScriptExecutionResult(
+                action=next_action.action,
+                success=True,
+                output="appended",
+                metadata={"output_path": next_action.parameters["path"]},
+            )
+
+            class Output:
+                def __init__(self, raw_result: ScriptExecutionResult) -> None:
+                    self.success = True
+                    self.raw_result = raw_result
+
+                def model_dump(self, *, mode: str = "json"):  # type: ignore[no-untyped-def]
+                    del mode
+                    return {
+                        "action": next_action.action,
+                        "success": True,
+                        "raw_result": self.raw_result.model_dump(mode="json"),
+                    }
+
+            return Output(raw)
+
+    bridge = FakeBridge()
+    attempt = pipeline._executor_attempt_from_result(
+        provider_result=pipeline.ExecutorProviderResult(
+            raw_model_output=json.dumps(
+                _next_action(
+                    "office_append_docx_section",
+                    {"path": action_path, "paragraphs": ["Controlled note."]},
+                ).model_dump(mode="json")
+            )
+        ),
+        attempt_index=0,
+        attempt_type="initial",
+        agent=_agent_spec(),
+        task=_task(),
+        state=_bloated_agent_state(),
+        role_template=role,
+        registry=registry,
+        bridge=bridge,  # type: ignore[arg-type]
+        group_step_index=1,
+        agent_step_index=1,
+        execute_actions=True,
+        scenario=scenario,
+        out_dir=out_dir,
+        project_root=PROJECT_ROOT,
+        action_parameter_repair=ActionParameterRepairConfig(enabled=True),
+        latency_ms=1.0,
+    )
+
+    assert attempt.error_type is None
+    assert attempt.execution_attempted is True
+    assert attempt.execution_success is True
+    assert bridge.paths == [f"{action_path}.docx"]
+    assert attempt.parameter_repair is not None
+    assert attempt.parameter_repair["parameter_repair_type"] == "office_path_extension_repair"
+    assert attempt.parameter_repair["expected_extension"] == ".docx"
+
+
 def test_non_office_actions_are_not_repaired_generically() -> None:
     result = pipeline._apply_action_parameter_repair(
         next_action=_next_action("create_file"),
@@ -640,6 +789,59 @@ def test_office_create_wrong_extension_is_rejected() -> None:
     assert issue is not None
     assert issue["code"] == "office_path_extension_mismatch"
     assert issue["metadata"]["expected_extension"] == ".pptx"
+    assert issue["metadata"]["actual_extension"] == ".docx"
+
+
+def test_office_append_docx_wrong_extension_is_rejected_before_execution() -> None:
+    registry = pipeline.load_script_registry(PROJECT_ROOT / "configs/script_registry.example.json")
+    role = pipeline.load_role_template(PROJECT_ROOT / "configs/roles/office_document_worker.example.json")
+    scenario = pipeline.load_orchestrator_executor_scenario(
+        PROJECT_ROOT / "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json"
+    )
+    out_dir = PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_23_office_extension_retry/pipeline"
+
+    class RejectingBridge:
+        def execute_next_action(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            raise AssertionError("office backend must not run for extension mismatch")
+
+    attempt = pipeline._executor_attempt_from_result(
+        provider_result=pipeline.ExecutorProviderResult(
+            raw_model_output=json.dumps(
+                _next_action(
+                    "office_append_docx_section",
+                    {
+                        "path": (
+                            "artifacts/single_trial_runs/phase_8_23_office_extension_retry/"
+                            "pipeline/workspace/document_summary_agent_executor_note.md"
+                        ),
+                        "paragraphs": ["note"],
+                    },
+                ).model_dump(mode="json")
+            )
+        ),
+        attempt_index=0,
+        attempt_type="initial",
+        agent=_agent_spec(),
+        task=_task(),
+        state=_bloated_agent_state(),
+        role_template=role,
+        registry=registry,
+        bridge=RejectingBridge(),  # type: ignore[arg-type]
+        group_step_index=1,
+        agent_step_index=1,
+        execute_actions=True,
+        scenario=scenario,
+        out_dir=out_dir,
+        project_root=PROJECT_ROOT,
+        action_parameter_repair=ActionParameterRepairConfig(enabled=True),
+        latency_ms=1.0,
+    )
+
+    assert attempt.error_type == "office_path_extension_mismatch"
+    assert attempt.validation_accepted is False
+    assert attempt.execution_attempted is False
+    assert attempt.validation_issues[0]["metadata"]["expected_extension"] == ".docx"
+    assert attempt.validation_issues[0]["metadata"]["actual_extension"] == ".md"
 
 
 def test_compact_executor_prompt_keeps_office_required_path_guidance() -> None:
@@ -679,6 +881,45 @@ def test_compact_executor_prompt_keeps_office_required_path_guidance() -> None:
     assert ".docx" in text
     assert "office_outputs" in text
     assert "NEXT_ACTION_OUTPUT_CONTRACT" in text
+    assert metadata["prompt_chars_after"] <= 12000
+
+
+def test_compact_executor_prompt_uses_docx_example_for_append_action() -> None:
+    registry = pipeline.load_script_registry(PROJECT_ROOT / "configs/script_registry.example.json")
+    role = pipeline.load_role_template(PROJECT_ROOT / "configs/roles/office_document_worker.example.json")
+    agent = _agent_spec()
+    assignment = pipeline.AgentAssignment(
+        agent_id=agent.agent_id,
+        task_id="t1",
+        assigned_goal="Append a DOCX section under the controlled workspace.",
+        executor_model_id="first_model",
+        success_criteria="Use office_append_docx_section with a .docx path parameter.",
+        allowed_action_focus=["office_append_docx_section"],
+    )
+    state = pipeline._build_agent_state(
+        PROJECT_ROOT,
+        agent,
+        role,
+        registry,
+        assignment,
+        PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_23_office_extension_retry/pipeline",
+    )
+
+    messages, metadata = pipeline._executor_messages_with_budget(
+        PromptBuilder(PromptContractConfig(include_history_limit=6)),
+        state,
+        PromptBudgetConfig(
+            executor_max_prompt_chars=12000,
+            max_history_items=6,
+            compact_executor_context=True,
+        ),
+    )
+    text = json.dumps(messages, ensure_ascii=False)
+
+    assert "office_append_docx_section" in text
+    assert "path" in text
+    assert ".docx" in text
+    assert "office_outputs" in text
     assert metadata["prompt_chars_after"] <= 12000
 
 

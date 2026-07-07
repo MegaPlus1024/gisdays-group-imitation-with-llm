@@ -2034,7 +2034,7 @@ def _write_action_path_example(
     agent_id: str,
     out_dir: Path,
 ) -> dict[str, Any]:
-    if descriptor.name in _OFFICE_CREATE_ACTION_EXTENSIONS:
+    if descriptor.name in _OFFICE_PATH_REPAIR_ACTION_EXTENSIONS:
         safe_out = _default_office_output_path(
             action_name=descriptor.name,
             agent_id=agent_id,
@@ -2752,11 +2752,11 @@ def _executor_attempt_from_result(
         attempt.error_message = ", ".join(issue.code for issue in validation.issues)
         return attempt
 
-    extension_issue = _office_create_path_extension_issue(next_action)
+    extension_issue = _office_path_extension_issue(next_action)
     if extension_issue is not None:
         attempt.validation_accepted = False
         attempt.validation_issues.append(extension_issue)
-        attempt.error_type = "validation_failed"
+        attempt.error_type = str(extension_issue["code"])
         attempt.error_message = str(extension_issue["code"])
         return attempt
 
@@ -2865,10 +2865,27 @@ _OFFICE_REAL_DOCUMENT_WRITE_ACTIONS = frozenset(
 _ARTIFACT_WORKSPACE_WRITE_ACTIONS = frozenset(
     {"create_file", "append_file", "office_create_document_stub"}
 ) | _OFFICE_REAL_DOCUMENT_WRITE_ACTIONS
-_OFFICE_CREATE_ACTION_EXTENSIONS = {
+_OFFICE_ACTION_EXTENSIONS = {
     "office_create_docx": ".docx",
+    "office_append_docx_section": ".docx",
+    "office_extract_docx_text": ".docx",
     "office_create_xlsx": ".xlsx",
+    "office_update_xlsx_cell": ".xlsx",
+    "office_append_xlsx_row": ".xlsx",
+    "office_read_xlsx_summary": ".xlsx",
     "office_create_pptx": ".pptx",
+    "office_add_pptx_slide": ".pptx",
+    "office_extract_pptx_text": ".pptx",
+}
+_OFFICE_PATH_REPAIR_ACTION_EXTENSIONS = {
+    action: extension
+    for action, extension in _OFFICE_ACTION_EXTENSIONS.items()
+    if action in _OFFICE_REAL_DOCUMENT_WRITE_ACTIONS
+}
+_OFFICE_CREATE_ACTION_EXTENSIONS = {
+    action: extension
+    for action, extension in _OFFICE_ACTION_EXTENSIONS.items()
+    if action in {"office_create_docx", "office_create_xlsx", "office_create_pptx"}
 }
 
 
@@ -2899,16 +2916,81 @@ def _apply_action_parameter_repair(
     out_dir: Path,
     project_root: Path,
 ) -> ActionParameterRepairResult:
-    if not config.enabled or next_action.action not in _OFFICE_CREATE_ACTION_EXTENSIONS:
+    expected_extension = _OFFICE_PATH_REPAIR_ACTION_EXTENSIONS.get(next_action.action)
+    if not config.enabled or expected_extension is None:
         return ActionParameterRepairResult(next_action=next_action)
 
     params = dict(next_action.parameters or {})
     existing_path = params.get("path")
     if isinstance(existing_path, str) and existing_path.strip():
-        return ActionParameterRepairResult(next_action=next_action)
-    if existing_path is not None and not (isinstance(existing_path, str) and not existing_path.strip()):
+        normalized_path = existing_path.strip().replace("\\", "/")
+        if not _is_safe_relative_artifact_path(normalized_path):
+            return ActionParameterRepairResult(next_action=next_action)
+        if normalized_path.endswith("/"):
+            return _repair_action_path_to_default(
+                next_action=next_action,
+                params=params,
+                agent=agent,
+                task=task,
+                config=config,
+                out_dir=out_dir,
+                project_root=project_root,
+                expected_extension=expected_extension,
+            )
+        suffix = PurePosixPath(normalized_path).suffix.lower()
+        if suffix:
+            return ActionParameterRepairResult(next_action=next_action)
+        params["path"] = f"{normalized_path}{expected_extension}"
+        repaired_action = next_action.model_copy(update={"parameters": params})
+        return ActionParameterRepairResult(
+            next_action=repaired_action,
+            metadata={
+                "parameter_repair_applied": True,
+                "parameter_repair_type": "office_path_extension_repair",
+                "repaired_parameters": ["path"],
+                "path_source": "model_path_with_extension_repair",
+                "action": next_action.action,
+                "path": params["path"],
+                "expected_extension": expected_extension,
+            },
+        )
+    if isinstance(existing_path, str) and not existing_path.strip():
+        return _repair_action_path_to_default(
+            next_action=next_action,
+            params=params,
+            agent=agent,
+            task=task,
+            config=config,
+            out_dir=out_dir,
+            project_root=project_root,
+            expected_extension=expected_extension,
+        )
+    if existing_path is not None:
         return ActionParameterRepairResult(next_action=next_action)
 
+    return _repair_action_path_to_default(
+        next_action=next_action,
+        params=params,
+        agent=agent,
+        task=task,
+        config=config,
+        out_dir=out_dir,
+        project_root=project_root,
+        expected_extension=expected_extension,
+    )
+
+
+def _repair_action_path_to_default(
+    *,
+    next_action: NextAction,
+    params: dict[str, Any],
+    agent: GroupAgentSpec,
+    task: OrchestratorPlanTask,
+    config: ActionParameterRepairConfig,
+    out_dir: Path,
+    project_root: Path,
+    expected_extension: str,
+) -> ActionParameterRepairResult:
     repaired_path = _default_office_output_path(
         action_name=next_action.action,
         agent_id=agent.agent_id,
@@ -2928,6 +3010,7 @@ def _apply_action_parameter_repair(
             "path_source": "controlled_default",
             "action": next_action.action,
             "path": repaired_path,
+            "expected_extension": expected_extension,
         },
     )
 
@@ -2941,7 +3024,7 @@ def _default_office_output_path(
     out_dir: Path,
     project_root: Path,
 ) -> str:
-    extension = _OFFICE_CREATE_ACTION_EXTENSIONS[action_name]
+    extension = _OFFICE_PATH_REPAIR_ACTION_EXTENSIONS[action_name]
     output_dir = config.office_default_output_dir or f"{_safe_relative_workspace_root(project_root, out_dir)}office_outputs/"
     output_dir = output_dir.replace("\\", "/")
     if not output_dir.endswith("/"):
@@ -2958,8 +3041,8 @@ def _safe_path_slug(value: str) -> str:
     return text[:80] or "item"
 
 
-def _office_create_path_extension_issue(next_action: NextAction) -> dict[str, Any] | None:
-    expected = _OFFICE_CREATE_ACTION_EXTENSIONS.get(next_action.action)
+def _office_path_extension_issue(next_action: NextAction) -> dict[str, Any] | None:
+    expected = _OFFICE_ACTION_EXTENSIONS.get(next_action.action)
     if expected is None:
         return None
     path = next_action.parameters.get("path")
@@ -2968,13 +3051,22 @@ def _office_create_path_extension_issue(next_action: NextAction) -> dict[str, An
     suffix = PurePosixPath(path.replace("\\", "/")).suffix.lower()
     if suffix == expected:
         return None
+    actual = suffix or None
     return {
         "code": "office_path_extension_mismatch",
         "field": "parameters.path",
         "message": f"Action '{next_action.action}' requires a '{expected}' path.",
         "layer": "safety_policy",
-        "metadata": {"expected_extension": expected},
+        "metadata": {
+            "action": next_action.action,
+            "expected_extension": expected,
+            "actual_extension": actual,
+        },
     }
+
+
+def _office_create_path_extension_issue(next_action: NextAction) -> dict[str, Any] | None:
+    return _office_path_extension_issue(next_action)
 
 
 def _repair_executor_action(
