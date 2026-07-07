@@ -14,6 +14,7 @@ from src.agent.autonomous_browser_playwright_execution import (
     PlaywrightExecutionConfig,
     PlaywrightExecutionError,
     RealPlaywrightBackend,
+    _sanitize_diagnostics,
     run_guarded_playwright_smoke,
 )
 from src.agent.autonomous_browser_playwright_operator import load_playwright_operator_config
@@ -133,7 +134,57 @@ def test_url_mapper_maps_logical_domain_to_loopback_url() -> None:
         repo_root=PROJECT_ROOT,
     )
 
-    assert mapper.map_logical_url("https://local.intranet/docs/policy") == "http://127.0.0.1:8765/docs/policy"
+    assert mapper.map_logical_url("https://local.intranet/docs/policy") == "http://127.0.0.1:8765/docs/policy.html"
+
+
+def test_url_mapper_maps_root_to_index_fixture() -> None:
+    mapper = FixtureUrlMapper(
+        manifest_path="tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+        server_base_url="http://127.0.0.1:8765",
+        repo_root=PROJECT_ROOT,
+    )
+
+    assert mapper.map_logical_url("https://local.intranet/") == "http://127.0.0.1:8765/index.html"
+
+
+def test_url_mapper_maps_ticket_to_fixture_file() -> None:
+    mapper = FixtureUrlMapper(
+        manifest_path="tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+        server_base_url="http://127.0.0.1:8765",
+        repo_root=PROJECT_ROOT,
+    )
+
+    assert mapper.map_logical_url("https://local.intranet/tickets/1") == "http://127.0.0.1:8765/tickets/1.html"
+
+
+def test_url_mapper_maps_docs_policy_to_fixture_file() -> None:
+    mapper = FixtureUrlMapper(
+        manifest_path="tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+        server_base_url="http://127.0.0.1:8765",
+        repo_root=PROJECT_ROOT,
+    )
+
+    assert mapper.map_logical_url("https://docs.local/docs/policy") == "http://127.0.0.1:8765/docs/policy.html"
+
+
+def test_url_mapper_maps_portal_root_to_domain_fixture() -> None:
+    mapper = FixtureUrlMapper(
+        manifest_path="tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+        server_base_url="http://127.0.0.1:8765",
+        repo_root=PROJECT_ROOT,
+    )
+
+    assert mapper.map_logical_url("https://portal.local/") == "http://127.0.0.1:8765/portal/index.html"
+
+
+def test_url_mapper_maps_portal_status_to_domain_fixture() -> None:
+    mapper = FixtureUrlMapper(
+        manifest_path="tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+        server_base_url="http://127.0.0.1:8765",
+        repo_root=PROJECT_ROOT,
+    )
+
+    assert mapper.map_logical_url("https://portal.local/status") == "http://127.0.0.1:8765/portal/status.html"
 
 
 def test_url_mapper_rejects_unknown_domain() -> None:
@@ -145,6 +196,46 @@ def test_url_mapper_rejects_unknown_domain() -> None:
 
     with pytest.raises(PlaywrightExecutionError, match="unknown_logical_domain"):
         mapper.map_logical_url("https://example.com/docs/policy")
+
+
+def test_url_mapper_rejects_missing_fixture() -> None:
+    mapper = FixtureUrlMapper(
+        manifest_path="tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+        server_base_url="http://127.0.0.1:8765",
+        repo_root=PROJECT_ROOT,
+    )
+
+    with pytest.raises(PlaywrightExecutionError, match="fixture_mapping_not_found"):
+        mapper.map_logical_url("https://local.intranet/missing/not-there")
+
+
+def test_url_mapper_rejects_path_traversal() -> None:
+    mapper = FixtureUrlMapper(
+        manifest_path="tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+        server_base_url="http://127.0.0.1:8765",
+        repo_root=PROJECT_ROOT,
+    )
+
+    with pytest.raises(PlaywrightExecutionError):
+        mapper.map_logical_url("https://local.intranet/../secret")
+
+
+def test_sanitizer_preserves_logical_and_loopback_urls() -> None:
+    sanitized = _sanitize_diagnostics(
+        {
+            "logical_url": "https://local.intranet/tickets/1",
+            "served_url": "http://127.0.0.1:8765/tickets/1.html",
+        }
+    )
+
+    assert sanitized["logical_url"] == "https://local.intranet/tickets/1"
+    assert sanitized["served_url"] == "http://127.0.0.1:8765/tickets/1.html"
+
+
+def test_sanitizer_redacts_windows_absolute_path() -> None:
+    sanitized = _sanitize_diagnostics({"path": "C:\\Users\\m\\secret.txt"})
+
+    assert sanitized["path"] == "<absolute_path>"
 
 
 def test_summary_has_no_local_absolute_paths() -> None:
@@ -167,6 +258,47 @@ def test_output_summary_is_json_serializable() -> None:
     )
 
     assert json.loads(json.dumps(summary.to_dict()))["schema_version"] == "autonomous_browser_playwright_smoke_summary_v1"
+
+
+def test_fake_playwright_http_404_marks_action_failed() -> None:
+    backend = FakePlaywrightBackend(http_status=404)
+
+    result = backend.run_action(
+        "browser_open_url",
+        "http://127.0.0.1:8765/missing.html",
+        logical_url="https://local.intranet/missing",
+        expected_text="Missing",
+    )
+
+    assert result.success is False
+    assert result.error_code == "browser_http_error"
+    assert result.diagnostics["http_status"] == 404
+
+
+def test_http_404_summary_prefers_browser_action_failed() -> None:
+    summary = run_guarded_playwright_smoke(
+        _execution_config(),
+        backend=FakePlaywrightBackend(http_status=404),
+        server=FakeServer(),
+    )
+
+    assert summary.status == "failed"
+    assert summary.error_code == "browser_action_failed"
+    assert summary.actions_attempted == 1
+    assert summary.actions_succeeded == 0
+    assert summary.actions_failed == 1
+    assert summary.diagnostics["actions"][0]["error_code"] == "browser_http_error"
+
+
+def test_fake_successful_action_with_expected_text_passes() -> None:
+    summary = run_guarded_playwright_smoke(
+        _execution_config(),
+        backend=FakePlaywrightBackend(),
+        server=FakeServer(),
+    )
+
+    assert summary.status == "succeeded"
+    assert all(item["passed"] for item in summary.expected_results)
 
 
 def test_no_mail_git_calendar_actions_added() -> None:

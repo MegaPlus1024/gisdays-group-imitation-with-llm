@@ -21,6 +21,7 @@
 - Phase 9.2: добавлен fixture-backed autonomous browser runtime integration без real browser/Playwright/Chromium/API calls.
 - Phase 9.3: добавлен config-driven autonomous browser scenario runner без real browser/model/API calls.
 - Phase 9.7: реализован guarded Playwright execution path behind two operator guards; Codex did not run real browser/Playwright/Chromium/server.
+- Phase 9.8: исправлены fixture URL mapping, HTTP 404 handling и URL sanitizer for the guarded Playwright path; Codex did not rerun real browser smoke.
 
 ## 2. Краткая сводка выполнения
 
@@ -1153,6 +1154,31 @@ TZ impact:
 
 Browser runtime status improves because the real-browser execution path exists behind explicit guards. It remains partially verified overall because manual Playwright/Chromium smoke evidence has not yet been collected.
 
+## Phase 9.8 Playwright fixture URL mapping fix
+
+An operator-run guarded Playwright smoke after Phase 9.7 reached real Playwright/Chromium execution, but failed with HTTP 404 fixture pages. The underlying cause was not Playwright startup: logical URLs were being converted to loopback logical routes such as `/tickets/1`, while the local fixture server serves actual files such as `tickets/1.html`.
+
+What changed:
+
+- `FixtureUrlMapper` now maps logical URLs to actual served fixture file paths using manifest routes and safe fallbacks;
+- known smoke URLs now resolve to files such as `index.html`, `tickets/1.html`, `docs/policy.html`, `portal/index.html` and `portal/status.html`;
+- real Playwright actions now inspect `page.goto(...)` response status and mark HTTP `>= 400` as `browser_http_error`;
+- browser action failures are no longer masked by expected-text failures in the summary-level `error_code`;
+- diagnostics sanitization preserves `http://` and `https://` URLs while still redacting local filesystem paths;
+- the existing policy fixture now includes the expected smoke search marker `fixture-backed result`.
+
+Safeguards retained:
+
+- Codex did not run the real guarded smoke, Playwright, Chromium or a local fixture server;
+- automated tests use fake backends/servers only;
+- no mail/git/calendar/email actions were added;
+- no LLM-as-a-judge/API judge/model runtime was touched;
+- generated smoke summaries remain ignored and are not source-controlled.
+
+TZ impact:
+
+Browser runtime status improves because the first operator smoke failure mode is fixed in code. It remains partially verified until the operator reruns the guarded Playwright smoke and reviews the new summary.
+
 ## Итоговая сводка статусов
 
 | Статус | Количество подпунктов |
@@ -1167,7 +1193,7 @@ Browser runtime status improves because the real-browser execution path exists b
 ## Краткий вывод
 
 - Полностью закрыто: базовая agent architecture, локальная модельная интеграция, roles/context/script formats, script registry, action selection, execution bridge, history/error logging, file/shell/office document actions, controlled single-trial and mini-matrix prototype evidence.
-- Частично закрыто и продвинуто Phase 9.1/9.2/9.3/9.4/9.5/9.6/9.7: autonomous multi-agent runtime foundation, deterministic scheduler, shared state/task board, runtime loop, stop policy, error recovery, resource locks, virtual environment metadata, fixture-backed browser runtime integration, config-driven autonomous browser scenario evidence, expanded browser fixture coverage with click navigation, synthetic form workflow, wait action, dependencies, browser coverage summary, 4-scenario browser suite aggregation, guarded Playwright operator readiness/packet path and actual guarded Playwright execution implementation.
+- Частично закрыто и продвинуто Phase 9.1/9.2/9.3/9.4/9.5/9.6/9.7/9.8: autonomous multi-agent runtime foundation, deterministic scheduler, shared state/task board, runtime loop, stop policy, error recovery, resource locks, virtual environment metadata, fixture-backed browser runtime integration, config-driven autonomous browser scenario evidence, expanded browser fixture coverage with click navigation, synthetic form workflow, wait action, dependencies, browser coverage summary, 4-scenario browser suite aggregation, guarded Playwright operator readiness/packet path, actual guarded Playwright execution implementation and post-smoke fixture URL/HTTP status fixes.
 - Частично закрыто: virtual network simulation, production browser automation, broad behavioral normality evaluation, model comparison breadth, resource/capacity sizing, GPU/stress evidence, final configuration for further development.
 - Не закрыто: mail/git/other application actions.
 - Для полного закрытия ТЗ нужны: operator-approved real Playwright/Chromium smoke run and summary or additional fixture-backed browser breadth if deferred, guarded semantic LLM-as-a-judge run later, larger N, stronger resource/capacity measurements, ясная граница virtual network scope, optional mail/git actions only if separately approved under safety policy.

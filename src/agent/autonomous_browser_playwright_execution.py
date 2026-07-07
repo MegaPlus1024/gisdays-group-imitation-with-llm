@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any, Protocol
-from urllib.parse import urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from .autonomous_browser_scenario_suite import load_autonomous_browser_scenario_suite
 from .autonomous_runtime_scenarios import (
@@ -15,7 +15,12 @@ from .autonomous_runtime_scenarios import (
     AutonomousRuntimeScriptedStep,
     load_autonomous_runtime_scenario,
 )
-from .browser_fixture_resolver import BrowserFixtureResolverError, resolve_browser_fixture_url
+from .browser_fixture_resolver import (
+    BrowserFixtureResolverError,
+    BrowserFixtureRouteNotFound,
+    BrowserFixtureUrlDenied,
+    resolve_browser_fixture_url,
+)
 
 
 SMOKE_SUMMARY_SCHEMA_VERSION = "autonomous_browser_playwright_smoke_summary_v1"
@@ -115,7 +120,14 @@ class PlaywrightExecutionSummary:
 
 
 class PlaywrightBackend(Protocol):
-    def run_action(self, action_name: str, served_url: str, *, expected_text: str | None = None) -> PlaywrightExecutionResult:
+    def run_action(
+        self,
+        action_name: str,
+        served_url: str,
+        *,
+        logical_url: str = "",
+        expected_text: str | None = None,
+    ) -> PlaywrightExecutionResult:
         ...
 
 
@@ -167,37 +179,60 @@ class RealPlaywrightBackend:
         self._page = None
         self._manager = None
 
-    def run_action(self, action_name: str, served_url: str, *, expected_text: str | None = None) -> PlaywrightExecutionResult:
+    def run_action(
+        self,
+        action_name: str,
+        served_url: str,
+        *,
+        logical_url: str = "",
+        expected_text: str | None = None,
+    ) -> PlaywrightExecutionResult:
         del expected_text
         if self._page is None:
-            return _action_failure(action_name, "", served_url, "playwright_page_not_ready")
+            return _action_failure(action_name, logical_url, served_url, "playwright_page_not_ready")
         try:
+            response: Any | None = None
+            requires_navigation = action_name in {"browser_open_url", "browser_click"}
             if action_name in {"browser_open_url", "browser_click"}:
-                self._page.goto(served_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
+                response = self._page.goto(served_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
             elif action_name == "browser_wait":
                 self._page.wait_for_timeout(100)
             elif action_name in {"browser_extract_text", "browser_snapshot", "browser_search"}:
                 if str(self._page.url) != served_url:
-                    self._page.goto(served_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
+                    requires_navigation = True
+                    response = self._page.goto(served_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
             else:
-                return _action_failure(action_name, "", served_url, "unsupported_playwright_smoke_action")
+                return _action_failure(action_name, logical_url, served_url, "unsupported_playwright_smoke_action")
+            if requires_navigation and response is None:
+                return _action_failure(action_name, logical_url, served_url, "browser_navigation_no_response")
+            if response is not None:
+                status = int(response.status)
+                if status >= 400:
+                    return _action_failure(
+                        action_name,
+                        logical_url,
+                        served_url,
+                        "browser_http_error",
+                        diagnostics={"http_status": status, "logical_url": logical_url},
+                    )
             text = str(self._page.inner_text("body", timeout=self.timeout_ms) or "")
             artifact_ref = "playwright_snapshot_placeholder" if action_name == "browser_snapshot" else None
             return PlaywrightExecutionResult(
                 action_name=action_name,
-                logical_url="",
+                logical_url=logical_url,
                 served_url=served_url,
                 success=True,
                 text_preview=_preview(text),
                 artifact_ref=artifact_ref,
             )
         except Exception as exc:
-            return _action_failure(action_name, "", served_url, "playwright_action_failed", exc)
+            return _action_failure(action_name, logical_url, served_url, "playwright_action_failed", exc)
 
 
 class FakePlaywrightBackend:
-    def __init__(self, *, fail_with: str | None = None) -> None:
+    def __init__(self, *, fail_with: str | None = None, http_status: int | None = None) -> None:
         self.fail_with = fail_with
+        self.http_status = http_status
         self.calls: list[tuple[str, str]] = []
 
     def __enter__(self) -> FakePlaywrightBackend:
@@ -208,13 +243,28 @@ class FakePlaywrightBackend:
     def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         del exc_type, exc, tb
 
-    def run_action(self, action_name: str, served_url: str, *, expected_text: str | None = None) -> PlaywrightExecutionResult:
+    def run_action(
+        self,
+        action_name: str,
+        served_url: str,
+        *,
+        logical_url: str = "",
+        expected_text: str | None = None,
+    ) -> PlaywrightExecutionResult:
         self.calls.append((action_name, served_url))
         if self.fail_with:
-            return _action_failure(action_name, "", served_url, self.fail_with)
+            return _action_failure(action_name, logical_url, served_url, self.fail_with)
+        if self.http_status is not None and self.http_status >= 400:
+            return _action_failure(
+                action_name,
+                logical_url,
+                served_url,
+                "browser_http_error",
+                diagnostics={"http_status": self.http_status, "logical_url": logical_url},
+            )
         return PlaywrightExecutionResult(
             action_name=action_name,
-            logical_url="",
+            logical_url=logical_url,
             served_url=served_url,
             success=True,
             text_preview=expected_text or "fake browser text",
@@ -351,8 +401,19 @@ def run_guarded_playwright_smoke(
                 expected: list[dict[str, Any]] = []
                 for step in steps:
                     logical_url = _logical_url_for_step(step, results)
-                    served_url = mapper.map_logical_url(logical_url)
-                    result = running_backend.run_action(step.action_name, served_url, expected_text=step.expected_text)
+                    try:
+                        served_url = mapper.map_logical_url(logical_url)
+                    except PlaywrightExecutionError as exc:
+                        result = _action_failure(step.action_name, logical_url, "", _safe_error_code(str(exc)))
+                        results.append(result)
+                        expected.append({"step_id": step.step_id, "expected_text": step.expected_text, "passed": False})
+                        break
+                    result = running_backend.run_action(
+                        step.action_name,
+                        served_url,
+                        logical_url=logical_url,
+                        expected_text=step.expected_text,
+                    )
                     result = PlaywrightExecutionResult(
                         action_name=result.action_name,
                         logical_url=logical_url,
@@ -391,15 +452,89 @@ class FixtureUrlMapper:
         parsed = urlparse(logical_url)
         if (parsed.hostname or "").lower() not in {"local.intranet", "docs.local", "portal.local", "local-intranet.test"}:
             raise PlaywrightExecutionError("unknown_logical_domain")
+        route = _route_from_parsed_url(parsed)
+        prefixed_route = _domain_prefixed_route(parsed.hostname or "", route)
+        if prefixed_route != route:
+            prefixed_path = self._fixture_path_from_manifest_route(prefixed_route)
+            if prefixed_path is not None:
+                return self._served_url_for_fixture_path(prefixed_path)
         try:
             resolution = resolve_browser_fixture_url(
                 logical_url,
                 self.manifest_path,
                 project_root=self.repo_root,
             )
+            return self._served_url_for_fixture_path(resolution.fixture_path_relative)
+        except BrowserFixtureRouteNotFound:
+            pass
+        except BrowserFixtureUrlDenied as exc:
+            raise PlaywrightExecutionError("logical_url_mapping_failed") from exc
         except BrowserFixtureResolverError as exc:
             raise PlaywrightExecutionError("logical_url_mapping_failed") from exc
-        return f"{self.server_base_url}{resolution.route}"
+        fallback = self._fallback_fixture_path(parsed)
+        if fallback is None:
+            raise PlaywrightExecutionError("fixture_mapping_not_found")
+        return self._served_url_for_fixture_path(fallback)
+
+    def _fallback_fixture_path(self, parsed_url: Any) -> str | None:
+        route = _route_from_parsed_url(parsed_url)
+        route_candidates = [route]
+        prefixed = _domain_prefixed_route(parsed_url.hostname or "", route)
+        if prefixed not in route_candidates:
+            route_candidates.append(prefixed)
+        for candidate_route in route_candidates:
+            manifest_path = self._fixture_path_from_manifest_route(candidate_route)
+            if manifest_path is not None:
+                return manifest_path
+        root = self._fixture_root()
+        for candidate_route in route_candidates:
+            for relative_path in _candidate_fixture_paths(candidate_route):
+                if _safe_fixture_file_exists(root, relative_path):
+                    return relative_path
+        return None
+
+    def _fixture_path_from_manifest_route(self, route: str) -> str | None:
+        routes = self._manifest_payload().get("routes", {})
+        if not isinstance(routes, dict):
+            raise PlaywrightExecutionError("fixture_manifest_routes_invalid")
+        route_path = routes.get(route)
+        if not isinstance(route_path, str):
+            return None
+        relative_path = _safe_fixture_relative_path(route_path)
+        if _safe_fixture_file_exists(self._fixture_root(), relative_path):
+            return relative_path
+        return None
+
+    def _served_url_for_fixture_path(self, relative_path: str) -> str:
+        safe_path = _safe_fixture_relative_path(relative_path)
+        return f"{self.server_base_url}/{quote(safe_path, safe='/._~-')}"
+
+    def _manifest_payload(self) -> dict[str, Any]:
+        path = Path(self.manifest_path)
+        if not path.is_absolute():
+            path = self.repo_root / path
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except OSError as exc:
+            raise PlaywrightExecutionError("fixture_manifest_unreadable") from exc
+        except json.JSONDecodeError as exc:
+            raise PlaywrightExecutionError("fixture_manifest_malformed") from exc
+        if not isinstance(payload, dict):
+            raise PlaywrightExecutionError("fixture_manifest_invalid")
+        return payload
+
+    def _fixture_root(self) -> Path:
+        path = Path(self.manifest_path)
+        if not path.is_absolute():
+            path = self.repo_root / path
+        root_value = self._manifest_payload().get("fixture_root", ".")
+        relative_root = _safe_fixture_relative_path(str(root_value))
+        root = (path.parent / relative_root).resolve()
+        try:
+            root.relative_to(path.parent.resolve())
+        except ValueError as exc:
+            raise PlaywrightExecutionError("fixture_root_escapes_manifest") from exc
+        return root
 
 
 def _select_scenario(config: PlaywrightExecutionConfig) -> AutonomousRuntimeScenario:
@@ -448,6 +583,56 @@ def _real_backend_from_config(payload: Mapping[str, Any]) -> RealPlaywrightBacke
     )
 
 
+def _route_from_parsed_url(parsed_url: Any) -> str:
+    decoded = unquote(parsed_url.path or "/")
+    if not decoded.startswith("/"):
+        decoded = f"/{decoded}"
+    if "\\" in decoded:
+        raise PlaywrightExecutionError("fixture_mapping_path_unsafe")
+    parts = PurePosixPath(decoded).parts
+    if any(part == ".." for part in parts):
+        raise PlaywrightExecutionError("fixture_mapping_path_unsafe")
+    route = PurePosixPath(decoded).as_posix()
+    return "/" if route in {"", "."} else route
+
+
+def _domain_prefixed_route(hostname: str, route: str) -> str:
+    prefix_by_host = {
+        "docs.local": "docs",
+        "portal.local": "portal",
+    }
+    prefix = prefix_by_host.get(hostname.lower())
+    if not prefix:
+        return route
+    clean = route.lstrip("/")
+    if not clean:
+        return f"/{prefix}"
+    if clean == prefix or clean.startswith(f"{prefix}/"):
+        return route
+    return f"/{prefix}/{clean}"
+
+
+def _candidate_fixture_paths(route: str) -> tuple[str, ...]:
+    clean = route.lstrip("/")
+    if not clean:
+        return ("index.html",)
+    candidates = [clean]
+    if not clean.endswith(".html"):
+        candidates.append(f"{clean}.html")
+    candidates.append(f"{clean.rstrip('/')}/index.html")
+    return tuple(dict.fromkeys(_safe_fixture_relative_path(candidate) for candidate in candidates))
+
+
+def _safe_fixture_file_exists(root: Path, relative_path: str) -> bool:
+    safe_path = _safe_fixture_relative_path(relative_path)
+    resolved = (root / safe_path).resolve()
+    try:
+        resolved.relative_to(root.resolve())
+    except ValueError:
+        return False
+    return resolved.is_file()
+
+
 def _summary(
     config: PlaywrightExecutionConfig,
     status: str,
@@ -492,24 +677,34 @@ def _summary(
     )
 
 
-def _action_failure(action_name: str, logical_url: str, served_url: str, error_code: str, exc: Exception | None = None) -> PlaywrightExecutionResult:
-    diagnostics = {"exception_type": exc.__class__.__name__} if exc else {}
+def _action_failure(
+    action_name: str,
+    logical_url: str,
+    served_url: str,
+    error_code: str,
+    exc: Exception | None = None,
+    *,
+    diagnostics: dict[str, Any] | None = None,
+) -> PlaywrightExecutionResult:
+    out_diagnostics = dict(diagnostics or {})
     if exc is not None:
-        diagnostics["safe_message"] = _safe_error_code(str(exc))[:160]
+        out_diagnostics["exception_type"] = exc.__class__.__name__
+    if exc is not None:
+        out_diagnostics["safe_message"] = _safe_error_code(str(exc))[:160]
     return PlaywrightExecutionResult(
         action_name=action_name,
         logical_url=logical_url,
         served_url=served_url,
         success=False,
         error_code=error_code,
-        diagnostics=diagnostics,
+        diagnostics=out_diagnostics,
     )
 
 
 def _first_error(results: list[PlaywrightExecutionResult], expected: list[dict[str, Any]]) -> str:
     for result in results:
-        if result.error_code:
-            return result.error_code
+        if not result.success:
+            return "browser_action_failed"
     for item in expected:
         if item.get("passed") is not True:
             return "expected_result_failed"
@@ -536,6 +731,15 @@ def _safe_relative_path(value: str, label: str) -> str:
     return PurePosixPath(normalized).as_posix()
 
 
+def _safe_fixture_relative_path(value: str) -> str:
+    normalized = value.replace("\\", "/").strip()
+    if not normalized or "://" in normalized or Path(value).is_absolute() or PurePosixPath(normalized).is_absolute():
+        raise PlaywrightExecutionError("fixture_path_unsafe")
+    if any(part == ".." for part in PurePosixPath(normalized).parts):
+        raise PlaywrightExecutionError("fixture_path_unsafe")
+    return PurePosixPath(normalized).as_posix()
+
+
 def _preview(text: str, limit: int = 500) -> str:
     normalized = " ".join(str(text).split())
     return normalized if len(normalized) <= limit else f"{normalized[: limit - 3]}..."
@@ -547,13 +751,24 @@ def _safe_error_code(value: str) -> str:
 
 
 def _sanitize_diagnostics(value: dict[str, Any]) -> dict[str, Any]:
-    encoded = json.dumps(value, ensure_ascii=True, default=str)
-    encoded = encoded.replace("\\\\", "/")
-    # Avoid leaking Windows absolute paths in diagnostics.
     import re
 
-    encoded = re.sub(r"[A-Za-z]:/[^\"'\\s]+", "<absolute_path>", encoded)
-    return json.loads(encoded)
+    def sanitize_item(item: Any) -> Any:
+        if isinstance(item, dict):
+            return {str(key): sanitize_item(child) for key, child in item.items()}
+        if isinstance(item, list):
+            return [sanitize_item(child) for child in item]
+        if isinstance(item, tuple):
+            return [sanitize_item(child) for child in item]
+        if isinstance(item, str):
+            if item.startswith(("http://", "https://")):
+                return item
+            sanitized = re.sub(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/][^\s\"']+", "<absolute_path>", item)
+            sanitized = re.sub(r"(?<!\w)/(?:Users|home|tmp|var|etc|mnt|private)/[^\s\"']+", "<absolute_path>", sanitized)
+            return sanitized
+        return item
+
+    return json.loads(json.dumps(sanitize_item(value), ensure_ascii=True, default=str))
 
 
 def _jsonable(value: Any) -> Any:

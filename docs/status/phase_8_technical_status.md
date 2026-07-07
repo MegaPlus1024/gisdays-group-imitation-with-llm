@@ -363,6 +363,32 @@ Limitations:
 - browser TZ status advances from readiness-only to implemented guarded execution path, but manual smoke evidence is still needed;
 - this remains a controlled local fixture smoke path, not production browser automation or production hardening.
 
+## Phase 9.8 Playwright fixture URL mapping fix
+
+After Phase 9.7, an operator-run guarded Playwright smoke reached the real execution path: Playwright/Chromium started, six browser actions were attempted and the run produced a smoke summary. The run still failed because the loopback fixture URL mapping served logical routes such as `/tickets/1` instead of the actual fixture files such as `tickets/1.html`; the local fixture server therefore returned HTTP 404 pages, and those pages were incorrectly counted as successful browser actions.
+
+What was fixed:
+
+- logical URLs now resolve to served fixture file paths, not only logical route paths;
+- mapping supports manifest routes plus fallback candidates: exact file, `.html`, `index.html` and domain-prefixed portal/doc paths;
+- `portal.local/` maps to `portal/index.html` and `portal.local/status` maps to `portal/status.html`;
+- real Playwright navigation records response status and treats HTTP status `>= 400` as `browser_http_error`;
+- action-failure summaries now prefer `browser_action_failed` over expected-result failures;
+- diagnostics sanitization preserves `http://` and `https://` URLs while still redacting local filesystem paths;
+- the policy fixture contains the smoke search marker `fixture-backed result`.
+
+What does not run in Codex:
+
+- no real browser, Playwright or Chromium is launched by Codex;
+- no local HTTP fixture server is started for a real run by Codex;
+- no `playwright install`, model runtime, API judge or LLM-as-a-judge is launched.
+
+Limitations:
+
+- the corrected real Playwright smoke has not been rerun by Codex;
+- the operator must rerun the guarded command manually to collect post-fix smoke evidence;
+- success should not be claimed until that new operator-run summary is reviewed.
+
 ## 4. Offline reproduction commands
 
 The following commands are intended for offline post-processing of already-produced artifacts. They do not start models or live API calls.
