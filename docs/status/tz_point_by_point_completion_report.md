@@ -17,19 +17,20 @@
 - Mean deterministic correctness = 1.0.
 - Normality/resource counts = 3/3.
 - Semantic LLM judge score = not run yet.
+- Phase 9.1: добавлен autonomous multi-agent runtime foundation без live model/browser/API calls.
 
 ## 2. Краткая сводка выполнения
 
 | Раздел ТЗ | Статус | Краткий вывод |
 |-----------|--------|---------------|
 | Цель работы | Частично выполнено | Исследовательский прототип разработан и проверен на controlled office workflow; полная виртуальная сеть и production-readiness не закрыты. |
-| Общее описание | Частично выполнено | Оркестратор, роли, ресурсы, ограничения, локальная LLM, scripts и history реализованы; production автономный multi-agent runtime отсутствует. |
+| Общее описание | Частично выполнено | Оркестратор, роли, ресурсы, ограничения, локальная LLM, scripts, history и autonomous runtime foundation реализованы; production deployment и true parallel runtime отсутствуют. |
 | 1. Проанализировать возможные средства реализации | Частично выполнено | Локальные модели, запуск, agent integration и форматы описаний проработаны; deployment/sizing остаются предварительными. |
-| 2. Спроектировать общую схему работы | Частично выполнено | Схема orchestrator/executor, agent state, registry, action selection и history реализована; production scheduler не реализован. |
+| 2. Спроектировать общую схему работы | Частично выполнено | Схема orchestrator/executor, agent state, registry, action selection, history, deterministic scheduler и shared task board реализована; production scheduler/deployment не реализован. |
 | 3. Подготовить минимальный набор параметризуемых скриптов активности | Частично выполнено | File, office, shell и browser scaffold есть; mail/git actions не реализованы. |
 | 4. Реализовать прототип агента | Завершено | Агентный прототип с config/orchestrator state, local LLM client, action selection, script execution и history/errors реализован. |
 | 5. Провести эксперименты с разными локальными моделями | Частично выполнено | Есть сравнения двух локальных моделей, pair workflows и behavioral metrics; semantic judge и широкая scenario diversity не закрыты. |
-| 6. Оценить минимально достаточные ресурсы | Частично выполнено | CPU feasibility, resource observations и capacity formulas есть; production sizing и стабильная concurrency 2 не доказаны. |
+| 6. Оценить минимально достаточные ресурсы | Частично выполнено | CPU feasibility, resource observations, capacity formulas и deterministic resource locks есть; production sizing и true concurrent execution не доказаны. |
 | 7. Подготовить краткий отчёт по результатам | Частично выполнено | Отчёты и status docs есть; финальная рекомендуемая конфигурация для production не заявляется. |
 | Ожидаемый результат | Частично выполнено | Прототип и отчётность подготовлены; практическая production-конфигурация требует дальнейшей проверки. |
 
@@ -45,7 +46,7 @@
 Разработать и проверить прототип группы программных агентов, имитирующих нормальную пользовательскую активность в виртуальной компьютерной сети.
 
 **Что выполнено:**
-Реализован research-prototype local LLM agent lab: single-agent pipeline, orchestrator/executor pipeline, controlled local pair workflow, virtual-network/policy scaffold, normality/resource evaluation, mini-matrix aggregation и guarded judge exchange. Phase 8 подтвердил controlled office workflow для пары `second_model -> first_model`.
+Реализован research-prototype local LLM agent lab: single-agent pipeline, orchestrator/executor pipeline, controlled local pair workflow, virtual-network/policy scaffold, normality/resource evaluation, mini-matrix aggregation, guarded judge exchange и Phase 9.1 autonomous multi-agent runtime foundation. Phase 8 подтвердил controlled office workflow для пары `second_model -> first_model`.
 
 **Доказательства:**
 - `README.md`
@@ -55,14 +56,16 @@
 - `src/agent/orchestrator_executor_pipeline.py`
 - `src/agent/virtual_network.py`
 - `src/agent/virtual_network_policy.py`
+- `src/agent/autonomous_multi_agent_runtime.py`
 - `tests/test_orchestrator_executor_pipeline.py`
 - `tests/test_virtual_network.py`
+- `tests/test_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 3/3 controlled mini-matrix repeats succeeded, 6/6 office actions executed successfully, 6/6 DOCX artifacts generated/readable.
 
 **Ограничения:**
-Виртуальная сеть реализована как policy/scaffold layer, а не полноценная network simulation. Production scheduler и production autonomous loop отсутствуют.
+Виртуальная сеть реализована как policy/scaffold layer, а не полноценная network simulation. Autonomous runtime foundation есть, но production deployment, true parallel execution и broad scenario validation отсутствуют.
 
 **Вывод по подпункту:**
 Цель закрыта на уровне исследовательского прототипа, но не на уровне production-системы.
@@ -106,7 +109,7 @@ Controlled packets и local pipeline configs существуют для Phase 8
 После инициализации агент должен автономно работать на локальной модели: выбирать следующую активность по роли, состоянию, scripts и истории, причём scripts являются набором допустимых параметризуемых действий, а не жёстким сценарием.
 
 **Что выполнено:**
-Реализованы `LocalLLMClient`, prompt/action contract, `ActionSelector`, script registry, execution bridge, history/error logging и repair policy. В Phase 8 controlled workflow модельная пара дошла до успешного выполнения office actions.
+Реализованы `LocalLLMClient`, prompt/action contract, `ActionSelector`, script registry, execution bridge, history/error logging и repair policy. В Phase 9.1 добавлен runtime loop foundation `observe -> decide -> validate -> execute -> verify -> update` с injectable fake providers. В Phase 8 controlled workflow модельная пара дошла до успешного выполнения office actions.
 
 **Доказательства:**
 - `src/agent/llm_client.py`
@@ -115,18 +118,20 @@ Controlled packets и local pipeline configs существуют для Phase 8
 - `src/agent/script_registry.py`
 - `src/agent/script_execution_bridge.py`
 - `src/agent/execution_history.py`
+- `src/agent/autonomous_multi_agent_runtime.py`
 - `tests/test_llm_client.py`
 - `tests/test_action_selector_prototype.py`
 - `tests/test_script_registry.py`
+- `tests/test_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 В committed status docs зафиксирован controlled workflow `second_model -> first_model`, но semantic judge score пока не получен.
 
 **Ограничения:**
-Долгий автономный production loop не реализован; текущая автономность проверена на коротких controlled сценариях.
+Долгий production deployment и true parallel execution не реализованы; runtime foundation пока проверен unit tests with fakes, без live LLM/browser/API.
 
 **Вывод по подпункту:**
-Механика автономного выбора и выполнения действий реализована для прототипа, но не завершена как production runtime.
+Механика автономного выбора и выполнения действий реализована для прототипа и дополнена autonomous runtime foundation, но не завершена как production runtime.
 
 ## 1. Проанализировать возможные средства реализации
 
@@ -194,7 +199,7 @@ Production deployment, monitoring and sizing не завершены; GPU/stress
 Проанализировать и реализовать варианты интеграции локальной LLM с агентом исполнения.
 
 **Что выполнено:**
-Реализованы `ActionSelector`, `ScriptExecutionBridge`, orchestrator/executor pipeline, model pair pipeline bridge и local pipeline entrypoint.
+Реализованы `ActionSelector`, `ScriptExecutionBridge`, orchestrator/executor pipeline, model pair pipeline bridge, local pipeline entrypoint и standalone autonomous runtime foundation with injectable decision/action/verifier callables.
 
 **Доказательства:**
 - `src/agent/action_selector.py`
@@ -202,14 +207,16 @@ Production deployment, monitoring and sizing не завершены; GPU/stress
 - `src/agent/orchestrator_executor_pipeline.py`
 - `src/agent/model_pair_pipeline_bridge.py`
 - `src/agent/model_pair_local_pipeline_entrypoint.py`
+- `src/agent/autonomous_multi_agent_runtime.py`
 - `tests/test_model_pair_pipeline_bridge.py`
 - `tests/test_model_pair_local_pipeline_entrypoint.py`
+- `tests/test_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 В Phase 8 controlled workflow executor actions валидировались и исполнялись через pipeline.
 
 **Ограничения:**
-Интеграция остаётся sequential/prototype, production scheduler отсутствует.
+Интеграция остаётся controlled/prototype; production deployment and live providers отсутствуют.
 
 **Вывод по подпункту:**
 Подпункт выполнен для исследовательского прототипа.
@@ -254,21 +261,23 @@ Offline tests validate schemas and config loading.
 Спроектировать взаимодействие оркестратора и агентов.
 
 **Что выполнено:**
-Реализованы orchestrator/executor pipeline, plan/assignment flow, pair execution API, pair matrix and single-trial operator runner.
+Реализованы orchestrator/executor pipeline, plan/assignment flow, pair execution API, pair matrix, single-trial operator runner and Phase 9.1 deterministic autonomous scheduler foundation.
 
 **Доказательства:**
 - `src/agent/orchestrator_executor_pipeline.py`
 - `src/agent/model_pair_execution_api.py`
 - `src/agent/model_pair_single_trial_execution.py`
 - `src/agent/model_pair_single_trial_operator_runner.py`
+- `src/agent/autonomous_multi_agent_runtime.py`
 - `tests/test_orchestrator_executor_pipeline.py`
 - `tests/test_model_pair_single_trial_execution.py`
+- `tests/test_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
-Controlled office workflow показал успешную цепочку `orchestrator plan -> executor actions -> validation -> artifact -> score`.
+Controlled office workflow показал успешную цепочку `orchestrator plan -> executor actions -> validation -> artifact -> score`. Phase 9.1 unit tests additionally cover `observe -> decide -> validate -> execute -> verify -> update`.
 
 **Ограничения:**
-MVP sequential; production scheduler and long-running group runtime отсутствуют.
+MVP sequential. Deterministic scheduler foundation есть, но production long-running deployment and true parallel runtime отсутствуют.
 
 **Вывод по подпункту:**
 Схема реализована как prototype/MVP.
@@ -281,10 +290,11 @@ MVP sequential; production scheduler and long-running group runtime отсутс
 Определить состав initial agent state.
 
 **Что выполнено:**
-`AgentState` включает role/context/resources/constraints/history и связан с prompt/action selection flow.
+`AgentState` включает role/context/resources/constraints/history и связан с prompt/action selection flow. Phase 9.1 добавил `RuntimeSharedState` with agents, tasks, facts, artifacts, histories, locks, retry counters and quarantined agents.
 
 **Доказательства:**
 - `src/agent/state.py`
+- `src/agent/autonomous_multi_agent_runtime.py`
 - `src/agent/prompt_contract.py`
 - `configs/role_constrained_trajectory.example.json`
 - `tests/test_agent_state.py`
@@ -294,7 +304,7 @@ MVP sequential; production scheduler and long-running group runtime отсутс
 Tests validate state/config behavior.
 
 **Ограничения:**
-Production shared memory/state synchronization не реализованы.
+Runtime shared state/task board foundation реализован; production distributed/shared-memory synchronization не реализован.
 
 **Вывод по подпункту:**
 Подпункт выполнен.
@@ -360,19 +370,21 @@ Semantic quality of choices needs broader evaluation and judge scoring.
 Сохранять историю выполненных actions and errors.
 
 **Что выполнено:**
-Реализованы history/error loggers, group history and result adapters.
+Реализованы history/error loggers, group history, result adapters and Phase 9.1 runtime event log/per-agent history.
 
 **Доказательства:**
 - `src/agent/execution_history.py`
 - `src/agent/model_pair_pipeline_result_adapter.py`
+- `src/agent/autonomous_multi_agent_runtime.py`
 - `tests/test_execution_history_error_log.py`
 - `tests/test_model_pair_pipeline_result_adapter.py`
+- `tests/test_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 Tests cover history and error artifacts.
 
 **Ограничения:**
-History layer is audit artifact storage, not production shared memory.
+History layer is audit artifact storage plus runtime event-log foundation, not production observability/shared-memory platform.
 
 **Вывод по подпункту:**
 Подпункт выполнен.
@@ -517,11 +529,12 @@ No mail/git registry actions are part of the confirmed controlled workflow.
 Agent should receive initial state from orchestrator or config file.
 
 **Что выполнено:**
-Реализованы config-driven scenarios, local pipeline configs and orchestrator-generated assignments/context.
+Реализованы config-driven scenarios, local pipeline configs, orchestrator-generated assignments/context and Phase 9.1 virtual environment/session metadata.
 
 **Доказательства:**
 - `src/agent/state.py`
 - `src/agent/orchestrator_executor_pipeline.py`
+- `src/agent/autonomous_multi_agent_runtime.py`
 - `configs/local_pipeline/`
 - `artifacts/first_run_packets/phase_8_26_mini_matrix_r3/`
 - `tests/test_agent_state.py`
@@ -531,7 +544,7 @@ Agent should receive initial state from orchestrator or config file.
 Controlled packets include local pipeline configs for all three repeats.
 
 **Ограничения:**
-No production external state service.
+No production external state service; session/workspace metadata is in-memory and JSON-serializable.
 
 **Вывод по подпункту:**
 Подпункт выполнен.
@@ -597,15 +610,17 @@ Choice quality still needs broad semantic evaluation.
 Run selected parameterized script after validation.
 
 **Что выполнено:**
-Реализован execution bridge and office/file/shell script execution path. Phase 8 proved real document-file DOCX actions in controlled mode.
+Реализован execution bridge and office/file/shell script execution path. Phase 9.1 runtime can call injected action executors and verify results without live runtime. Phase 8 proved real document-file DOCX actions in controlled mode.
 
 **Доказательства:**
 - `src/agent/script_execution_bridge.py`
+- `src/agent/autonomous_multi_agent_runtime.py`
 - `src/agent/scripts/file_activity.py`
 - `src/agent/scripts/office_real_document_activity.py`
 - `src/agent/scripts/shell_command_activity.py`
 - `tests/test_script_execution_bridge.py`
 - `tests/test_office_real_document_docx.py`
+- `tests/test_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 6/6 office actions executed successfully in current Phase 8 status.
@@ -624,13 +639,15 @@ Execution is bounded and policy-constrained; no arbitrary real system automation
 Save action history and errors.
 
 **Что выполнено:**
-Реализованы execution history, error logging, group history and result adapter outputs.
+Реализованы execution history, error logging, group history, result adapter outputs and runtime-level structured events/retry/quarantine records.
 
 **Доказательства:**
 - `src/agent/execution_history.py`
 - `src/agent/model_pair_pipeline_result_adapter.py`
+- `src/agent/autonomous_multi_agent_runtime.py`
 - `tests/test_execution_history_error_log.py`
 - `tests/test_model_pair_pipeline_result_adapter.py`
+- `tests/test_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 History/error tests pass.
@@ -810,21 +827,23 @@ Acceptable quality is proven only for a narrow controlled scenario; no final pro
 Estimate RAM and CPU required without GPU.
 
 **Что выполнено:**
-Resource/capacity estimation modules and historical runtime/resource probes exist; model catalog has placeholders and explicitly avoids production capacity claims.
+Resource/capacity estimation modules and historical runtime/resource probes exist; model catalog has placeholders and explicitly avoids production capacity claims. Phase 9.1 adds deterministic resource lock controls for future concurrency/resource policy.
 
 **Доказательства:**
 - `src/agent/resource_capacity_evaluation.py`
 - `src/agent/orchestrator_executor_runtime_probe.py`
+- `src/agent/autonomous_multi_agent_runtime.py`
 - `docs/ai/final_tz_readiness_audit.md`
 - `configs/model_catalog.example.json`
 - `tests/test_resource_capacity_evaluation.py`
 - `tests/test_orchestrator_executor_runtime_probe.py`
+- `tests/test_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 Offline tests validate estimation/probe logic.
 
 **Ограничения:**
-Current report did not run probes; exact production RAM/CPU sizing remains unresolved.
+Current report did not run probes; exact production RAM/CPU sizing remains unresolved. Resource locks are deterministic controls, not measured capacity.
 
 **Вывод по подпункту:**
 Подпункт частично выполнен.
@@ -888,20 +907,22 @@ No fresh latency probe was run for this report; production latency budget not de
 Estimate how many agents can run concurrently based on available resources, including a formula.
 
 **Что выполнено:**
-Capacity formula estimate, runtime probe and bounded stress probe modules exist; final audit records stable concurrency 1 for one candidate and no stable concurrency 2 row.
+Capacity formula estimate, runtime probe and bounded stress probe modules exist; final audit records stable concurrency 1 for one candidate and no stable concurrency 2 row. Phase 9.1 adds deterministic lock-based concurrency-control foundation without threads.
 
 **Доказательства:**
 - `src/agent/resource_capacity_evaluation.py`
 - `src/agent/orchestrator_executor_stress_probe.py`
+- `src/agent/autonomous_multi_agent_runtime.py`
 - `docs/ai/final_tz_readiness_audit.md`
 - `tests/test_resource_capacity_evaluation.py`
 - `tests/test_orchestrator_executor_stress_probe.py`
+- `tests/test_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 Offline tests validate capacity/stress logic.
 
 **Ограничения:**
-Production concurrency is not proven; concurrency 2 quality collapse remains a known gap.
+Production concurrency is not proven; true parallel execution is not implemented; concurrency 2 quality collapse remains a known gap.
 
 **Вывод по подпункту:**
 Подпункт частично выполнен.
@@ -1044,7 +1065,7 @@ No final production configuration is recommended; semantic judge/capacity eviden
 Prepare a prototype demonstrating local LLM agent work with role, available scripts, autonomous selection and execution.
 
 **Что выполнено:**
-Prototype includes role/context configs, local model client, action selection, script registry, execution bridge, history/errors and controlled orchestrator/executor workflow.
+Prototype includes role/context configs, local model client, action selection, script registry, execution bridge, history/errors, controlled orchestrator/executor workflow and Phase 9.1 autonomous runtime foundation.
 
 **Доказательства:**
 - `src/agent/action_selector.py`
@@ -1052,14 +1073,16 @@ Prototype includes role/context configs, local model client, action selection, s
 - `src/agent/script_registry.py`
 - `src/agent/script_execution_bridge.py`
 - `src/agent/orchestrator_executor_pipeline.py`
+- `src/agent/autonomous_multi_agent_runtime.py`
 - `tests/test_action_selector_prototype.py`
 - `tests/test_script_execution_bridge.py`
+- `tests/test_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 3/3 controlled mini-matrix repeats succeeded; 6/6 office actions executed.
 
 **Ограничения:**
-Prototype is controlled and research-oriented, not production autonomous runtime.
+Prototype is controlled and research-oriented. Autonomous runtime foundation exists, but production deployment and broad validation remain future work.
 
 **Вывод по подпункту:**
 Ожидаемый prototype result выполнен.
@@ -1104,7 +1127,8 @@ Reporting is prepared, but full practical resource recommendation remains partia
 ## Краткий вывод
 
 - Полностью закрыто: базовая agent architecture, локальная модельная интеграция, roles/context/script formats, script registry, action selection, execution bridge, history/error logging, file/shell/office document actions, controlled single-trial and mini-matrix prototype evidence.
+- Частично закрыто и продвинуто Phase 9.1: autonomous multi-agent runtime foundation, deterministic scheduler, shared state/task board, runtime loop, stop policy, error recovery, resource locks and virtual environment metadata.
 - Частично закрыто: virtual network simulation, browser automation, broad behavioral normality evaluation, model comparison breadth, resource/capacity sizing, GPU/stress evidence, final configuration for further development.
 - Не закрыто: mail/git/other application actions.
-- Для полного закрытия ТЗ нужны: guarded semantic LLM-as-a-judge run, расширение scenario families, larger N, stronger resource/capacity measurements, ясная граница virtual network scope, optional mail/git actions under safety policy.
+- Для полного закрытия ТЗ нужны: browser runtime completion поверх runtime foundation, guarded semantic LLM-as-a-judge run later, расширение scenario families, larger N, stronger resource/capacity measurements, ясная граница virtual network scope, optional mail/git actions only if separately approved under safety policy.
 - Production recommendation не делается: текущий результат является исследовательским prototype conclusion.

@@ -90,6 +90,50 @@ Guarded API judge runner:
 - It requires judge config, explicit `--allow-api-judge` and confirmation.
 - It was not run in this documentation update and should not be run by automated checks.
 
+## Phase 9.1 Autonomous multi-agent runtime foundation
+
+Phase 9.1 adds a library-only autonomous multi-agent runtime foundation in `src/agent/autonomous_multi_agent_runtime.py`.
+
+What was added:
+
+- deterministic scheduler modes: `round_robin` and `priority_then_round_robin`;
+- shared state/task board with agents, tasks, statuses, shared facts, artifacts, per-agent history, group events, resource locks, retry counters and quarantined agents;
+- runtime loop foundation: observe shared state, choose next agent, call injected decision provider, validate action envelope, call injected action executor, verify result, update shared state and apply policy;
+- stop policy: max ticks, total actions, per-agent actions, idle limit, total failures, retries, all-tasks-terminal and no-runnable-agents stops;
+- controlled error recovery: retry task, fail task after retry exhaustion, quarantine failing agents while keeping other agents runnable;
+- deterministic resource lock model for future concurrency/resource controls;
+- virtual environment/session metadata: environment id, safe relative workspace root, per-agent workspaces, reset policy and allowed resource namespaces;
+- JSON-serializable `to_summary()` with schema `autonomous_multi_agent_runtime_summary_v1`;
+- browser-aware validation hook: browser actions can be scheduled only when the virtual environment enables the `browser` namespace.
+
+What does not run:
+
+- no LLM client is created;
+- no model, `llama-server`, GPU probe or runtime experiment is launched;
+- no Playwright/Chromium browser is launched;
+- no Microsoft Office/LibreOffice action is launched;
+- no API/HTTP judge or LLM-as-a-judge is launched.
+
+Which ТЗ gaps this advances:
+
+- long-lived scheduler foundation;
+- shared state/shared memory foundation;
+- autonomous loop foundation;
+- stop policy and completion criteria;
+- error recovery foundation;
+- concurrency/resource-control foundation through deterministic locks;
+- virtual environment/session layer foundation;
+- browser runtime interface hook for a later browser-completion phase.
+
+Limitations:
+
+- no true parallel execution or worker threads yet;
+- no production deployment/hardening layer;
+- no live browser runtime completion yet;
+- no mail/git/other app actions;
+- no semantic LLM judge integration;
+- current validation is unit-test/fake-provider based, not broad scenario validation.
+
 ## 4. Offline reproduction commands
 
 The following commands are intended for offline post-processing of already-produced artifacts. They do not start models or live API calls.
@@ -154,13 +198,15 @@ Committed packet/example files remain allowed, including `artifacts/first_run_pa
 - Deterministic execution correctness is proven only for the controlled office scenario and N=3.
 - Semantic judge scoring is not available yet.
 - API judge provider integration needs a budgeted Phase 8.30 design and operator secret-handling path.
-- No production autonomous scheduler is implemented.
+- Autonomous multi-agent runtime foundation exists, but production long-running deployment and true parallel execution are not implemented.
 - Browser and real network behavior are not part of the confirmed run.
 - Runtime artifacts are evidence for local work, but are not source-controlled.
 
 ## 8. Next technical stage
 
-Phase 8.30 should focus on budgeted LLM-as-a-judge provider support:
+The next practical stage should complete browser runtime behavior on top of the Phase 9.1 foundation, still behind explicit guards and without enabling arbitrary external app integrations.
+
+Later semantic judge work remains separate and should stay guarded:
 
 1. Define an openai-compatible/DeepSeek-style config schema that never stores secrets in committed files.
 2. Add dry-run validation for endpoint, model id, prompt pack shape and output paths.
