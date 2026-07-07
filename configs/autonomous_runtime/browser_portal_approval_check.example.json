@@ -1,0 +1,267 @@
+{
+  "schema_version": "autonomous_runtime_scenario_v1",
+  "scenario_id": "browser_portal_approval_check",
+  "description": "Offline browser-only portal approval/status scenario using local fixtures.",
+  "agents": [
+    {
+      "agent_id": "portal_reader",
+      "role": "Local portal approval reader",
+      "priority": 2
+    },
+    {
+      "agent_id": "portal_checker",
+      "role": "Local portal status checker",
+      "priority": 1
+    }
+  ],
+  "tasks": [
+    {
+      "task_id": "reader_01_open_portal",
+      "description": "Open the portal home fixture.",
+      "priority": 90,
+      "assigned_agent_id": "portal_reader"
+    },
+    {
+      "task_id": "reader_02_click_approvals",
+      "description": "Navigate to the approvals queue by clicking a fixture link.",
+      "priority": 80,
+      "assigned_agent_id": "portal_reader",
+      "depends_on": [
+        "reader_01_open_portal"
+      ]
+    },
+    {
+      "task_id": "reader_03_wait_approvals",
+      "description": "Run a deterministic synthetic wait on the approvals page.",
+      "priority": 70,
+      "assigned_agent_id": "portal_reader",
+      "depends_on": [
+        "reader_02_click_approvals"
+      ]
+    },
+    {
+      "task_id": "reader_04_extract_approvals",
+      "description": "Extract approval queue text.",
+      "priority": 60,
+      "assigned_agent_id": "portal_reader",
+      "depends_on": [
+        "reader_03_wait_approvals"
+      ]
+    },
+    {
+      "task_id": "reader_05_snapshot_approvals",
+      "description": "Create a synthetic snapshot artifact for approvals.",
+      "priority": 50,
+      "assigned_agent_id": "portal_reader",
+      "depends_on": [
+        "reader_04_extract_approvals"
+      ]
+    },
+    {
+      "task_id": "checker_01_open_status",
+      "description": "Open approval status after reader snapshot is complete.",
+      "priority": 90,
+      "assigned_agent_id": "portal_checker",
+      "depends_on": [
+        "reader_05_snapshot_approvals"
+      ]
+    },
+    {
+      "task_id": "checker_02_extract_status",
+      "description": "Extract approval status text.",
+      "priority": 80,
+      "assigned_agent_id": "portal_checker",
+      "depends_on": [
+        "checker_01_open_status"
+      ]
+    },
+    {
+      "task_id": "checker_03_snapshot_status",
+      "description": "Create a synthetic snapshot artifact for status.",
+      "priority": 70,
+      "assigned_agent_id": "portal_checker",
+      "depends_on": [
+        "checker_02_extract_status"
+      ]
+    }
+  ],
+  "virtual_environment": {
+    "environment_id": "browser_portal_approval_fixture_environment",
+    "allowed_resource_namespaces": [
+      "browser"
+    ],
+    "workspace": {
+      "workspace_root": "artifacts/autonomous_runtime_workspace/browser_portal_approval_check",
+      "per_agent_workspaces": {
+        "portal_reader": "artifacts/autonomous_runtime_workspace/browser_portal_approval_check/portal_reader",
+        "portal_checker": "artifacts/autonomous_runtime_workspace/browser_portal_approval_check/portal_checker"
+      },
+      "reset_policy": "never"
+    },
+    "metadata": {
+      "offline_fixture_only": true,
+      "real_browser_launch": false
+    }
+  },
+  "browser_sessions": [
+    {
+      "session_id": "portal_reader_session",
+      "agent_id": "portal_reader",
+      "workspace_id": "portal_reader_workspace",
+      "environment_id": "browser_portal_approval_fixture_environment",
+      "allowed_domains": [
+        "local.intranet",
+        "docs.local",
+        "portal.local"
+      ],
+      "start_url": "https://portal.local/",
+      "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json"
+    },
+    {
+      "session_id": "portal_checker_session",
+      "agent_id": "portal_checker",
+      "workspace_id": "portal_checker_workspace",
+      "environment_id": "browser_portal_approval_fixture_environment",
+      "allowed_domains": [
+        "local.intranet",
+        "docs.local",
+        "portal.local"
+      ],
+      "start_url": "https://portal.local/portal/status",
+      "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json"
+    }
+  ],
+  "scripted_steps": [
+    {
+      "step_id": "reader_open_portal",
+      "agent_id": "portal_reader",
+      "task_id": "reader_01_open_portal",
+      "browser_session_id": "portal_reader_session",
+      "action_name": "browser_open_url",
+      "parameters": {
+        "url": "https://portal.local/"
+      },
+      "expected_text": "Office Intranet"
+    },
+    {
+      "step_id": "reader_click_approvals",
+      "agent_id": "portal_reader",
+      "task_id": "reader_02_click_approvals",
+      "browser_session_id": "portal_reader_session",
+      "action_name": "browser_click",
+      "parameters": {
+        "target_text": "Approvals queue"
+      },
+      "expected_text": "Pending approval check",
+      "expected_url": "https://portal.local/portal/approvals"
+    },
+    {
+      "step_id": "reader_wait_approvals",
+      "agent_id": "portal_reader",
+      "task_id": "reader_03_wait_approvals",
+      "browser_session_id": "portal_reader_session",
+      "action_name": "browser_wait",
+      "parameters": {
+        "milliseconds": 150
+      },
+      "expected_text": "Fixture browser wait completed"
+    },
+    {
+      "step_id": "reader_extract_approvals",
+      "agent_id": "portal_reader",
+      "task_id": "reader_04_extract_approvals",
+      "browser_session_id": "portal_reader_session",
+      "action_name": "browser_extract_text",
+      "parameters": {},
+      "expected_text": "APR-42"
+    },
+    {
+      "step_id": "reader_snapshot_approvals",
+      "agent_id": "portal_reader",
+      "task_id": "reader_05_snapshot_approvals",
+      "browser_session_id": "portal_reader_session",
+      "action_name": "browser_snapshot",
+      "parameters": {},
+      "required_artifact_ref": "browser/portal_reader_session/portal_reader_session-snapshot-1.json"
+    },
+    {
+      "step_id": "checker_open_status",
+      "agent_id": "portal_checker",
+      "task_id": "checker_01_open_status",
+      "browser_session_id": "portal_checker_session",
+      "action_name": "browser_open_url",
+      "parameters": {
+        "url": "https://portal.local/portal/status"
+      },
+      "expected_text": "Approval status"
+    },
+    {
+      "step_id": "checker_extract_status",
+      "agent_id": "portal_checker",
+      "task_id": "checker_02_extract_status",
+      "browser_session_id": "portal_checker_session",
+      "action_name": "browser_extract_text",
+      "parameters": {},
+      "expected_text": "ready for fixture-backed review"
+    },
+    {
+      "step_id": "checker_snapshot_status",
+      "agent_id": "portal_checker",
+      "task_id": "checker_03_snapshot_status",
+      "browser_session_id": "portal_checker_session",
+      "action_name": "browser_snapshot",
+      "parameters": {},
+      "required_artifact_ref": "browser/portal_checker_session/portal_checker_session-snapshot-1.json"
+    }
+  ],
+  "runtime_policy": {
+    "scheduler": "round_robin",
+    "max_ticks": 35,
+    "max_actions_total": 30,
+    "max_actions_per_agent": 15,
+    "idle_tick_limit": 10,
+    "max_failures_total": 2,
+    "max_retries_per_task": 0,
+    "max_agent_failures": 2,
+    "stop_when_all_tasks_terminal": true,
+    "stop_when_no_runnable_agents": true
+  },
+  "expected_results": [
+    {
+      "result_id": "reader_approvals_url",
+      "kind": "task_browser_expected_result",
+      "task_id": "reader_02_click_approvals",
+      "expected_text": "Pending approval check",
+      "expected_current_url": "https://portal.local/portal/approvals"
+    },
+    {
+      "result_id": "reader_approvals_snapshot",
+      "kind": "task_browser_expected_result",
+      "task_id": "reader_05_snapshot_approvals",
+      "expected_snapshot_count_min": 1,
+      "expected_artifact_kinds": [
+        "browser_snapshot"
+      ]
+    },
+    {
+      "result_id": "checker_status_text",
+      "kind": "task_browser_expected_result",
+      "task_id": "checker_02_extract_status",
+      "expected_text": "ready for fixture-backed review",
+      "expected_current_url": "https://portal.local/portal/status"
+    },
+    {
+      "result_id": "checker_status_snapshot",
+      "kind": "task_browser_expected_result",
+      "task_id": "checker_03_snapshot_status",
+      "expected_snapshot_count_min": 1,
+      "expected_artifact_kinds": [
+        "browser_snapshot"
+      ]
+    }
+  ],
+  "validation_warnings": [
+    "fixture_backed_browser_runtime_only",
+    "no_real_browser_or_external_network"
+  ]
+}

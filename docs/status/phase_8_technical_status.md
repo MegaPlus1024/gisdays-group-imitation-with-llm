@@ -236,6 +236,58 @@ Limitations:
 - dependency gating is scenario-provider level, not a production distributed scheduler;
 - real Playwright/Chromium checks remain future guarded/operator-only work.
 
+## Phase 9.5 Browser scenario suite
+
+Phase 9.5 adds a fixture-backed browser scenario suite/aggregator to prove broader autonomous browser coverage without launching a real browser.
+
+What was added:
+
+- two new browser-only scenario configs:
+  - `configs/autonomous_runtime/browser_intranet_policy_research.example.json`;
+  - `configs/autonomous_runtime/browser_portal_approval_check.example.json`;
+- suite config: `configs/autonomous_runtime/browser_scenario_suite.example.json`;
+- suite loader/runner module: `src/agent/autonomous_browser_scenario_suite.py`;
+- suite CLI runner: `scripts/run_autonomous_browser_scenario_suite.py`;
+- compact suite summary schema `autonomous_browser_scenario_suite_summary_v1`;
+- local portal approval/status fixtures under `tests/fixtures/local_intranet/office_site_v1/portal/`;
+- tests for suite loading, validation, aggregation, CLI dry-run and no-runtime safeguards.
+
+Current suite coverage:
+
+- 4 browser-only configs are covered:
+  - basic intranet research;
+  - extended form workflow;
+  - intranet policy research;
+  - portal approval/status check;
+- suite-level required action coverage includes:
+  - `browser_open_url`;
+  - `browser_click`;
+  - `browser_extract_text`;
+  - `browser_fill`;
+  - `browser_submit`;
+  - `browser_wait`;
+  - `browser_search`;
+  - `browser_snapshot`.
+
+What does not run:
+
+- no real browser, Playwright or Chromium is launched;
+- no external HTTP/network request is made;
+- no model client, API/HTTP judge or LLM-as-a-judge is launched;
+- no mail/git/calendar/other external app action namespace is added.
+
+Which TZ gaps this advances:
+
+- browser is now implemented for a controlled fixture-backed autonomous scenario suite;
+- scenario breadth is broader than a single workflow and includes research, portal/status and form cases;
+- summary aggregation reports scenario pass/fail counts, required action coverage and structured failures.
+
+Limitations:
+
+- this is still not production browser automation;
+- real Playwright/Chromium execution remains a guarded future/operator-only path;
+- mail/git/other application actions remain out of scope.
+
 ## 4. Offline reproduction commands
 
 The following commands are intended for offline post-processing of already-produced artifacts. They do not start models or live API calls.
@@ -267,6 +319,13 @@ The following commands are intended for offline post-processing of already-produ
   --aggregate-summary artifacts\mini_matrix_summaries\phase_8_26_mini_matrix_r3\mini_matrix_aggregate_summary.json `
   --summary-id phase_8_26_mini_matrix_r3 `
   --output-dir artifacts\judge_prompt_packs\phase_8_26_mini_matrix_r3
+```
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_autonomous_browser_scenario_suite.py `
+  --suite configs\autonomous_runtime\browser_scenario_suite.example.json `
+  --output artifacts\autonomous_runtime_summaries\browser_scenario_suite.summary.json `
+  --dry-run
 ```
 
 ## 5. Commands that must not be launched automatically
@@ -307,7 +366,7 @@ Committed packet/example files remain allowed, including `artifacts/first_run_pa
 
 ## 8. Next technical stage
 
-The next practical stage should either add more fixture-backed browser scenario families or, only if separately approved, add guarded operator-only Playwright execution checks without enabling arbitrary external app integrations.
+The next practical stage should either add more fixture-backed browser scenario breadth or, only if separately approved, add guarded operator-only Playwright execution checks without enabling arbitrary external app integrations.
 
 Later semantic judge work remains separate and should stay guarded:
 

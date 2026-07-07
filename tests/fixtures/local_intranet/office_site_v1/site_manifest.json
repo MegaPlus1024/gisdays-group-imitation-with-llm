@@ -2,6 +2,12 @@
   "site_id": "office_site_v1",
   "fixture_root": ".",
   "base_url_prefixes": [
+    "https://local.intranet",
+    "https://docs.local",
+    "https://portal.local",
+    "http://local.intranet",
+    "http://docs.local",
+    "http://portal.local",
     "http://localhost:8088",
     "http://127.0.0.1:8088",
     "http://local-intranet.test"
@@ -12,7 +18,10 @@
     "/tickets/1": "tickets/1.html",
     "/docs/policy": "docs/policy.html",
     "/team/status": "team/status.html",
+    "/portal": "portal/index.html",
+    "/portal/approvals": "portal/approvals.html",
     "/portal/request": "portal/request.html",
+    "/portal/status": "portal/status.html",
     "/portal/submitted": "portal/submitted.html"
   }
 }

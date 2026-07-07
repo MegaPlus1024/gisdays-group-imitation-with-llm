@@ -1,0 +1,22 @@
+{
+  "schema_version": "autonomous_browser_scenario_suite_v1",
+  "suite_id": "browser_autonomous_runtime_suite_v1",
+  "description": "Offline fixture-backed browser scenario suite.",
+  "scenario_paths": [
+    "configs/autonomous_runtime/browser_intranet_research_group_basic.example.json",
+    "configs/autonomous_runtime/browser_intranet_form_workflow_extended.example.json",
+    "configs/autonomous_runtime/browser_intranet_policy_research.example.json",
+    "configs/autonomous_runtime/browser_portal_approval_check.example.json"
+  ],
+  "expected_min_passed_scenarios": 4,
+  "expected_required_actions": [
+    "browser_open_url",
+    "browser_click",
+    "browser_extract_text",
+    "browser_fill",
+    "browser_submit",
+    "browser_wait",
+    "browser_search",
+    "browser_snapshot"
+  ]
+}

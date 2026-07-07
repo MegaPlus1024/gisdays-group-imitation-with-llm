@@ -637,7 +637,7 @@ class FixtureBackedBrowserRuntimeExecutor:
     ) -> list[dict[str, Any]]:
         manifest = self._load_manifest()
         prefixes = _string_list(manifest.get("base_url_prefixes", []))
-        base_url = prefixes[0] if prefixes else f"http://{session.allowed_domains[0]}"
+        base_url = self._search_base_url(prefixes, session)
         query_terms = [term.lower() for term in re.findall(r"[a-zA-Z0-9]+", query)]
         scored_results: list[tuple[int, dict[str, Any]]] = []
         routes = manifest.get("routes", {})
@@ -677,6 +677,12 @@ class FixtureBackedBrowserRuntimeExecutor:
             )
         ranked = sorted(scored_results, key=lambda item: (-item[0], item[1]["fixture_route"]))
         return [item for _, item in ranked[: self.policy.max_search_results]]
+
+    def _search_base_url(self, prefixes: list[str], session: BrowserRuntimeSession) -> str:
+        for prefix in prefixes:
+            if self._validate_url(prefix.rstrip("/") + "/", session) is None:
+                return prefix
+        return f"http://{session.allowed_domains[0]}"
 
     def _load_manifest(self) -> dict[str, Any]:
         path = Path(self.fixture_manifest_path)
