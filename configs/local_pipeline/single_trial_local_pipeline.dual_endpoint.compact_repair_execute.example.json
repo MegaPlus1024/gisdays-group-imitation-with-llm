@@ -1,0 +1,41 @@
+{
+  "schema_version": "single_trial_local_pipeline_config_v1",
+  "mode": "controlled_single_trial",
+  "models_config_path": "configs/evaluation_models.json",
+  "scenario_path": "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json",
+  "out_dir": "artifacts/single_trial_runs/phase_8_22_action_execution_retry/pipeline",
+  "run_id": "phase_8_22_action_execution_retry",
+  "orchestrator_base_url": "http://127.0.0.1:8080/v1",
+  "executor_base_url": "http://127.0.0.1:8081/v1",
+  "max_group_steps": 1,
+  "max_steps_per_agent": 1,
+  "repair_attempts": 0,
+  "orchestrator_repair_attempts": 0,
+  "execute_actions": true,
+  "force": true,
+  "prompt_budget": {
+    "executor_max_prompt_chars": 12000,
+    "orchestrator_max_prompt_chars": 16000,
+    "max_history_items": 6,
+    "compact_executor_context": true
+  },
+  "action_parameter_repair": {
+    "enabled": true,
+    "office_default_output_dir": "artifacts/single_trial_runs/phase_8_22_action_execution_retry/pipeline/workspace/office_outputs"
+  },
+  "office_real_document_enabled": true,
+  "office_real_document_artifact_root": "artifacts/single_trial_runs/phase_8_22_action_execution_retry/pipeline/workspace",
+  "office_real_document_max_file_bytes": 5000000,
+  "office_real_document_max_text_preview_chars": 500,
+  "office_real_document_allow_formulas": false,
+  "execution_options": {
+    "allow_runtime_execution": true,
+    "no_runtime_execution": false
+  },
+  "notes": [
+    "Dual-endpoint compact executor prompt config with deterministic office path repair and controlled document-file execution enabled.",
+    "Start second_model on port 8080 with alias second_model.",
+    "Start first_model on port 8081 with alias first_model.",
+    "Runtime execution still requires guarded operator confirmation."
+  ]
+}

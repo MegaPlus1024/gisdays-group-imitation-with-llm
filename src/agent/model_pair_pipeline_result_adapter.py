@@ -19,6 +19,13 @@ _HISTORY_FALLBACK_KEYS = ("events", "steps", "conversation", "history")
 _ARTIFACT_KEYS = ("artifact_refs", "artifacts", "output_files", "generated_files")
 _MAX_TEXT_CHARS = 500
 _MAX_LIST_ITEMS = 200
+_ACTION_EXECUTION_METADATA_KEYS = (
+    "validation_only",
+    "validation_success_count",
+    "execution_attempted_count",
+    "execution_success_count",
+    "action_execution_enabled",
+)
 
 
 def adapt_orchestrator_executor_pipeline_result(
@@ -288,6 +295,7 @@ def _metadata(
     metadata["adapter_name"] = PIPELINE_RESULT_ADAPTER_NAME
     metadata["source_result_type"] = _source_result_type(pipeline_result)
     metadata["pipeline_status_raw"] = raw_status
+    metadata.update(_action_execution_metadata(payload))
     if request is not None:
         metadata["request"] = {
             "trial_id": request.trial_id,
@@ -297,6 +305,20 @@ def _metadata(
             "executor_model_id": request.executor_model_id,
         }
     return _safe_value(metadata)
+
+
+def _action_execution_metadata(payload: Mapping[str, Any]) -> dict[str, Any]:
+    quality_metrics = payload.get("quality_metrics")
+    if not isinstance(quality_metrics, Mapping):
+        return {}
+    raw_metadata = quality_metrics.get("metadata")
+    if not isinstance(raw_metadata, Mapping):
+        return {}
+    return {
+        key: _safe_value(raw_metadata[key])
+        for key in _ACTION_EXECUTION_METADATA_KEYS
+        if key in raw_metadata
+    }
 
 
 def _pipeline_failure_diagnostics(payload: Mapping[str, Any]) -> dict[str, Any] | None:

@@ -528,6 +528,7 @@ def _group_summaries(
             "trial_ids": sorted(item.trial_id for item in items),
             "warnings": sorted({warning for item in items for warning in item.warnings}),
         }
+        row.update(_action_execution_summary_from_results(items))
         if group_key == "pair_id":
             first = items[0]
             row.update(
@@ -546,6 +547,42 @@ def _group_summaries(
             )
         rows.append(row)
     return rows
+
+
+def _action_execution_summary_from_results(items: list[ModelPairTrialExecutionResult]) -> dict[str, Any]:
+    rows = [
+        item.metadata
+        for item in items
+        if any(
+            key in item.metadata
+            for key in (
+                "validation_only",
+                "validation_success_count",
+                "execution_attempted_count",
+                "execution_success_count",
+                "action_execution_enabled",
+            )
+        )
+    ]
+    if not rows:
+        return {}
+    validation_only_count = sum(1 for row in rows if row.get("validation_only") is True)
+    return {
+        "validation_only": validation_only_count == len(rows),
+        "validation_only_count": validation_only_count,
+        "validation_success_count": sum(_safe_int(row.get("validation_success_count")) for row in rows),
+        "execution_attempted_count": sum(_safe_int(row.get("execution_attempted_count")) for row in rows),
+        "execution_success_count": sum(_safe_int(row.get("execution_success_count")) for row in rows),
+        "action_execution_enabled": any(row.get("action_execution_enabled") is True for row in rows),
+    }
+
+
+def _safe_int(value: Any) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    return 0
 
 
 def _object_rows(value: Any, missing_code: str) -> list[dict[str, Any]]:

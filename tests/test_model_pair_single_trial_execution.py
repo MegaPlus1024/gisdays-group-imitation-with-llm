@@ -509,6 +509,38 @@ def test_writes_one_trial_matrix_summary_artifact(tmp_path: Path) -> None:
     assert payload["trial_results"][0]["trial_id"] == plan["trials"][0]["trial_id"]
 
 
+def test_single_trial_matrix_summary_carries_action_execution_diagnostics(tmp_path: Path) -> None:
+    plan = _plan()
+    output_dir = tmp_path / "single"
+    run_single_model_pair_trial(
+        plan,
+        pipeline_entrypoint=lambda _: _fake_pipeline_result(
+            metadata={
+                "pipeline": "fake_single_trial",
+                "validation_only": True,
+                "validation_success_count": 2,
+                "execution_attempted_count": 0,
+                "execution_success_count": 0,
+                "action_execution_enabled": False,
+            },
+            warnings=["action_execution_not_attempted_validation_only"],
+        ),
+        config=ModelPairSingleTrialExecutionConfig(
+            output_dir=output_dir,
+            trial_id=plan["trials"][0]["trial_id"],
+            readiness_summary_path=_ready_summary_path(tmp_path, plan),
+        ),
+    )
+    payload = _json(output_dir / MODEL_PAIR_SINGLE_TRIAL_MATRIX_SUMMARY_FILENAME)
+
+    assert payload["trial_results"][0]["metadata"]["validation_only"] is True
+    assert payload["pair_summaries"][0]["validation_only"] is True
+    assert payload["pair_summaries"][0]["validation_success_count"] == 2
+    assert payload["pair_summaries"][0]["execution_attempted_count"] == 0
+    assert payload["scenario_summaries"][0]["validation_only_count"] == 1
+    assert "action_execution_not_attempted_validation_only" in payload["warnings"]
+
+
 def test_auto_adapter_outputs_write_resource_observations_and_normality_inputs(tmp_path: Path) -> None:
     plan = _plan()
     output_dir = tmp_path / "single"

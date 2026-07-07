@@ -524,6 +524,34 @@ def test_config_build_helper_accepts_dual_endpoint_controlled_trial_config(
     assert [name for name, _ in calls] == ["config"]
 
 
+def test_config_build_helper_accepts_compact_repair_execute_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_fake_existing_pipeline_module(monkeypatch)
+    local_config = json.loads(
+        Path("configs/local_pipeline/single_trial_local_pipeline.dual_endpoint.compact_repair_execute.example.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    config = build_orchestrator_executor_run_config_from_local_pipeline_config(
+        _entrypoint_input(allow_runtime=True, local_pipeline_config=local_config)
+    )
+
+    assert config.payload["mode"] == "local"
+    assert config.payload["run_id"] == "phase_8_22_action_execution_retry"
+    assert config.payload["out_dir"] == "artifacts/single_trial_runs/phase_8_22_action_execution_retry/pipeline"
+    assert config.payload["execute_actions"] is True
+    assert config.payload["action_parameter_repair"]["enabled"] is True
+    assert config.payload["action_parameter_repair"]["office_default_output_dir"].endswith(
+        "pipeline/workspace/office_outputs"
+    )
+    assert config.payload["office_real_document_enabled"] is True
+    assert config.payload["office_real_document_artifact_root"].endswith("pipeline/workspace")
+    assert config.payload["office_real_document_allow_formulas"] is False
+    assert [name for name, _ in calls] == ["config"]
+
+
 def test_effective_config_preview_reports_dual_endpoint_packet_without_runtime() -> None:
     local_config = json.loads(
         Path("artifacts/first_run_packets/phase_8_17_dual_endpoint/local_pipeline_config.json").read_text(

@@ -392,6 +392,11 @@ class OrchestratorExecutorRunConfig(BaseModel):
     force: bool = False
     prompt_budget: PromptBudgetConfig = Field(default_factory=PromptBudgetConfig)
     action_parameter_repair: ActionParameterRepairConfig = Field(default_factory=ActionParameterRepairConfig)
+    office_real_document_enabled: bool = False
+    office_real_document_artifact_root: str | None = None
+    office_real_document_max_file_bytes: int = 5_000_000
+    office_real_document_max_text_preview_chars: int = 500
+    office_real_document_allow_formulas: bool = False
 
     @field_validator("project_root")
     @classmethod
@@ -436,6 +441,28 @@ class OrchestratorExecutorRunConfig(BaseModel):
     def validate_repair_attempts(cls, value: int) -> int:
         if value < 0:
             raise ValueError("repair_attempts must be >= 0.")
+        return value
+
+    @field_validator("office_real_document_artifact_root")
+    @classmethod
+    def validate_office_real_document_artifact_root(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        raw = value.strip().replace("\\", "/")
+        if not raw:
+            raise ValueError("office_real_document_artifact_root must be non-empty when provided.")
+        if not _is_safe_relative_artifact_path(raw):
+            raise ValueError("office_real_document_artifact_root must be a safe relative artifact path.")
+        return raw.rstrip("/")
+
+    @field_validator(
+        "office_real_document_max_file_bytes",
+        "office_real_document_max_text_preview_chars",
+    )
+    @classmethod
+    def validate_office_real_document_limits(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("office real document limits must be > 0.")
         return value
 
     def project_path(self, value: str | Path) -> Path:
@@ -1044,6 +1071,11 @@ class OrchestratorExecutorRunner:
                 write_history=False,
                 browser_fixture_manifest_path=browser_fixture_manifest_path,
                 browser_fixture_allowed_url_prefixes=browser_fixture_prefixes,
+                office_real_document_enabled=self.config.office_real_document_enabled,
+                office_real_document_artifact_root=self.config.office_real_document_artifact_root,
+                office_real_document_max_file_bytes=self.config.office_real_document_max_file_bytes,
+                office_real_document_max_text_preview_chars=self.config.office_real_document_max_text_preview_chars,
+                office_real_document_allow_formulas=self.config.office_real_document_allow_formulas,
             ),
             registry=script_registry,
         )
@@ -1099,6 +1131,7 @@ class OrchestratorExecutorRunner:
                 group_history.append(
                     _history_from_attempt(
                         final_attempt,
+                        action_execution_enabled=scenario.execute_actions,
                         virtual_network_metadata=_agent_history_virtual_network_metadata(
                             virtual_network_binding,
                             agent.agent_id,
@@ -1147,6 +1180,13 @@ class OrchestratorExecutorRunner:
             trajectories=list(trajectories.values()),
             scenario=scenario,
         )
+        action_execution_summary = _action_execution_summary(
+            trajectories=list(trajectories.values()),
+            action_execution_enabled=scenario.execute_actions,
+        )
+        warnings = _runtime_warnings(self.config.mode, orchestrator_model, executor_model)
+        if action_execution_summary["validation_only"]:
+            warnings.append("action_execution_not_attempted_validation_only")
         pair_eval = _pair_evaluation(scenario, quality)
         status: GroupRunStatus = "completed" if not errors else "completed_with_failures"
         success = not errors
@@ -1165,7 +1205,7 @@ class OrchestratorExecutorRunner:
             pair_evaluation=pair_eval,
             virtual_network=virtual_network_summary,
             artifact_dir=str(out_dir),
-            warnings=_runtime_warnings(self.config.mode, orchestrator_model, executor_model),
+            warnings=warnings,
             errors=errors,
         )
         result.quality_metrics.metadata.update(
@@ -1180,6 +1220,7 @@ class OrchestratorExecutorRunner:
                 "orchestrator_plan_final_validation_success": (
                     orchestrator_attempts[-1].validation_success if orchestrator_attempts else False
                 ),
+                **action_execution_summary,
             }
         )
         _write_artifacts(
@@ -3006,6 +3047,7 @@ def _update_state_history(state: AgentState, attempt: ExecutorActionAttempt) -> 
 def _history_from_attempt(
     attempt: ExecutorActionAttempt,
     *,
+    action_execution_enabled: bool | None = None,
     virtual_network_metadata: dict[str, Any] | None = None,
 ) -> GroupHistoryRecord:
     status: Literal["success", "failure", "skipped"]
@@ -3019,7 +3061,10 @@ def _history_from_attempt(
         "validation_accepted": attempt.validation_accepted,
         "execution_attempted": attempt.execution_attempted,
         "execution_success": attempt.execution_success,
+        "validation_only": attempt.validation_accepted is True and attempt.execution_attempted is False,
     }
+    if action_execution_enabled is not None:
+        metadata["action_execution_enabled"] = action_execution_enabled
     if virtual_network_metadata is not None:
         metadata["virtual_network"] = virtual_network_metadata
     if attempt.virtual_network_policy is not None:
@@ -3145,6 +3190,25 @@ def _compute_quality_metrics(
             "prototype_scoring": True,
         },
     )
+
+
+def _action_execution_summary(
+    *,
+    trajectories: list[ExecutorAgentTrajectory],
+    action_execution_enabled: bool,
+) -> dict[str, Any]:
+    attempts = [attempt for trajectory in trajectories for attempt in trajectory.attempts]
+    final_attempts = _final_executor_attempts(attempts)
+    validation_success_count = sum(1 for attempt in final_attempts if attempt.validation_accepted is True)
+    execution_attempted_count = sum(1 for attempt in final_attempts if attempt.execution_attempted)
+    execution_success_count = sum(1 for attempt in final_attempts if attempt.execution_success is True)
+    return {
+        "validation_only": validation_success_count > 0 and execution_attempted_count == 0,
+        "validation_success_count": validation_success_count,
+        "execution_attempted_count": execution_attempted_count,
+        "execution_success_count": execution_success_count,
+        "action_execution_enabled": action_execution_enabled,
+    }
 
 
 def _final_executor_attempts(attempts: list[ExecutorActionAttempt]) -> list[ExecutorActionAttempt]:
@@ -3451,6 +3515,14 @@ def _manifest(
         "executor_repair_attempts": config.repair_attempts,
         "prompt_budget": config.prompt_budget.model_dump(mode="json"),
         "action_parameter_repair": config.action_parameter_repair.model_dump(mode="json"),
+        "action_execution": _action_execution_metadata_for_artifact(result.quality_metrics.metadata),
+        "office_real_document": {
+            "enabled": config.office_real_document_enabled,
+            "artifact_root": config.office_real_document_artifact_root,
+            "max_file_bytes": config.office_real_document_max_file_bytes,
+            "max_text_preview_chars": config.office_real_document_max_text_preview_chars,
+            "allow_formulas": config.office_real_document_allow_formulas,
+        },
         "orchestrator_model": orchestrator_model.model_dump(mode="json"),
         "executor_model": executor_model.model_dump(mode="json"),
         "runtime_overrides": {
@@ -3462,6 +3534,11 @@ def _manifest(
             "orchestrator_temperature": config.orchestrator_temperature,
             "prompt_budget": config.prompt_budget.model_dump(mode="json"),
             "action_parameter_repair": config.action_parameter_repair.model_dump(mode="json"),
+            "office_real_document_enabled": config.office_real_document_enabled,
+            "office_real_document_artifact_root": config.office_real_document_artifact_root,
+            "office_real_document_max_file_bytes": config.office_real_document_max_file_bytes,
+            "office_real_document_max_text_preview_chars": config.office_real_document_max_text_preview_chars,
+            "office_real_document_allow_formulas": config.office_real_document_allow_formulas,
         },
         "max_group_steps": scenario.max_group_steps,
         "max_steps_per_agent": scenario.max_steps_per_agent,
@@ -3474,6 +3551,17 @@ def _manifest(
             "Local mode requires already available compatible runtime endpoint(s).",
         ],
     }
+
+
+def _action_execution_metadata_for_artifact(metadata: dict[str, Any]) -> dict[str, Any]:
+    keys = (
+        "validation_only",
+        "validation_success_count",
+        "execution_attempted_count",
+        "execution_success_count",
+        "action_execution_enabled",
+    )
+    return {key: metadata.get(key) for key in keys if key in metadata}
 
 
 def _resource_summary(started_at: str, wall_time_seconds: float) -> dict[str, Any]:

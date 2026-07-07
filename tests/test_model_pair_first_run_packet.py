@@ -31,6 +31,9 @@ DUAL_ENDPOINT_COMPACT_CONFIG_PATH = Path(
 DUAL_ENDPOINT_COMPACT_REPAIR_CONFIG_PATH = Path(
     "configs/local_pipeline/single_trial_local_pipeline.dual_endpoint.compact_repair.example.json"
 )
+DUAL_ENDPOINT_COMPACT_REPAIR_EXECUTE_CONFIG_PATH = Path(
+    "configs/local_pipeline/single_trial_local_pipeline.dual_endpoint.compact_repair_execute.example.json"
+)
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> Path:
@@ -576,3 +579,54 @@ def test_cli_invalid_returns_nonzero_json(
 
     assert rc == 2
     assert summary["status"] == "invalid"
+
+
+def test_packet_builder_accepts_compact_repair_execute_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = _fixture_workspace(
+        tmp_path,
+        monkeypatch,
+        local_config_overrides={
+            "run_id": "phase_8_22_action_execution_retry",
+            "out_dir": "artifacts/single_trial_runs/phase_8_22_action_execution_retry/pipeline",
+            "execute_actions": True,
+            "action_parameter_repair": {
+                "enabled": True,
+                "office_default_output_dir": (
+                    "artifacts/single_trial_runs/phase_8_22_action_execution_retry/"
+                    "pipeline/workspace/office_outputs"
+                ),
+            },
+            "office_real_document_enabled": True,
+            "office_real_document_artifact_root": (
+                "artifacts/single_trial_runs/phase_8_22_action_execution_retry/pipeline/workspace"
+            ),
+            "office_real_document_max_file_bytes": 5000000,
+            "office_real_document_max_text_preview_chars": 500,
+            "office_real_document_allow_formulas": False,
+        },
+    )
+
+    summary = build_first_single_trial_run_packet(
+        output_dir=paths["output_dir"],
+        model_catalog_path=paths["model_catalog_path"],
+        scenario_id=SCENARIO_ID,
+        pair_id=PAIR_ID,
+        local_pipeline_config_path=paths["local_pipeline_config_path"],
+        run_id="phase_8_22_action_execution_retry",
+        tags=("controlled_single_trial",),
+    )
+    copied_config = _json(Path(summary["local_pipeline_config_path"]))
+    command = _json(Path(summary["command_path"]))
+
+    assert summary["status"] == "ready"
+    assert copied_config["execute_actions"] is True
+    assert copied_config["office_real_document_enabled"] is True
+    assert copied_config["office_real_document_artifact_root"].endswith("pipeline/workspace")
+    assert "--allow-runtime-execution" in command["argv"]
+    assert command["notes"] == [
+        "Prepared command only; this packet builder does not execute runtime.",
+        "The generated script requires explicit runtime confirmation before use.",
+    ]

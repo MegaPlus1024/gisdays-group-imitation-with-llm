@@ -135,6 +135,63 @@ def test_manifest_records_runtime_overrides_with_mocked_local_providers(
     assert manifest["runtime_overrides"]["executor_base_url"] == "http://127.0.0.1:8082/v1"
 
 
+def test_office_real_document_controls_reach_bridge_and_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    class FakeLocalOrchestratorProvider(pipeline.FakeOrchestratorPlanProvider):
+        def __init__(self, model: pipeline.OrchestratorModelConfig) -> None:
+            self.model = model
+
+    class FakeLocalExecutorProvider(pipeline.FakeExecutorActionProvider):
+        def __init__(self, model: pipeline.ExecutorModelConfig) -> None:
+            self.model = model
+
+    class CapturingBridge:
+        def __init__(self, config: pipeline.ScriptExecutionBridgeConfig, *, registry):  # type: ignore[no-untyped-def]
+            del registry
+            captured["bridge_config"] = config.model_dump(mode="json")
+
+        def execute_next_action(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            raise AssertionError("action execution should remain disabled in this config test")
+
+    monkeypatch.setattr(pipeline, "LocalOrchestratorPlanProvider", FakeLocalOrchestratorProvider)
+    monkeypatch.setattr(pipeline, "LocalExecutorActionProvider", FakeLocalExecutorProvider)
+    monkeypatch.setattr(pipeline, "ScriptExecutionBridge", CapturingBridge)
+
+    result = OrchestratorExecutorRunner(
+        _config(
+            tmp_path,
+            office_real_document_enabled=True,
+            office_real_document_artifact_root=(
+                "artifacts/single_trial_runs/phase_8_22_action_execution_retry/pipeline/workspace"
+            ),
+            office_real_document_max_file_bytes=123456,
+            office_real_document_max_text_preview_chars=321,
+            office_real_document_allow_formulas=False,
+        )
+    ).run()
+    manifest = _json(Path(result.artifact_dir or "") / "manifest.json")
+
+    assert captured["bridge_config"]["office_real_document_enabled"] is True
+    assert captured["bridge_config"]["office_real_document_artifact_root"].endswith("pipeline/workspace")
+    assert captured["bridge_config"]["office_real_document_max_file_bytes"] == 123456
+    assert captured["bridge_config"]["office_real_document_max_text_preview_chars"] == 321
+    assert captured["bridge_config"]["office_real_document_allow_formulas"] is False
+    assert manifest["office_real_document"]["enabled"] is True
+    assert manifest["office_real_document"]["artifact_root"].endswith("pipeline/workspace")
+
+
+def test_office_real_document_artifact_root_rejects_absolute_or_traversal() -> None:
+    with pytest.raises(ValueError, match="office_real_document_artifact_root"):
+        OrchestratorExecutorRunConfig(office_real_document_artifact_root="../outside")
+
+    with pytest.raises(ValueError, match="office_real_document_artifact_root"):
+        OrchestratorExecutorRunConfig(office_real_document_artifact_root="C:/outside")
+
+
 def test_effective_runtime_warnings_use_overridden_base_urls_and_preserve_api_model(
     tmp_path: Path,
 ) -> None:

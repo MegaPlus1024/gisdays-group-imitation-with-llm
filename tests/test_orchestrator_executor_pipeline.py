@@ -29,6 +29,7 @@ from src.agent.orchestrator_prompt_contract import (
     OrchestratorPlanJSONError,
     parse_orchestrator_plan_text,
 )
+from src.agent.scripts.results import ScriptExecutionResult
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -510,12 +511,111 @@ def test_group_history_includes_parameter_repair_metadata() -> None:
                 "repaired_parameters": ["path"],
                 "path_source": "controlled_default",
             },
-        )
+        ),
+        action_execution_enabled=False,
     )
 
     assert record.status == "success"
     assert record.metadata["parameter_repair"]["parameter_repair_applied"] is True
     assert record.metadata["parameter_repair"]["path_source"] == "controlled_default"
+    assert record.metadata["validation_only"] is True
+    assert record.metadata["action_execution_enabled"] is False
+
+
+def test_validation_only_run_records_action_execution_diagnostics(tmp_path: Path) -> None:
+    result = OrchestratorExecutorRunner(
+        _config(tmp_path, max_group_steps=1, max_steps_per_agent=1, execute_actions=False)
+    ).run()
+    manifest = _json(Path(result.artifact_dir or "") / "manifest.json")
+
+    assert result.quality_metrics.metadata["validation_only"] is True
+    assert result.quality_metrics.metadata["validation_success_count"] == 2
+    assert result.quality_metrics.metadata["execution_attempted_count"] == 0
+    assert result.quality_metrics.metadata["execution_success_count"] == 0
+    assert result.quality_metrics.metadata["action_execution_enabled"] is False
+    assert "action_execution_not_attempted_validation_only" in result.warnings
+    assert all(row.metadata["validation_only"] is True for row in result.group_history)
+    assert all(row.metadata["action_execution_enabled"] is False for row in result.group_history)
+    assert manifest["action_execution"]["validation_only"] is True
+    assert manifest["action_execution"]["execution_attempted_count"] == 0
+
+
+def test_executor_attempt_executes_controlled_office_action_with_fake_bridge() -> None:
+    registry = pipeline.load_script_registry(PROJECT_ROOT / "configs/script_registry.example.json")
+    role = pipeline.load_role_template(PROJECT_ROOT / "configs/roles/office_document_worker.example.json")
+    scenario = pipeline.load_orchestrator_executor_scenario(
+        PROJECT_ROOT / "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json"
+    )
+    out_dir = PROJECT_ROOT / "artifacts/single_trial_runs/phase_8_22_action_execution_retry/pipeline"
+    action_path = (
+        "artifacts/single_trial_runs/phase_8_22_action_execution_retry/"
+        "pipeline/workspace/office_outputs/t1_document_summary_agent.docx"
+    )
+
+    class FakeBridge:
+        def __init__(self) -> None:
+            self.paths: list[str] = []
+
+        def execute_next_action(self, next_action, *, run_id, agent_id, step_index):  # type: ignore[no-untyped-def]
+            del run_id, agent_id, step_index
+            self.paths.append(next_action.parameters["path"])
+            raw = ScriptExecutionResult(
+                action=next_action.action,
+                success=True,
+                output="created",
+                metadata={"output_path": next_action.parameters["path"]},
+            )
+
+            class Output:
+                def __init__(self, raw_result: ScriptExecutionResult) -> None:
+                    self.success = True
+                    self.raw_result = raw_result
+
+                def model_dump(self, *, mode: str = "json"):  # type: ignore[no-untyped-def]
+                    del mode
+                    return {
+                        "action": next_action.action,
+                        "success": True,
+                        "raw_result": self.raw_result.model_dump(mode="json"),
+                    }
+
+            return Output(raw)
+
+    bridge = FakeBridge()
+    attempt = pipeline._executor_attempt_from_result(
+        provider_result=pipeline.ExecutorProviderResult(
+            raw_model_output=json.dumps(
+                _next_action("office_create_docx", {"path": action_path, "paragraphs": ["Controlled note."]}).model_dump(
+                    mode="json"
+                )
+            )
+        ),
+        attempt_index=0,
+        attempt_type="initial",
+        agent=_agent_spec(),
+        task=_task(),
+        state=_bloated_agent_state(),
+        role_template=role,
+        registry=registry,
+        bridge=bridge,  # type: ignore[arg-type]
+        group_step_index=1,
+        agent_step_index=1,
+        execute_actions=True,
+        scenario=scenario,
+        out_dir=out_dir,
+        project_root=PROJECT_ROOT,
+        action_parameter_repair=ActionParameterRepairConfig(enabled=True),
+        latency_ms=1.0,
+    )
+
+    assert attempt.error_type is None
+    assert attempt.execution_attempted is True
+    assert attempt.execution_success is True
+    assert bridge.paths == [action_path]
+    assert Path(action_path).is_absolute() is False
+    assert str(attempt.execution_result["raw_result"]["metadata"]["output_path"]).startswith(
+        "artifacts/single_trial_runs/phase_8_22_action_execution_retry/pipeline/workspace/"
+    )
 
 
 def test_non_office_actions_are_not_repaired_generically() -> None:

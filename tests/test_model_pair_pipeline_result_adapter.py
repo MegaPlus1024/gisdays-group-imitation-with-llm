@@ -128,6 +128,28 @@ def test_adapts_dict_success_result_to_succeeded_normalized_result() -> None:
     assert result["no_runtime_execution"] is True
 
 
+def test_adapter_promotes_action_execution_metadata_from_quality_metrics() -> None:
+    result = adapt_orchestrator_executor_pipeline_result(
+        _pipeline_result(
+            quality_metrics={
+                "metadata": {
+                    "validation_only": True,
+                    "validation_success_count": 2,
+                    "execution_attempted_count": 0,
+                    "execution_success_count": 0,
+                    "action_execution_enabled": False,
+                }
+            }
+        )
+    )
+
+    assert result["metadata"]["validation_only"] is True
+    assert result["metadata"]["validation_success_count"] == 2
+    assert result["metadata"]["execution_attempted_count"] == 0
+    assert result["metadata"]["execution_success_count"] == 0
+    assert result["metadata"]["action_execution_enabled"] is False
+
+
 def test_adapts_dict_failure_and_skipped_results() -> None:
     failed = adapt_orchestrator_executor_pipeline_result(
         _pipeline_result(status="failed", success=False, failure_reason="validation_failed")

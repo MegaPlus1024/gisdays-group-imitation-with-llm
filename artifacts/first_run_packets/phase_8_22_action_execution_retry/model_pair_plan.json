@@ -1,0 +1,164 @@
+{
+  "candidate_pairs": [
+    {
+      "executor": {
+        "enabled": true,
+        "family": "qwen2.5",
+        "model_id": "first_model",
+        "parameter_count_b": 1.5,
+        "quantization": "Q4_K_M",
+        "roles": {
+          "executor_candidate": true,
+          "judge_candidate": false,
+          "orchestrator_candidate": false
+        },
+        "tags": [
+          "local",
+          "gguf",
+          "qwen2.5",
+          "small"
+        ]
+      },
+      "executor_model_id": "first_model",
+      "no_runtime_execution": true,
+      "notes": [
+        "orchestrator:strongest orchestrator candidate in existing local experiments",
+        "orchestrator:quality-focused executor candidate in existing controlled group evidence",
+        "executor:executor candidate in existing local experiments",
+        "executor:not suitable as orchestrator in current evidence because of orchestrator_plan_parse_failed observations"
+      ],
+      "orchestrator": {
+        "enabled": true,
+        "family": "qwen2.5",
+        "model_id": "second_model",
+        "parameter_count_b": 3.0,
+        "quantization": "Q4_K_M",
+        "roles": {
+          "executor_candidate": true,
+          "judge_candidate": true,
+          "orchestrator_candidate": true
+        },
+        "tags": [
+          "local",
+          "gguf",
+          "qwen2.5",
+          "small"
+        ]
+      },
+      "orchestrator_model_id": "second_model",
+      "pair_id": "second_model__to__first_model",
+      "pair_label": "second_model->first_model",
+      "tags": [
+        "gguf",
+        "local",
+        "qwen2.5",
+        "small"
+      ],
+      "warnings": []
+    }
+  ],
+  "created_by": "offline_planner",
+  "model_catalog_summary": {
+    "catalog_path": "configs/model_catalog.example.json",
+    "enabled_only": true,
+    "expected_schema_version": "model_catalog_v1",
+    "model_count": 2,
+    "models": [
+      {
+        "enabled": true,
+        "family": "qwen2.5",
+        "model_id": "first_model",
+        "parameter_count_b": 1.5,
+        "quantization": "Q4_K_M",
+        "roles": {
+          "executor_candidate": true,
+          "judge_candidate": false,
+          "orchestrator_candidate": false
+        },
+        "tags": [
+          "local",
+          "gguf",
+          "qwen2.5",
+          "small"
+        ]
+      },
+      {
+        "enabled": true,
+        "family": "qwen2.5",
+        "model_id": "second_model",
+        "parameter_count_b": 3.0,
+        "quantization": "Q4_K_M",
+        "roles": {
+          "executor_candidate": true,
+          "judge_candidate": true,
+          "orchestrator_candidate": true
+        },
+        "tags": [
+          "local",
+          "gguf",
+          "qwen2.5",
+          "small"
+        ]
+      }
+    ],
+    "schema_version": "model_catalog_v1"
+  },
+  "no_runtime_execution": true,
+  "notes": [
+    "Planning artifact only; no model execution performed.",
+    "First single-trial packet artifact only; runtime command was not executed."
+  ],
+  "plan_id": "first_single_trial_phase_8_22_action_execution_retry",
+  "scenarios": [
+    {
+      "enabled": true,
+      "no_runtime_execution": true,
+      "scenario_id": "office_document_file_workflow_basic_v1",
+      "scenario_path": "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json",
+      "tags": [
+        "controlled_single_trial"
+      ],
+      "task_family": null,
+      "warnings": []
+    }
+  ],
+  "schema_version": "model_comparison_plan_v1",
+  "tags": [
+    "controlled_single_trial"
+  ],
+  "trials": [
+    {
+      "execute_actions": false,
+      "executor_model_id": "first_model",
+      "expected_outputs": [
+        "normality_judge_batch_summary.json",
+        "normality_comparison_summary.json",
+        "resource_profile_metadata"
+      ],
+      "intended_evaluators": [
+        "normality_deterministic",
+        "resource_profile_metadata"
+      ],
+      "no_runtime_execution": true,
+      "notes": [
+        "Planning artifact only; no model execution performed.",
+        "Prepared for guarded single-trial runtime opt-in."
+      ],
+      "orchestrator_model_id": "second_model",
+      "pair_id": "second_model__to__first_model",
+      "repeat_index": 1,
+      "scenario_id": "office_document_file_workflow_basic_v1",
+      "scenario_path": "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json",
+      "tags": [
+        "controlled_single_trial",
+        "gguf",
+        "local",
+        "qwen2.5",
+        "small"
+      ],
+      "trial_id": "office_document_file_workflow_basic_v1__second_model__to__first_model__r01",
+      "warnings": []
+    }
+  ],
+  "warnings": []
+}
