@@ -11,6 +11,8 @@
     "/tickets": "tickets/index.html",
     "/tickets/1": "tickets/1.html",
     "/docs/policy": "docs/policy.html",
-    "/team/status": "team/status.html"
+    "/team/status": "team/status.html",
+    "/portal/request": "portal/request.html",
+    "/portal/submitted": "portal/submitted.html"
   }
 }

@@ -202,6 +202,40 @@ Limitations:
 - scripted decisions are used for reproducibility and do not add an LLM planner;
 - real Playwright/Chromium execution and broader browser scenario coverage remain future guarded work.
 
+## Phase 9.4 Expanded autonomous browser scenario coverage
+
+Phase 9.4 broadens the offline/config-driven browser scenario coverage while preserving the no-real-browser guardrail.
+
+What was added:
+
+- extended browser-only scenario config: `configs/autonomous_runtime/browser_intranet_form_workflow_extended.example.json`;
+- task dependency support via `depends_on` in autonomous runtime scenarios;
+- deterministic dependency-block events for tasks scheduled before prerequisites complete;
+- fixture-backed click navigation, form fill, form submit, wait and snapshot coverage in one scenario;
+- per-task expected-result checks for expected text, current URL, minimum snapshot count and expected artifact kinds;
+- browser coverage summary schema `autonomous_browser_scenario_coverage_v1`;
+- small local HTML fixtures for portal request/submit pages;
+- tests proving dependencies, expected results, coverage summary and CLI dry-run behavior.
+
+What does not run:
+
+- no real browser, Playwright or Chromium is launched;
+- no external HTTP/network request is made;
+- no model client, API/HTTP judge or LLM-as-a-judge is launched;
+- no Office/LibreOffice runtime and no external app action namespace is added.
+
+Which TZ gaps this advances:
+
+- browser scenario coverage now includes navigation, synthetic form workflow, wait action and multi-agent dependencies;
+- summaries now include browser action coverage, expected-result pass/fail counts, covered agents/tasks/sessions and policy denial count;
+- the runner remains deterministic and reproducible from committed configs and repository fixtures.
+
+Limitations:
+
+- browser execution remains fixture-backed and synthetic;
+- dependency gating is scenario-provider level, not a production distributed scheduler;
+- real Playwright/Chromium checks remain future guarded/operator-only work.
+
 ## 4. Offline reproduction commands
 
 The following commands are intended for offline post-processing of already-produced artifacts. They do not start models or live API calls.
@@ -273,7 +307,7 @@ Committed packet/example files remain allowed, including `artifacts/first_run_pa
 
 ## 8. Next technical stage
 
-The next practical stage should broaden browser fixture scenario coverage and, only if separately approved, add guarded operator-only Playwright execution checks without enabling arbitrary external app integrations.
+The next practical stage should either add more fixture-backed browser scenario families or, only if separately approved, add guarded operator-only Playwright execution checks without enabling arbitrary external app integrations.
 
 Later semantic judge work remains separate and should stay guarded:
 

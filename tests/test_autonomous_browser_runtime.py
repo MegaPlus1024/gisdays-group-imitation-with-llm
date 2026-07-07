@@ -222,6 +222,30 @@ def test_fixture_fill_and_submit_update_synthetic_form_state() -> None:
     assert session.form_state["http://local-intranet.test/tickets/1"]["_submitted"] == "true"
 
 
+def test_fixture_submit_can_navigate_to_success_fixture() -> None:
+    session = _session(current_url="http://local-intranet.test/portal/request")
+    executor = _executor()
+
+    executor.execute(
+        _action("browser_fill", form_id="local-request", fields={"status": "ready", "owner": "office"}),
+        session,
+    )
+    submit = executor.execute(
+        _action(
+            "browser_submit",
+            form_id="local-request",
+            success_url="http://local-intranet.test/portal/submitted",
+        ),
+        session,
+    )
+
+    assert submit.success is True
+    assert submit.observation is not None
+    assert submit.observation.current_url == "http://local-intranet.test/portal/submitted"
+    assert "Local portal request submitted" in submit.observation.text_preview
+    assert session.to_summary()["form_state"]["local-request"]["_submitted"] == "true"
+
+
 def test_snapshot_emits_json_serializable_observation() -> None:
     session = _session(current_url="http://local-intranet.test/tickets/1")
 

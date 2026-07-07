@@ -22,6 +22,7 @@ from src.agent.autonomous_runtime_scenarios import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCENARIO_PATH = PROJECT_ROOT / "configs/autonomous_runtime/browser_intranet_research_group_basic.example.json"
+EXTENDED_SCENARIO_PATH = PROJECT_ROOT / "configs/autonomous_runtime/browser_intranet_form_workflow_extended.example.json"
 RUNNER_PATH = PROJECT_ROOT / "scripts/run_autonomous_runtime_scenario.py"
 
 
@@ -41,6 +42,17 @@ def test_example_config_loads() -> None:
     assert scenario.scenario_id == "browser_intranet_research_group_basic"
     assert len(scenario.agents) == 2
     assert scenario.browser_sessions[0].fixture_manifest_path.endswith("site_manifest.json")
+
+
+def test_extended_form_workflow_config_loads() -> None:
+    scenario = load_autonomous_runtime_scenario(EXTENDED_SCENARIO_PATH)
+
+    assert scenario.scenario_id == "browser_intranet_form_workflow_extended"
+    assert len(scenario.agents) == 3
+    assert any(task.depends_on for task in scenario.tasks)
+    assert {step.action_name for step in scenario.scripted_steps}.issuperset(
+        {"browser_click", "browser_fill", "browser_submit", "browser_wait", "browser_snapshot"}
+    )
 
 
 def test_loader_rejects_missing_agents(tmp_path: Path) -> None:
@@ -107,6 +119,21 @@ def test_scenario_run_completes_all_tasks() -> None:
     assert summary["stop_reason"] == "all_tasks_terminal"
 
 
+def test_extended_scenario_run_covers_form_navigation_wait_and_dependencies() -> None:
+    scenario = load_autonomous_runtime_scenario(EXTENDED_SCENARIO_PATH)
+    summary = run_autonomous_runtime_scenario(scenario, fixture_root=PROJECT_ROOT)
+
+    assert summary["task_counts"]["completed"] == 8
+    assert summary["expected_results_passed"] is True
+    assert summary["browser_session_summaries"]["portal_session"]["current_url"] == "https://local-intranet.test/portal/submitted"
+    assert summary["browser_session_summaries"]["portal_session"]["form_state"]["local-request"]["_submitted"] == "true"
+    assert summary["browser_coverage"]["schema_version"] == "autonomous_browser_scenario_coverage_v1"
+    assert summary["browser_coverage"]["action_coverage_ratio"] == 1.0
+    assert summary["browser_coverage"]["expected_results_failed"] == 0
+    dependency_status = {item["task_id"]: item for item in summary["task_dependency_status"]}
+    assert dependency_status["portal_01_open_request_form"]["dependencies_satisfied"] is True
+
+
 def test_runtime_summary_includes_browser_session_summaries() -> None:
     scenario = load_autonomous_runtime_scenario(SCENARIO_PATH)
     summary = run_autonomous_runtime_scenario(scenario, fixture_root=PROJECT_ROOT)
@@ -140,6 +167,50 @@ def test_expected_result_fails_when_text_missing(tmp_path: Path) -> None:
 
     assert summary["expected_results_passed"] is False
     assert summary["expected_results"][0]["passed"] is False
+
+
+def test_per_task_expected_result_fails_on_wrong_url(tmp_path: Path) -> None:
+    payload = json.loads(EXTENDED_SCENARIO_PATH.read_text(encoding="utf-8"))
+    payload["expected_results"] = [
+        {
+            "result_id": "wrong_task_url",
+            "kind": "task_browser_expected_result",
+            "task_id": "portal_03_submit_request_form",
+            "expected_current_url": "https://local-intranet.test/not-submitted",
+        }
+    ]
+    scenario = load_autonomous_runtime_scenario(_write_payload(tmp_path, payload))
+    summary = run_autonomous_runtime_scenario(scenario, fixture_root=PROJECT_ROOT)
+
+    assert summary["expected_results_passed"] is False
+    assert summary["expected_results"][0]["details"]["checks"]["expected_current_url"] is False
+
+
+def test_loader_rejects_unknown_task_dependency(tmp_path: Path) -> None:
+    payload = json.loads(EXTENDED_SCENARIO_PATH.read_text(encoding="utf-8"))
+    payload["tasks"][1]["depends_on"] = ["missing_task"]
+
+    with pytest.raises(AutonomousRuntimeScenarioValidationError, match="unknown dependency"):
+        load_autonomous_runtime_scenario(_write_payload(tmp_path, payload))
+
+
+def test_scripted_provider_blocks_then_runs_dependency_task() -> None:
+    scenario = load_autonomous_runtime_scenario(EXTENDED_SCENARIO_PATH)
+    built = build_autonomous_runtime_from_scenario(scenario, fixture_root=PROJECT_ROOT)
+    agent = built.shared_state.agents["portal_operator"]
+    built.shared_state.assign_task("portal_operator", "portal_01_open_request_form")
+
+    blocked = built.decision_provider(agent, built.shared_state)
+
+    assert blocked is None
+    assert built.decision_provider.dependency_block_events[-1]["unmet_dependencies"] == ["reader_02_click_ticket_board"]
+
+    built.shared_state.complete_task("reader_02_click_ticket_board")
+    decision = built.decision_provider(agent, built.shared_state)
+
+    assert decision is not None
+    assert decision.action_name == "browser_open_url"
+    assert decision.task_id == "portal_01_open_request_form"
 
 
 def test_noop_idle_behavior_is_controlled_when_scripted_steps_exhausted() -> None:
@@ -195,6 +266,30 @@ def test_cli_dry_run_writes_summary_to_temp_output(tmp_path: Path) -> None:
     summary = json.loads(output.read_text(encoding="utf-8"))
     assert summary["expected_results_passed"] is True
     assert summary["no_runtime_execution"] is True
+
+
+def test_cli_dry_run_extended_scenario_includes_browser_coverage(tmp_path: Path) -> None:
+    output_name = "extended.summary.json"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(RUNNER_PATH),
+            "--scenario",
+            str(EXTENDED_SCENARIO_PATH),
+            "--output",
+            output_name,
+            "--dry-run",
+        ],
+        cwd=tmp_path,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    summary = json.loads((tmp_path / output_name).read_text(encoding="utf-8"))
+    assert summary["browser_coverage"]["actions_succeeded"] == 8
+    assert summary["browser_coverage"]["policy_denial_count"] == 0
 
 
 def test_cli_refuses_unsafe_output_path(tmp_path: Path) -> None:

@@ -170,6 +170,7 @@ class BrowserRuntimeSession:
             "actions_failed": self.actions_failed,
             "policy_denials": self.policy_denials,
             "artifacts": list(self.artifacts),
+            "form_state": _jsonable(self.form_state),
             "policy_flags": _jsonable(self.policy_flags),
         }
 
@@ -540,16 +541,23 @@ class FixtureBackedBrowserRuntimeExecutor:
         target = str(action.parameters.get("form_id") or session.current_url or "default_form")
         form = session.form_state.setdefault(target, {})
         form["_submitted"] = "true"
-        observation = BrowserRuntimeObservation(
-            action_name=action.action_name,
-            current_url=session.current_url,
-            title="Synthetic form submitted",
-            text_preview="Fixture form submission recorded locally.",
-            metadata={"form_id": target, "submitted": True, "field_count": len(form)},
-        )
+        success_url = action.parameters.get("success_url")
+        if _non_empty_string(success_url):
+            observation = self._observation_from_url(action.action_name, str(success_url).strip(), session)
+            observation.metadata.update(
+                {"form_id": target, "submitted": True, "field_count": len(form), "form_submission_recorded": True}
+            )
+        else:
+            observation = BrowserRuntimeObservation(
+                action_name=action.action_name,
+                current_url=session.current_url,
+                title="Synthetic form submitted",
+                text_preview="Fixture form submission recorded locally.",
+                metadata={"form_id": target, "submitted": True, "field_count": len(form)},
+            )
         return BrowserRuntimeResult(
             success=True,
-            output={"form_id": target, "submitted": True},
+            output={"form_id": target, "submitted": True, "current_url": observation.current_url},
             observation=observation,
             metadata={"network_used": False, "submitted": True},
         )
@@ -862,6 +870,8 @@ def _action_url(action: BrowserRuntimeAction, session: BrowserRuntimeSession) ->
     if _non_empty_string(action.parameters.get("href")):
         current = session.current_url or ""
         return urljoin(current, str(action.parameters["href"]).strip())
+    if _non_empty_string(action.parameters.get("success_url")):
+        return str(action.parameters["success_url"]).strip()
     return None
 
 

@@ -26,6 +26,7 @@ from .autonomous_multi_agent_runtime import (
     RuntimeVirtualEnvironment,
     RuntimeWorkspace,
 )
+from .autonomous_browser_scenario_coverage import build_browser_scenario_coverage
 
 
 SCENARIO_SCHEMA_VERSION = "autonomous_runtime_scenario_v1"
@@ -61,17 +62,23 @@ class AutonomousRuntimeTaskConfig:
     description: str = ""
     priority: int = 0
     assigned_agent_id: str | None = None
+    depends_on: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> AutonomousRuntimeTaskConfig:
         assigned = payload.get("assigned_agent_id")
+        metadata = _dict(payload.get("metadata", {}), "metadata")
+        depends_on = tuple(_string_list(payload.get("depends_on", []), "depends_on"))
+        if depends_on:
+            metadata = {**metadata, "depends_on": list(depends_on)}
         return cls(
             task_id=_required_id(payload, "task_id"),
             description=str(payload.get("description", "")),
             priority=_int(payload.get("priority", 0), "priority"),
             assigned_agent_id=str(assigned).strip() if assigned is not None else None,
-            metadata=_dict(payload.get("metadata", {}), "metadata"),
+            depends_on=depends_on,
+            metadata=metadata,
         )
 
 
@@ -199,6 +206,11 @@ class AutonomousRuntimeScenario:
         for task in self.tasks:
             if task.assigned_agent_id is not None and task.assigned_agent_id not in agent_set:
                 raise AutonomousRuntimeScenarioValidationError(f"Task '{task.task_id}' references unknown agent.")
+            for dependency in task.depends_on:
+                if dependency not in task_set:
+                    raise AutonomousRuntimeScenarioValidationError(f"Task '{task.task_id}' references unknown dependency.")
+                if dependency == task.task_id:
+                    raise AutonomousRuntimeScenarioValidationError(f"Task '{task.task_id}' cannot depend on itself.")
 
         namespaces = tuple(_string_list(self.virtual_environment.get("allowed_resource_namespaces", []), "allowed_resource_namespaces"))
         if "browser" not in namespaces:
@@ -257,9 +269,24 @@ class ScriptedRuntimeDecisionProvider:
         self.steps = steps
         self._consumed: set[str] = set()
         self.exhausted_events: list[dict[str, Any]] = []
+        self.dependency_block_events: list[dict[str, Any]] = []
 
     def __call__(self, agent: RuntimeAgentSpec, state: RuntimeSharedState) -> RuntimeActionDecision | None:
         task_id = state.task_assignments.get(agent.agent_id)
+        if task_id is not None:
+            unmet = _unmet_task_dependencies(task_id, state)
+            if unmet:
+                event = {"agent_id": agent.agent_id, "task_id": task_id, "reason": "task_dependencies_unmet", "unmet_dependencies": unmet}
+                self.dependency_block_events.append(event)
+                state.record_event(
+                    "task_dependency_blocked",
+                    "Scheduled task is waiting for declared dependencies.",
+                    agent_id=agent.agent_id,
+                    task_id=task_id,
+                    severity="warning",
+                    metadata={"unmet_dependencies": unmet},
+                )
+                return None
         for step in self.steps:
             if step.step_id in self._consumed:
                 continue
@@ -417,7 +444,7 @@ def write_autonomous_runtime_scenario_summary(summary: Mapping[str, Any], output
 def build_autonomous_runtime_scenario_summary(built: BuiltAutonomousRuntimeScenario) -> dict[str, Any]:
     runtime_summary = built.runtime.to_summary()
     expected = _evaluate_expected_results(built)
-    return {
+    summary = {
         "schema_version": SUMMARY_SCHEMA_VERSION,
         "scenario_id": built.scenario.scenario_id,
         "status": runtime_summary["status"],
@@ -433,13 +460,17 @@ def build_autonomous_runtime_scenario_summary(built: BuiltAutonomousRuntimeScena
         "runtime_summary": runtime_summary,
         "expected_results": expected,
         "expected_results_passed": all(item["passed"] for item in expected),
+        "task_dependency_status": _task_dependency_status(built.shared_state),
         "validation_warnings": list(built.validation_warnings),
         "scripted_provider": {
             "consumed_step_count": len(built.decision_provider._consumed),
             "exhausted_events": list(built.decision_provider.exhausted_events),
+            "dependency_block_events": list(built.decision_provider.dependency_block_events),
         },
         "no_runtime_execution": True,
     }
+    summary["browser_coverage"] = build_browser_scenario_coverage(built.scenario, summary)
+    return summary
 
 
 def _scenario_step_verifier(
@@ -498,10 +529,126 @@ def _evaluate_expected_results(built: BuiltAutonomousRuntimeScenario) -> list[di
             actual = len(session.snapshots) if session else 0
             passed = actual >= count
             details = {"session_id": session_id, "expected_count": count, "actual_count": actual}
+        elif kind in {"task_expected_result", "task_browser_expected_result"}:
+            passed, details = _evaluate_task_expected_result(raw, built)
         else:
             details = {"unsupported_kind": kind}
         results.append({"result_id": result_id, "kind": kind, "passed": passed, "details": details})
     return results
+
+
+def _evaluate_task_expected_result(raw: Mapping[str, Any], built: BuiltAutonomousRuntimeScenario) -> tuple[bool, dict[str, Any]]:
+    task_id = str(raw.get("task_id", ""))
+    task = built.shared_state.tasks.get(task_id)
+    task_events = _task_browser_events(built, task_id)
+    latest_observation = _latest_observation_from_events(task_events)
+    checks: dict[str, bool] = {}
+    details: dict[str, Any] = {
+        "task_id": task_id,
+        "task_status": task.status if task else None,
+        "event_count": len(task_events),
+    }
+    checks["task_completed"] = task is not None and task.status == "completed"
+
+    expected_text = raw.get("expected_text")
+    if isinstance(expected_text, str) and expected_text:
+        text = str(latest_observation.get("text_preview", "")) if latest_observation else ""
+        checks["expected_text"] = expected_text in text
+        details["expected_text"] = expected_text
+
+    expected_url = raw.get("expected_current_url")
+    if isinstance(expected_url, str) and expected_url:
+        current_url = latest_observation.get("current_url") if latest_observation else None
+        checks["expected_current_url"] = current_url == expected_url
+        details["expected_current_url"] = expected_url
+        details["current_url"] = current_url
+
+    if "expected_snapshot_count_min" in raw:
+        expected_count = _int(raw.get("expected_snapshot_count_min", 1), "expected_snapshot_count_min")
+        actual_count = _task_snapshot_count(task_events)
+        checks["expected_snapshot_count_min"] = actual_count >= expected_count
+        details["expected_snapshot_count_min"] = expected_count
+        details["snapshot_count"] = actual_count
+
+    artifact_kinds = _string_list(raw.get("expected_artifact_kinds", []), "expected_artifact_kinds")
+    if artifact_kinds:
+        artifact_refs = list(task.artifact_refs) if task else []
+        kind_checks = {kind: _artifact_kind_present(kind, artifact_refs) for kind in artifact_kinds}
+        checks["expected_artifact_kinds"] = all(kind_checks.values())
+        details["expected_artifact_kinds"] = kind_checks
+        details["artifact_refs"] = artifact_refs
+
+    details["checks"] = checks
+    return all(checks.values()), details
+
+
+def _task_browser_events(built: BuiltAutonomousRuntimeScenario, task_id: str) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for event in built.shared_state.group_event_log:
+        if event.task_id != task_id or event.event_type != "browser_action_observed":
+            continue
+        events.append(event.to_dict())
+    return events
+
+
+def _latest_observation_from_events(events: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for event in reversed(events):
+        metadata = event.get("metadata")
+        browser_result = metadata.get("browser_result") if isinstance(metadata, dict) else None
+        observation = browser_result.get("observation") if isinstance(browser_result, dict) else None
+        if isinstance(observation, dict):
+            return observation
+    return None
+
+
+def _task_snapshot_count(events: list[dict[str, Any]]) -> int:
+    count = 0
+    for event in events:
+        metadata = event.get("metadata")
+        browser_result = metadata.get("browser_result") if isinstance(metadata, dict) else None
+        artifact_refs = browser_result.get("artifact_refs") if isinstance(browser_result, dict) else []
+        if isinstance(artifact_refs, list):
+            count += sum(1 for ref in artifact_refs if _is_browser_snapshot_ref(str(ref)))
+    return count
+
+
+def _artifact_kind_present(kind: str, artifact_refs: list[str]) -> bool:
+    if kind == "browser_snapshot":
+        return any(_is_browser_snapshot_ref(ref) for ref in artifact_refs)
+    return False
+
+
+def _is_browser_snapshot_ref(ref: str) -> bool:
+    return ref.startswith("browser/") and "-snapshot-" in ref and ref.endswith(".json")
+
+
+def _unmet_task_dependencies(task_id: str, state: RuntimeSharedState) -> list[str]:
+    task = state.tasks.get(task_id)
+    if task is None:
+        return []
+    dependencies = _string_list(task.metadata.get("depends_on", []), "depends_on")
+    unmet: list[str] = []
+    for dependency in dependencies:
+        dependency_task = state.tasks.get(dependency)
+        if dependency_task is None or dependency_task.status != "completed":
+            unmet.append(dependency)
+    return unmet
+
+
+def _task_dependency_status(state: RuntimeSharedState) -> list[dict[str, Any]]:
+    status: list[dict[str, Any]] = []
+    for task_id, task in sorted(state.tasks.items()):
+        dependencies = _string_list(task.metadata.get("depends_on", []), "depends_on")
+        unmet = _unmet_task_dependencies(task_id, state)
+        status.append(
+            {
+                "task_id": task_id,
+                "depends_on": dependencies,
+                "unmet_dependencies": unmet,
+                "dependencies_satisfied": not unmet,
+            }
+        )
+    return status
 
 
 def _runtime_policy_from_dict(payload: Mapping[str, Any]) -> RuntimePolicy:
@@ -542,7 +689,7 @@ def _common_fixture_manifest_path(sessions: tuple[AutonomousRuntimeBrowserSessio
 
 
 def _validate_step_urls(step: AutonomousRuntimeScriptedStep, session: AutonomousRuntimeBrowserSessionConfig) -> None:
-    for key in ("url", "target_url", "href"):
+    for key in ("url", "target_url", "href", "success_url"):
         value = step.parameters.get(key)
         if isinstance(value, str) and value.strip():
             url = value.strip()
