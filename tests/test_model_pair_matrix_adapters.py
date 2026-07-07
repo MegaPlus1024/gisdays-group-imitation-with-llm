@@ -259,6 +259,44 @@ def test_normality_adapter_does_not_copy_raw_secret_like_fields() -> None:
     assert "<redacted_secret>" in payload_text
 
 
+def test_normality_adapter_includes_office_execution_artifact_summary_metadata() -> None:
+    trial = _trial(
+        group_history=[
+            _event(
+                action="office_append_docx_section",
+                metadata={
+                    "validation_accepted": True,
+                    "execution_attempted": True,
+                    "execution_success": True,
+                    "action_execution_enabled": True,
+                },
+            )
+        ],
+        metadata={
+            "office_execution_artifact_summary_path": (
+                "artifacts/single_trial_runs/phase_test/office_execution_artifact_summary.json"
+            ),
+            "office_execution_artifact_summary": {
+                "artifact_count": 2,
+                "readable_count": 2,
+            },
+        },
+    )
+
+    inputs = build_normality_inputs_from_matrix_run_summary(_matrix_summary(trial))
+    metadata = inputs[0]["metadata"]
+
+    assert metadata["execution_attempted_count"] == 1
+    assert metadata["execution_success_count"] == 1
+    assert metadata["validation_success_count"] == 1
+    assert metadata["action_execution_enabled"] is True
+    assert metadata["office_execution_artifact_summary_ref"] == (
+        "artifacts/single_trial_runs/phase_test/office_execution_artifact_summary.json"
+    )
+    assert metadata["office_execution_artifact_count"] == 2
+    assert metadata["office_execution_artifact_readable_count"] == 2
+
+
 def test_writes_jsonl_resource_observations(tmp_path: Path) -> None:
     observations = build_resource_observations_from_matrix_run_summary(_matrix_summary(_trial()))
 

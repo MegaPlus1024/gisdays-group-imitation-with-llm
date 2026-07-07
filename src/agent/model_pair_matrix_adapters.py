@@ -281,7 +281,62 @@ def _normality_metadata(trial: dict[str, Any], *, source_run_id: str) -> dict[st
         "trial_warnings": _string_list(trial.get("warnings")),
         "trial_notes": _string_list(trial.get("notes")),
     }
+    metadata.update(_action_execution_metadata(trial))
+    metadata.update(_office_execution_artifact_metadata(trial))
     return _drop_none_values(metadata)
+
+
+def _action_execution_metadata(trial: dict[str, Any]) -> dict[str, Any]:
+    group_history = [row for row in _list_value(trial.get("group_history")) if isinstance(row, Mapping)]
+    validation_rows = [row for row in group_history if "validation_accepted" in _metadata(row)]
+    execution_rows = [
+        row
+        for row in group_history
+        if "execution_attempted" in _metadata(row) or "execution_success" in _metadata(row)
+    ]
+    if not validation_rows and not execution_rows:
+        return {}
+    return {
+        "validation_success_count": sum(1 for row in validation_rows if _metadata(row).get("validation_accepted") is True),
+        "execution_attempted_count": sum(1 for row in execution_rows if _metadata(row).get("execution_attempted") is True),
+        "execution_success_count": sum(1 for row in execution_rows if _metadata(row).get("execution_success") is True),
+        "action_execution_enabled": any(_metadata(row).get("action_execution_enabled") is True for row in group_history),
+    }
+
+
+def _office_execution_artifact_metadata(trial: dict[str, Any]) -> dict[str, Any]:
+    trial_metadata = trial.get("metadata") if isinstance(trial.get("metadata"), Mapping) else {}
+    summary = _first_mapping(
+        trial.get("office_execution_artifact_summary"),
+        trial_metadata.get("office_execution_artifact_summary") if isinstance(trial_metadata, Mapping) else None,
+    )
+    output: dict[str, Any] = {}
+    for source in (trial, trial_metadata):
+        if not isinstance(source, Mapping):
+            continue
+        for key in ("office_execution_artifact_summary_ref", "office_execution_artifact_summary_path"):
+            text = _optional_text(source.get(key))
+            if text:
+                output["office_execution_artifact_summary_ref"] = text
+                break
+        if output.get("office_execution_artifact_summary_ref"):
+            break
+    if summary is not None:
+        output["office_execution_artifact_count"] = _int_or_none(summary.get("artifact_count"))
+        output["office_execution_artifact_readable_count"] = _int_or_none(summary.get("readable_count"))
+    return output
+
+
+def _metadata(row: Mapping[str, Any]) -> Mapping[str, Any]:
+    metadata = row.get("metadata")
+    return metadata if isinstance(metadata, Mapping) else {}
+
+
+def _first_mapping(*values: Any) -> Mapping[str, Any] | None:
+    for value in values:
+        if isinstance(value, Mapping):
+            return value
+    return None
 
 
 def _adapter_summary(
@@ -421,6 +476,10 @@ def _string_list(value: Any) -> list[str]:
     return [_safe_text(str(value))]
 
 
+def _list_value(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
 def _int_or_count(value: Any, fallback: int) -> int:
     if isinstance(value, bool):
         return fallback
@@ -429,3 +488,13 @@ def _int_or_count(value: Any, fallback: int) -> int:
     except (TypeError, ValueError):
         return fallback
     return parsed if parsed >= 0 else fallback
+
+
+def _int_or_none(value: Any) -> int | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None

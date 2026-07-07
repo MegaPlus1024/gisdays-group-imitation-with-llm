@@ -200,6 +200,9 @@ class RuleBasedTaskCorrectnessEvaluator:
     def evaluate(self, input: TaskCorrectnessEvaluationInput) -> TaskCorrectnessEvaluationResult:
         checks = _check_definitions(input.expected_outputs)
         if not checks:
+            office_result = _result_from_office_execution_artifacts(input)
+            if office_result is not None:
+                return office_result
             return _result_from_existing_trial_fields(input)
 
         check_results = [_evaluate_check(check, input, index=index) for index, check in enumerate(checks, start=1)]
@@ -458,6 +461,112 @@ def _result_from_existing_trial_fields(input: TaskCorrectnessEvaluationInput) ->
     )
 
 
+def _result_from_office_execution_artifacts(
+    input: TaskCorrectnessEvaluationInput,
+) -> TaskCorrectnessEvaluationResult | None:
+    artifact_summary = _office_execution_artifact_summary(input.trial_result)
+    if artifact_summary is None:
+        return None
+
+    group_history = [row for row in _list_value(input.trial_result.get("group_history")) if isinstance(row, dict)]
+    executable_rows = [
+        row
+        for row in group_history
+        if _row_metadata(row).get("action_execution_enabled") is True
+        or "execution_attempted" in _row_metadata(row)
+        or "execution_success" in _row_metadata(row)
+    ]
+    artifacts = [row for row in _list_value(artifact_summary.get("artifacts")) if isinstance(row, dict)]
+    criteria = {
+        "trial_succeeded": _trial_succeeded(input),
+        "all_validated": bool(group_history) and all(_row_metadata(row).get("validation_accepted") is True for row in group_history),
+        "all_executed": bool(executable_rows)
+        and all(
+            _row_metadata(row).get("execution_attempted") is True
+            and _row_metadata(row).get("execution_success") is True
+            for row in executable_rows
+        ),
+        "all_output_artifacts_exist": bool(artifacts)
+        and all(row.get("exists") is True and row.get("readable") is True for row in artifacts),
+    }
+    check_results = [
+        _office_execution_check_result("trial_succeeded", criteria["trial_succeeded"], "trial status succeeded"),
+        _office_execution_check_result("all_validated", criteria["all_validated"], "all group steps validated"),
+        _office_execution_check_result("all_executed", criteria["all_executed"], "all executable group steps ran successfully"),
+        _office_execution_check_result(
+            "all_output_artifacts_exist",
+            criteria["all_output_artifacts_exist"],
+            "all harvested office artifacts exist and are readable",
+            evidence_refs=[row["path"] for row in artifacts if isinstance(row.get("path"), str)],
+            metadata={
+                "artifact_count": artifact_summary.get("artifact_count", len(artifacts)),
+                "readable_count": artifact_summary.get("readable_count"),
+            },
+        ),
+    ]
+    score = round(sum(1.0 if value else 0.0 for value in criteria.values()) / len(criteria), 6)
+    status: TaskCorrectnessStatus
+    if all(criteria.values()):
+        status = "passed"
+    elif any(criteria.values()):
+        status = "partial"
+    else:
+        status = "failed"
+    return TaskCorrectnessEvaluationResult(
+        trial_id=input.trial_id,
+        scenario_id=input.scenario_id,
+        pair_id=input.pair_id,
+        status=status,
+        task_success=_task_success_from_status(status),
+        correctness_score=score,
+        check_results=check_results,
+        failure_reasons=[result.message for result in check_results if result.status == "failed"],
+        notes=[
+            "office_execution_correctness_only",
+            "semantic_content_quality_not_evaluated",
+        ],
+        no_runtime_execution=True,
+    )
+
+
+def _office_execution_check_result(
+    check_id: str,
+    passed: bool,
+    message: str,
+    *,
+    evidence_refs: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> TaskCorrectnessCheckResult:
+    return TaskCorrectnessCheckResult(
+        check_id=check_id,
+        status="passed" if passed else "failed",
+        score=1.0 if passed else 0.0,
+        message=message if passed else f"{message} failed",
+        evidence_refs=evidence_refs or [],
+        metadata={"check_type": "office_execution_artifact_summary", **(metadata or {})},
+    )
+
+
+def _office_execution_artifact_summary(payload: dict[str, Any]) -> dict[str, Any] | None:
+    for source in (payload, payload.get("metadata")):
+        if not isinstance(source, dict):
+            continue
+        summary = source.get("office_execution_artifact_summary")
+        if isinstance(summary, dict):
+            return summary
+    return None
+
+
+def _trial_succeeded(input: TaskCorrectnessEvaluationInput) -> bool:
+    status = input.trial_status or _optional_text(input.trial_result.get("status"))
+    return status in {"succeeded", "success", "completed", "passed"}
+
+
+def _row_metadata(row: dict[str, Any]) -> dict[str, Any]:
+    metadata = row.get("metadata")
+    return metadata if isinstance(metadata, dict) else {}
+
+
 def _evaluate_check(
     check: dict[str, Any],
     input: TaskCorrectnessEvaluationInput,
@@ -671,9 +780,25 @@ def _artifact_refs_from_trial_result(payload: dict[str, Any]) -> list[str]:
     refs: list[str] = []
     refs.extend(_string_list(payload.get("artifact_refs")))
     refs.extend(_string_list(payload.get("artifacts")))
+    refs.extend(_office_execution_artifact_summary_refs(payload))
     normality_ref = _optional_text(payload.get("normality_input_ref"))
     if normality_ref:
         refs.append(normality_ref)
+    return refs
+
+
+def _office_execution_artifact_summary_refs(payload: dict[str, Any]) -> list[str]:
+    refs: list[str] = []
+    for source in (payload, payload.get("metadata")):
+        if not isinstance(source, dict):
+            continue
+        for key in (
+            "office_execution_artifact_summary_path",
+            "office_execution_artifact_summary_ref",
+        ):
+            text = _optional_text(source.get(key))
+            if text:
+                refs.append(text)
     return refs
 
 
@@ -725,6 +850,10 @@ def _string_list(value: Any) -> list[str]:
     if isinstance(value, list | tuple | set):
         return [str(item) for item in value if item is not None]
     return [str(value)]
+
+
+def _list_value(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
 
 
 def _clean_text_list(value: list[str]) -> list[str]:

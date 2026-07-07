@@ -196,6 +196,112 @@ def test_disabled_evaluator_returns_skipped() -> None:
     assert "task_correctness_evaluator_disabled" in result.warnings
 
 
+def test_rule_based_evaluator_scores_successful_office_execution_artifacts() -> None:
+    artifact_path = "artifacts/single_trial_runs/phase_test/pipeline/workspace/office_outputs/report.docx"
+    result = RuleBasedTaskCorrectnessEvaluator().evaluate(
+        _input(
+            trial_result={
+                "status": "succeeded",
+                "group_history": [
+                    {
+                        "task_id": "t1",
+                        "action": "office_append_docx_section",
+                        "metadata": {
+                            "validation_accepted": True,
+                            "execution_attempted": True,
+                            "execution_success": True,
+                            "action_execution_enabled": True,
+                        },
+                    }
+                ],
+                "metadata": {
+                    "office_execution_artifact_summary": {
+                        "artifact_count": 1,
+                        "readable_count": 1,
+                        "artifacts": [
+                            {
+                                "path": artifact_path,
+                                "exists": True,
+                                "readable": True,
+                                "safe_text_excerpt": "Short bounded excerpt.",
+                            }
+                        ],
+                    }
+                },
+            },
+            trial_status="succeeded",
+        )
+    )
+
+    assert result.status == "passed"
+    assert result.task_success is True
+    assert result.correctness_score == 1.0
+    assert result.check_results[-1].evidence_refs == [artifact_path]
+    assert "semantic_content_quality_not_evaluated" in result.notes
+
+
+def test_rule_based_evaluator_scores_office_execution_lower_when_artifact_missing() -> None:
+    result = RuleBasedTaskCorrectnessEvaluator().evaluate(
+        _input(
+            trial_result={
+                "status": "succeeded",
+                "group_history": [
+                    {
+                        "task_id": "t1",
+                        "action": "office_append_docx_section",
+                        "metadata": {
+                            "validation_accepted": True,
+                            "execution_attempted": True,
+                            "execution_success": True,
+                            "action_execution_enabled": True,
+                        },
+                    }
+                ],
+                "metadata": {
+                    "office_execution_artifact_summary": {
+                        "artifact_count": 1,
+                        "readable_count": 0,
+                        "artifacts": [
+                            {
+                                "path": "artifacts/single_trial_runs/phase_test/pipeline/workspace/office_outputs/missing.docx",
+                                "exists": False,
+                                "readable": False,
+                            }
+                        ],
+                    }
+                },
+            },
+            trial_status="succeeded",
+        )
+    )
+
+    assert result.status == "partial"
+    assert result.correctness_score == 0.75
+    assert "all harvested office artifacts exist and are readable failed" in result.failure_reasons
+
+
+def test_build_correctness_input_includes_office_artifact_summary_ref() -> None:
+    correctness_input = build_correctness_input_from_trial_result(
+        {
+            "trial_id": "trial_office",
+            "scenario_id": "scenario_office",
+            "pair_id": "model_a__to__model_b",
+            "orchestrator_model_id": "model_a",
+            "executor_model_id": "model_b",
+            "status": "succeeded",
+            "metadata": {
+                "office_execution_artifact_summary_path": (
+                    "artifacts/single_trial_runs/phase_test/office_execution_artifact_summary.json"
+                )
+            },
+        }
+    )
+
+    assert correctness_input.artifact_refs == [
+        "artifacts/single_trial_runs/phase_test/office_execution_artifact_summary.json"
+    ]
+
+
 def test_batch_summary_counts_passed_failed_partial_skipped() -> None:
     inputs = [
         _input(trial_id="passed_trial"),
