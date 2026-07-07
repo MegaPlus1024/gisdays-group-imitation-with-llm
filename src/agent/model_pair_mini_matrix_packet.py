@@ -139,6 +139,7 @@ def build_controlled_mini_matrix_packet(
                     },
                     "postprocess_commands": [
                         _office_artifact_summary_command(run_output_dir),
+                        _office_execution_correctness_command(run_output_dir),
                     ],
                 }
             )
@@ -375,6 +376,25 @@ def _office_artifact_summary_command(run_output_dir: str) -> dict[str, Any]:
     ]
     return {
         "name": "office_execution_artifact_summary",
+        "argv": command,
+        "command": _command_text(command),
+        "no_runtime_execution": True,
+    }
+
+
+def _office_execution_correctness_command(run_output_dir: str) -> dict[str, Any]:
+    command = [
+        r".\.venv\Scripts\python.exe",
+        "scripts/score_office_execution_correctness.py",
+        "--trial-result",
+        f"{run_output_dir}/model_pair_single_trial_result.json",
+        "--office-artifact-summary",
+        f"{run_output_dir}/office_execution_artifact_summary.json",
+        "--output",
+        f"{run_output_dir}/office_execution_correctness_summary.json",
+    ]
+    return {
+        "name": "office_execution_correctness_summary",
         "argv": command,
         "command": _command_text(command),
         "no_runtime_execution": True,

@@ -45,6 +45,21 @@
           "command": ".\\.venv\\Scripts\\python.exe scripts/summarize_office_execution_artifacts.py --trial-result artifacts/single_trial_runs/phase_8_26_mini_matrix_r1/model_pair_single_trial_result.json --output artifacts/single_trial_runs/phase_8_26_mini_matrix_r1/office_execution_artifact_summary.json",
           "name": "office_execution_artifact_summary",
           "no_runtime_execution": true
+        },
+        {
+          "argv": [
+            ".\\.venv\\Scripts\\python.exe",
+            "scripts/score_office_execution_correctness.py",
+            "--trial-result",
+            "artifacts/single_trial_runs/phase_8_26_mini_matrix_r1/model_pair_single_trial_result.json",
+            "--office-artifact-summary",
+            "artifacts/single_trial_runs/phase_8_26_mini_matrix_r1/office_execution_artifact_summary.json",
+            "--output",
+            "artifacts/single_trial_runs/phase_8_26_mini_matrix_r1/office_execution_correctness_summary.json"
+          ],
+          "command": ".\\.venv\\Scripts\\python.exe scripts/score_office_execution_correctness.py --trial-result artifacts/single_trial_runs/phase_8_26_mini_matrix_r1/model_pair_single_trial_result.json --office-artifact-summary artifacts/single_trial_runs/phase_8_26_mini_matrix_r1/office_execution_artifact_summary.json --output artifacts/single_trial_runs/phase_8_26_mini_matrix_r1/office_execution_correctness_summary.json",
+          "name": "office_execution_correctness_summary",
+          "no_runtime_execution": true
         }
       ],
       "repeat_index": 1,
@@ -96,6 +111,21 @@
           "command": ".\\.venv\\Scripts\\python.exe scripts/summarize_office_execution_artifacts.py --trial-result artifacts/single_trial_runs/phase_8_26_mini_matrix_r2/model_pair_single_trial_result.json --output artifacts/single_trial_runs/phase_8_26_mini_matrix_r2/office_execution_artifact_summary.json",
           "name": "office_execution_artifact_summary",
           "no_runtime_execution": true
+        },
+        {
+          "argv": [
+            ".\\.venv\\Scripts\\python.exe",
+            "scripts/score_office_execution_correctness.py",
+            "--trial-result",
+            "artifacts/single_trial_runs/phase_8_26_mini_matrix_r2/model_pair_single_trial_result.json",
+            "--office-artifact-summary",
+            "artifacts/single_trial_runs/phase_8_26_mini_matrix_r2/office_execution_artifact_summary.json",
+            "--output",
+            "artifacts/single_trial_runs/phase_8_26_mini_matrix_r2/office_execution_correctness_summary.json"
+          ],
+          "command": ".\\.venv\\Scripts\\python.exe scripts/score_office_execution_correctness.py --trial-result artifacts/single_trial_runs/phase_8_26_mini_matrix_r2/model_pair_single_trial_result.json --office-artifact-summary artifacts/single_trial_runs/phase_8_26_mini_matrix_r2/office_execution_artifact_summary.json --output artifacts/single_trial_runs/phase_8_26_mini_matrix_r2/office_execution_correctness_summary.json",
+          "name": "office_execution_correctness_summary",
+          "no_runtime_execution": true
         }
       ],
       "repeat_index": 2,
@@ -146,6 +176,21 @@
           ],
           "command": ".\\.venv\\Scripts\\python.exe scripts/summarize_office_execution_artifacts.py --trial-result artifacts/single_trial_runs/phase_8_26_mini_matrix_r3/model_pair_single_trial_result.json --output artifacts/single_trial_runs/phase_8_26_mini_matrix_r3/office_execution_artifact_summary.json",
           "name": "office_execution_artifact_summary",
+          "no_runtime_execution": true
+        },
+        {
+          "argv": [
+            ".\\.venv\\Scripts\\python.exe",
+            "scripts/score_office_execution_correctness.py",
+            "--trial-result",
+            "artifacts/single_trial_runs/phase_8_26_mini_matrix_r3/model_pair_single_trial_result.json",
+            "--office-artifact-summary",
+            "artifacts/single_trial_runs/phase_8_26_mini_matrix_r3/office_execution_artifact_summary.json",
+            "--output",
+            "artifacts/single_trial_runs/phase_8_26_mini_matrix_r3/office_execution_correctness_summary.json"
+          ],
+          "command": ".\\.venv\\Scripts\\python.exe scripts/score_office_execution_correctness.py --trial-result artifacts/single_trial_runs/phase_8_26_mini_matrix_r3/model_pair_single_trial_result.json --office-artifact-summary artifacts/single_trial_runs/phase_8_26_mini_matrix_r3/office_execution_artifact_summary.json --output artifacts/single_trial_runs/phase_8_26_mini_matrix_r3/office_execution_correctness_summary.json",
+          "name": "office_execution_correctness_summary",
           "no_runtime_execution": true
         }
       ],

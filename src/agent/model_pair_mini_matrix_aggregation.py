@@ -49,6 +49,12 @@ def aggregate_mini_matrix_results(
             ),
             "correctness_score_count": len(scores),
             "mean_correctness_score": round(mean(scores), 6) if scores else None,
+            "execution_correctness_pass_count": sum(
+                1 for row in repeat_summaries if row.get("execution_correctness_pass") is True
+            ),
+            "artifact_correctness_pass_count": sum(
+                1 for row in repeat_summaries if row.get("artifact_correctness_pass") is True
+            ),
             "repeats": repeat_summaries,
             "warnings": warnings,
             "no_runtime_execution": True,
@@ -71,16 +77,19 @@ def _repeat_summary(run_dir: Path) -> dict[str, Any]:
     trial_result_path = run_dir / "model_pair_single_trial_result.json"
     matrix_summary_path = run_dir / "model_pair_single_trial_matrix_summary.json"
     office_summary_path = run_dir / "office_execution_artifact_summary.json"
+    correctness_summary_path = run_dir / "office_execution_correctness_summary.json"
     adapter_summary_path = run_dir / "matrix_adapters" / "matrix_run_adapter_summary.json"
 
     trial_result = _load_json_or_empty(trial_result_path)
     matrix_summary = _load_json_or_empty(matrix_summary_path)
     office_summary = _load_json_or_empty(office_summary_path)
+    correctness_summary = _load_json_or_empty(correctness_summary_path)
     adapter_summary = _load_json_or_empty(adapter_summary_path)
     warnings = [
         *_string_list(trial_result.get("warnings")),
         *_string_list(matrix_summary.get("warnings")),
         *_string_list(office_summary.get("warnings")),
+        *_string_list(correctness_summary.get("warnings")),
         *_string_list(adapter_summary.get("warnings")),
     ]
     if not trial_result_path.is_file():
@@ -91,6 +100,7 @@ def _repeat_summary(run_dir: Path) -> dict[str, Any]:
         warnings.append("office_execution_artifact_summary_missing")
 
     execution_counts = _execution_counts(trial_result)
+    correctness_score = _correctness_score(trial_result, correctness_summary)
     return _drop_none_values(
         {
             "run_id": _run_id(run_dir, trial_result, matrix_summary, office_summary),
@@ -100,7 +110,19 @@ def _repeat_summary(run_dir: Path) -> dict[str, Any]:
             "pair_id": _optional_text(trial_result.get("pair_id")),
             "status": _optional_text(trial_result.get("status")) or "missing",
             "task_success": trial_result.get("task_success") if isinstance(trial_result.get("task_success"), bool) else None,
-            "correctness_score": _optional_score(trial_result.get("correctness_score")),
+            "correctness_score": correctness_score,
+            "correctness_summary_path": (
+                _safe_relative_path(correctness_summary_path) if correctness_summary_path.is_file() else None
+            ),
+            "correctness_criteria": (
+                correctness_summary.get("criteria") if isinstance(correctness_summary.get("criteria"), Mapping) else None
+            ),
+            "execution_correctness_pass": correctness_summary.get("execution_correctness_pass")
+            if isinstance(correctness_summary.get("execution_correctness_pass"), bool)
+            else None,
+            "artifact_correctness_pass": correctness_summary.get("artifact_correctness_pass")
+            if isinstance(correctness_summary.get("artifact_correctness_pass"), bool)
+            else None,
             "normality_input_ref": _optional_text(trial_result.get("normality_input_ref")),
             "error_code": _optional_text(trial_result.get("error_code")),
             "execution_attempted_count": execution_counts["attempted"],
@@ -114,6 +136,13 @@ def _repeat_summary(run_dir: Path) -> dict[str, Any]:
             "warnings": sorted(set(warnings)),
         }
     )
+
+
+def _correctness_score(trial_result: Mapping[str, Any], correctness_summary: Mapping[str, Any]) -> float | None:
+    summary_score = _optional_score(correctness_summary.get("correctness_score"))
+    if summary_score is not None:
+        return summary_score
+    return _optional_score(trial_result.get("correctness_score"))
 
 
 def _load_json_or_empty(path: Path) -> dict[str, Any]:

@@ -844,11 +844,18 @@ def test_controlled_mini_matrix_packet_commands_include_postprocess_and_aggregat
     commands = _json(summary["commands_path"])
 
     assert all(
-        repeat["postprocess_commands"][0]["name"] == "office_execution_artifact_summary"
+        [command["name"] for command in repeat["postprocess_commands"]]
+        == ["office_execution_artifact_summary", "office_execution_correctness_summary"]
         for repeat in commands["repeats"]
     )
     assert all(
         "scripts/summarize_office_execution_artifacts.py" in repeat["postprocess_commands"][0]["argv"]
+        and "scripts/score_office_execution_correctness.py" in repeat["postprocess_commands"][1]["argv"]
+        for repeat in commands["repeats"]
+    )
+    assert all(
+        repeat["postprocess_commands"][0]["no_runtime_execution"] is True
+        and repeat["postprocess_commands"][1]["no_runtime_execution"] is True
         for repeat in commands["repeats"]
     )
     assert commands["aggregate_command"]["name"] == "aggregate_mini_matrix_results"

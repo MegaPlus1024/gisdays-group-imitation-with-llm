@@ -48,6 +48,10 @@ def main(argv: list[str] | None = None) -> int:
             "task_success_count": summary.get("task_success_count", 0),
             "execution_success_count": summary.get("execution_success_count", 0),
             "office_artifact_count": summary.get("office_artifact_count", 0),
+            "correctness_score_count": summary.get("correctness_score_count", 0),
+            "mean_correctness_score": summary.get("mean_correctness_score"),
+            "execution_correctness_pass_count": summary.get("execution_correctness_pass_count", 0),
+            "artifact_correctness_pass_count": summary.get("artifact_correctness_pass_count", 0),
             "warnings": summary.get("warnings", []),
             "no_runtime_execution": True,
         }
