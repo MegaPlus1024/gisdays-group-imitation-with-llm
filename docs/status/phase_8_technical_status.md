@@ -129,10 +129,44 @@ Limitations:
 
 - no true parallel execution or worker threads yet;
 - no production deployment/hardening layer;
-- no live browser runtime completion yet;
+- browser completion is still not a real browser/Chromium execution layer;
 - no mail/git/other app actions;
 - no semantic LLM judge integration;
 - current validation is unit-test/fake-provider based, not broad scenario validation.
+
+## Phase 9.2 Autonomous browser runtime integration
+
+Phase 9.2 adds browser runtime completion at the controlled/fixture-backed library layer in `src/agent/autonomous_browser_runtime.py`.
+
+What was added:
+
+- browser session/workspace metadata with safe session ids, workspace ids, environment ids, allowed domains, visited URLs, snapshots, last observation, synthetic form state and policy counters;
+- browser action envelope for `browser_open_url`, `browser_search`, `browser_click`, `browser_extract_text`, `browser_fill`, `browser_submit`, `browser_wait` and `browser_snapshot`;
+- namespace-gated browser validation through the existing autonomous runtime browser namespace guard;
+- fixture-backed executor using repository HTML fixtures and `browser_fixture_resolver.py`, with no external network or real browser launch;
+- deterministic browser verifier for expected text, expected URL and required snapshot/artifact checks;
+- integration helper that converts `RuntimeActionDecision` into browser actions and returns `RuntimeActionResult`;
+- browser observations are fed into generic runtime facts/events/artifacts without changing the autonomous runtime summary schema;
+- optional Playwright adapter interface that remains disabled by default and does not import or launch Playwright on import.
+
+What does not run:
+
+- no real browser, Playwright or Chromium is launched;
+- no external HTTP/network request is made by the fixture executor;
+- no model, API judge, LLM-as-a-judge, Office/LibreOffice or experiment is launched;
+- no mail/git/calendar/other external app actions are added.
+
+Which TZ gaps this advances:
+
+- browser scripts are no longer only scaffolded: they now have fixture-backed autonomous runtime integration;
+- virtual environment namespace policy is exercised by browser actions;
+- browser observations and synthetic browser artifacts can be carried by the autonomous runtime shared state.
+
+Limitations:
+
+- real Playwright/Chromium execution remains guarded future/operator-only work;
+- browser coverage is fixture-backed and deterministic, not broad production web automation;
+- mail/git/other application actions remain outside the approved scope.
 
 ## 4. Offline reproduction commands
 
@@ -199,12 +233,12 @@ Committed packet/example files remain allowed, including `artifacts/first_run_pa
 - Semantic judge scoring is not available yet.
 - API judge provider integration needs a budgeted Phase 8.30 design and operator secret-handling path.
 - Autonomous multi-agent runtime foundation exists, but production long-running deployment and true parallel execution are not implemented.
-- Browser and real network behavior are not part of the confirmed run.
+- Browser behavior is confirmed at the fixture-backed autonomous runtime layer only; real browser and real network behavior are not part of the confirmed run.
 - Runtime artifacts are evidence for local work, but are not source-controlled.
 
 ## 8. Next technical stage
 
-The next practical stage should complete browser runtime behavior on top of the Phase 9.1 foundation, still behind explicit guards and without enabling arbitrary external app integrations.
+The next practical stage should broaden browser fixture scenarios and, only if separately approved, add guarded operator-only Playwright execution checks without enabling arbitrary external app integrations.
 
 Later semantic judge work remains separate and should stay guarded:
 

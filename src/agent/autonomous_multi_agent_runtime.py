@@ -15,6 +15,13 @@ ResetPolicy = Literal["never", "per_run", "per_agent"]
 TERMINAL_TASK_STATUSES = {"completed", "failed", "blocked"}
 BROWSER_RUNTIME_ACTION_NAMES = {
     "browser_open_url",
+    "browser_search",
+    "browser_click",
+    "browser_extract_text",
+    "browser_fill",
+    "browser_submit",
+    "browser_wait",
+    "browser_snapshot",
     "open_url",
     "search_web",
     "read_page_summary",
