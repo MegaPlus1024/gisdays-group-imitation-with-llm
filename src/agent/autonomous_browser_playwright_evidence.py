@@ -1,0 +1,283 @@
+from __future__ import annotations
+
+import json
+import re
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any
+from urllib.parse import urlparse
+
+
+EVIDENCE_SCHEMA_VERSION = "autonomous_browser_playwright_smoke_evidence_v1"
+SMOKE_SUMMARY_SCHEMA_VERSION = "autonomous_browser_playwright_smoke_summary_v1"
+SUCCESS_EVIDENCE_LEVEL = "guarded_real_browser_smoke_succeeded"
+FAILED_EVIDENCE_LEVEL = "guarded_real_browser_smoke_not_succeeded"
+REQUIRED_LOGICAL_URLS = (
+    "https://local.intranet/tickets/1",
+    "https://docs.local/docs/policy",
+)
+LIMITATIONS = (
+    "single guarded smoke scenario",
+    "headless Chromium only",
+    "local fixture server only",
+    "not production browser automation",
+    "no external network",
+    "no mail/git actions",
+    "no LLM judge",
+)
+
+
+class PlaywrightSmokeEvidenceError(ValueError):
+    """Raised when Playwright smoke evidence is malformed or unsafe."""
+
+
+@dataclass(frozen=True)
+class PlaywrightSmokeEvidence:
+    schema_version: str
+    source_schema_version: str
+    operator_id: str
+    status: str
+    passed: bool
+    actions_attempted: int
+    actions_succeeded: int
+    actions_failed: int
+    expected_results_total: int
+    expected_results_passed: int
+    logical_urls_visited: tuple[str, ...]
+    served_url_policy: dict[str, Any]
+    browser_backend: dict[str, Any]
+    scenario_scope: dict[str, Any]
+    evidence_level: str
+    limitations: tuple[str, ...]
+
+    def to_report(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "source_schema_version": self.source_schema_version,
+            "operator_id": self.operator_id,
+            "status": self.status,
+            "passed": self.passed,
+            "actions_attempted": self.actions_attempted,
+            "actions_succeeded": self.actions_succeeded,
+            "actions_failed": self.actions_failed,
+            "expected_results_total": self.expected_results_total,
+            "expected_results_passed": self.expected_results_passed,
+            "logical_urls_visited": list(self.logical_urls_visited),
+            "served_url_policy": self.served_url_policy,
+            "browser_backend": self.browser_backend,
+            "scenario_scope": self.scenario_scope,
+            "evidence_level": self.evidence_level,
+            "limitations": list(self.limitations),
+        }
+
+
+def validate_playwright_smoke_summary(summary: Mapping[str, Any]) -> PlaywrightSmokeEvidence:
+    if not isinstance(summary, Mapping):
+        raise PlaywrightSmokeEvidenceError("summary must be a mapping.")
+    _reject_unsafe_strings(summary)
+
+    source_schema_version = _string(summary.get("schema_version"), "schema_version")
+    if source_schema_version != SMOKE_SUMMARY_SCHEMA_VERSION:
+        raise PlaywrightSmokeEvidenceError("unexpected smoke summary schema_version.")
+
+    actions_attempted = _int(summary.get("actions_attempted"), "actions_attempted")
+    actions_succeeded = _int(summary.get("actions_succeeded"), "actions_succeeded")
+    actions_failed = _int(summary.get("actions_failed"), "actions_failed")
+    expected_results = _list(summary.get("expected_results"), "expected_results")
+    expected_results_passed = sum(1 for item in expected_results if isinstance(item, Mapping) and item.get("passed") is True)
+    logical_urls = tuple(_string_list(summary.get("logical_urls_visited"), "logical_urls_visited"))
+    served_urls = tuple(_served_urls(summary))
+    _validate_served_urls(served_urls)
+
+    status = _string(summary.get("status"), "status")
+    error_code = summary.get("error_code")
+    no_runtime_execution = summary.get("no_runtime_execution")
+    passed = (
+        status == "succeeded"
+        and error_code is None
+        and no_runtime_execution is False
+        and actions_attempted == 6
+        and actions_succeeded == 6
+        and actions_failed == 0
+        and len(expected_results) == 6
+        and expected_results_passed == len(expected_results)
+        and set(REQUIRED_LOGICAL_URLS).issubset(set(logical_urls))
+        and bool(served_urls)
+    )
+
+    return PlaywrightSmokeEvidence(
+        schema_version=EVIDENCE_SCHEMA_VERSION,
+        source_schema_version=source_schema_version,
+        operator_id=_string(summary.get("operator_id"), "operator_id"),
+        status=status,
+        passed=passed,
+        actions_attempted=actions_attempted,
+        actions_succeeded=actions_succeeded,
+        actions_failed=actions_failed,
+        expected_results_total=len(expected_results),
+        expected_results_passed=expected_results_passed,
+        logical_urls_visited=logical_urls,
+        served_url_policy={
+            "loopback_only": True,
+            "served_urls_checked": len(served_urls),
+            "served_url_prefix": "http://127.0.0.1:8765/",
+        },
+        browser_backend=dict(_mapping(summary.get("browser_backend"), "browser_backend")),
+        scenario_scope=dict(_mapping(summary.get("scenario_scope"), "scenario_scope")),
+        evidence_level=SUCCESS_EVIDENCE_LEVEL if passed else FAILED_EVIDENCE_LEVEL,
+        limitations=LIMITATIONS,
+    )
+
+
+def build_playwright_smoke_evidence_report(summary: Mapping[str, Any]) -> dict[str, Any]:
+    return validate_playwright_smoke_summary(summary).to_report()
+
+
+def render_playwright_smoke_evidence_markdown(report: Mapping[str, Any]) -> str:
+    logical_urls = _string_list(report.get("logical_urls_visited"), "logical_urls_visited")
+    limitations = _string_list(report.get("limitations"), "limitations")
+    browser_backend = _mapping(report.get("browser_backend"), "browser_backend")
+    scenario_scope = _mapping(report.get("scenario_scope"), "scenario_scope")
+    served_url_policy = _mapping(report.get("served_url_policy"), "served_url_policy")
+    lines = [
+        "# Evidence: guarded Playwright browser smoke run",
+        "",
+        "## Summary",
+        "",
+        f"- Status: {report.get('status')}",
+        "- Guarded real browser path: executed by operator",
+        (
+            "- Browser backend: "
+            f"{browser_backend.get('browser_name')} via {browser_backend.get('type')}, "
+            f"headless={browser_backend.get('headless')}"
+        ),
+        (
+            "- Actions attempted/succeeded/failed: "
+            f"{report.get('actions_attempted')}/{report.get('actions_succeeded')}/{report.get('actions_failed')}"
+        ),
+        f"- Expected results: {report.get('expected_results_passed')}/{report.get('expected_results_total')} passed",
+        f"- Scenario: {scenario_scope.get('scenario_id')}",
+        "- Fixture server: loopback-only local fixture server",
+        f"- Evidence level: {report.get('evidence_level')}",
+        "",
+        "## What was verified",
+        "",
+        "- Playwright/Chromium launched through the guarded operator path.",
+        "- Local fixture server served browser pages through loopback URLs.",
+        "- Logical URLs mapped to loopback fixture files.",
+        "- Browser actions opened pages, extracted text, searched content and prepared snapshots.",
+        "- Expected text markers were found.",
+        "- No external network was required.",
+        "",
+        "## Evidence details",
+        "",
+        f"- Source schema: `{report.get('source_schema_version')}`",
+        f"- Operator id: `{report.get('operator_id')}`",
+        f"- Passed: `{str(report.get('passed')).lower()}`",
+        f"- Served URL policy: loopback_only={served_url_policy.get('loopback_only')}, checked={served_url_policy.get('served_urls_checked')}",
+        "- Logical URLs visited:",
+    ]
+    lines.extend(f"  - `{url}`" for url in logical_urls)
+    lines.extend(
+        [
+            "",
+            "## Limitations",
+            "",
+        ]
+    )
+    lines.extend(f"- {item}" for item in limitations)
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _served_urls(summary: Mapping[str, Any]) -> list[str]:
+    diagnostics = summary.get("diagnostics", {})
+    if not isinstance(diagnostics, Mapping):
+        return []
+    actions = diagnostics.get("actions", [])
+    if not isinstance(actions, list):
+        return []
+    urls: list[str] = []
+    for action in actions:
+        if isinstance(action, Mapping) and isinstance(action.get("served_url"), str):
+            urls.append(action["served_url"])
+    return urls
+
+
+def _validate_served_urls(urls: tuple[str, ...]) -> None:
+    for url in urls:
+        parsed = urlparse(url)
+        if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost"}:
+            raise PlaywrightSmokeEvidenceError("served URLs must be loopback-only.")
+        if parsed.hostname == "127.0.0.1" and parsed.port != 8765:
+            raise PlaywrightSmokeEvidenceError("served URL port must match the smoke fixture server.")
+
+
+def _reject_unsafe_strings(value: Any) -> None:
+    if isinstance(value, Mapping):
+        for child in value.values():
+            _reject_unsafe_strings(child)
+        return
+    if isinstance(value, list):
+        for child in value:
+            _reject_unsafe_strings(child)
+        return
+    if not isinstance(value, str):
+        return
+    if _looks_like_secret(value):
+        raise PlaywrightSmokeEvidenceError("summary contains a secret-like value.")
+    if value.startswith(("http://", "https://")):
+        return
+    if re.search(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]", value):
+        raise PlaywrightSmokeEvidenceError("summary contains a local absolute path.")
+    if re.search(r"(?<!\w)/(?:Users|home|tmp|var|etc|mnt|private)/", value):
+        raise PlaywrightSmokeEvidenceError("summary contains a local absolute path.")
+
+
+def _looks_like_secret(value: str) -> bool:
+    patterns = (
+        r"sk-[A-Za-z0-9_-]+",
+        r"OPENAI_API_KEY\s*=",
+        r"DEEPSEEK_API_KEY\s*=",
+        r"Authorization\s*:",
+        r"api_key[^A-Za-z0-9_-]+[A-Za-z0-9_-]{20,}",
+    )
+    return any(re.search(pattern, value, flags=re.IGNORECASE) for pattern in patterns)
+
+
+def _mapping(value: Any, label: str) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise PlaywrightSmokeEvidenceError(f"{label} must be a mapping.")
+    return value
+
+
+def _list(value: Any, label: str) -> list[Any]:
+    if not isinstance(value, list):
+        raise PlaywrightSmokeEvidenceError(f"{label} must be a list.")
+    return value
+
+
+def _string_list(value: Any, label: str) -> list[str]:
+    items = _list(value, label)
+    out: list[str] = []
+    for item in items:
+        if not isinstance(item, str):
+            raise PlaywrightSmokeEvidenceError(f"{label} must contain strings.")
+        out.append(item)
+    return out
+
+
+def _string(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise PlaywrightSmokeEvidenceError(f"{label} must be a non-empty string.")
+    return value
+
+
+def _int(value: Any, label: str) -> int:
+    if not isinstance(value, int):
+        raise PlaywrightSmokeEvidenceError(f"{label} must be an integer.")
+    return value
+
+
+def report_to_json(report: Mapping[str, Any]) -> str:
+    return json.dumps(dict(report), ensure_ascii=True, indent=2, sort_keys=True)

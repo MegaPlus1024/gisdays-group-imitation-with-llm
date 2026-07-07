@@ -389,6 +389,45 @@ Limitations:
 - the operator must rerun the guarded command manually to collect post-fix smoke evidence;
 - success should not be claimed until that new operator-run summary is reviewed.
 
+## Phase 9.9 Playwright smoke evidence
+
+Phase 9.9 records safe committed evidence from the repeated operator-run guarded Playwright smoke after the Phase 9.8 fixture mapping fix.
+
+Evidence source:
+
+- raw runtime summary: `artifacts/autonomous_runtime_summaries/playwright_operator/playwright_smoke_summary.json`;
+- committed evidence doc: `docs/status/playwright_smoke_evidence.md`;
+- the raw runtime summary remains ignored and is not source-controlled.
+
+Validated result:
+
+- smoke status: `succeeded`;
+- evidence level: `guarded_real_browser_smoke_succeeded`;
+- guarded real browser path was executed by the operator, not by Codex;
+- browser backend: headless Chromium through Playwright;
+- scenario: `browser_intranet_research_group_basic`;
+- actions attempted/succeeded/failed: 6/6/0;
+- expected results passed: 6/6;
+- logical URLs visited:
+  - `https://local.intranet/tickets/1`;
+  - `https://docs.local/docs/policy`;
+- served URLs were loopback fixture URLs under `http://127.0.0.1:8765/`;
+- no local absolute paths or secrets were present in the evidence summary.
+
+What this confirms:
+
+- the guarded Playwright/Chromium execution path can launch through the operator-approved command;
+- the local fixture server serves the controlled pages after the Phase 9.8 mapping fix;
+- browser open/extract/search/snapshot smoke actions work against committed local fixtures;
+- expected text markers are found without external network access.
+
+Limitations:
+
+- this is one guarded smoke scenario only;
+- evidence is for headless Chromium and a loopback-only fixture server;
+- this is not production browser automation and not production deployment/hardening;
+- no external network, mail/git actions or LLM judge were involved.
+
 ## 4. Offline reproduction commands
 
 The following commands are intended for offline post-processing of already-produced artifacts. They do not start models or live API calls.
@@ -468,12 +507,12 @@ Committed packet/example files remain allowed, including `artifacts/first_run_pa
 - Semantic judge scoring is not available yet.
 - API judge provider integration needs a budgeted Phase 8.30 design and operator secret-handling path.
 - Autonomous multi-agent runtime foundation exists, but production long-running deployment and true parallel execution are not implemented.
-- Browser behavior is confirmed at the fixture-backed autonomous runtime/scenario layer only; real browser and real network behavior are not part of the confirmed run.
+- Browser behavior is confirmed at the fixture-backed autonomous runtime/scenario layer and by one operator-run guarded Playwright/Chromium smoke against local fixtures; production browser automation and external web/network behavior are not confirmed.
 - Runtime artifacts are evidence for local work, but are not source-controlled.
 
 ## 8. Next technical stage
 
-The next practical stage should be an operator-approved real Playwright smoke run against local fixtures, or additional fixture-backed browser breadth if real browser execution remains deferred.
+The next practical browser stage should expand guarded browser coverage beyond the single smoke scenario, while keeping external network and production browser automation out of scope unless separately approved.
 
 Later semantic judge work remains separate and should stay guarded:
 
