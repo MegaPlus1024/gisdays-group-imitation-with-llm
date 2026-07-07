@@ -1,0 +1,26 @@
+{
+  "execute_actions": false,
+  "execution_options": {
+    "allow_runtime_execution": true,
+    "no_runtime_execution": false
+  },
+  "executor_base_url": "http://127.0.0.1:8081/v1",
+  "force": true,
+  "max_group_steps": 1,
+  "max_steps_per_agent": 1,
+  "mode": "controlled_single_trial",
+  "models_config_path": "configs/evaluation_models.json",
+  "notes": [
+    "Dual-endpoint example config for controlled single-trial runtime.",
+    "Start second_model on port 8080 with alias second_model.",
+    "Start first_model on port 8081 with alias first_model.",
+    "Runtime execution still requires guarded operator confirmation."
+  ],
+  "orchestrator_base_url": "http://127.0.0.1:8080/v1",
+  "orchestrator_repair_attempts": 0,
+  "out_dir": "artifacts/single_trial_runs/phase_8_17_dual_endpoint/pipeline",
+  "repair_attempts": 0,
+  "run_id": "phase_8_17_dual_endpoint",
+  "scenario_path": "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json",
+  "schema_version": "single_trial_local_pipeline_config_v1"
+}

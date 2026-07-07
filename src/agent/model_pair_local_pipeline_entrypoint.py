@@ -305,6 +305,8 @@ def _existing_pipeline_config_payload(entrypoint_input: Mapping[str, Any]) -> di
     payload.setdefault("run_id", _safe_optional_text(entrypoint_input.get("trial_id")) or "local_model_pair_trial")
     payload.setdefault("orchestrator_model_id", _safe_optional_text(entrypoint_input.get("orchestrator_model_id")))
     payload.setdefault("executor_model_id", _safe_optional_text(entrypoint_input.get("executor_model_id")))
+    if _safe_optional_text(payload.get("mode")) == "controlled_single_trial":
+        payload["mode"] = "local"
     _validate_existing_pipeline_out_dir(payload.get("out_dir"))
     return {key: value for key, value in payload.items() if value is not None}
 

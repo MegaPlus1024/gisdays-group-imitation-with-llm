@@ -444,6 +444,30 @@ def test_config_build_helper_accepts_first_run_packet_local_config(
     assert [name for name, _ in calls] == ["config"]
 
 
+def test_config_build_helper_accepts_dual_endpoint_controlled_trial_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_fake_existing_pipeline_module(monkeypatch)
+    local_config = json.loads(
+        Path("configs/local_pipeline/single_trial_local_pipeline.dual_endpoint.example.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    config = build_orchestrator_executor_run_config_from_local_pipeline_config(
+        _entrypoint_input(allow_runtime=True, local_pipeline_config=local_config)
+    )
+
+    assert config.payload["mode"] == "local"
+    assert config.payload["run_id"] == "phase_8_17_dual_endpoint"
+    assert config.payload["out_dir"] == "artifacts/single_trial_runs/phase_8_17_dual_endpoint/pipeline"
+    assert config.payload["orchestrator_base_url"] == "http://127.0.0.1:8080/v1"
+    assert config.payload["executor_base_url"] == "http://127.0.0.1:8081/v1"
+    assert config.payload["orchestrator_model_id"] == "second_model"
+    assert config.payload["executor_model_id"] == "first_model"
+    assert [name for name, _ in calls] == ["config"]
+
+
 def test_run_config_build_failure_returns_staged_diagnostics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

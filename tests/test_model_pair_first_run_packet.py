@@ -24,6 +24,7 @@ PAIR_ID = "second_model__to__first_model"
 SCENARIO_ID = "office_document_file_workflow_basic_v1"
 RUN_ID = "phase_8_12_first"
 TRIAL_ID = f"{SCENARIO_ID}__{PAIR_ID}__r01"
+DUAL_ENDPOINT_CONFIG_PATH = Path("configs/local_pipeline/single_trial_local_pipeline.dual_endpoint.example.json")
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> Path:
@@ -190,6 +191,55 @@ def test_builds_ready_packet_and_expected_artifacts(
     assert f"--run-id {RUN_ID}" in script
     assert f"--tag {CONTROLLED_SINGLE_TRIAL_TAG}" in script
     assert "--tag smoke" in script
+
+
+def test_dual_endpoint_example_config_is_safe_and_packet_ready() -> None:
+    payload = _json(DUAL_ENDPOINT_CONFIG_PATH)
+
+    assert payload["schema_version"] == "single_trial_local_pipeline_config_v1"
+    assert payload["mode"] == "controlled_single_trial"
+    assert payload["models_config_path"] == "configs/evaluation_models.json"
+    assert payload["scenario_path"] == "configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json"
+    assert payload["out_dir"] == "artifacts/single_trial_runs/phase_8_17_dual_endpoint/pipeline"
+    assert payload["run_id"] == "phase_8_17_dual_endpoint"
+    assert payload["orchestrator_base_url"] == "http://127.0.0.1:8080/v1"
+    assert payload["executor_base_url"] == "http://127.0.0.1:8081/v1"
+    assert payload["execute_actions"] is False
+    assert payload["execution_options"]["allow_runtime_execution"] is True
+    assert payload["execution_options"]["no_runtime_execution"] is False
+    for key in ("models_config_path", "scenario_path", "out_dir"):
+        assert not Path(payload[key]).is_absolute()
+        assert ".." not in Path(payload[key]).parts
+
+
+def test_packet_builder_accepts_and_preserves_dual_endpoint_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _build_packet(
+        tmp_path,
+        monkeypatch,
+        run_id="phase_8_17_dual_endpoint",
+        local_config_overrides={
+            "mode": "controlled_single_trial",
+            "out_dir": "artifacts/single_trial_runs/phase_8_17_dual_endpoint/pipeline",
+            "run_id": "phase_8_17_dual_endpoint",
+            "orchestrator_base_url": "http://127.0.0.1:8080/v1",
+            "executor_base_url": "http://127.0.0.1:8081/v1",
+        },
+    )
+
+    assert summary["status"] == "ready"
+    copied_config = _json(summary["local_pipeline_config_path"])
+    command = _json(summary["command_path"])
+
+    assert copied_config["mode"] == "controlled_single_trial"
+    assert copied_config["orchestrator_base_url"] == "http://127.0.0.1:8080/v1"
+    assert copied_config["executor_base_url"] == "http://127.0.0.1:8081/v1"
+    assert "http:<absolute_path>" not in json.dumps(copied_config, ensure_ascii=False)
+    assert str(summary["local_pipeline_config_path"]) in command["argv"]
+    assert "artifacts/single_trial_runs/phase_8_17_dual_endpoint" in command["argv"]
+    assert command["no_runtime_execution"] is True
 
 
 def test_summary_paths_are_relative_and_do_not_expose_tmp_root(

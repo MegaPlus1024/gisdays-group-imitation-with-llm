@@ -103,6 +103,28 @@ def test_extracts_endpoints_and_detects_shared_endpoint(
     assert summary["no_runtime_execution"] is True
 
 
+def test_endpoint_summary_uses_dual_endpoint_overrides(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _workspace(tmp_path, monkeypatch)
+
+    summary = summarize_local_runtime_endpoints(
+        _local_pipeline_config(
+            mode="controlled_single_trial",
+            orchestrator_base_url="http://127.0.0.1:8080/v1",
+            executor_base_url="http://127.0.0.1:8081/v1",
+        )
+    )
+
+    assert summary["status"] == "resolved"
+    assert summary["orchestrator_endpoint"] == "http://127.0.0.1:8080/v1"
+    assert summary["executor_endpoint"] == "http://127.0.0.1:8081/v1"
+    assert summary["shared_endpoint"] is False
+    assert summary["warnings"] == []
+    assert summary["no_runtime_execution"] is True
+
+
 def test_detects_missing_endpoint_fields(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
