@@ -1,13 +1,14 @@
-# Попунктный отчёт о выполнении ТЗ
+﻿# Попунктный отчёт о выполнении ТЗ
 
 ## 1. Основание отчёта
 
-- Основной источник ТЗ: `docs/ai/final_tz_readiness_audit.md`, разделы `Target Formulation` и `Requirement Coverage Matrix`.
+- Точный текст и структура ТЗ использованы из `tz.txt`.
+- Контрольный audit-источник по той же целевой формулировке: `docs/ai/final_tz_readiness_audit.md`, разделы `Target Formulation` и `Requirement Coverage Matrix`.
 - Дополнительные источники текущего состояния: `README.md`, `docs/status/phase_8_current_state_for_leadership.md`, `docs/status/phase_8_technical_status.md`, `configs/`, `src/agent/`, `tests/`, `artifacts/first_run_packets/`, история Git.
-- Отчёт сформирован 2026-07-07 на ветке `main`, исходный commit состояния перед созданием отчёта: `effc8e9 Document Phase 8 evaluation status`.
+- Отчёт сформирован 2026-07-07 на ветке `main`, исходный commit перед переработкой отчёта: `9e12fa3 Add point-by-point requirements completion report`.
 - Проект является исследовательским прототипом. Этот отчёт не является production recommendation и не подтверждает готовность к промышленной эксплуатации.
 
-Текущий зафиксированный статус Phase 8 по committed status-документации:
+Текущие подтверждённые метрики Phase 8 по committed status-документации:
 
 - 3/3 controlled mini-matrix repeats succeeded.
 - 6/6 office actions executed successfully.
@@ -17,524 +18,1093 @@
 - Normality/resource counts = 3/3.
 - Semantic LLM judge score = not run yet.
 
-## 2. Сводная таблица
+## 2. Краткая сводка выполнения
 
-| № | Пункт ТЗ | Статус | Что выполнено | Доказательства | Ограничения/что осталось |
-|---|---------|--------|---------------|----------------|--------------------------|
-| 1 | Local LLM agent action selection | Завершено | Реализован выбор действий локальным LLM-клиентом через prompt/action contract и `NextAction`. | `src/agent/llm_client.py`, `src/agent/action_selector.py`, `tests/test_llm_client.py`, `tests/test_action_selector_prototype.py` | Проверено на коротких controlled сценариях; production autonomy не заявлена. |
-| 2 | Role/config/resource constraints | Завершено | Есть роли, activity profiles, scenario configs, resource/context constraints и безопасные action roots. | `configs/roles/`, `configs/activity_profiles/`, `configs/multi_agent_scenarios/`, `src/agent/agent_state.py`, `tests/test_agent_state.py` | Для новых сценариев нужны отдельные allowed roots и policy reviews. |
-| 3 | Script registry | Завершено | Реализован registry allowed parameterized scripts и валидация его схемы. | `src/agent/script_registry.py`, `configs/script_registry.example.json`, `tests/test_script_registry.py`, `tests/test_script_registry_loader_validator.py` | Registry не является полным каталогом production automation actions. |
-| 4 | Action validation | Завершено | Реализована contract/registry/path validation и controlled rejection для unsafe actions. | `src/agent/next_action.py`, `src/agent/action_validation_cases.py`, `src/agent/script_registry.py`, `tests/test_next_action_contract.py`, `tests/test_action_validation_cases.py` | Семантическая intent-validation ограничена текущими правилами и профилями. |
-| 5 | Execution bridge | Завершено | Есть bounded execution bridge, file/browser scaffold/office actions и Phase 8 real document-file DOCX execution. | `src/agent/script_execution_bridge.py`, `src/agent/scripts/office_real_document_activity.py`, `tests/test_script_execution_bridge.py`, `tests/test_office_real_document_docx.py` | Browser remains scaffold/guarded; MS Office/LibreOffice не используются. |
-| 6 | History/error logging | Завершено | Реализованы execution history, error logs, group history и pipeline artifacts. | `src/agent/execution_history.py`, `src/agent/orchestrator_executor_pipeline.py`, `tests/test_execution_history_error_log.py`, `tests/test_orchestrator_executor_pipeline.py` | Это прототипный audit trail, не production shared memory/runtime. |
-| 7 | Behavioral evaluation | Частично выполнено | Есть activity profiles, normality evaluators, behavioral comparison и normality artifacts. | `src/agent/model_behavior_evaluation.py`, `src/agent/normality_evaluation_runner.py`, `tests/test_model_behavior_evaluation.py`, `tests/test_normality_evaluation_runner.py` | Semantic LLM judge score не получен; сценариев и длинных траекторий мало. |
-| 8 | Multiple models | Частично выполнено | Зарегистрированы `first_model` и `second_model`, есть сравнения и pair workflows. | `configs/evaluation_models.json`, `src/agent/evaluation_models.py`, `tests/test_evaluation_models.py`, `tests/test_model_pair_execution_api.py` | Только две model slots; model binaries не входят в repo; итоговая модель не рекомендована. |
-| 9 | Repeated trials | Завершено | Есть N=3 single-agent evidence и Phase 8 controlled mini-matrix 3/3. | `src/agent/repeated_trials.py`, `src/agent/model_pair_mini_matrix_aggregation.py`, `tests/test_repeated_model_trials.py`, `tests/test_model_pair_mini_matrix_aggregation.py` | N остаётся малым; это evidence для prototype feasibility, не robustness proof. |
-| 10 | Group of agents | Частично выполнено | Реализован orchestrator/executor MVP, multi-agent scenarios, group history и pair artifacts. | `src/agent/orchestrator_executor_pipeline.py`, `configs/multi_agent_scenarios/`, `tests/test_multi_agent_orchestrator_smoke.py`, `tests/test_orchestrator_executor_pipeline.py` | Workflow sequential/prototype; production scheduler отсутствует. |
-| 11 | Orchestrator/executor pair | Частично выполнено | Реализована пара `second_model -> first_model`, pair matrix, readiness, single-trial and local pipeline bridge. | `src/agent/model_pair_execution_api.py`, `src/agent/model_pair_single_trial_execution.py`, `src/agent/orchestrator_executor_pair_matrix.py`, `artifacts/first_run_packets/phase_8_26_mini_matrix_r3/` | Pair evidence покрывает ограниченный office scenario; final pair recommendation не делается. |
-| 12 | Virtual network simulation | Частично выполнено | Есть virtual network/policy layer и scenario-level action/network restrictions. | `src/agent/virtual_network.py`, `src/agent/virtual_network_policy.py`, `configs/multi_agent_scenarios/office_developer_group_basic_virtual_network_v1.json`, `tests/test_virtual_network.py` | Это policy/scaffold layer, не полноценная сеть с host topology и traffic simulation. |
-| 13 | CPU-only runtime | Завершено | CPU-oriented local runs and resource/capacity estimates задокументированы; текущие tests offline. | `docs/ai/final_tz_readiness_audit.md`, `src/agent/resource_capacity_evaluation.py`, `tests/test_resource_capacity_evaluation.py` | Короткие evidence runs не дают production capacity claim. |
-| 14 | GPU runtime | Частично выполнено | Есть wrapper flags, GPU smoke/stress documentation and tests for flags. | `scripts/start_llama_server.ps1`, `tests/test_start_llama_server_gpu_flags.py`, `docs/ai/final_tz_readiness_audit.md` | GPU/runtime probes не запускались в этом отчёте; concurrency/stability evidence предварительные. |
-| 15 | Multi-agent capacity | Частично выполнено | Есть формульная оценка, runtime/stress probe modules и preliminary capacity telemetry в исторической документации. | `src/agent/orchestrator_executor_runtime_probe.py`, `src/agent/orchestrator_executor_stress_probe.py`, `tests/test_orchestrator_executor_runtime_probe.py`, `tests/test_orchestrator_executor_stress_probe.py` | Нет production sizing; stable concurrency 2 не подтверждена. |
-| 16 | Final recommended configuration | Не выполнено | Финальные отчёты явно не дают production recommendation; текущая рекомендация - продолжать research validation. | `docs/ai/final_tz_readiness_audit.md`, `README.md`, `docs/status/phase_8_current_state_for_leadership.md` | Для закрытия нужны semantic judge, больше сценариев, больше N, stress/capacity evidence. |
+| Раздел ТЗ | Статус | Краткий вывод |
+|-----------|--------|---------------|
+| Цель работы | Частично выполнено | Исследовательский прототип разработан и проверен на controlled office workflow; полная виртуальная сеть и production-readiness не закрыты. |
+| Общее описание | Частично выполнено | Оркестратор, роли, ресурсы, ограничения, локальная LLM, scripts и history реализованы; production автономный multi-agent runtime отсутствует. |
+| 1. Проанализировать возможные средства реализации | Частично выполнено | Локальные модели, запуск, agent integration и форматы описаний проработаны; deployment/sizing остаются предварительными. |
+| 2. Спроектировать общую схему работы | Частично выполнено | Схема orchestrator/executor, agent state, registry, action selection и history реализована; production scheduler не реализован. |
+| 3. Подготовить минимальный набор параметризуемых скриптов активности | Частично выполнено | File, office, shell и browser scaffold есть; mail/git actions не реализованы. |
+| 4. Реализовать прототип агента | Завершено | Агентный прототип с config/orchestrator state, local LLM client, action selection, script execution и history/errors реализован. |
+| 5. Провести эксперименты с разными локальными моделями | Частично выполнено | Есть сравнения двух локальных моделей, pair workflows и behavioral metrics; semantic judge и широкая scenario diversity не закрыты. |
+| 6. Оценить минимально достаточные ресурсы | Частично выполнено | CPU feasibility, resource observations и capacity formulas есть; production sizing и стабильная concurrency 2 не доказаны. |
+| 7. Подготовить краткий отчёт по результатам | Частично выполнено | Отчёты и status docs есть; финальная рекомендуемая конфигурация для production не заявляется. |
+| Ожидаемый результат | Частично выполнено | Прототип и отчётность подготовлены; практическая production-конфигурация требует дальнейшей проверки. |
 
-Итого по статусам:
+## 3. Попунктный разбор ТЗ
 
-- Завершено: 8.
-- Частично выполнено: 7.
-- Не выполнено: 1.
-- Не применимо / вне текущего этапа: 0.
-- Требует уточнения: 0.
+## Цель работы
 
-## 3. Детальный разбор пунктов ТЗ
+### Цель. Разработать и проверить прототип, в котором группа программных агентов имитирует нормальную пользовательскую активность в виртуальной компьютерной сети
 
-### 3.1. Local LLM agent action selection
-
-**Статус:** Завершено
+**Статус:** Частично выполнено.
 
 **Что требовалось по ТЗ:**
-- Агент должен выбирать действия с помощью локального LLM и выдавать структурированный action contract.
+Разработать и проверить прототип группы программных агентов, имитирующих нормальную пользовательскую активность в виртуальной компьютерной сети.
 
-**Что реализовано:**
-- `LocalLLMClient` и action selection pipeline.
-- `NextAction` JSON contract, parser, prompt contract and repair path.
-- Offline tests validate request shapes, parsing, diagnostics and selector behavior.
+**Что выполнено:**
+Реализован research-prototype local LLM agent lab: single-agent pipeline, orchestrator/executor pipeline, controlled local pair workflow, virtual-network/policy scaffold, normality/resource evaluation, mini-matrix aggregation и guarded judge exchange. Phase 8 подтвердил controlled office workflow для пары `second_model -> first_model`.
 
-**Доказательства реализации:**
-- `src/agent/llm_client.py`
-- `src/agent/action_selector.py`
-- `src/agent/next_action.py`
-- `tests/test_llm_client.py`
-- `tests/test_action_selector_prototype.py`
-- Commit milestones: `1225719`, `7f6d5f0`, `0a6ae98`.
+**Доказательства:**
+- `README.md`
+- `docs/ai/final_tz_readiness_audit.md`
+- `docs/status/phase_8_current_state_for_leadership.md`
+- `docs/status/phase_8_technical_status.md`
+- `src/agent/orchestrator_executor_pipeline.py`
+- `src/agent/virtual_network.py`
+- `src/agent/virtual_network_policy.py`
+- `tests/test_orchestrator_executor_pipeline.py`
+- `tests/test_virtual_network.py`
 
-**Проверенные результаты:**
-- Full pytest suite passes.
-- Phase 8 status confirms controlled orchestrator/executor action flow for the office scenario.
+**Проверенный результат:**
+3/3 controlled mini-matrix repeats succeeded, 6/6 office actions executed successfully, 6/6 DOCX artifacts generated/readable.
 
 **Ограничения:**
-- Current proof is short and controlled.
-- No production autonomous loop is claimed.
+Виртуальная сеть реализована как policy/scaffold layer, а не полноценная network simulation. Production scheduler и production autonomous loop отсутствуют.
 
-**Вывод по пункту:**
-- Requirement is closed at research-prototype level.
+**Вывод по подпункту:**
+Цель закрыта на уровне исследовательского прототипа, но не на уровне production-системы.
 
-### 3.2. Role/config/resource constraints
+## Общее описание
 
-**Статус:** Завершено
+### Описание 1. Оркестратор формирует исходный контекст агента
+
+**Статус:** Завершено.
 
 **Что требовалось по ТЗ:**
-- Agents should act under roles, resources, environment constraints and scenario-specific rules.
+Оркестратор должен формировать для каждого агента исходный контекст: роль пользователя, доступные ресурсы, ограничения среды и набор заранее подготовленных скриптов активности. Инициализация контекста и генерация базовых описаний могут выполняться с использованием более сильной онлайн-модели.
 
-**Что реализовано:**
-- Role templates, activity profiles, scenario configs and `AgentState`.
-- Scenario and role action constraints are wired into registry validation.
-- Phase 8 local pipeline configs keep controlled runtime settings explicit.
+**Что выполнено:**
+Реализованы role templates, activity profiles, scenario configs, `AgentState`, orchestrator/executor scenario loading и packet/config generation. Возможность использования более сильной online-модели трактуется как допустимая опция, не обязательная часть текущего offline prototype.
 
-**Доказательства реализации:**
+**Доказательства:**
+- `src/agent/state.py`
+- `src/agent/orchestrator_executor_pipeline.py`
 - `configs/roles/`
 - `configs/activity_profiles/`
 - `configs/multi_agent_scenarios/`
-- `configs/local_pipeline/`
-- `src/agent/agent_state.py`
+- `artifacts/first_run_packets/phase_8_26_mini_matrix_r3/`
 - `tests/test_agent_state.py`
-- `tests/test_office_document_scenario_configs.py`
+- `tests/test_orchestrator_executor_pipeline.py`
 
-**Проверенные результаты:**
-- Config/scenario tests are included in full pytest.
-- Current docs record successful controlled office workflow under constrained settings.
+**Проверенный результат:**
+Controlled packets и local pipeline configs существуют для Phase 8 mini-matrix.
 
 **Ограничения:**
-- New scenario families still require dedicated policy review.
+Автоматическая генерация стартовых описаний через online-модель не является подтверждённой частью текущего workflow.
 
-**Вывод по пункту:**
-- Requirement is closed for the current controlled prototype.
+**Вывод по подпункту:**
+Базовая инициализация контекста реализована.
 
-### 3.3. Script registry
+### Описание 2. Агент автономно работает на локальной модели и выбирает следующие действия
 
-**Статус:** Завершено
+**Статус:** Частично выполнено.
 
 **Что требовалось по ТЗ:**
-- Allowed actions must be defined as parameterized scripts, not arbitrary model output.
+После инициализации агент должен автономно работать на локальной модели: выбирать следующую активность по роли, состоянию, scripts и истории, причём scripts являются набором допустимых параметризуемых действий, а не жёстким сценарием.
 
-**Что реализовано:**
-- Script registry loader, schema validation, action lookup and parameter validation.
-- Registry-backed action restrictions for file, browser scaffold and office actions.
+**Что выполнено:**
+Реализованы `LocalLLMClient`, prompt/action contract, `ActionSelector`, script registry, execution bridge, history/error logging и repair policy. В Phase 8 controlled workflow модельная пара дошла до успешного выполнения office actions.
 
-**Доказательства реализации:**
+**Доказательства:**
+- `src/agent/llm_client.py`
+- `src/agent/action_selector.py`
+- `src/agent/prompt_contract.py`
+- `src/agent/script_registry.py`
+- `src/agent/script_execution_bridge.py`
+- `src/agent/execution_history.py`
+- `tests/test_llm_client.py`
+- `tests/test_action_selector_prototype.py`
+- `tests/test_script_registry.py`
+
+**Проверенный результат:**
+В committed status docs зафиксирован controlled workflow `second_model -> first_model`, но semantic judge score пока не получен.
+
+**Ограничения:**
+Долгий автономный production loop не реализован; текущая автономность проверена на коротких controlled сценариях.
+
+**Вывод по подпункту:**
+Механика автономного выбора и выполнения действий реализована для прототипа, но не завершена как production runtime.
+
+## 1. Проанализировать возможные средства реализации
+
+### 1.1. Локальные LLM-модели малого и среднего размера
+
+**Статус:** Завершено.
+
+**Что требовалось по ТЗ:**
+Проанализировать возможность использования локальных LLM-моделей малого и среднего размера.
+
+**Что выполнено:**
+Заведены две локальные GGUF model slots:
+- `first_model` — Qwen2.5 1.5B Instruct Q4_K_M, executor candidate;
+- `second_model` — Qwen2.5 3B Instruct Q4_K_M, orchestrator/executor candidate.
+
+**Доказательства:**
+- `configs/evaluation_models.json`
+- `configs/model_catalog.example.json`
+- `configs/models.local.example.json`
+- `src/agent/evaluation_models.py`
+- `tests/test_evaluation_models.py`
+- `tests/test_model_catalog.py`
+
+**Проверенный результат:**
+Phase 8 confirmed controlled workflow для пары `second_model -> first_model`: 3/3 repeats succeeded.
+
+**Ограничения:**
+Использованы только две model slots; GGUF-файлы не входят в репозиторий; выводы предварительные.
+
+**Вывод по подпункту:**
+Подпункт выполнен на уровне исследовательского прототипа.
+
+### 1.2. Способы их запуска на рабочей станции или сервере
+
+**Статус:** Частично выполнено.
+
+**Что требовалось по ТЗ:**
+Проанализировать способы запуска локальных моделей на рабочей станции или сервере.
+
+**Что выполнено:**
+Подготовлены `llama.cpp / llama-server` model configs, local endpoint settings, guarded startup wrapper, dual-endpoint local pipeline configs и CPU/GPU flag handling. Operator packets содержат команды controlled запуска, но сами runtime commands не запускаются автоматически.
+
+**Доказательства:**
+- `scripts/start_llama_server.ps1`
+- `configs/evaluation_models.json`
+- `configs/local_pipeline/`
+- `artifacts/first_run_packets/phase_8_26_mini_matrix_r3/`
+- `tests/test_start_llama_server_gpu_flags.py`
+- `tests/test_orchestrator_executor_local_config.py`
+
+**Проверенный результат:**
+Status docs фиксируют successful controlled mini-matrix; full pytest проверяет offline wrappers/config behavior.
+
+**Ограничения:**
+Production deployment, monitoring and sizing не завершены; GPU/stress evidence остаётся предварительным. В рамках этого отчёта models/llama-server не запускались.
+
+**Вывод по подпункту:**
+Подпункт выполнен для controlled prototype, но deployment-readiness остаётся частичной.
+
+### 1.3. Варианты интеграции с агентом исполнения
+
+**Статус:** Завершено.
+
+**Что требовалось по ТЗ:**
+Проанализировать и реализовать варианты интеграции локальной LLM с агентом исполнения.
+
+**Что выполнено:**
+Реализованы `ActionSelector`, `ScriptExecutionBridge`, orchestrator/executor pipeline, model pair pipeline bridge и local pipeline entrypoint.
+
+**Доказательства:**
+- `src/agent/action_selector.py`
+- `src/agent/script_execution_bridge.py`
+- `src/agent/orchestrator_executor_pipeline.py`
+- `src/agent/model_pair_pipeline_bridge.py`
+- `src/agent/model_pair_local_pipeline_entrypoint.py`
+- `tests/test_model_pair_pipeline_bridge.py`
+- `tests/test_model_pair_local_pipeline_entrypoint.py`
+
+**Проверенный результат:**
+В Phase 8 controlled workflow executor actions валидировались и исполнялись через pipeline.
+
+**Ограничения:**
+Интеграция остаётся sequential/prototype, production scheduler отсутствует.
+
+**Вывод по подпункту:**
+Подпункт выполнен для исследовательского прототипа.
+
+### 1.4. Форматы описания ролей, контекста и параметризуемых скриптов
+
+**Статус:** Завершено.
+
+**Что требовалось по ТЗ:**
+Определить форматы описания ролей, контекста и параметризуемых scripts.
+
+**Что выполнено:**
+Созданы role templates, activity profiles, scenario configs, `AgentState` schema, script registry schema and NextAction contract.
+
+**Доказательства:**
+- `configs/role_template.example.json`
+- `configs/roles/`
+- `configs/activity_profiles/`
+- `configs/script_registry.example.json`
+- `configs/next_action_contract.example.json`
+- `src/agent/state.py`
+- `src/agent/script_registry.py`
+- `tests/test_role_template.py`
+- `tests/test_script_registry_loader_validator.py`
+
+**Проверенный результат:**
+Offline tests validate schemas and config loading.
+
+**Ограничения:**
+Новые real-app actions требуют расширения registry и policy.
+
+**Вывод по подпункту:**
+Подпункт выполнен.
+
+## 2. Спроектировать общую схему работы
+
+### 2.1. Взаимодействие оркестратора и агентов
+
+**Статус:** Частично выполнено.
+
+**Что требовалось по ТЗ:**
+Спроектировать взаимодействие оркестратора и агентов.
+
+**Что выполнено:**
+Реализованы orchestrator/executor pipeline, plan/assignment flow, pair execution API, pair matrix and single-trial operator runner.
+
+**Доказательства:**
+- `src/agent/orchestrator_executor_pipeline.py`
+- `src/agent/model_pair_execution_api.py`
+- `src/agent/model_pair_single_trial_execution.py`
+- `src/agent/model_pair_single_trial_operator_runner.py`
+- `tests/test_orchestrator_executor_pipeline.py`
+- `tests/test_model_pair_single_trial_execution.py`
+
+**Проверенный результат:**
+Controlled office workflow показал успешную цепочку `orchestrator plan -> executor actions -> validation -> artifact -> score`.
+
+**Ограничения:**
+MVP sequential; production scheduler and long-running group runtime отсутствуют.
+
+**Вывод по подпункту:**
+Схема реализована как prototype/MVP.
+
+### 2.2. Состав начального состояния агента
+
+**Статус:** Завершено.
+
+**Что требовалось по ТЗ:**
+Определить состав initial agent state.
+
+**Что выполнено:**
+`AgentState` включает role/context/resources/constraints/history и связан с prompt/action selection flow.
+
+**Доказательства:**
+- `src/agent/state.py`
+- `src/agent/prompt_contract.py`
+- `configs/role_constrained_trajectory.example.json`
+- `tests/test_agent_state.py`
+- `tests/test_prompt_contract.py`
+
+**Проверенный результат:**
+Tests validate state/config behavior.
+
+**Ограничения:**
+Production shared memory/state synchronization не реализованы.
+
+**Вывод по подпункту:**
+Подпункт выполнен.
+
+### 2.3. Формат архива параметризуемых скриптов
+
+**Статус:** Завершено.
+
+**Что требовалось по ТЗ:**
+Определить format/catalog для набора parameterized scripts.
+
+**Что выполнено:**
+Реализован script registry v1: action names, parameters, required fields, safety rules and allowed roots.
+
+**Доказательства:**
 - `src/agent/script_registry.py`
 - `configs/script_registry.example.json`
 - `tests/test_script_registry.py`
 - `tests/test_script_registry_loader_validator.py`
 - `tests/fixtures/registry/`
 
-**Проверенные результаты:**
-- Registry tests pass in full pytest.
+**Проверенный результат:**
+Registry tests pass and cover valid/invalid registry shapes.
 
 **Ограничения:**
-- Registry remains a controlled research action catalog.
+Production application automation catalog не завершён.
 
-**Вывод по пункту:**
-- Requirement is implemented and verified offline.
+**Вывод по подпункту:**
+Подпункт выполнен.
 
-### 3.4. Action validation
+### 2.4. Механизм выбора следующего действия локальной LLM
 
-**Статус:** Завершено
+**Статус:** Завершено.
 
 **Что требовалось по ТЗ:**
-- Model-produced actions must be validated before execution.
+Спроектировать mechanism for local LLM to choose next action.
 
-**Что реализовано:**
-- Contract validation, registry validation, path safety validation and role/policy checks.
-- Controlled validation failures with diagnostics instead of uncontrolled execution.
+**Что выполнено:**
+Реализованы prompt contracts, local model client, `ActionSelector`, parser/validation/repair loop.
 
-**Доказательства реализации:**
-- `src/agent/next_action.py`
-- `src/agent/action_validation_cases.py`
-- `src/agent/script_registry.py`
-- `src/agent/orchestrator_executor_pipeline.py`
-- `tests/test_next_action_contract.py`
-- `tests/test_action_validation_cases.py`
-- `tests/test_orchestrator_executor_executor_repair.py`
+**Доказательства:**
+- `src/agent/llm_client.py`
+- `src/agent/action_selector.py`
+- `src/agent/prompt_contract.py`
+- `src/agent/recovery.py`
+- `tests/test_action_selector_prototype.py`
+- `tests/test_recovery_loop.py`
 
-**Проверенные результаты:**
-- Full pytest covers valid/invalid action cases and repair behavior.
+**Проверенный результат:**
+Offline tests cover action selection, malformed output and repair behavior.
 
 **Ограничения:**
-- Deep semantic intent validation is still limited.
+Semantic quality of choices needs broader evaluation and judge scoring.
 
-**Вывод по пункту:**
-- Requirement is closed for contract, registry and safety validation.
+**Вывод по подпункту:**
+Подпункт выполнен для prototype action selection.
 
-### 3.5. Execution bridge
+### 2.5. Механизм фиксации истории выполненных действий
 
-**Статус:** Завершено
-
-**Что требовалось по ТЗ:**
-- Validated actions should execute through a bounded bridge.
-
-**Что реализовано:**
-- `ScriptExecutionBridge` and bounded script helpers.
-- File actions, browser scaffold, office document actions and real file-level DOCX execution.
-- Phase 8 confirms office document-file execution without Microsoft Office/LibreOffice.
-
-**Доказательства реализации:**
-- `src/agent/script_execution_bridge.py`
-- `src/agent/scripts/office_document_activity.py`
-- `src/agent/scripts/office_real_document_activity.py`
-- `tests/test_script_execution_bridge.py`
-- `tests/test_office_real_document_docx.py`
-- `tests/test_office_real_document_xlsx.py`
-- `tests/test_office_real_document_pptx.py`
-
-**Проверенные результаты:**
-- Current committed status reports 6/6 office actions executed and 6/6 DOCX artifacts readable.
-
-**Ограничения:**
-- Browser remains scaffold/guarded.
-- This report did not run Office, LibreOffice or runtime commands.
-
-**Вывод по пункту:**
-- Requirement is closed for bounded execution in the prototype; real browser automation remains outside the confirmed evidence.
-
-### 3.6. History/error logging
-
-**Статус:** Завершено
+**Статус:** Завершено.
 
 **Что требовалось по ТЗ:**
-- Execution history and errors must be recorded for reproducibility and evaluation.
+Сохранять историю выполненных actions and errors.
 
-**Что реализовано:**
-- Execution history logger, error normalization and group history artifacts.
-- Pipeline result adapter preserves execution/group histories in trial summaries.
+**Что выполнено:**
+Реализованы history/error loggers, group history and result adapters.
 
-**Доказательства реализации:**
+**Доказательства:**
 - `src/agent/execution_history.py`
 - `src/agent/model_pair_pipeline_result_adapter.py`
-- `src/agent/orchestrator_executor_pipeline.py`
 - `tests/test_execution_history_error_log.py`
 - `tests/test_model_pair_pipeline_result_adapter.py`
 
-**Проверенные результаты:**
-- Tests cover history/error artifacts and adapter behavior.
+**Проверенный результат:**
+Tests cover history and error artifacts.
 
 **Ограничения:**
-- Not a production shared-memory system.
+History layer is audit artifact storage, not production shared memory.
 
-**Вывод по пункту:**
-- Requirement is implemented for auditability of prototype runs.
+**Вывод по подпункту:**
+Подпункт выполнен.
 
-### 3.7. Behavioral evaluation
+## 3. Подготовить минимальный набор параметризуемых скриптов активности
 
-**Статус:** Частично выполнено
+### 3.1. Работа с браузером
+
+**Статус:** Частично выполнено.
 
 **Что требовалось по ТЗ:**
-- Evaluate whether local LLM agents imitate plausible normal user activity, not just safe actions.
+Подготовить scripts for browser activity.
 
-**Что реализовано:**
-- Activity profiles, behavioral metrics, normality evaluator, batch/comparison runners.
-- Prepared normality input and judge exchange artifacts.
-- Phase 8 generates normality inputs through matrix adapters.
+**Что выполнено:**
+Реализованы browser activity scaffold, fixture-backed local intranet simulation and optional Playwright backend tests/scaffold.
 
-**Доказательства реализации:**
-- `src/agent/model_behavior_evaluation.py`
-- `src/agent/normality_evaluation_runner.py`
-- `src/agent/prepared_normality_input_processor.py`
-- `src/agent/prepared_normality_judge_exchange.py`
-- `tests/test_model_behavior_evaluation.py`
-- `tests/test_normality_evaluation_runner.py`
-- `tests/test_prepared_normality_input_processor.py`
+**Доказательства:**
+- `src/agent/scripts/browser_activity.py`
+- `src/agent/scripts/browser_playwright_activity.py`
+- `src/agent/browser_fixture_resolver.py`
+- `tests/test_browser_activity_script.py`
+- `tests/test_browser_playwright_scaffold.py`
+- `tests/test_browser_activity_fixture_backed.py`
 
-**Проверенные результаты:**
-- Current status records normality input count = 3.
+**Проверенный результат:**
+Offline browser scaffold tests pass; Playwright browser execution tests are skipped unless explicitly enabled.
 
 **Ограничения:**
-- Semantic LLM judge score is not run yet.
-- Scenario diversity and trajectory length remain limited.
+Real browser/Playwright/Chromium не запускались; browser automation remains scaffold/guarded.
 
-**Вывод по пункту:**
-- Evaluation framework exists, but final semantic behavioral validation remains partial.
+**Вывод по подпункту:**
+Подпункт частично выполнен.
 
-### 3.8. Multiple models
+### 3.2. Работа с файлами
 
-**Статус:** Частично выполнено
+**Статус:** Завершено.
 
 **Что требовалось по ТЗ:**
-- Compare multiple local models and their roles in the agent system.
+Подготовить file activity scripts.
 
-**Что реализовано:**
-- Model registry and logical IDs `first_model`, `second_model`.
-- Pair workflows and comparison artifacts for orchestrator/executor roles.
-- Current Phase 8 controlled pair: `second_model -> first_model`.
+**Что выполнено:**
+Реализованы controlled file actions, safe path validation and tests.
 
-**Доказательства реализации:**
-- `configs/evaluation_models.json`
-- `configs/models.local.example.json`
-- `src/agent/evaluation_models.py`
-- `src/agent/model_pair_execution_api.py`
-- `tests/test_evaluation_models.py`
-- `tests/test_model_pair_execution_api.py`
+**Доказательства:**
+- `src/agent/scripts/file_activity.py`
+- `src/agent/script_execution_bridge.py`
+- `tests/test_file_activity_script.py`
+- `tests/test_script_execution_bridge.py`
 
-**Проверенные результаты:**
-- Current status documents successful controlled mini-matrix for `second_model -> first_model`.
+**Проверенный результат:**
+File activity tests pass in full pytest.
 
 **Ограничения:**
-- Only two logical model slots are covered.
-- Model binaries are local-only and not committed.
+File access is intentionally constrained by allowed roots and safety policy.
 
-**Вывод по пункту:**
-- Multi-model infrastructure exists, but model diversity remains limited.
+**Вывод по подпункту:**
+Подпункт выполнен.
 
-### 3.9. Repeated trials
+### 3.3. Работа с офисными документами
 
-**Статус:** Завершено
+**Статус:** Завершено.
 
 **Что требовалось по ТЗ:**
-- Repeated runs should support evidence-backed comparison.
+Подготовить office document activity scripts.
 
-**Что реализовано:**
-- Repeated trial support and mini-matrix aggregation.
-- Phase 8 controlled mini-matrix with three repeats.
+**Что выполнено:**
+Реализованы office document actions for DOCX/XLSX/PPTX-like workflows, real document-file DOCX backend, controlled precreate/append path and artifact summarization.
 
-**Доказательства реализации:**
-- `src/agent/repeated_trials.py`
-- `src/agent/repeated_orchestrator_executor_trials.py`
-- `src/agent/model_pair_mini_matrix_aggregation.py`
-- `tests/test_repeated_model_trials.py`
-- `tests/test_repeated_orchestrator_executor_trials.py`
-- `tests/test_model_pair_mini_matrix_aggregation.py`
+**Доказательства:**
+- `src/agent/scripts/office_document_activity.py`
+- `src/agent/scripts/office_real_document_activity.py`
+- `src/agent/model_pair_office_execution_artifacts.py`
+- `tests/test_office_document_activity_script.py`
+- `tests/test_office_real_document_docx.py`
+- `tests/test_model_pair_office_execution_artifacts.py`
 
-**Проверенные результаты:**
-- Current status records 3/3 controlled mini-matrix repeats succeeded.
+**Проверенный результат:**
+Phase 8 status: 6/6 office actions executed successfully, 6/6 DOCX artifacts generated/readable.
 
 **Ограничения:**
-- N=3 is enough for controlled prototype evidence, not for robustness claims.
+MS Office/LibreOffice are not used; execution is file-level and controlled.
 
-**Вывод по пункту:**
-- Requirement is closed for current prototype evidence.
+**Вывод по подпункту:**
+Подпункт выполнен для controlled document-file prototype.
 
-### 3.10. Group of agents
+### 3.4. Выполнение простых команд
 
-**Статус:** Частично выполнено
+**Статус:** Завершено.
 
 **Что требовалось по ТЗ:**
-- A group of agents should imitate user activity in a constrained environment.
+Подготовить scripts for simple command execution.
 
-**Что реализовано:**
-- Multi-agent scenario configs.
-- Orchestrator/executor pipeline with plans, assignments, executor actions and group history.
-- Controlled office document workflow with two executor agents in Phase 8 evidence.
+**Что выполнено:**
+Реализован guarded shell command activity with allowlist/validation.
 
-**Доказательства реализации:**
+**Доказательства:**
+- `src/agent/scripts/shell_command_activity.py`
+- `configs/script_registry.example.json`
+- `tests/test_shell_command_activity_script.py`
+- `tests/test_script_registry.py`
+
+**Проверенный результат:**
+Shell command activity and invalid command tests pass.
+
+**Ограничения:**
+Commands intentionally limited; arbitrary shell execution is not allowed.
+
+**Вывод по подпункту:**
+Подпункт выполнен безопасным минимальным способом.
+
+### 3.5. При возможности - работа с почтой, git или другими приложениями
+
+**Статус:** Не выполнено.
+
+**Что требовалось по ТЗ:**
+При возможности подготовить activity scripts for mail, git or other applications.
+
+**Что выполнено:**
+В текущем prototype mail/git actions не включены. Документация прямо фиксирует, что git/mail actions are not included.
+
+**Доказательства:**
+- `README.md`
+- `docs/status/phase_8_current_state_for_leadership.md`
+- `configs/script_registry.example.json`
+
+**Проверенный результат:**
+No mail/git registry actions are part of the confirmed controlled workflow.
+
+**Ограничения:**
+Для реализации нужны отдельные safety policies, fixtures and tests.
+
+**Вывод по подпункту:**
+Подпункт не закрыт.
+
+## 4. Реализовать прототип агента
+
+### 4.1. Получение начального состояния от оркестратора или из конфигурационного файла
+
+**Статус:** Завершено.
+
+**Что требовалось по ТЗ:**
+Agent should receive initial state from orchestrator or config file.
+
+**Что выполнено:**
+Реализованы config-driven scenarios, local pipeline configs and orchestrator-generated assignments/context.
+
+**Доказательства:**
+- `src/agent/state.py`
 - `src/agent/orchestrator_executor_pipeline.py`
-- `configs/multi_agent_scenarios/office_document_file_workflow_basic_v1.json`
-- `configs/multi_agent_scenarios/office_developer_group_basic.json`
-- `tests/test_multi_agent_orchestrator_smoke.py`
-- `tests/test_orchestrator_executor_pipeline.py`
-
-**Проверенные результаты:**
-- Current status records 6/6 office actions executed across 3 repeats.
-
-**Ограничения:**
-- Current workflow is sequential/prototype.
-- Production scheduler and autonomous long-running group runtime are absent.
-
-**Вывод по пункту:**
-- Group-agent prototype is implemented, but not production-complete.
-
-### 3.11. Orchestrator/executor pair
-
-**Статус:** Частично выполнено
-
-**Что требовалось по ТЗ:**
-- Support and compare orchestrator/executor model pairs.
-
-**Что реализовано:**
-- Model pair execution API, readiness validation, pipeline bridge, single-trial execution and pair matrix tooling.
-- Current controlled pair `second_model -> first_model` has successful mini-matrix evidence.
-
-**Доказательства реализации:**
-- `src/agent/model_pair_execution_api.py`
-- `src/agent/model_pair_execution_readiness.py`
-- `src/agent/model_pair_single_trial_execution.py`
-- `src/agent/orchestrator_executor_pair_matrix.py`
+- `configs/local_pipeline/`
 - `artifacts/first_run_packets/phase_8_26_mini_matrix_r3/`
-- `tests/test_model_pair_execution_api.py`
-- `tests/test_model_pair_single_trial_execution.py`
+- `tests/test_agent_state.py`
+- `tests/test_orchestrator_executor_local_config.py`
 
-**Проверенные результаты:**
-- Current status confirms 3/3 repeats for `second_model -> first_model`.
-
-**Ограничения:**
-- Pair evidence covers one current controlled office scenario in Phase 8.
-- No final production pair recommendation.
-
-**Вывод по пункту:**
-- Pair infrastructure and a successful controlled pair proof exist; broad pair selection remains partial.
-
-### 3.12. Virtual network simulation
-
-**Статус:** Частично выполнено
-
-**Что требовалось по ТЗ:**
-- Simulate or constrain a virtual/local computer network for controlled user activity.
-
-**Что реализовано:**
-- Virtual network model and action policy layer.
-- Scenario policy configs for constrained network/browser-like behavior.
-
-**Доказательства реализации:**
-- `src/agent/virtual_network.py`
-- `src/agent/virtual_network_policy.py`
-- `configs/multi_agent_scenarios/office_developer_group_basic_virtual_network_v1.json`
-- `configs/multi_agent_scenarios/office_intranet_browser_policy_v1.json`
-- `tests/test_virtual_network.py`
-- `tests/test_virtual_network_action_policy.py`
-
-**Проверенные результаты:**
-- Offline policy tests pass.
+**Проверенный результат:**
+Controlled packets include local pipeline configs for all three repeats.
 
 **Ограничения:**
-- Not a full network emulator.
-- Browser/network live actions were not launched.
+No production external state service.
 
-**Вывод по пункту:**
-- Policy-level virtual environment exists, but full virtual network simulation remains partial.
+**Вывод по подпункту:**
+Подпункт выполнен.
 
-### 3.13. CPU-only runtime
+### 4.2. Подключение локальной LLM-модели
 
-**Статус:** Завершено
+**Статус:** Завершено.
 
 **Что требовалось по ТЗ:**
-- Demonstrate CPU-oriented local runtime path.
+Connect local LLM model to agent.
 
-**Что реализовано:**
-- CPU-oriented local run evidence is documented historically.
-- Resource and capacity evaluation modules exist.
-- Current test suite remains offline and does not require runtime launch.
+**Что выполнено:**
+Реализован OpenAI-compatible local client, evaluation model registry and model pair runtime config.
 
-**Доказательства реализации:**
+**Доказательства:**
+- `src/agent/llm_client.py`
+- `src/agent/evaluation_models.py`
+- `configs/evaluation_models.json`
+- `tests/test_llm_client.py`
+- `tests/test_evaluation_models.py`
+
+**Проверенный результат:**
+Tests validate client request shapes and model registry behavior.
+
+**Ограничения:**
+This report did not start local models or read GGUF contents.
+
+**Вывод по подпункту:**
+Подпункт выполнен at integration level.
+
+### 4.3. Выбор следующего действия на основе роли и контекста
+
+**Статус:** Завершено.
+
+**Что требовалось по ТЗ:**
+Agent should choose next action based on role and context.
+
+**Что выполнено:**
+Реализованы prompt building, role constraints, action selector and registry-backed validation.
+
+**Доказательства:**
+- `src/agent/action_selector.py`
+- `src/agent/prompt_contract.py`
+- `src/agent/script_registry.py`
+- `configs/roles/`
+- `tests/test_action_selector_prototype.py`
+- `tests/test_prompt_contract.py`
+
+**Проверенный результат:**
+Tests cover role-constrained and validation-backed action selection.
+
+**Ограничения:**
+Choice quality still needs broad semantic evaluation.
+
+**Вывод по подпункту:**
+Подпункт выполнен for the prototype.
+
+### 4.4. Запуск выбранного параметризуемого скрипта
+
+**Статус:** Завершено.
+
+**Что требовалось по ТЗ:**
+Run selected parameterized script after validation.
+
+**Что выполнено:**
+Реализован execution bridge and office/file/shell script execution path. Phase 8 proved real document-file DOCX actions in controlled mode.
+
+**Доказательства:**
+- `src/agent/script_execution_bridge.py`
+- `src/agent/scripts/file_activity.py`
+- `src/agent/scripts/office_real_document_activity.py`
+- `src/agent/scripts/shell_command_activity.py`
+- `tests/test_script_execution_bridge.py`
+- `tests/test_office_real_document_docx.py`
+
+**Проверенный результат:**
+6/6 office actions executed successfully in current Phase 8 status.
+
+**Ограничения:**
+Execution is bounded and policy-constrained; no arbitrary real system automation.
+
+**Вывод по подпункту:**
+Подпункт выполнен.
+
+### 4.5. Сохранение истории действий и ошибок
+
+**Статус:** Завершено.
+
+**Что требовалось по ТЗ:**
+Save action history and errors.
+
+**Что выполнено:**
+Реализованы execution history, error logging, group history and result adapter outputs.
+
+**Доказательства:**
+- `src/agent/execution_history.py`
+- `src/agent/model_pair_pipeline_result_adapter.py`
+- `tests/test_execution_history_error_log.py`
+- `tests/test_model_pair_pipeline_result_adapter.py`
+
+**Проверенный результат:**
+History/error tests pass.
+
+**Ограничения:**
+Audit artifacts are not a production observability platform.
+
+**Вывод по подпункту:**
+Подпункт выполнен.
+
+## 5. Провести эксперименты с разными локальными моделями
+
+### 5.1. Сравнить несколько моделей разного размера
+
+**Статус:** Частично выполнено.
+
+**Что требовалось по ТЗ:**
+Compare several local models of different sizes.
+
+**Что выполнено:**
+Сравнивались logical model slots `first_model` 1.5B and `second_model` 3B, including orchestrator/executor roles and pair matrix tooling.
+
+**Доказательства:**
+- `configs/evaluation_models.json`
+- `configs/model_catalog.example.json`
+- `src/agent/model_pair_matrix_runner.py`
+- `src/agent/orchestrator_executor_pair_matrix.py`
+- `tests/test_model_pair_matrix_runner.py`
+- `tests/test_orchestrator_executor_pair_matrix.py`
+
+**Проверенный результат:**
+Current Phase 8 controlled evidence covers `second_model -> first_model`.
+
+**Ограничения:**
+Only two local model slots; scenario coverage remains limited.
+
+**Вывод по подпункту:**
+Подпункт частично выполнен.
+
+### 5.2. Оценить качество выбора действий
+
+**Статус:** Частично выполнено.
+
+**Что требовалось по ТЗ:**
+Evaluate quality of action choice.
+
+**Что выполнено:**
+Реализованы behavior metrics, pair quality artifacts, deterministic correctness scoring and normality inputs.
+
+**Доказательства:**
+- `src/agent/model_behavior_evaluation.py`
+- `src/agent/model_pair_office_execution_correctness.py`
+- `src/agent/orchestrator_executor_pipeline.py`
+- `tests/test_model_behavior_evaluation.py`
+- `tests/test_model_pair_office_execution_correctness.py`
+
+**Проверенный результат:**
+Mean deterministic execution correctness = 1.0 for current Phase 8 mini-matrix.
+
+**Ограничения:**
+Semantic LLM judge score not run yet; deterministic execution success is not full behavioral quality.
+
+**Вывод по подпункту:**
+Подпункт частично выполнен.
+
+### 5.3. Проверить, насколько поведение соответствует роли пользователя
+
+**Статус:** Частично выполнено.
+
+**Что требовалось по ТЗ:**
+Evaluate role compliance.
+
+**Что выполнено:**
+Реализованы role templates, normal activity profiles and behavioral trajectory evaluator.
+
+**Доказательства:**
+- `configs/roles/`
+- `configs/activity_profiles/`
+- `src/agent/model_behavior_evaluation.py`
+- `src/agent/model_behavior_comparison.py`
+- `tests/test_model_behavior_evaluation.py`
+- `tests/test_normal_activity_trajectory_evaluator.py`
+
+**Проверенный результат:**
+Offline behavioral tests pass; Phase 8 office workflow respects office document scenario constraints.
+
+**Ограничения:**
+Role fit has not been validated by live semantic judge for latest mini-matrix.
+
+**Вывод по подпункту:**
+Подпункт частично выполнен.
+
+### 5.4. Оценить связность и разнообразие активности
+
+**Статус:** Частично выполнено.
+
+**Что требовалось по ТЗ:**
+Evaluate coherence and diversity of activity.
+
+**Что выполнено:**
+Реализованы normal activity trajectory evaluator, comparison helpers and behavioral fixtures for coherence/diversity/repetition.
+
+**Доказательства:**
+- `src/agent/model_behavior_evaluation.py`
+- `src/agent/model_behavior_comparison.py`
+- `tests/fixtures/behavioral_trajectories/`
+- `tests/test_normal_activity_trajectory_evaluator.py`
+- `tests/test_model_behavior_comparison.py`
+
+**Проверенный результат:**
+Offline evaluator tests pass.
+
+**Ограничения:**
+Current controlled Phase 8 scenario is short and does not prove broad diversity.
+
+**Вывод по подпункту:**
+Подпункт частично выполнен.
+
+### 5.5. Определить, возникает ли повторяемое или шаблонное поведение
+
+**Статус:** Частично выполнено.
+
+**Что требовалось по ТЗ:**
+Detect repetitive or template-like behavior.
+
+**Что выполнено:**
+Behavioral evaluator and fixtures include low-diversity/repetitive trajectories; reports capture repetitive behavior risks.
+
+**Доказательства:**
+- `src/agent/model_behavior_evaluation.py`
+- `src/agent/model_behavior_comparison.py`
+- `tests/fixtures/behavioral_trajectories/trajectories/office_worker_repetitive_read.json`
+- `tests/fixtures/behavioral_trajectories/trajectories/office_worker_low_diversity.json`
+- `tests/test_normal_activity_trajectory_evaluator.py`
+
+**Проверенный результат:**
+Offline tests cover repetitive/low-diversity fixtures.
+
+**Ограничения:**
+Latest controlled mini-matrix was not semantically judged for template behavior.
+
+**Вывод по подпункту:**
+Подпункт частично выполнен.
+
+## 6. Оценить минимально достаточные ресурсы
+
+### 6.1. Какая модель даёт приемлемое качество
+
+**Статус:** Частично выполнено.
+
+**Что требовалось по ТЗ:**
+Determine which model gives acceptable quality.
+
+**Что выполнено:**
+Historical and Phase 8 evidence identifies `second_model -> first_model` as successful for controlled office workflow, while previous audits note `second_model` as stronger orchestrator candidate.
+
+**Доказательства:**
+- `docs/ai/final_tz_readiness_audit.md`
+- `docs/status/phase_8_current_state_for_leadership.md`
+- `configs/model_catalog.example.json`
+- `artifacts/first_run_packets/phase_8_26_mini_matrix_r3/`
+
+**Проверенный результат:**
+3/3 controlled mini-matrix repeats succeeded for `second_model -> first_model`.
+
+**Ограничения:**
+Acceptable quality is proven only for a narrow controlled scenario; no final production recommendation.
+
+**Вывод по подпункту:**
+Подпункт частично выполнен.
+
+### 6.2. Сколько оперативной памяти и процессора требуется без видеокарты
+
+**Статус:** Частично выполнено.
+
+**Что требовалось по ТЗ:**
+Estimate RAM and CPU required without GPU.
+
+**Что выполнено:**
+Resource/capacity estimation modules and historical runtime/resource probes exist; model catalog has placeholders and explicitly avoids production capacity claims.
+
+**Доказательства:**
 - `src/agent/resource_capacity_evaluation.py`
-- `tests/test_resource_capacity_evaluation.py`
-- `docs/ai/final_tz_readiness_audit.md`
-- `README.md`
-
-**Проверенные результаты:**
-- Full pytest passes without starting models.
-
-**Ограничения:**
-- Current report did not rerun CPU models.
-- Capacity conclusions remain prototype-level.
-
-**Вывод по пункту:**
-- Requirement is closed as documented prototype evidence.
-
-### 3.14. GPU runtime
-
-**Статус:** Частично выполнено
-
-**Что требовалось по ТЗ:**
-- Assess GPU runtime path and capacity implications.
-
-**Что реализовано:**
-- Start wrapper supports observed GPU flags.
-- Historical docs record GPU detection/smoke and stress caveats.
-- Tests validate wrapper flag behavior offline.
-
-**Доказательства реализации:**
-- `scripts/start_llama_server.ps1`
-- `tests/test_start_llama_server_gpu_flags.py`
-- `docs/ai/final_tz_readiness_audit.md`
-- `README.md`
-
-**Проверенные результаты:**
-- Offline tests pass; no GPU probes were run for this report.
-
-**Ограничения:**
-- GPU evidence remains preliminary.
-- No stable production capacity claim.
-
-**Вывод по пункту:**
-- GPU support exists, but readiness/capacity remain partial.
-
-### 3.15. Multi-agent capacity
-
-**Статус:** Частично выполнено
-
-**Что требовалось по ТЗ:**
-- Estimate or measure capacity for multi-agent local execution.
-
-**Что реализовано:**
-- Resource/capacity estimation, runtime probe and bounded stress probe modules.
-- Historical audit records preliminary telemetry and stable concurrency 1 for one candidate.
-
-**Доказательства реализации:**
 - `src/agent/orchestrator_executor_runtime_probe.py`
-- `src/agent/orchestrator_executor_stress_probe.py`
-- `tests/test_orchestrator_executor_runtime_probe.py`
-- `tests/test_orchestrator_executor_stress_probe.py`
 - `docs/ai/final_tz_readiness_audit.md`
+- `configs/model_catalog.example.json`
+- `tests/test_resource_capacity_evaluation.py`
+- `tests/test_orchestrator_executor_runtime_probe.py`
 
-**Проверенные результаты:**
-- Offline tests for probe logic pass.
+**Проверенный результат:**
+Offline tests validate estimation/probe logic.
 
 **Ограничения:**
-- Stress/capacity evidence is preliminary.
-- No stable concurrency 2 row and no production sizing.
+Current report did not run probes; exact production RAM/CPU sizing remains unresolved.
 
-**Вывод по пункту:**
-- Capacity tooling exists; capacity proof remains partial.
+**Вывод по подпункту:**
+Подпункт частично выполнен.
 
-### 3.16. Final recommended configuration
+### 6.3. Возможна ли вообще работа чисто на CPU
 
-**Статус:** Не выполнено
+**Статус:** Завершено.
 
 **Что требовалось по ТЗ:**
-- Produce a final recommended configuration after sufficient evidence.
+Determine whether CPU-only work is possible.
 
-**Что реализовано:**
-- Reports explicitly avoid production recommendation.
-- Current docs identify promising controlled pair evidence and next steps, but do not declare final deployment configuration.
+**Что выполнено:**
+CPU-oriented local runs and expected CPU-only model configs are documented; tests and offline workflow do not require GPU.
 
-**Доказательства реализации:**
+**Доказательства:**
+- `configs/evaluation_models.json`
 - `docs/ai/final_tz_readiness_audit.md`
 - `README.md`
+- `tests/test_resource_capacity_evaluation.py`
+
+**Проверенный результат:**
+CPU-only feasibility is documented for short prototype runs.
+
+**Ограничения:**
+CPU feasibility is not production throughput proof.
+
+**Вывод по подпункту:**
+Подпункт выполнен for prototype feasibility.
+
+### 6.4. Какая задержка возникает при выборе следующего действия
+
+**Статус:** Частично выполнено.
+
+**Что требовалось по ТЗ:**
+Estimate latency for next action choice.
+
+**Что выполнено:**
+Latency fields/metrics are part of behavioral/runtime analysis and historical probes.
+
+**Доказательства:**
+- `src/agent/model_behavior_evaluation.py`
+- `src/agent/orchestrator_executor_runtime_probe.py`
+- `docs/ai/final_tz_readiness_audit.md`
+- `tests/test_model_behavior_evaluation.py`
+- `tests/test_orchestrator_executor_runtime_probe.py`
+
+**Проверенный результат:**
+Offline tests cover metric handling.
+
+**Ограничения:**
+No fresh latency probe was run for this report; production latency budget not defined.
+
+**Вывод по подпункту:**
+Подпункт частично выполнен.
+
+### 6.5. Сколько агентов можно запускать одновременно исходя из доступных ресурсов
+
+**Статус:** Частично выполнено.
+
+**Что требовалось по ТЗ:**
+Estimate how many agents can run concurrently based on available resources, including a formula.
+
+**Что выполнено:**
+Capacity formula estimate, runtime probe and bounded stress probe modules exist; final audit records stable concurrency 1 for one candidate and no stable concurrency 2 row.
+
+**Доказательства:**
+- `src/agent/resource_capacity_evaluation.py`
+- `src/agent/orchestrator_executor_stress_probe.py`
+- `docs/ai/final_tz_readiness_audit.md`
+- `tests/test_resource_capacity_evaluation.py`
+- `tests/test_orchestrator_executor_stress_probe.py`
+
+**Проверенный результат:**
+Offline tests validate capacity/stress logic.
+
+**Ограничения:**
+Production concurrency is not proven; concurrency 2 quality collapse remains a known gap.
+
+**Вывод по подпункту:**
+Подпункт частично выполнен.
+
+## 7. Подготовить краткий отчёт по результатам
+
+### 7.1. Какие средства реализации были выбраны и почему
+
+**Статус:** Завершено.
+
+**Что требовалось по ТЗ:**
+Report which implementation means were selected and why.
+
+**Что выполнено:**
+README, final audit and Phase 8 status docs explain selected local LLM, registry/action bridge, orchestrator/executor and controlled evaluation approach.
+
+**Доказательства:**
+- `README.md`
+- `docs/ai/final_tz_readiness_audit.md`
 - `docs/status/phase_8_current_state_for_leadership.md`
 - `docs/status/phase_8_technical_status.md`
 
-**Проверенные результаты:**
-- Current confirmed metrics support prototype feasibility, not production recommendation.
+**Проверенный результат:**
+Documentation exists and is covered by docs/publication tests.
 
 **Ограничения:**
-- Semantic LLM judge is not run.
-- More scenarios, larger N and stronger capacity evidence are required.
+The reports intentionally avoid production recommendation.
 
-**Вывод по пункту:**
-- Requirement remains open by design; making a production recommendation now would be premature.
+**Вывод по подпункту:**
+Подпункт выполнен.
 
-## 4. Матрица доказательств
+### 7.2. Какие модели тестировались
 
-| Область | Основные файлы | Тесты | Статус |
-|---------|----------------|-------|--------|
-| Model pair execution | `src/agent/model_pair_execution_api.py`, `src/agent/model_pair_single_trial_execution.py`, `src/agent/model_pair_pipeline_bridge.py` | `tests/test_model_pair_execution_api.py`, `tests/test_model_pair_single_trial_execution.py`, `tests/test_model_pair_pipeline_bridge.py` | Частично выполнено |
-| Office document actions | `src/agent/scripts/office_document_activity.py`, `src/agent/scripts/office_real_document_activity.py`, `configs/roles/office_document_worker.example.json` | `tests/test_office_real_document_docx.py`, `tests/test_office_real_document_xlsx.py`, `tests/test_office_real_document_pptx.py` | Завершено |
-| Controlled runner | `src/agent/model_pair_single_trial_operator_runner.py`, `scripts/run_single_trial_controlled.py`, `configs/local_pipeline/` | `tests/test_model_pair_single_trial_operator_runner.py`, `tests/test_orchestrator_executor_local_config.py` | Частично выполнено |
-| Mini-matrix | `src/agent/model_pair_mini_matrix_packet.py`, `src/agent/model_pair_mini_matrix_aggregation.py`, `artifacts/first_run_packets/phase_8_26_mini_matrix_r3/` | `tests/test_model_pair_mini_matrix_packet.py`, `tests/test_model_pair_mini_matrix_aggregation.py` | Завершено |
-| Artifact harvesting | `src/agent/model_pair_office_execution_artifacts.py`, `scripts/summarize_office_execution_artifacts.py` | `tests/test_model_pair_office_execution_artifacts.py` | Завершено |
-| Correctness scoring | `src/agent/model_pair_office_execution_correctness.py`, `scripts/score_office_execution_correctness.py` | `tests/test_model_pair_office_execution_correctness.py` | Завершено |
-| Normality/resource adapters | `src/agent/model_pair_matrix_adapters.py`, `src/agent/model_resource_evaluation.py`, `src/agent/prepared_normality_input_processor.py` | `tests/test_model_pair_matrix_adapters.py`, `tests/test_model_resource_evaluation.py`, `tests/test_prepared_normality_input_processor.py` | Частично выполнено |
-| LLM judge exchange | `src/agent/model_pair_flagship_judge_inputs.py`, `src/agent/flagship_api_judge_provider.py`, `scripts/run_flagship_api_judge.py` | `tests/test_model_pair_flagship_judge_inputs.py`, `tests/test_flagship_api_judge_provider.py`, `tests/test_run_flagship_api_judge.py` | Частично выполнено |
-| Documentation | `README.md`, `docs/status/phase_8_current_state_for_leadership.md`, `docs/status/phase_8_technical_status.md`, `docs/ai/final_tz_readiness_audit.md` | `tests/test_research_readiness_docs.py`, `tests/test_publication_consistency.py` | Завершено |
-| Safety/guards | `.gitignore`, `src/agent/virtual_network_policy.py`, `src/agent/script_registry.py`, `configs/judge/flagship_api_judge.example.json` | `tests/test_virtual_network_action_policy.py`, `tests/test_script_registry.py`, `tests/test_run_flagship_api_judge.py` | Завершено |
+**Статус:** Завершено.
 
-## 5. Итоговое заключение
+**Что требовалось по ТЗ:**
+Report tested models.
 
-Полностью закрыты пункты ТЗ, связанные с базовым local LLM action selection, role/config/resource constraints, script registry, action validation, bounded execution bridge, history/error logging, repeated trials and CPU-oriented prototype evidence.
+**Что выполнено:**
+Model configs and docs identify `first_model` and `second_model`, their upstream Qwen2.5 GGUF aliases and roles.
 
-Частично закрыты пункты, где есть работающая исследовательская инфраструктура, но нет production-grade breadth: behavioral evaluation, multiple models, group agents, orchestrator/executor pair selection, virtual network simulation, GPU runtime and multi-agent capacity.
+**Доказательства:**
+- `configs/evaluation_models.json`
+- `configs/model_catalog.example.json`
+- `docs/ai/final_tz_readiness_audit.md`
+- `README.md`
+- `tests/test_evaluation_models.py`
 
-Не закрыт пункт final recommended configuration. Это осознанное ограничение: текущие evidence подтверждают feasibility controlled prototype, но не дают оснований для production recommendation.
+**Проверенный результат:**
+Model registry tests pass; current status names `second_model -> first_model`.
 
-Для полного закрытия ТЗ нужны: semantic LLM-as-a-judge run through guarded provider, больше scenario families, larger N, stronger stress/capacity evidence, clearer virtual network scope and final recommendation only after those checks.
+**Ограничения:**
+No GGUF files are committed or inspected.
 
-Итог: проект достиг значимого research-prototype результата и подтвердил controlled office workflow для `second_model -> first_model`, но остается исследовательским прототипом без production recommendation.
+**Вывод по подпункту:**
+Подпункт выполнен.
+
+### 7.3. Какие ресурсы потребовались
+
+**Статус:** Частично выполнено.
+
+**Что требовалось по ТЗ:**
+Report required resources.
+
+**Что выполнено:**
+Historical audit records resource/capacity probes and CPU/GPU caveats; Phase 8 status records resource observation count from adapters.
+
+**Доказательства:**
+- `docs/ai/final_tz_readiness_audit.md`
+- `docs/status/phase_8_technical_status.md`
+- `src/agent/model_resource_evaluation.py`
+- `tests/test_model_resource_evaluation.py`
+
+**Проверенный результат:**
+Current status records resource observation count = 3.
+
+**Ограничения:**
+Production resource sizing remains preliminary.
+
+**Вывод по подпункту:**
+Подпункт частично выполнен.
+
+### 7.4. Какие ограничения выявлены
+
+**Статус:** Завершено.
+
+**Что требовалось по ТЗ:**
+Report identified limitations.
+
+**Что выполнено:**
+Limitations are documented: no production system, no final recommendation, semantic judge not run, limited scenarios/N, browser guarded, Office/LibreOffice not launched, GGUF not committed.
+
+**Доказательства:**
+- `README.md`
+- `docs/ai/final_tz_readiness_audit.md`
+- `docs/status/phase_8_current_state_for_leadership.md`
+- `docs/status/phase_8_technical_status.md`
+
+**Проверенный результат:**
+Docs explicitly list limitations and risks.
+
+**Ограничения:**
+Limitations section must be updated after future judge/capacity work.
+
+**Вывод по подпункту:**
+Подпункт выполнен.
+
+### 7.5. Какая конфигурация рекомендуется для дальнейшего развития
+
+**Статус:** Частично выполнено.
+
+**Что требовалось по ТЗ:**
+Report recommended configuration for further development.
+
+**Что выполнено:**
+Current docs identify successful controlled pair `second_model -> first_model`, historical quality-focused candidate `second_model -> second_model`, and next stage Phase 8.30 for guarded semantic judge provider.
+
+**Доказательства:**
+- `docs/status/phase_8_current_state_for_leadership.md`
+- `docs/status/phase_8_technical_status.md`
+- `docs/ai/final_tz_readiness_audit.md`
+- `configs/model_catalog.example.json`
+
+**Проверенный результат:**
+Phase 8 controlled execution is proven deterministically for `second_model -> first_model`.
+
+**Ограничения:**
+No final production configuration is recommended; semantic judge/capacity evidence is still needed.
+
+**Вывод по подпункту:**
+Подпункт частично выполнен as research next-step guidance.
+
+## Ожидаемый результат
+
+### Результат 1. Прототип локального LLM-агента, который получает роль и набор scripts, затем самостоятельно выбирает и выполняет последовательность пользовательских действий
+
+**Статус:** Завершено.
+
+**Что требовалось по ТЗ:**
+Prepare a prototype demonstrating local LLM agent work with role, available scripts, autonomous selection and execution.
+
+**Что выполнено:**
+Prototype includes role/context configs, local model client, action selection, script registry, execution bridge, history/errors and controlled orchestrator/executor workflow.
+
+**Доказательства:**
+- `src/agent/action_selector.py`
+- `src/agent/llm_client.py`
+- `src/agent/script_registry.py`
+- `src/agent/script_execution_bridge.py`
+- `src/agent/orchestrator_executor_pipeline.py`
+- `tests/test_action_selector_prototype.py`
+- `tests/test_script_execution_bridge.py`
+
+**Проверенный результат:**
+3/3 controlled mini-matrix repeats succeeded; 6/6 office actions executed.
+
+**Ограничения:**
+Prototype is controlled and research-oriented, not production autonomous runtime.
+
+**Вывод по подпункту:**
+Ожидаемый prototype result выполнен.
+
+### Результат 2. Краткий отчёт с результатами экспериментов, сравнением локальных моделей и оценкой минимальных вычислительных ресурсов
+
+**Статус:** Частично выполнено.
+
+**Что требовалось по ТЗ:**
+Prepare a short report with experiment results, local model comparison and minimum compute resource estimate.
+
+**Что выполнено:**
+Final audit, README and Phase 8 status docs summarize experiments, model comparison, resource/capacity caveats and limitations.
+
+**Доказательства:**
+- `README.md`
+- `docs/ai/final_tz_readiness_audit.md`
+- `docs/status/phase_8_current_state_for_leadership.md`
+- `docs/status/phase_8_technical_status.md`
+- `docs/status/tz_point_by_point_completion_report.md`
+
+**Проверенный результат:**
+Current docs record deterministic Phase 8 metrics and next steps.
+
+**Ограничения:**
+Minimum production resources and final recommended configuration are not fully established.
+
+**Вывод по подпункту:**
+Reporting is prepared, but full practical resource recommendation remains partial.
+
+## Итоговая сводка статусов
+
+| Статус | Количество подпунктов |
+|--------|------------------------|
+| Завершено | 21 |
+| Частично выполнено | 17 |
+| Не выполнено | 1 |
+| Требует уточнения | 0 |
+
+Всего разобрано 10 крупных разделов исходного ТЗ и 39 детальных пунктов/подпунктов.
+
+## Краткий вывод
+
+- Полностью закрыто: базовая agent architecture, локальная модельная интеграция, roles/context/script formats, script registry, action selection, execution bridge, history/error logging, file/shell/office document actions, controlled single-trial and mini-matrix prototype evidence.
+- Частично закрыто: virtual network simulation, browser automation, broad behavioral normality evaluation, model comparison breadth, resource/capacity sizing, GPU/stress evidence, final configuration for further development.
+- Не закрыто: mail/git/other application actions.
+- Для полного закрытия ТЗ нужны: guarded semantic LLM-as-a-judge run, расширение scenario families, larger N, stronger resource/capacity measurements, ясная граница virtual network scope, optional mail/git actions under safety policy.
+- Production recommendation не делается: текущий результат является исследовательским prototype conclusion.
