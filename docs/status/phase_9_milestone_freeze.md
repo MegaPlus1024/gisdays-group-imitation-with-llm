@@ -125,3 +125,7 @@ This does not add new real browser evidence, does not call LLMs, keeps the opera
 Phase 10.6a adds guarded local planner runtime diagnostics for an already-running local endpoint. It checks endpoint health, model listing, a tiny completion, and a micro planner completion with strict per-step timeouts to help explain planner prompt hangs.
 
 This does not launch models, does not add new browser evidence, and does not claim production readiness.
+
+## Phase 10.6b compact local planner prompt profile
+
+Phase 10.6b adds a compact local planner prompt profile for manual CPU-bound schema-following checks. It recommends `planner_prompt.compact.txt` for future local planner runs, but does not call models, does not execute browser actions, and does not add new real browser evidence.

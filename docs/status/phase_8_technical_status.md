@@ -569,11 +569,13 @@ Committed packet/example files remain allowed, including `artifacts/first_run_pa
 
 ## 8. Next technical stage
 
-The next practical browser stage should expand guarded browser coverage through the Phase 10.2a offline runtime-to-suite bridge, the Phase 10.2b offline CLI/config wrapper, the Phase 10.2c bounded runtime trace evidence layer, the Phase 10.3a offline browser plan validator, the Phase 10.3b offline validated-plan runtime dry-run bridge, the Phase 10.3c offline fixture-backed execution path, the Phase 10.3d offline planner packet builder and replay path, the Phase 10.3e offline planner replay suite/aggregator, the Phase 10.4a offline captured-output ingestion layer, the Phase 10.4b offline captured-output ingestion suite/aggregator, and the Phase 10.5a offline local planner operator packet, while keeping external network and production browser automation out of scope unless separately approved.
+The next practical browser stage should expand guarded browser coverage through the Phase 10.2a offline runtime-to-suite bridge, the Phase 10.2b offline CLI/config wrapper, the Phase 10.2c bounded runtime trace evidence layer, the Phase 10.3a offline browser plan validator, the Phase 10.3b offline validated-plan runtime dry-run bridge, the Phase 10.3c offline fixture-backed execution path, the Phase 10.3d offline planner packet builder and replay path, the Phase 10.3e offline planner replay suite/aggregator, the Phase 10.4a offline captured-output ingestion layer, the Phase 10.4b offline captured-output ingestion suite/aggregator, the Phase 10.5a offline local planner operator packet, and the Phase 10.6b compact local planner prompt profile, while keeping external network and production browser automation out of scope unless separately approved.
 
 The offline ingestion loaders now tolerate UTF-8 BOM on Windows PowerShell-generated JSON configs and captured planner output text.
 
 Phase 10.6a adds guarded local planner runtime diagnostics for an already-running local endpoint. It is meant to explain hangs with strict timeouts and bounded previews, not to launch models or claim production readiness.
+
+Phase 10.6b adds a compact local planner prompt profile for manual CPU-bound schema-following checks. It is meant to reduce local operator prompt weight, not to call models or claim production readiness.
 
 Later semantic judge work remains separate and should stay guarded:
 

@@ -2,6 +2,7 @@
   "schema_version": "autonomous_browser_local_planner_operator_packet_config_v1",
   "no_runtime_execution": true,
   "operator_packet_id": "browser_local_planner_operator_packet_v1",
+  "prompt_profile": "compact_schema_following",
   "planner_packet_config_path": "configs/autonomous_runtime/browser_planner_packet.example.json",
   "expected_raw_output_path": "artifacts/autonomous_runtime_summaries/local_planner_operator_packet/raw_planner_output.txt",
   "expected_ingestion_suite_config_path": "configs/autonomous_runtime/browser_planner_output_ingestion_suite.example.json",

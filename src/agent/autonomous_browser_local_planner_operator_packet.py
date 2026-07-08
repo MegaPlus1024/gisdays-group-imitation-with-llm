@@ -15,7 +15,9 @@ SUMMARY_SCHEMA_VERSION = "autonomous_browser_local_planner_operator_packet_summa
 DEFAULT_OPERATOR_PACKET_ID = "browser_local_planner_operator_packet_v1"
 DEFAULT_OUTPUT_DIR = "artifacts/autonomous_runtime_summaries/local_planner_operator_packet"
 DEFAULT_RECOMMENDED_PLANNER_MODEL = "second_model"
+DEFAULT_PROMPT_PROFILE = "compact_schema_following"
 ALLOWED_MODEL_IDS = ("first_model", "second_model")
+ALLOWED_PROMPT_PROFILES = ("compact_schema_following",)
 DEFAULT_PLANNER_PACKET_CONFIG_PATH = "configs/autonomous_runtime/browser_planner_packet.example.json"
 DEFAULT_INGESTION_SUITE_CONFIG_PATH = "configs/autonomous_runtime/browser_planner_output_ingestion_suite.example.json"
 DEFAULT_EXPECTED_RAW_OUTPUT_PATH = "artifacts/autonomous_runtime_summaries/local_planner_operator_packet/raw_planner_output.txt"
@@ -77,6 +79,7 @@ def build_autonomous_browser_local_planner_operator_packet(
     expected_ingestion_suite_config_path = str(config_result["expected_ingestion_suite_config_path"])
     model_ids_allowed = tuple(config_result["model_ids_allowed"])
     recommended_model = str(config_result["default_recommended_planner_model"])
+    prompt_profile = str(config_result["prompt_profile"])
 
     if not (repo / planner_packet_config_path).is_file() or not (repo / expected_ingestion_suite_config_path).is_file():
         return _failure_summary(
@@ -95,6 +98,7 @@ def build_autonomous_browser_local_planner_operator_packet(
     operator_packet_payload = {
         "schema_version": PACKET_SCHEMA_VERSION,
         "operator_packet_id": operator_packet_id,
+        "prompt_profile": prompt_profile,
         "planner_packet_config_path": planner_packet_config_path,
         "expected_raw_output_path": expected_raw_output_path,
         "expected_ingestion_suite_config_path": expected_ingestion_suite_config_path,
@@ -107,6 +111,7 @@ def build_autonomous_browser_local_planner_operator_packet(
 
     readme_text = _build_readme(
         operator_packet_id=operator_packet_id,
+        prompt_profile=prompt_profile,
         planner_packet_config_path=planner_packet_config_path,
         expected_raw_output_path=expected_raw_output_path,
         expected_ingestion_suite_config_path=expected_ingestion_suite_config_path,
@@ -119,6 +124,10 @@ def build_autonomous_browser_local_planner_operator_packet(
     prompt_text = str(planner_packet.get("prompt_text", "")).strip()
     _write_text(packet_dir / "planner_prompt.txt", prompt_text + "\n")
     packet_files.append(f"{output_dir}/planner_prompt.txt")
+
+    compact_prompt_text = _build_compact_prompt_text()
+    _write_text(packet_dir / "planner_prompt.compact.txt", compact_prompt_text)
+    packet_files.append(f"{output_dir}/planner_prompt.compact.txt")
 
     expected_paths_payload = {
         "expected_raw_output_path": expected_raw_output_path,
@@ -210,6 +219,7 @@ def _load_config(config_artifact: str | Path | Mapping[str, Any]) -> dict[str, A
             "error_code": "config_validation_failed",
             "limitations": _limitations(),
         }
+    prompt_profile = _safe_prompt_profile(payload.get("prompt_profile", DEFAULT_PROMPT_PROFILE))
 
     planner_packet_config_path = _safe_relative_path(payload.get("planner_packet_config_path", DEFAULT_PLANNER_PACKET_CONFIG_PATH), "planner_packet_config_path")
     expected_raw_output_path = _safe_relative_path(payload.get("expected_raw_output_path", DEFAULT_EXPECTED_RAW_OUTPUT_PATH), "expected_raw_output_path")
@@ -237,6 +247,14 @@ def _load_config(config_artifact: str | Path | Mapping[str, Any]) -> dict[str, A
             "output_dir": output_dir,
             "limitations": _limitations(),
         }
+    if prompt_profile is None:
+        return {
+            "status": "failed",
+            "error_code": "config_validation_failed",
+            "operator_packet_id": operator_packet_id,
+            "output_dir": output_dir,
+            "limitations": _limitations(),
+        }
     if not isinstance(model_ids_allowed, list) or sorted(str(item) for item in model_ids_allowed) != sorted(ALLOWED_MODEL_IDS):
         return {
             "status": "failed",
@@ -249,6 +267,7 @@ def _load_config(config_artifact: str | Path | Mapping[str, Any]) -> dict[str, A
     return {
         "status": "ok",
         "operator_packet_id": operator_packet_id,
+        "prompt_profile": prompt_profile,
         "planner_packet_config_path": planner_packet_config_path,
         "expected_raw_output_path": expected_raw_output_path,
         "expected_ingestion_suite_config_path": expected_ingestion_suite_config_path,
@@ -277,12 +296,18 @@ def _build_commands(
             "command": r".\.venv\Scripts\python.exe scripts/build_autonomous_browser_planner_packet.py --config " + planner_packet_config_path,
         },
         {
+            "id": "read_compact_prompt",
+            "manual_only": True,
+            "description": "Read the compact prompt profile first for local CPU checks.",
+            "command": r"Get-Content .\artifacts\autonomous_runtime_summaries\local_planner_operator_packet\planner_prompt.compact.txt",
+        },
+        {
             "id": "manual_model_run",
             "manual_only": True,
             "description": "Human operator runs the local planner separately and saves raw stdout as text.",
             "command": (
-                "# Manual operator step only: run the local planner model separately, choose second_model by default, "
-                f"and save JSON-only stdout to {expected_raw_output_path}."
+                "# Manual operator step only: run the local planner model separately, prefer planner_prompt.compact.txt, "
+                f"choose second_model by default, and save JSON-only stdout to {expected_raw_output_path}."
             ),
         },
         {
@@ -318,6 +343,7 @@ def _build_commands_markdown(commands: list[dict[str, Any]]) -> str:
         "",
         "Codex must not launch models.",
         "A human operator may run the local planner separately and save raw output as text.",
+        "Read planner_prompt.compact.txt first for local CPU schema-following checks.",
         "",
     ]
     for command in commands:
@@ -337,6 +363,7 @@ def _build_commands_markdown(commands: list[dict[str, Any]]) -> str:
 def _build_readme(
     *,
     operator_packet_id: str,
+    prompt_profile: str,
     planner_packet_config_path: str,
     expected_raw_output_path: str,
     expected_ingestion_suite_config_path: str,
@@ -347,6 +374,7 @@ def _build_readme(
         "# Local Planner Operator Packet",
         "",
         f"Operator packet id: `{operator_packet_id}`",
+        f"Prompt profile: `{prompt_profile}`",
         "",
         "## Safety",
         "",
@@ -357,6 +385,7 @@ def _build_readme(
         "- Expected model output is JSON only matching `autonomous_browser_plan_v1`.",
         "- No external URLs, no localhost/127.0.0.1, no file URLs, no credentials, no local paths.",
         "- No real browser execution.",
+        "- Prefer `planner_prompt.compact.txt` for local CPU schema-following checks.",
         "",
         "## Allowed Models",
         "",
@@ -375,11 +404,12 @@ def _build_readme(
         "## Operator Flow",
         "",
         "1. Build the planner packet.",
-        "2. Run the local planner manually and save stdout as text.",
-        "3. Ingest the captured output in dry-run mode.",
-        "4. Ingest the captured output with fixture replay if needed.",
-        "5. Run the captured-output ingestion suite.",
-        "6. Run pytest.",
+        "2. Read `planner_prompt.compact.txt`.",
+        "3. Run the local planner manually and save stdout as text.",
+        "4. Ingest the captured output in dry-run mode.",
+        "5. Ingest the captured output with fixture replay if needed.",
+        "6. Run the captured-output ingestion suite.",
+        "7. Run pytest.",
         "",
     ]
     return "\n".join(lines)
@@ -421,6 +451,54 @@ def _limitations() -> tuple[str, ...]:
     )
 
 
+def _build_compact_prompt_text() -> str:
+    skeleton = """{
+"schema_version": "autonomous_browser_plan_v1",
+"plan_id": "local_planner_policy_fixture_plan_v1",
+"goal": "Review the local policy fixture and capture evidence.",
+"scenario_id": "browser_intranet_policy_research",
+"max_actions": 3,
+"actions": [
+{
+"step_id": "open_home",
+"action_name": "browser_open_url",
+"parameters": {
+"url": "https://local.intranet/"
+},
+"expected_text": "fixture-backed result"
+},
+{
+"step_id": "open_policy",
+"action_name": "browser_open_url",
+"parameters": {
+"url": "https://docs.local/docs/policy"
+},
+"expected_text": "Workspace Policy"
+},
+{
+"step_id": "extract_policy",
+"action_name": "browser_extract_text",
+"parameters": {},
+"expected_text": "Allowed activity"
+}
+]
+}"""
+    return "\n".join(
+        [
+            "Return only valid JSON.",
+            "No markdown.",
+            "No code fences.",
+            "Do not explain.",
+            "Root object must include schema_version, plan_id, goal, scenario_id, max_actions, and actions.",
+            "actions must be an array.",
+            "Allowed actions: browser_open_url, browser_click, browser_extract_text, browser_fill, browser_submit, browser_wait, browser_search, browser_snapshot.",
+            "Allowed hosts: local.intranet, local-intranet.test, docs.local, portal.local.",
+            "Use this exact minimal target skeleton:",
+            skeleton,
+        ]
+    )
+
+
 def _safe_relative_path(value: Any, label: str) -> str | None:
     if not isinstance(value, str):
         return None
@@ -440,6 +518,13 @@ def _safe_identifier(value: Any, label: str) -> str | None:
     if any(ch in stripped for ch in ("\\", "/", ":", "\0")):
         return None
     return stripped
+
+
+def _safe_prompt_profile(value: Any) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    stripped = value.strip()
+    return stripped if stripped in ALLOWED_PROMPT_PROFILES else None
 
 
 def _write_text(path: Path, text: str) -> None:

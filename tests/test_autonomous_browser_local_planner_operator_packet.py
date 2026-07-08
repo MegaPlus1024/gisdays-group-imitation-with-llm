@@ -29,6 +29,7 @@ def _config() -> dict[str, Any]:
         "schema_version": PACKET_CONFIG_SCHEMA_VERSION,
         "no_runtime_execution": True,
         "operator_packet_id": "browser_local_planner_operator_packet_v1",
+        "prompt_profile": "compact_schema_following",
         "planner_packet_config_path": "configs/autonomous_runtime/browser_planner_packet.example.json",
         "expected_raw_output_path": "artifacts/autonomous_runtime_summaries/local_planner_operator_packet/raw_planner_output.txt",
         "expected_ingestion_suite_config_path": "configs/autonomous_runtime/browser_planner_output_ingestion_suite.example.json",
@@ -67,7 +68,7 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
         assert summary["model_execution"] is False
         assert summary["real_browser_execution"] is False
         assert summary["operator_packet_id"] == "browser_local_planner_operator_packet_v1"
-        assert summary["post_run_commands_count"] == 6
+        assert summary["post_run_commands_count"] == 7
         assert summary["packet_files"]
         for relative_path in summary["packet_files"]:
             assert not Path(relative_path).is_absolute()
@@ -76,6 +77,7 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
         packet_path = output_dir / "operator_packet.json"
         readme_path = output_dir / "README.md"
         prompt_path = output_dir / "planner_prompt.txt"
+        compact_prompt_path = output_dir / "planner_prompt.compact.txt"
         commands_path = output_dir / "commands.json"
         commands_md_path = output_dir / "commands.md"
         expected_paths_path = output_dir / "expected_output_paths.json"
@@ -84,6 +86,7 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
         assert packet_path.exists()
         assert readme_path.exists()
         assert prompt_path.exists()
+        assert compact_prompt_path.exists()
         assert commands_path.exists()
         assert commands_md_path.exists()
         assert expected_paths_path.exists()
@@ -91,12 +94,30 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
 
         packet = json.loads(packet_path.read_text(encoding="utf-8"))
         assert packet["schema_version"] == PACKET_SCHEMA_VERSION
+        assert packet["prompt_profile"] == "compact_schema_following"
         assert packet["model_ids_allowed"] == ["first_model", "second_model"]
         assert "Codex must not launch models." in readme_path.read_text(encoding="utf-8")
         assert "autonomous_browser_plan_v1" in prompt_path.read_text(encoding="utf-8")
+        compact_prompt = compact_prompt_path.read_text(encoding="utf-8")
+        assert '"schema_version": "autonomous_browser_plan_v1"' in compact_prompt
+        assert "No markdown." in compact_prompt
+        assert "No code fences." in compact_prompt
+        assert '"actions": [' in compact_prompt
+        assert "browser_open_url" in compact_prompt
+        assert "browser_extract_text" in compact_prompt
+        assert "local.intranet" in compact_prompt
+        assert "docs.local" in compact_prompt
+        assert "portal.local" in compact_prompt
+        assert "```" not in compact_prompt
+        assert "supersecret" not in compact_prompt
+        assert "C:\\" not in compact_prompt
         commands = json.loads(commands_path.read_text(encoding="utf-8"))
+        assert any(command["id"] == "read_compact_prompt" for command in commands["commands"])
         assert any(command["id"] == "ingest_dry_run" for command in commands["commands"])
         assert any(command["id"] == "run_ingestion_suite" for command in commands["commands"])
+        commands_md = commands_md_path.read_text(encoding="utf-8")
+        assert "planner_prompt.compact.txt" in commands_md
+        assert "Get-Content" in commands_md
     finally:
         _cleanup_artifacts()
 
