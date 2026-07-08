@@ -27,6 +27,7 @@
 - Phase 9.12 freeze report: `docs/status/phase_9_milestone_freeze.md`.
 - Phase 10.2a: added an offline bridge from autonomous runtime to browser suite in scripted mode; no new real browser path was introduced.
 - Phase 10.2b: added an offline CLI/config wrapper for the autonomous runtime to browser suite bridge; no new real browser path was introduced.
+- Phase 10.2c: added bounded runtime trace evidence to the offline bridge summary; no new real browser path was introduced.
 
 ## 2. Краткая сводка выполнения
 

@@ -60,6 +60,17 @@ def test_cli_success_writes_summary_and_optional_markdown(tmp_path: Path) -> Non
     assert payload["expected_results_passed"] == 18
     assert payload["expected_results_failed"] == 0
     assert payload["required_actions_missing"] == []
+    assert payload["runtime_trace_event_count"] == 7
+    assert payload["stop_reason"] == "all_tasks_terminal"
+    assert [event["event"] for event in payload["runtime_trace"]] == [
+        "task_submitted",
+        "task_scheduled",
+        "task_executed",
+        "browser_suite_completed",
+        "task_verified",
+        "shared_state_updated",
+        "runtime_stopped",
+    ]
     assert payload["required_actions_covered"] == [
         "browser_click",
         "browser_extract_text",
@@ -104,6 +115,7 @@ def test_cli_invalid_config_returns_structured_error(tmp_path: Path) -> None:
     assert payload["status"] == "invalid_input"
     assert payload["error_code"] == "config_validation_failed"
     assert payload["no_runtime_execution"] is True
+    assert payload.get("runtime_trace_event_count", 0) == 0
 
 
 def test_cli_imports_without_playwright_backend() -> None:
@@ -122,5 +134,6 @@ def test_cli_output_summary_path_stays_relative_to_repo(tmp_path: Path) -> None:
 
     assert result.returncode == 0
     assert payload["output_files"] == [SUMMARY_FILENAME]
+    assert payload["runtime_trace_event_count"] == 7
     assert str(tmp_path) not in result.stdout
     assert "C:\\" not in result.stdout

@@ -46,6 +46,11 @@ class AutonomousRuntimeBrowserSuiteIntegrationSummary:
     expected_results_failed: int
     required_actions_covered: tuple[str, ...] = ()
     required_actions_missing: tuple[str, ...] = ()
+    runtime_trace: tuple[dict[str, Any], ...] = ()
+    runtime_trace_event_count: int = 0
+    stop_reason: str | None = None
+    task_statuses: dict[str, str] = field(default_factory=dict)
+    shared_state_keys: tuple[str, ...] = ()
     shared_state_updates: tuple[dict[str, Any], ...] = ()
     limitations: tuple[str, ...] = ()
     output_files: tuple[str, ...] = ()
@@ -75,6 +80,11 @@ class AutonomousRuntimeBrowserSuiteIntegrationSummary:
             "expected_results_failed": self.expected_results_failed,
             "required_actions_covered": list(self.required_actions_covered),
             "required_actions_missing": list(self.required_actions_missing),
+            "runtime_trace": [dict(item) for item in self.runtime_trace],
+            "runtime_trace_event_count": self.runtime_trace_event_count,
+            "stop_reason": self.stop_reason,
+            "task_statuses": dict(self.task_statuses),
+            "shared_state_keys": list(self.shared_state_keys),
             "shared_state_updates": [dict(item) for item in self.shared_state_updates],
             "limitations": list(self.limitations),
             "output_files": list(self.output_files),
@@ -116,6 +126,11 @@ def run_autonomous_browser_suite_task(
             expected_results_total=0,
             expected_results_passed=0,
             expected_results_failed=0,
+            runtime_trace=(),
+            runtime_trace_event_count=0,
+            stop_reason=None,
+            task_statuses={},
+            shared_state_keys=(),
             limitations=_limitations(),
             output_files=(),
             suite_config_path=suite_source_path,
@@ -124,8 +139,11 @@ def run_autonomous_browser_suite_task(
     runtime = _build_runtime(runtime_id, agent_id, task_id, suite, suite_source_path)
     shared_state = runtime.shared_state
     shared_updates: list[dict[str, Any]] = []
+    runtime_trace: list[dict[str, Any]] = []
 
     shared_state.assign_task(agent_id, task_id)
+    runtime_trace.append({"event": "task_submitted", "task_id": task_id, "status": "pending"})
+    runtime_trace.append({"event": "task_scheduled", "task_id": task_id, "status": "running"})
     shared_updates.append(
         {
             "update_type": "task_submitted",
@@ -147,12 +165,30 @@ def run_autonomous_browser_suite_task(
             "suite_config_path": suite_source_path,
         },
     )
+    runtime_trace.append({"event": "task_executed", "task_id": task_id, "status": "running"})
 
     suite_summary = run_autonomous_browser_scenario_suite(suite, repo_root=repo).to_summary()
     aggregate = _aggregate_suite_metrics(suite_summary)
     browser_suite_status, error_code, error_message = _evaluate_suite_summary(suite_summary, aggregate)
+    result_key = "browser_suite:last_result"
     if error_code is None:
-        shared_state.add_fact("browser_suite:last_summary", suite_summary, agent_id)
+        shared_state.add_fact(
+            result_key,
+            {
+                "status": "succeeded",
+                "browser_suite_status": browser_suite_status,
+                "scenarios_attempted": aggregate["scenarios_attempted"],
+                "scenarios_succeeded": aggregate["scenarios_succeeded"],
+                "scenarios_failed": aggregate["scenarios_failed"],
+                "actions_attempted": aggregate["actions_attempted"],
+                "actions_succeeded": aggregate["actions_succeeded"],
+                "actions_failed": aggregate["actions_failed"],
+                "expected_results_total": aggregate["expected_results_total"],
+                "expected_results_passed": aggregate["expected_results_passed"],
+                "expected_results_failed": aggregate["expected_results_failed"],
+            },
+            agent_id,
+        )
         shared_state.complete_task(task_id)
         shared_state.record_event(
             "browser_suite_task_completed",
@@ -161,15 +197,53 @@ def run_autonomous_browser_suite_task(
             task_id=task_id,
             metadata={"suite_id": suite.suite_id, "browser_suite_status": browser_suite_status},
         )
+        runtime_trace.append(
+            {
+                "event": "browser_suite_completed",
+                "task_id": task_id,
+                "browser_suite_status": browser_suite_status,
+                "scenarios_succeeded": aggregate["scenarios_succeeded"],
+                "actions_succeeded": aggregate["actions_succeeded"],
+                "expected_results_passed": aggregate["expected_results_passed"],
+            }
+        )
+        runtime_trace.append(
+            {
+                "event": "task_verified",
+                "task_id": task_id,
+                "status": "succeeded",
+                "browser_suite_status": browser_suite_status,
+            }
+        )
         shared_updates.append(
             {
                 "update_type": "task_completed",
                 "task_id": task_id,
                 "suite_id": suite.suite_id,
                 "browser_suite_status": browser_suite_status,
+                "shared_state_key": result_key,
             }
         )
     else:
+        shared_state.add_fact(
+            result_key,
+            {
+                "status": "failed",
+                "browser_suite_status": browser_suite_status,
+                "error_code": error_code,
+                "error_message": error_message,
+                "scenarios_attempted": aggregate["scenarios_attempted"],
+                "scenarios_succeeded": aggregate["scenarios_succeeded"],
+                "scenarios_failed": aggregate["scenarios_failed"],
+                "actions_attempted": aggregate["actions_attempted"],
+                "actions_succeeded": aggregate["actions_succeeded"],
+                "actions_failed": aggregate["actions_failed"],
+                "expected_results_total": aggregate["expected_results_total"],
+                "expected_results_passed": aggregate["expected_results_passed"],
+                "expected_results_failed": aggregate["expected_results_failed"],
+            },
+            agent_id,
+        )
         shared_state.fail_task(task_id, error_message or error_code)
         shared_state.record_event(
             "browser_suite_task_failed",
@@ -179,6 +253,23 @@ def run_autonomous_browser_suite_task(
             severity="error",
             metadata={"suite_id": suite.suite_id, "browser_suite_status": browser_suite_status, "error_code": error_code},
         )
+        runtime_trace.append(
+            {
+                "event": "browser_suite_failed",
+                "task_id": task_id,
+                "browser_suite_status": browser_suite_status,
+                "error_code": error_code,
+            }
+        )
+        runtime_trace.append(
+            {
+                "event": "task_verified",
+                "task_id": task_id,
+                "status": "failed",
+                "browser_suite_status": browser_suite_status,
+                "error_code": error_code,
+            }
+        )
         shared_updates.append(
             {
                 "update_type": "task_failed",
@@ -186,15 +277,20 @@ def run_autonomous_browser_suite_task(
                 "suite_id": suite.suite_id,
                 "browser_suite_status": browser_suite_status,
                 "error_code": error_code,
+                "shared_state_key": result_key,
             }
         )
 
+    runtime_trace.append({"event": "shared_state_updated", "shared_state_key": result_key})
     runtime.tick_count = 1
     runtime.action_count = 1
     if error_code is not None:
         runtime.failure_count = 1
     runtime.stop_reason = RuntimeStopReason.ALL_TASKS_TERMINAL
+    runtime_trace.append({"event": "runtime_stopped", "stop_reason": runtime.stop_reason.value})
     runtime_summary = runtime.to_summary()
+    task_statuses = {task_id: task.status for task_id, task in runtime.shared_state.tasks.items()}
+    shared_state_keys = tuple(sorted(runtime.shared_state.shared_facts.keys()))
 
     return AutonomousRuntimeBrowserSuiteIntegrationSummary(
         schema_version=INTEGRATION_SCHEMA_VERSION,
@@ -215,6 +311,11 @@ def run_autonomous_browser_suite_task(
         expected_results_failed=aggregate["expected_results_failed"],
         required_actions_covered=tuple(str(value) for value in suite_summary.get("required_actions_covered", [])),
         required_actions_missing=tuple(str(value) for value in suite_summary.get("required_actions_missing", [])),
+        runtime_trace=tuple(runtime_trace),
+        runtime_trace_event_count=len(runtime_trace),
+        stop_reason=runtime.stop_reason.value,
+        task_statuses=task_statuses,
+        shared_state_keys=shared_state_keys,
         shared_state_updates=tuple(shared_updates),
         limitations=_limitations(),
         output_files=(),

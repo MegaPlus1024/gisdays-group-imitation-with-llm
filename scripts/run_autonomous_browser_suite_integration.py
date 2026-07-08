@@ -131,6 +131,8 @@ def _render_markdown(payload: dict[str, Any]) -> str:
         "",
         f"- status: {payload.get('status')}",
         f"- browser_suite_status: {payload.get('browser_suite_status')}",
+        f"- stop_reason: {payload.get('stop_reason')}",
+        f"- runtime_trace_event_count: {payload.get('runtime_trace_event_count')}",
         f"- scenarios: {payload.get('scenarios_succeeded')}/{payload.get('scenarios_attempted')}",
         f"- actions: {payload.get('actions_succeeded')}/{payload.get('actions_attempted')}",
         f"- expected_results: {payload.get('expected_results_passed')}/{payload.get('expected_results_total')}",

@@ -34,6 +34,22 @@ def test_browser_suite_task_bridge_produces_offline_runtime_summary() -> None:
     assert summary["expected_results_passed"] == 18
     assert summary["expected_results_failed"] == 0
     assert summary["required_actions_missing"] == []
+    assert summary["stop_reason"] == "all_tasks_terminal"
+    assert summary["runtime_trace_event_count"] == 7
+    assert [event["event"] for event in summary["runtime_trace"]] == [
+        "task_submitted",
+        "task_scheduled",
+        "task_executed",
+        "browser_suite_completed",
+        "task_verified",
+        "shared_state_updated",
+        "runtime_stopped",
+    ]
+    assert summary["runtime_trace"][0]["status"] == "pending"
+    assert summary["runtime_trace"][4]["status"] == "succeeded"
+    assert summary["runtime_trace"][3]["browser_suite_status"] == "passed"
+    assert summary["task_statuses"] == {"browser_suite_task": "completed"}
+    assert summary["shared_state_keys"] == ["browser_suite:last_result"]
     assert summary["required_actions_covered"] == [
         "browser_click",
         "browser_extract_text",
@@ -93,6 +109,21 @@ def test_browser_suite_task_bridge_propagates_required_action_failures(tmp_path:
     assert summary["browser_suite_status"] == "failed"
     assert summary["required_actions_missing"] == ["browser_nonexistent_fixture_action"]
     assert summary["browser_suite_summary"]["required_actions_missing"] == ["browser_nonexistent_fixture_action"]
+    assert summary["stop_reason"] == "all_tasks_terminal"
+    assert summary["runtime_trace_event_count"] == 7
+    assert [event["event"] for event in summary["runtime_trace"]] == [
+        "task_submitted",
+        "task_scheduled",
+        "task_executed",
+        "browser_suite_failed",
+        "task_verified",
+        "shared_state_updated",
+        "runtime_stopped",
+    ]
+    assert summary["runtime_trace"][3]["error_code"] == "required_actions_missing"
+    assert summary["runtime_trace"][4]["status"] == "failed"
+    assert summary["task_statuses"] == {"browser_suite_task": "failed"}
+    assert summary["shared_state_keys"] == ["browser_suite:last_result"]
 
 
 def test_bridge_module_imports_without_playwright_backend() -> None:

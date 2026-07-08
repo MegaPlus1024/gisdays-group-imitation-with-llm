@@ -67,3 +67,7 @@ Phase 10.2a now adds an offline bridge from the autonomous runtime task board to
 ## Phase 10.2b CLI/config
 
 Phase 10.2b adds an offline CLI and example config for reproducing the autonomous runtime to browser suite bridge from the command line. It writes a local JSON summary, can optionally emit a compact markdown note, and still stays outside real browser, Playwright, Chromium, server, or model execution.
+
+## Phase 10.2c trace evidence
+
+Phase 10.2c adds bounded runtime trace evidence to the offline bridge summary. It shows the autonomous lifecycle around the fixture-backed browser suite without adding new real browser evidence, LLM planning, or production-readiness claims.
