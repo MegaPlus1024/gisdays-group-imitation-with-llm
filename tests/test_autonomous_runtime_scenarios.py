@@ -62,8 +62,15 @@ def test_policy_and_portal_expected_markers_match_fixture_text() -> None:
     portal_steps = {step.step_id: step for step in portal.scripted_steps}
 
     assert policy_steps["reader_search_policy"].expected_text == "fixture-backed result"
-    assert portal_steps["reader_open_portal"].expected_text == "Search marker: fixture-backed result for local policy review"
+    assert portal_steps["reader_open_portal"].expected_text == "Portal fixture for local approval checks only"
     assert portal_steps["checker_open_status"].expected_text == "Approval status: ready for fixture-backed review"
+
+
+def test_portal_scenario_starts_on_portal_home_fixture() -> None:
+    portal = load_autonomous_runtime_scenario(PROJECT_ROOT / "configs/autonomous_runtime/browser_portal_approval_check.example.json")
+
+    assert portal.browser_sessions[0].start_url == "https://portal.local/portal"
+    assert portal.scripted_steps[0].parameters["url"] == "https://portal.local/portal"
 
 
 def test_home_fixture_keeps_workspace_policy_click_target_unambiguous() -> None:
@@ -71,6 +78,12 @@ def test_home_fixture_keeps_workspace_policy_click_target_unambiguous() -> None:
 
     assert home_html.count("Workspace policy") == 1
     assert "fixture-backed result for local policy review" in home_html
+
+
+def test_portal_home_fixture_contains_expected_opening_marker() -> None:
+    portal_html = (PROJECT_ROOT / "tests/fixtures/local_intranet/office_site_v1/portal/index.html").read_text(encoding="utf-8")
+
+    assert "Portal fixture for local approval checks only" in portal_html
 
 
 def test_loader_rejects_missing_agents(tmp_path: Path) -> None:

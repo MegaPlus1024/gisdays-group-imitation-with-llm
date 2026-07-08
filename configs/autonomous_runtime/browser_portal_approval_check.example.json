@@ -114,7 +114,7 @@
         "docs.local",
         "portal.local"
       ],
-      "start_url": "https://portal.local/",
+      "start_url": "https://portal.local/portal",
       "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json"
     },
     {
@@ -139,9 +139,9 @@
       "browser_session_id": "portal_reader_session",
       "action_name": "browser_open_url",
       "parameters": {
-        "url": "https://portal.local/"
+        "url": "https://portal.local/portal"
       },
-      "expected_text": "Search marker: fixture-backed result for local policy review"
+      "expected_text": "Portal fixture for local approval checks only"
     },
     {
       "step_id": "reader_click_approvals",
