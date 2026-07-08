@@ -595,6 +595,8 @@ Phase 10.10b documents guarded fixture-backed replay evidence in `docs/status/mo
 
 Phase 10.11a adds a guarded Playwright backend option for validated model-plan replay. It is disabled unless explicitly selected and guarded; Codex did not run it, existing verified evidence remains fixture-backed, and real Playwright evidence is still pending an operator-side run.
 
+Phase 10.11b documents the first operator-run real Playwright replay evidence in `docs/status/model_plan_real_playwright_replay_evidence.md`; it stays limited to one validated plan against local loopback fixtures.
+
 Later semantic judge work remains separate and should stay guarded:
 
 1. Define an openai-compatible/DeepSeek-style config schema that never stores secrets in committed files.

@@ -48,6 +48,7 @@
 - Phase 10.10a: adds a guarded operator runner for validated model-plan Playwright replay; default behavior refuses without explicit guards and dry-run validates/summarizes without browser.
 - Phase 10.10b: documents guarded fixture-backed replay evidence in `docs/status/model_plan_guarded_fixture_replay_evidence.md`; it confirms fixture-backed action replay, not real Playwright.
 - Phase 10.11a: adds a guarded Playwright backend option for validated model-plan replay; it is operator-gated, still offline in Codex, and does not yet provide new real Playwright evidence.
+- Phase 10.11b: documents the first operator-run real Playwright replay evidence in `docs/status/model_plan_real_playwright_replay_evidence.md`; it remains limited to one validated plan against local loopback fixtures.
 
 ## 2. Краткая сводка выполнения
 

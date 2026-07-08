@@ -88,3 +88,7 @@ Phase 10.10b documents guarded fixture-backed replay evidence in `docs/status/mo
 ## Phase 10.11a guarded Playwright backend option
 
 Phase 10.11a adds a guarded Playwright backend option for validated model-plan replay. It is disabled unless explicitly selected and guarded. Codex did not run it. Existing verified evidence remains fixture-backed, and real Playwright evidence is still pending an operator-side run.
+
+## Phase 10.11b real Playwright replay evidence
+
+Phase 10.11b records the first successful real Playwright replay of a validated model-generated browser plan in `docs/status/model_plan_real_playwright_replay_evidence.md`. It is operator-run, uses local loopback fixtures only, and remains separate from the fixture-backed evidence above.
