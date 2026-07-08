@@ -1,0 +1,13 @@
+{
+  "schema_version": "autonomous_browser_planner_output_ingestion_config_v1",
+  "source_output_path": "tests/fixtures/browser_planner_outputs/valid_candidate_output.txt",
+  "output_dir": "artifacts/autonomous_runtime_summaries/browser_planner_output_ingestion",
+  "limitations": [
+    "offline ingestion example only",
+    "captured planner text is local fixture data",
+    "no model calls",
+    "no real browser execution",
+    "fixture execution remains offline only",
+    "not production browser automation"
+  ]
+}

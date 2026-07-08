@@ -99,3 +99,9 @@ This does not call models, does not execute real browser actions, keeps fixture 
 Phase 10.3e adds an offline replay suite/aggregator for multiple browser planner candidate plan JSON files. It evaluates candidate plans only, records per-candidate replay summaries, and aggregates counts for accepted and rejected candidates plus dry-run and fixture-replay outcomes.
 
 This does not generate candidates with a model, does not call LLMs, does not execute real browser actions, keeps replay offline only, keeps guarded Playwright suite evidence separate, and does not claim production readiness.
+
+## Phase 10.4a captured planner output ingestion
+
+Phase 10.4a adds offline ingestion for captured planner output. It extracts candidate browser plans from saved text, validates them, and replays them offline without calling models or launching a real browser.
+
+This does not create new real browser evidence, does not call LLMs, keeps fixture execution offline only, keeps guarded Playwright suite evidence separate, and does not claim production readiness.
