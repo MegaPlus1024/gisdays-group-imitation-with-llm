@@ -577,6 +577,8 @@ Phase 10.6a adds guarded local planner runtime diagnostics for an already-runnin
 
 Phase 10.6b adds a compact local planner prompt profile for manual CPU-bound schema-following checks. It is meant to reduce local operator prompt weight, not to call models or claim production readiness.
 
+The first controlled local planner output evidence is documented separately in `docs/status/local_planner_output_evidence.md`; it is a manual `second_model` run followed by offline ingestion and fixture replay only.
+
 Later semantic judge work remains separate and should stay guarded:
 
 1. Define an openai-compatible/DeepSeek-style config schema that never stores secrets in committed files.

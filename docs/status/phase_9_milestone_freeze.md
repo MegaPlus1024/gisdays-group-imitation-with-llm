@@ -129,3 +129,7 @@ This does not launch models, does not add new browser evidence, and does not cla
 ## Phase 10.6b compact local planner prompt profile
 
 Phase 10.6b adds a compact local planner prompt profile for manual CPU-bound schema-following checks. It recommends `planner_prompt.compact.txt` for future local planner runs, but does not call models, does not execute browser actions, and does not add new real browser evidence.
+
+## Local planner output evidence
+
+First controlled local planner output evidence is documented in `docs/status/local_planner_output_evidence.md`. It captures a manual `second_model` run plus offline ingestion and fixture replay only, without adding browser evidence or a live autonomous loop.
