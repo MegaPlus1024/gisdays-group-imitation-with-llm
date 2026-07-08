@@ -242,7 +242,11 @@ def _normalize_value(value: Any, path: str) -> tuple[Any, dict[str, Any] | None]
         if len(text) > MAX_PARAMETER_TEXT_LENGTH:
             return None, {"finding_type": "text_too_long", "path": path, "limit": MAX_PARAMETER_TEXT_LENGTH}
         if _secret_like_text(text):
-            return None, {"finding_type": "secret_like_parameter_value", "path": path}
+            diagnostic = {"finding_type": "secret_like_parameter_value", "path": path}
+            secret_key = _secret_like_assignment_key(text)
+            if secret_key is not None:
+                diagnostic["parameter_key"] = secret_key
+            return None, diagnostic
         path_issue = _reject_path_or_url(text, path)
         if path_issue is not None:
             return None, path_issue
@@ -302,7 +306,11 @@ def _optional_text(value: Any, path: str, diagnostics: list[dict[str, Any]], *, 
         diagnostics.append({"finding_type": "text_too_long", "path": path, "limit": max_length})
         return False
     if _secret_like_text(text):
-        diagnostics.append({"finding_type": "secret_like_value_detected", "path": path})
+        diagnostic = {"finding_type": "secret_like_value_detected", "path": path}
+        secret_key = _secret_like_assignment_key(text)
+        if secret_key is not None:
+            diagnostic["parameter_key"] = secret_key
+        diagnostics.append(diagnostic)
         return False
     issue = _reject_path_or_url(text, path)
     if issue is not None:
@@ -323,7 +331,11 @@ def _safe_text(value: Any, path: str, diagnostics: list[dict[str, Any]], *, max_
         diagnostics.append({"finding_type": "text_too_long", "path": path, "limit": max_length})
         return None
     if _secret_like_text(text):
-        diagnostics.append({"finding_type": "secret_like_value_detected", "path": path})
+        diagnostic = {"finding_type": "secret_like_value_detected", "path": path}
+        secret_key = _secret_like_assignment_key(text)
+        if secret_key is not None:
+            diagnostic["parameter_key"] = secret_key
+        diagnostics.append(diagnostic)
         return None
     return text
 
@@ -376,6 +388,13 @@ def _secret_like_key(key: str) -> bool:
 
 def _secret_like_text(value: str) -> bool:
     return bool(_SECRET_ASSIGNMENT_RE.search(value))
+
+
+def _secret_like_assignment_key(value: str) -> str | None:
+    match = _SECRET_ASSIGNMENT_RE.search(value)
+    if match is None:
+        return None
+    return match.group(1).strip().lower()
 
 
 def _is_windows_absolute_path(value: str) -> bool:

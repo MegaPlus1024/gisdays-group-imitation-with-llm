@@ -408,7 +408,11 @@ def _validation_diagnostics(validation_result: Mapping[str, Any]) -> dict[str, A
         "error_code": validation_result.get("error_code"),
         "plan_id": validation_result.get("plan_id"),
         "actions_total": validation_result.get("actions_total"),
-        "diagnostics": [dict(item) for item in validation_result.get("diagnostics", []) if isinstance(item, Mapping)],
+        "diagnostics": [
+            _safe_validation_diagnostic(item)
+            for item in validation_result.get("diagnostics", [])
+            if isinstance(item, Mapping)
+        ],
     }
 
 
@@ -459,3 +463,22 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, str | int | float | bool) or value is None:
         return value
     return str(value)
+
+
+def _safe_validation_diagnostic(item: Mapping[str, Any]) -> dict[str, Any]:
+    safe_keys = (
+        "finding_type",
+        "path",
+        "json_path",
+        "key",
+        "parameter_key",
+        "error_code",
+        "limit",
+        "object_count",
+        "actions_total",
+        "type",
+        "action_name",
+        "expected_schema_version",
+        "status",
+    )
+    return {key: _jsonable(item[key]) for key in safe_keys if key in item and item[key] is not None}

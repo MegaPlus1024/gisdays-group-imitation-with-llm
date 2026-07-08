@@ -138,6 +138,18 @@ def test_secret_like_parameter_key_or_value_is_rejected_without_printing_secret(
     assert "api_key" in diagnostics
 
 
+def test_secret_like_parameter_value_keeps_redacted_key_hint() -> None:
+    payload = _rejected_plan()
+    payload["actions"][0]["parameters"]["query"] = "api_key=supersecret"
+    result = _result(payload)
+
+    assert result["status"] == "rejected"
+    assert result["error_code"] == "secret_like_parameter_value"
+    diagnostics = json.dumps(result)
+    assert "supersecret" not in diagnostics
+    assert "api_key" in diagnostics
+
+
 def test_too_many_actions_is_rejected() -> None:
     payload = _rejected_plan(max_actions=1)
     result = _result(payload)
