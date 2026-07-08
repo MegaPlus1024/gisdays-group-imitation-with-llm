@@ -633,8 +633,6 @@ def _safe_endpoint_base_url(value: Any) -> str | None:
     parsed = urllib.parse.urlparse(normalized)
     if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
         return None
-    if parsed.hostname not in ALLOWED_LOCAL_HOSTS:
-        return None
     if parsed.path not in {"", "/"} or parsed.params or parsed.query or parsed.fragment:
         return None
     return normalized
