@@ -62,6 +62,7 @@ def test_policy_and_portal_expected_markers_match_fixture_text() -> None:
     portal_steps = {step.step_id: step for step in portal.scripted_steps}
 
     assert policy_steps["reader_search_policy"].expected_text == "fixture-backed result"
+    assert portal_steps["reader_open_portal"].expected_text == "Search marker: fixture-backed result for local policy review"
     assert portal_steps["checker_open_status"].expected_text == "Approval status: ready for fixture-backed review"
 
 

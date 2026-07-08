@@ -141,7 +141,7 @@
       "parameters": {
         "url": "https://portal.local/"
       },
-      "expected_text": "Office Intranet"
+      "expected_text": "Search marker: fixture-backed result for local policy review"
     },
     {
       "step_id": "reader_click_approvals",
