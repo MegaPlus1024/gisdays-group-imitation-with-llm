@@ -650,6 +650,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 - Phase 10.4b adds an offline suite/aggregator for multiple captured planner outputs. It evaluates saved text only, aggregates ingestion outcomes, and does not call local LLMs or execute real browser actions.
 - Phase 10.5a adds an offline local planner operator packet for future manual local planner runs. It prepares a bounded operator handoff, but does not call models or execute real browser actions.
 - Windows PowerShell BOM-prefixed JSON configs are tolerated by the ingestion path.
+- Phase 10.6a adds guarded local planner runtime diagnostics for an already-running local endpoint. It helps explain planner prompt hangs, but does not launch models or claim production readiness.
 - Phase 9 milestone freeze report: `docs/status/phase_9_milestone_freeze.md`.
 - Office behavior is stub/file-based.
 - No git/mail actions.

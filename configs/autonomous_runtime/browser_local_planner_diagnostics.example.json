@@ -1,0 +1,21 @@
+{
+  "schema_version": "autonomous_browser_local_planner_diagnostic_config_v1",
+  "diagnostic_id": "browser_local_planner_diagnostic_v1",
+  "endpoint_base_url": "http://127.0.0.1:8080",
+  "model": "second_model",
+  "health_timeout_sec": 3,
+  "models_timeout_sec": 3,
+  "tiny_completion_timeout_sec": 6,
+  "micro_planner_timeout_sec": 8,
+  "tiny_max_tokens": 16,
+  "micro_planner_max_tokens": 96,
+  "output_dir": "artifacts/autonomous_runtime_summaries/local_planner_diagnostics",
+  "limitations": [
+    "guarded local planner runtime diagnostics only",
+    "no model launch",
+    "no browser execution",
+    "no Playwright import",
+    "strict per-step timeout only",
+    "not production readiness"
+  ]
+}

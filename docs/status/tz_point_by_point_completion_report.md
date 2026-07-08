@@ -37,6 +37,7 @@
 - Phase 10.4b: added an offline suite/aggregator for captured planner outputs; no new real browser path was introduced.
 - Phase 10.5a: adds an offline local planner operator packet for future manual local planner runs; no new real browser path was introduced.
 - Windows PowerShell BOM-prefixed ingestion configs and captured output text are tolerated by the offline ingestion path.
+- Phase 10.6a: adds guarded local planner runtime diagnostics for an already-running local endpoint; no new real browser path was introduced.
 
 ## 2. Краткая сводка выполнения
 

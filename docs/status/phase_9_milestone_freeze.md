@@ -119,3 +119,9 @@ Windows PowerShell BOM-prefixed ingestion configs and captured output text are t
 Phase 10.5a adds an offline local planner operator packet for future manual local planner runs. It prepares a bounded operator handoff for saved planner prompts and captured outputs, but does not call models or execute real browser actions.
 
 This does not add new real browser evidence, does not call LLMs, keeps the operator handoff offline only, keeps guarded Playwright suite evidence separate, and does not claim production readiness.
+
+## Phase 10.6a local planner runtime diagnostics
+
+Phase 10.6a adds guarded local planner runtime diagnostics for an already-running local endpoint. It checks endpoint health, model listing, a tiny completion, and a micro planner completion with strict per-step timeouts to help explain planner prompt hangs.
+
+This does not launch models, does not add new browser evidence, and does not claim production readiness.

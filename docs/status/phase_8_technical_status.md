@@ -573,6 +573,8 @@ The next practical browser stage should expand guarded browser coverage through 
 
 The offline ingestion loaders now tolerate UTF-8 BOM on Windows PowerShell-generated JSON configs and captured planner output text.
 
+Phase 10.6a adds guarded local planner runtime diagnostics for an already-running local endpoint. It is meant to explain hangs with strict timeouts and bounded previews, not to launch models or claim production readiness.
+
 Later semantic judge work remains separate and should stay guarded:
 
 1. Define an openai-compatible/DeepSeek-style config schema that never stores secrets in committed files.
