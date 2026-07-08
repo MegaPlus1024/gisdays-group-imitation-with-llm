@@ -1,0 +1,22 @@
+{
+  "schema_version": "autonomous_browser_local_planner_repeated_trials_packet_config_v1",
+  "packet_id": "browser_local_planner_repeated_trials_packet_v1",
+  "model": "second_model",
+  "trial_count": 3,
+  "prompt_profile": "compact_schema_following",
+  "output_dir": "artifacts/autonomous_runtime_summaries/local_planner_repeated_trials_packet",
+  "expected_raw_output_paths": [
+    "artifacts/autonomous_runtime_summaries/local_planner_repeated_trials_packet/trial_01/raw_planner_output.txt",
+    "artifacts/autonomous_runtime_summaries/local_planner_repeated_trials_packet/trial_02/raw_planner_output.txt",
+    "artifacts/autonomous_runtime_summaries/local_planner_repeated_trials_packet/trial_03/raw_planner_output.txt"
+  ],
+  "ingestion_suite_config_path": "artifacts/autonomous_runtime_summaries/local_planner_repeated_trials_packet/ingestion_suite_config.local.json",
+  "limitations": [
+    "offline repeated trials packet only",
+    "manual second_model runs only",
+    "no model calls by Codex",
+    "no real browser execution",
+    "fixture replay remains offline only",
+    "not production browser automation"
+  ]
+}

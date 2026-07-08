@@ -60,3 +60,7 @@ The saved raw planner output lives in the local operator packet artifact area as
 - Guarded Playwright suite evidence remains separate and stronger for the real browser path.
 - This evidence is about model planning output only, replayed offline.
 
+## Relation to repeated trials
+
+- Phase 10.8a adds a repeated local planner trials packet for three manual `second_model` runs.
+- This document remains the first single-success evidence line; the repeated trials packet is for stability checks beyond one confirmed plan.

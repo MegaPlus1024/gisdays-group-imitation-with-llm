@@ -652,6 +652,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 - Phase 10.6b adds a compact local planner prompt profile for manual CPU-bound schema-following checks. It recommends `planner_prompt.compact.txt`, but does not call models or execute real browser actions.
 - Local planner output evidence is documented in `docs/status/local_planner_output_evidence.md`; it records a manual `second_model` run plus offline ingestion and fixture replay only.
 - Phase 10 model-planned browser freeze report: `docs/status/phase_10_model_planned_browser_freeze.md`.
+- Phase 10.8a adds a repeated local planner trials packet for three manual `second_model` runs. It prepares stability evidence only and does not call models by Codex.
 - Windows PowerShell BOM-prefixed JSON configs are tolerated by the ingestion path.
 - Phase 10.6a adds guarded local planner runtime diagnostics for an already-running local endpoint. It helps explain planner prompt hangs, but does not launch models or claim production readiness.
 - Phase 9 milestone freeze report: `docs/status/phase_9_milestone_freeze.md`.

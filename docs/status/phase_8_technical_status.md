@@ -581,6 +581,8 @@ The first controlled local planner output evidence is documented separately in `
 
 The Phase 10 model-planned browser path freeze is documented separately in `docs/status/phase_10_model_planned_browser_freeze.md`; it captures the model-planned browser evidence line without extending into live browser automation.
 
+Phase 10.8a adds a repeated local planner trials packet for three manual `second_model` runs; it is meant to check stability across repeated local planner outputs, not to call models by Codex.
+
 Later semantic judge work remains separate and should stay guarded:
 
 1. Define an openai-compatible/DeepSeek-style config schema that never stores secrets in committed files.
