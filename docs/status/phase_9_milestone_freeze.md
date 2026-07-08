@@ -71,3 +71,7 @@ Phase 10.2b adds an offline CLI and example config for reproducing the autonomou
 ## Phase 10.2c trace evidence
 
 Phase 10.2c adds bounded runtime trace evidence to the offline bridge summary. It shows the autonomous lifecycle around the fixture-backed browser suite without adding new real browser evidence, LLM planning, or production-readiness claims.
+
+## Phase 10.3a browser plan validation
+
+Phase 10.3a adds an offline browser plan schema and validator for future model-planned browser tasks. It normalizes and rejects unsafe plans without executing browser actions or calling an LLM.

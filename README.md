@@ -641,6 +641,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 - Phase 10.2a offline bridge connects the autonomous runtime task board to the fixture-backed browser suite in scripted mode.
 - Phase 10.2b offline CLI/config wraps that bridge for reproducible offline runs.
 - Phase 10.2c adds bounded runtime trace evidence to the offline bridge summary.
+- Phase 10.3a adds offline browser plan schema validation for future model-planned browser tasks.
 - Phase 9 milestone freeze report: `docs/status/phase_9_milestone_freeze.md`.
 - Office behavior is stub/file-based.
 - No git/mail actions.

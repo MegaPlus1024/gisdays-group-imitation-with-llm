@@ -1,0 +1,33 @@
+{
+  "schema_version": "autonomous_browser_plan_v1",
+  "plan_id": "browser_policy_research_plan_v1",
+  "goal": "Review local policy fixture and capture evidence.",
+  "scenario_id": "browser_intranet_policy_research",
+  "max_actions": 8,
+  "actions": [
+    {
+      "step_id": "open_home",
+      "action_name": "browser_open_url",
+      "parameters": {
+        "url": "https://local.intranet/"
+      },
+      "expected_text": "Office Intranet"
+    },
+    {
+      "step_id": "open_policy",
+      "action_name": "browser_open_url",
+      "parameters": {
+        "url": "https://docs.local/docs/policy"
+      },
+      "expected_text": "Allowed activity"
+    },
+    {
+      "step_id": "search_policy",
+      "action_name": "browser_search",
+      "parameters": {
+        "query": "fixture-backed result"
+      },
+      "expected_text": "fixture-backed result"
+    }
+  ]
+}
