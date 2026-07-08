@@ -589,6 +589,8 @@ Phase 10.9a prepares an offline packet for future guarded Playwright replay of a
 
 Phase 10.9b documents the offline Playwright replay packet evidence in `docs/status/model_plan_playwright_replay_packet_evidence.md`; it packages a validated model-generated browser plan without executing Playwright.
 
+Phase 10.10a adds a guarded operator runner for validated model-plan Playwright replay. Default behavior refuses without explicit guards, dry-run validates and summarizes without browser, and real browser execution remains operator-only.
+
 Later semantic judge work remains separate and should stay guarded:
 
 1. Define an openai-compatible/DeepSeek-style config schema that never stores secrets in committed files.

@@ -656,6 +656,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 - Phase 10.8b documents repeated local planner trials evidence in `docs/status/local_planner_repeated_trials_evidence.md`; it records three captured outputs, offline ingestion, dry-run acceptance, and fixture replay success.
 - Phase 10.9a prepares an offline packet for future guarded Playwright replay of a validated model-generated browser plan. It does not execute Playwright and does not prove real browser execution yet.
 - Phase 10.9b documents the offline Playwright replay packet evidence in `docs/status/model_plan_playwright_replay_packet_evidence.md`; it packages a validated model-generated browser plan without executing Playwright.
+- Phase 10.10a adds a guarded operator runner for validated model-plan Playwright replay. Default behavior refuses without explicit guards, dry-run validates and summarizes without browser, and real browser execution remains operator-only and is not run by Codex.
 - Windows PowerShell BOM-prefixed JSON configs are tolerated by the ingestion path.
 - Phase 10.6a adds guarded local planner runtime diagnostics for an already-running local endpoint. It helps explain planner prompt hangs, but does not launch models or claim production readiness.
 - Phase 9 milestone freeze report: `docs/status/phase_9_milestone_freeze.md`.

@@ -43,3 +43,4 @@
 * Phase 9 remains the stronger real-browser evidence line through the guarded Playwright suite
 * Phase 10.6 and Phase 10.8 cover captured local planner outputs and offline ingestion/replay
 * this page documents the next offline bridge: a packaged replay target for a validated model-generated browser plan
+* Phase 10.10a builds on this packet with a guarded operator runner that refuses by default, supports dry-run, and keeps real browser execution operator-only

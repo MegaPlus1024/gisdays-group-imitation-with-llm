@@ -76,3 +76,7 @@ Phase 10.9a prepares an offline packet for future guarded Playwright replay of a
 ## Phase 10.9b replay packet evidence
 
 Phase 10.9b documents the offline Playwright replay packet evidence in `docs/status/model_plan_playwright_replay_packet_evidence.md`. It records the packaged model-generated plan and replay instructions, but still does not execute Playwright.
+
+## Phase 10.10a guarded operator runner
+
+Phase 10.10a adds a guarded operator runner for validated model-plan Playwright replay. Default behavior refuses without explicit guards, dry-run validates and summarizes without browser, and real browser execution remains operator-only and is not run by Codex.
