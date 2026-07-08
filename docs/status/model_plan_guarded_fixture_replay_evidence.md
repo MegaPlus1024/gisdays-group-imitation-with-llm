@@ -42,3 +42,4 @@
 * Phase 10.9b documented the offline replay packet that the runner consumes
 * Phase 10.10a added the guarded operator runner itself
 * this page records the successful guarded fixture-backed replay evidence
+* Phase 10.11a adds a guarded Playwright backend option, but this evidence remains fixture-backed and unchanged by that future path

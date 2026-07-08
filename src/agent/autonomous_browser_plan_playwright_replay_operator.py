@@ -17,6 +17,8 @@ from .autonomous_browser_runtime import (
 
 CONFIG_SCHEMA_VERSION = "autonomous_browser_plan_playwright_replay_operator_config_v1"
 SUMMARY_SCHEMA_VERSION = "autonomous_browser_plan_playwright_replay_operator_summary_v1"
+DEFAULT_REPLAY_BACKEND = "fixture"
+SUPPORTED_REPLAY_BACKENDS = ("fixture", "playwright")
 DEFAULT_OUTPUT_DIR = "artifacts/autonomous_runtime_summaries/model_plan_playwright_replay_operator"
 DEFAULT_REPLAY_PLAN_PATH = "artifacts/autonomous_runtime_summaries/model_plan_playwright_replay_packet/playwright_replay_plan.json"
 DEFAULT_FIXTURE_MANIFEST_PATH = "tests/fixtures/local_intranet/office_site_v1/site_manifest.json"
@@ -29,6 +31,7 @@ FIXTURE_SCOPE_LOCAL_ONLY = "local_only"
 @dataclass(frozen=True)
 class AutonomousBrowserPlanPlaywrightReplayOperatorConfig:
     schema_version: str
+    replay_backend: str
     replay_plan_path: str
     output_dir: str
     allowed_hosts: tuple[str, ...]
@@ -40,6 +43,7 @@ class AutonomousBrowserPlanPlaywrightReplayOperatorConfig:
     def to_dict(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
+            "replay_backend": self.replay_backend,
             "replay_plan_path": self.replay_plan_path,
             "output_dir": self.output_dir,
             "allowed_hosts": list(self.allowed_hosts),
@@ -122,7 +126,13 @@ def run_autonomous_browser_plan_playwright_replay_operator(
     allow_real_browser: bool = False,
     confirm_real_browser: str | None = None,
     dry_run: bool = False,
+    replay_backend: str | None = None,
     replay_executor: Callable[
+        [Mapping[str, Any], AutonomousBrowserPlanPlaywrightReplayOperatorConfig, Path],
+        dict[str, Any],
+    ]
+    | None = None,
+    playwright_replay_executor: Callable[
         [Mapping[str, Any], AutonomousBrowserPlanPlaywrightReplayOperatorConfig, Path],
         dict[str, Any],
     ]
@@ -142,7 +152,7 @@ def run_autonomous_browser_plan_playwright_replay_operator(
                 actions_total=0,
                 output_dir=None,
                 limitations=tuple(),
-                replay_backend=None,
+                replay_backend=_safe_backend_value(replay_backend),
                 fixture_replay_execution=False,
                 playwright_execution=False,
                 browser_opened=False,
@@ -152,9 +162,31 @@ def run_autonomous_browser_plan_playwright_replay_operator(
             repo,
         )
 
-    config_error = _validate_config(config)
+    requested_backend = _resolve_replay_backend(config.replay_backend, replay_backend)
+    if requested_backend is None:
+        return _write_summary(
+            _failure_summary(
+                status="failed",
+                error_code="unknown_replay_backend",
+                guard_status="config_validation_failed",
+                replay_plan_path=config.replay_plan_path,
+                plan_id=None,
+                actions_total=0,
+                output_dir=config.output_dir,
+                limitations=_limitations(config),
+                replay_backend=_safe_backend_value(replay_backend) or config.replay_backend,
+                fixture_replay_execution=False,
+                playwright_execution=False,
+                browser_opened=False,
+                real_network_traffic=False,
+                diagnostics={"config": _jsonable(config.to_dict())},
+            ),
+            repo,
+        )
+
+    config_error = _validate_config(config, replay_backend=requested_backend)
     if config_error is not None:
-        return _write_summary(_config_failure_summary(config, config_error), repo)
+        return _write_summary(_config_failure_summary(config, config_error, requested_backend), repo)
 
     output_dir = repo / config.output_dir
     summary_path = output_dir / "autonomous_browser_plan_playwright_replay_operator_summary.json"
@@ -179,6 +211,7 @@ def run_autonomous_browser_plan_playwright_replay_operator(
                 output_dir=config.output_dir,
                 limitations=_limitations(config),
                 output_files=output_files,
+                replay_backend=requested_backend,
                 diagnostics={"replay_plan_error": "replay plan root must be an object."},
             )
             return _write_summary(summary, repo, summary_path=summary_path)
@@ -196,6 +229,7 @@ def run_autonomous_browser_plan_playwright_replay_operator(
                 output_dir=config.output_dir,
                 limitations=_limitations(config),
                 output_files=output_files,
+                replay_backend=requested_backend,
                 diagnostics={"validation": _validation_diagnostics(validation_result)},
             )
             return _write_summary(summary, repo, summary_path=summary_path)
@@ -212,6 +246,7 @@ def run_autonomous_browser_plan_playwright_replay_operator(
                 output_dir=config.output_dir,
                 limitations=_limitations(config),
                 output_files=output_files,
+                replay_backend=requested_backend,
                 diagnostics={"validation": _validation_diagnostics(validation_result)},
             )
             return _write_summary(summary, repo, summary_path=summary_path)
@@ -221,6 +256,7 @@ def run_autonomous_browser_plan_playwright_replay_operator(
             replay_plan_path=config.replay_plan_path,
             validation_result=validation_result,
             output_files=output_files,
+            replay_backend=requested_backend,
         )
         return _write_summary(summary, repo, summary_path=summary_path)
 
@@ -235,7 +271,7 @@ def run_autonomous_browser_plan_playwright_replay_operator(
             output_dir=config.output_dir,
             limitations=_limitations(config),
             output_files=output_files,
-            replay_backend=None,
+            replay_backend=requested_backend,
             fixture_replay_execution=False,
             playwright_execution=False,
             browser_opened=False,
@@ -261,6 +297,7 @@ def run_autonomous_browser_plan_playwright_replay_operator(
             output_dir=config.output_dir,
             limitations=_limitations(config),
             output_files=output_files,
+            replay_backend=requested_backend,
             diagnostics={"replay_plan_error": "replay plan root must be an object."},
         )
         return _write_summary(summary, repo, summary_path=summary_path)
@@ -278,6 +315,7 @@ def run_autonomous_browser_plan_playwright_replay_operator(
             output_dir=config.output_dir,
             limitations=_limitations(config),
             output_files=output_files,
+            replay_backend=requested_backend,
             diagnostics={"validation": _validation_diagnostics(validation_result)},
         )
         return _write_summary(summary, repo, summary_path=summary_path)
@@ -294,11 +332,40 @@ def run_autonomous_browser_plan_playwright_replay_operator(
             output_dir=config.output_dir,
             limitations=_limitations(config),
             output_files=output_files,
+            replay_backend=requested_backend,
             diagnostics={"validation": _validation_diagnostics(validation_result)},
         )
         return _write_summary(summary, repo, summary_path=summary_path)
 
-    executor = replay_executor or _default_replay_executor
+    unsupported_action = None
+    if requested_backend == "playwright":
+        unsupported_action = _unsupported_playwright_action_diagnostic(normalized_plan)
+    if unsupported_action is not None:
+        summary = _failure_summary(
+            status="rejected",
+            error_code="unsupported_playwright_replay_action",
+            guard_status="guarded_replay",
+            replay_plan_path=config.replay_plan_path,
+            plan_id=str(validation_result.get("plan_id")) if validation_result.get("plan_id") else None,
+            actions_total=_int(validation_result.get("actions_total")),
+            output_dir=config.output_dir,
+            limitations=_limitations(config),
+            output_files=output_files,
+            replay_backend=requested_backend,
+            fixture_replay_execution=False,
+            playwright_execution=False,
+            browser_opened=False,
+            real_network_traffic=False,
+            real_browser_execution=False,
+            diagnostics={"unsupported_action": unsupported_action},
+        )
+        return _write_summary(summary, repo, summary_path=summary_path)
+
+    executor = _select_backend_executor(
+        requested_backend,
+        replay_executor=replay_executor,
+        playwright_replay_executor=playwright_replay_executor,
+    )
     replay_result = executor(normalized_plan, config, repo)
     summary = AutonomousBrowserPlanPlaywrightReplayOperatorSummary(
         schema_version=SUMMARY_SCHEMA_VERSION,
@@ -307,8 +374,8 @@ def run_autonomous_browser_plan_playwright_replay_operator(
         guard_status="guarded_replay",
         no_runtime_execution=bool(replay_result.get("no_runtime_execution", False)),
         model_execution=False,
-        real_browser_execution=False,
-        replay_backend=str(replay_result.get("replay_backend") or "fixture"),
+        real_browser_execution=bool(replay_result.get("real_browser_execution", requested_backend == "playwright")),
+        replay_backend=str(replay_result.get("replay_backend") or requested_backend),
         fixture_replay_execution=bool(replay_result.get("fixture_replay_execution", True)),
         playwright_execution=bool(replay_result.get("playwright_execution", False)),
         browser_opened=bool(replay_result.get("browser_opened", False)),
@@ -335,6 +402,7 @@ def _dry_run_summary(
     replay_plan_path: str,
     validation_result: Mapping[str, Any],
     output_files: tuple[str, ...],
+    replay_backend: str,
 ) -> AutonomousBrowserPlanPlaywrightReplayOperatorSummary:
     normalized_plan = validation_result.get("normalized_plan")
     expected_total = _expected_results_total(normalized_plan if isinstance(normalized_plan, Mapping) else {})
@@ -346,7 +414,7 @@ def _dry_run_summary(
         no_runtime_execution=True,
         model_execution=False,
         real_browser_execution=False,
-        replay_backend=None,
+        replay_backend=replay_backend,
         fixture_replay_execution=False,
         playwright_execution=False,
         browser_opened=False,
@@ -457,6 +525,175 @@ def _default_replay_executor(
     }
 
 
+def _default_playwright_replay_executor(
+    normalized_plan: Mapping[str, Any],
+    config: AutonomousBrowserPlanPlaywrightReplayOperatorConfig,
+    repo_root: Path,
+) -> dict[str, Any]:
+    actions = _normalized_actions(normalized_plan)
+    expected_total = _expected_results_total(normalized_plan)
+    for index, action in enumerate(actions):
+        if str(action.get("action_name", "")) not in _real_playwright_supported_action_names():
+            return {
+                "status": "rejected",
+                "error_code": "unsupported_playwright_replay_action",
+                "no_runtime_execution": True,
+                "real_browser_execution": False,
+                "replay_backend": "playwright",
+                "fixture_replay_execution": False,
+                "playwright_execution": False,
+                "browser_opened": False,
+                "real_network_traffic": False,
+                "actions_attempted": 0,
+                "actions_succeeded": 0,
+                "actions_failed": 0,
+                "expected_results_passed": 0,
+                "expected_results_failed": 0,
+                "expected_results_total": expected_total,
+                "diagnostics": {
+                    "unsupported_action": {
+                        "finding_type": "unsupported_playwright_replay_action",
+                        "path": f"actions[{index}].action_name",
+                        "action_name": action.get("action_name"),
+                    }
+                },
+            }
+
+    from .autonomous_browser_playwright_execution import FixtureUrlMapper, LocalFixtureHttpServer
+    from .scripts.browser_playwright_activity import PlaywrightBrowserActivityConfig, run_playwright_browser_activity
+
+    fixture_root = Path(DEFAULT_FIXTURE_MANIFEST_PATH).parent.as_posix()
+    server = LocalFixtureHttpServer(
+        host="127.0.0.1",
+        port=8765,
+        fixture_root=fixture_root,
+        base_url="http://127.0.0.1:8765",
+        repo_root=repo_root,
+    )
+    mapper = FixtureUrlMapper(
+        manifest_path=DEFAULT_FIXTURE_MANIFEST_PATH,
+        server_base_url="http://127.0.0.1:8765",
+        repo_root=repo_root,
+    )
+    action_cfg = PlaywrightBrowserActivityConfig(
+        enabled=True,
+        headless=config.headless,
+        timeout_ms=config.timeout_ms,
+        allowed_url_prefixes=["http://127.0.0.1:8765"],
+        artifact_root=config.output_dir,
+        project_root=repo_root,
+    )
+
+    actions_attempted = 0
+    actions_succeeded = 0
+    actions_failed = 0
+    expected_passed = 0
+    expected_failed = 0
+    action_summaries: list[dict[str, Any]] = []
+    browser_opened = False
+    current_logical_url = ""
+
+    with server as running_server:
+        base_url = running_server.to_summary()["base_url"]
+        for action in actions:
+            action_name = str(action.get("action_name", ""))
+            logical_url = _logical_url_from_plan_action(action) or current_logical_url
+            if not logical_url:
+                return {
+                    "status": "failed",
+                    "error_code": "missing_plan_url",
+                    "no_runtime_execution": True,
+                    "real_browser_execution": False,
+                    "replay_backend": "playwright",
+                    "fixture_replay_execution": False,
+                    "playwright_execution": False,
+                    "browser_opened": False,
+                    "real_network_traffic": False,
+                    "actions_attempted": actions_attempted,
+                    "actions_succeeded": actions_succeeded,
+                    "actions_failed": actions_failed,
+                    "expected_results_passed": expected_passed,
+                    "expected_results_failed": expected_failed,
+                    "expected_results_total": expected_total,
+                    "diagnostics": {
+                        "action": {
+                            "finding_type": "missing_plan_url",
+                            "path": f"actions[{actions_attempted}].parameters.url",
+                        }
+                    },
+                }
+            served_url = mapper.map_logical_url(logical_url)
+            runtime_action = _playwright_runtime_action_name(action_name)
+            result = run_playwright_browser_activity(
+                runtime_action,
+                {"url": served_url},
+                action_cfg,
+            )
+            actions_attempted += 1
+            text_preview = ""
+            if isinstance(result.metadata, Mapping):
+                text_preview = str(result.metadata.get("text_preview") or "")
+                browser_opened = browser_opened or bool(result.metadata.get("browser_launched")) or bool(
+                    result.metadata.get("real_browser_automation")
+                )
+            if result.success:
+                actions_succeeded += 1
+                current_logical_url = logical_url
+            else:
+                actions_failed += 1
+            expected_text = action.get("expected_text")
+            if isinstance(expected_text, str):
+                if expected_text in text_preview:
+                    expected_passed += 1
+                else:
+                    expected_failed += 1
+            action_summaries.append(
+                {
+                    "action_name": action_name,
+                    "logical_url": logical_url,
+                    "served_url": served_url,
+                    "success": result.success,
+                    "error_type": result.error_type,
+                    "error_message": result.error_message,
+                    "text_preview": text_preview,
+                    "output": result.output,
+                    "metadata": _jsonable(result.metadata),
+                }
+            )
+            if not result.success:
+                break
+
+    status = "succeeded" if actions_failed == 0 and expected_failed == 0 else "failed"
+    error_code = None
+    if actions_failed > 0:
+        error_code = "browser_action_failed"
+    elif expected_failed > 0:
+        error_code = "expected_result_failed"
+    return {
+        "status": status,
+        "error_code": error_code,
+        "no_runtime_execution": False,
+        "real_browser_execution": True,
+        "replay_backend": "playwright",
+        "fixture_replay_execution": False,
+        "playwright_execution": True,
+        "browser_opened": browser_opened,
+        "real_network_traffic": False,
+        "actions_attempted": actions_attempted,
+        "actions_succeeded": actions_succeeded,
+        "actions_failed": actions_failed,
+        "expected_results_passed": expected_passed,
+        "expected_results_failed": expected_failed,
+        "expected_results_total": expected_total,
+        "diagnostics": {
+            "replayed_actions": action_summaries,
+            "fixture_manifest_path": DEFAULT_FIXTURE_MANIFEST_PATH,
+            "allowed_hosts": list(config.allowed_hosts),
+            "base_url": base_url,
+        },
+    }
+
+
 def _normalized_actions(normalized_plan: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     actions = normalized_plan.get("actions")
     if isinstance(actions, list):
@@ -493,9 +730,15 @@ def _load_replay_plan(path: Path) -> Mapping[str, Any] | None:
     return payload if isinstance(payload, Mapping) else None
 
 
-def _validate_config(config: AutonomousBrowserPlanPlaywrightReplayOperatorConfig) -> str | None:
+def _validate_config(
+    config: AutonomousBrowserPlanPlaywrightReplayOperatorConfig,
+    *,
+    replay_backend: str,
+) -> str | None:
     if config.schema_version != CONFIG_SCHEMA_VERSION:
         return "config_validation_failed"
+    if replay_backend not in SUPPORTED_REPLAY_BACKENDS:
+        return "unknown_replay_backend"
     if config.fixture_scope != FIXTURE_SCOPE_LOCAL_ONLY:
         return "config_validation_failed"
     if not config.headless:
@@ -513,6 +756,7 @@ def _validate_config(config: AutonomousBrowserPlanPlaywrightReplayOperatorConfig
 
 def _config_from_mapping(payload: Mapping[str, Any]) -> AutonomousBrowserPlanPlaywrightReplayOperatorConfig:
     schema_version = str(payload.get("schema_version", "")).strip()
+    replay_backend = str(payload.get("replay_backend", DEFAULT_REPLAY_BACKEND)).strip().lower() or DEFAULT_REPLAY_BACKEND
     replay_plan_path = _safe_relative_path(payload.get("replay_plan_path"), "replay_plan_path")
     output_dir = _safe_relative_path(payload.get("output_dir", DEFAULT_OUTPUT_DIR), "output_dir")
     allowed_hosts = _safe_host_list(payload.get("allowed_hosts"))
@@ -535,6 +779,7 @@ def _config_from_mapping(payload: Mapping[str, Any]) -> AutonomousBrowserPlanPla
         raise AutonomousBrowserPlanPlaywrightReplayOperatorConfigError("timeout_ms must be a positive integer.")
     return AutonomousBrowserPlanPlaywrightReplayOperatorConfig(
         schema_version=schema_version,
+        replay_backend=replay_backend,
         replay_plan_path=replay_plan_path,
         output_dir=output_dir,
         allowed_hosts=allowed_hosts,
@@ -555,6 +800,85 @@ def _safe_host_list(value: Any) -> tuple[str, ...]:
             return ()
         hosts.append(host)
     return tuple(hosts)
+
+
+def _safe_backend_value(value: str | None) -> str | None:
+    if not isinstance(value, str):
+        return None
+    backend = value.strip().lower()
+    if not backend:
+        return None
+    if any(ch in backend for ch in ("\\", "/", ":", "\0")):
+        return None
+    return backend
+
+
+def _resolve_replay_backend(config_backend: str, override_backend: str | None) -> str | None:
+    if override_backend is not None:
+        backend = _safe_backend_value(override_backend)
+        if backend not in SUPPORTED_REPLAY_BACKENDS:
+            return None
+        return backend
+    backend = _safe_backend_value(config_backend)
+    if backend is None:
+        return None
+    if backend not in SUPPORTED_REPLAY_BACKENDS:
+        return None
+    return backend
+
+
+def _select_backend_executor(
+    backend: str,
+    *,
+    replay_executor: Callable[
+        [Mapping[str, Any], AutonomousBrowserPlanPlaywrightReplayOperatorConfig, Path],
+        dict[str, Any],
+    ]
+    | None,
+    playwright_replay_executor: Callable[
+        [Mapping[str, Any], AutonomousBrowserPlanPlaywrightReplayOperatorConfig, Path],
+        dict[str, Any],
+    ]
+    | None,
+) -> Callable[[Mapping[str, Any], AutonomousBrowserPlanPlaywrightReplayOperatorConfig, Path], dict[str, Any]]:
+    if backend == "playwright":
+        return playwright_replay_executor or _default_playwright_replay_executor
+    return replay_executor or _default_replay_executor
+
+
+def _real_playwright_supported_action_names() -> frozenset[str]:
+    return frozenset({"browser_open_url", "browser_extract_text", "browser_snapshot"})
+
+
+def _playwright_runtime_action_name(action_name: str) -> str:
+    mapping = {
+        "browser_open_url": "open_url_real",
+        "browser_extract_text": "extract_text_real",
+        "browser_snapshot": "take_snapshot_real",
+    }
+    return mapping[action_name]
+
+
+def _logical_url_from_plan_action(action: Mapping[str, Any]) -> str:
+    parameters = action.get("parameters")
+    if isinstance(parameters, Mapping):
+        for key in ("url", "target_url", "href", "success_url"):
+            value = parameters.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return ""
+
+
+def _unsupported_playwright_action_diagnostic(normalized_plan: Mapping[str, Any]) -> dict[str, Any] | None:
+    for index, action in enumerate(_normalized_actions(normalized_plan)):
+        action_name = str(action.get("action_name", ""))
+        if action_name not in _real_playwright_supported_action_names():
+            return {
+                "finding_type": "unsupported_playwright_replay_action",
+                "path": f"actions[{index}].action_name",
+                "action_name": action_name,
+            }
+    return None
 
 
 def _safe_host(value: Any) -> str | None:
@@ -597,6 +921,7 @@ def _failure_summary(
     playwright_execution: bool = False,
     browser_opened: bool = False,
     real_network_traffic: bool = False,
+    real_browser_execution: bool = False,
 ) -> AutonomousBrowserPlanPlaywrightReplayOperatorSummary:
     return AutonomousBrowserPlanPlaywrightReplayOperatorSummary(
         schema_version=SUMMARY_SCHEMA_VERSION,
@@ -605,7 +930,7 @@ def _failure_summary(
         guard_status=guard_status,
         no_runtime_execution=True,
         model_execution=False,
-        real_browser_execution=False,
+        real_browser_execution=real_browser_execution,
         replay_backend=replay_backend,
         fixture_replay_execution=fixture_replay_execution,
         playwright_execution=playwright_execution,
@@ -629,6 +954,7 @@ def _failure_summary(
 def _config_failure_summary(
     config: AutonomousBrowserPlanPlaywrightReplayOperatorConfig,
     error_code: str,
+    replay_backend: str,
 ) -> AutonomousBrowserPlanPlaywrightReplayOperatorSummary:
     return _failure_summary(
         status="failed",
@@ -640,7 +966,7 @@ def _config_failure_summary(
         output_dir=config.output_dir,
         limitations=_limitations(config),
         output_files=_summary_output_files(config.output_dir),
-        replay_backend=None,
+        replay_backend=replay_backend,
         fixture_replay_execution=False,
         playwright_execution=False,
         browser_opened=False,

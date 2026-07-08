@@ -84,3 +84,7 @@ Phase 10.10a adds a guarded operator runner for validated model-plan Playwright 
 ## Phase 10.10b guarded fixture replay evidence
 
 Phase 10.10b documents guarded fixture-backed replay evidence in `docs/status/model_plan_guarded_fixture_replay_evidence.md`. It confirms the runner replays through fixture-backed actions and does not execute real Playwright.
+
+## Phase 10.11a guarded Playwright backend option
+
+Phase 10.11a adds a guarded Playwright backend option for validated model-plan replay. It is disabled unless explicitly selected and guarded. Codex did not run it. Existing verified evidence remains fixture-backed, and real Playwright evidence is still pending an operator-side run.

@@ -22,6 +22,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--allow-real-browser", action="store_true")
     parser.add_argument("--confirm-real-browser")
+    parser.add_argument("--replay-backend")
     args = parser.parse_args(argv)
 
     try:
@@ -31,6 +32,7 @@ def main(argv: list[str] | None = None) -> int:
             allow_real_browser=args.allow_real_browser,
             confirm_real_browser=args.confirm_real_browser,
             dry_run=args.dry_run,
+            replay_backend=args.replay_backend,
         )
     except AutonomousBrowserPlanPlaywrightReplayOperatorConfigError as exc:
         print(
