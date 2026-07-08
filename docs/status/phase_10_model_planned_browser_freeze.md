@@ -68,3 +68,7 @@ Phase 10.8a adds a repeated local planner trials packet for three manual `second
 ## Phase 10.8b repeated trials evidence
 
 Phase 10.8b documents the repeated-trials evidence separately in `docs/status/local_planner_repeated_trials_evidence.md`. It records three captured `second_model` planner outputs, offline ingestion, dry-run acceptance, and fixture replay success, still without Codex-launched model execution or real browser automation.
+
+## Phase 10.9a replay packet bridge
+
+Phase 10.9a prepares an offline packet for future guarded Playwright replay of a validated model-generated browser plan. It stays offline, does not execute Playwright, and does not prove real browser execution yet.

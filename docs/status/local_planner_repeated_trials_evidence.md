@@ -61,4 +61,4 @@ This confirms that three manually captured `second_model` planner outputs were e
 - Phase 9: guarded Playwright suite real browser fixture evidence.
 - Phase 10.6: first single local planner output evidence in `docs/status/local_planner_output_evidence.md`.
 - Phase 10.8: repeated local planner output evidence, still offline fixture replay.
-
+- Phase 10.9a: offline packet bridge for future guarded Playwright replay of a validated model-generated browser plan.

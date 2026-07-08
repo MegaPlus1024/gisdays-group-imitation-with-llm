@@ -1,0 +1,15 @@
+{
+  "schema_version": "autonomous_browser_plan_playwright_replay_packet_config_v1",
+  "no_runtime_execution": true,
+  "packet_id": "browser_plan_playwright_replay_packet_v1",
+  "source_output_path": "artifacts/autonomous_runtime_summaries/local_planner_repeated_trials_packet/trial_01/raw_planner_output.txt",
+  "output_dir": "artifacts/autonomous_runtime_summaries/model_plan_playwright_replay_packet",
+  "limitations": [
+    "offline packet example only",
+    "captured planner output text is local fixture data",
+    "no model calls",
+    "no Playwright execution",
+    "future guarded operator replay only",
+    "not production browser automation"
+  ]
+}

@@ -43,6 +43,7 @@
 - Phase 10 model-planned browser freeze: documented separately in `docs/status/phase_10_model_planned_browser_freeze.md`; model-planned browser evidence only, not live browser automation.
 - Phase 10.8a: adds a repeated local planner trials packet for three manual `second_model` runs; stability evidence only, no Codex model calls.
 - Phase 10.8b: documents repeated local planner trials evidence in `docs/status/local_planner_repeated_trials_evidence.md`; three captured outputs were ingested, dry-run accepted, and replayed offline.
+- Phase 10.9a: prepares an offline packet for future guarded Playwright replay of a validated model-generated browser plan; it is a safety bridge only and does not execute Playwright.
 
 ## 2. Краткая сводка выполнения
 

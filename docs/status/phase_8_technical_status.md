@@ -585,6 +585,8 @@ Phase 10.8a adds a repeated local planner trials packet for three manual `second
 
 Phase 10.8b documents the repeated local planner trials evidence in `docs/status/local_planner_repeated_trials_evidence.md`; it records three captured outputs, offline ingestion, dry-run acceptance, and fixture replay success, still without Codex-launched model execution or real browser automation.
 
+Phase 10.9a prepares an offline packet for future guarded Playwright replay of a validated model-generated browser plan. It is a safety bridge from offline fixture evidence to future guarded browser replay and does not execute Playwright.
+
 Later semantic judge work remains separate and should stay guarded:
 
 1. Define an openai-compatible/DeepSeek-style config schema that never stores secrets in committed files.
