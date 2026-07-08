@@ -76,7 +76,7 @@ Important limitations:
 - corrected bounded concurrent multi-agent stress evidence is preliminary only; no stable concurrency 2 row was observed;
 - pair-matrix and runtime-probe evidence covers two short group scenarios so far; no long stress test has been run;
 - GPU smoke is short and not a stress test; first wall-time result was roughly comparable, not a meaningful speedup claim;
-- browser behavior is simulated-only;
+- browser behavior is confirmed at the fixture-backed autonomous runtime/scenario layer and by guarded Playwright/Chromium suite evidence against local loopback fixtures; production browser automation and external web/network behavior are not confirmed;
 - earlier office behavior was stub/file-based; Phase 8 now includes a guarded real document-file office backend for controlled DOCX/XLSX/PPTX-style action validation and DOCX artifact execution;
 - no git/mail actions are included;
 - GGUF model files are not included in the repository;
@@ -637,7 +637,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 - Research prototype, not production-ready.
 - Corrected bounded concurrent multi-agent stress smoke exists, but no stable concurrency 2 row was observed.
 - Pair-matrix and runtime-probe local orchestrator/executor evidence covers two short group scenarios only.
-- Browser behavior is simulated-only.
+- Browser behavior is confirmed at the fixture-backed autonomous runtime/scenario layer and by guarded Playwright/Chromium suite evidence against local loopback fixtures; production browser automation and external web/network behavior are not confirmed.
 - Office behavior is stub/file-based.
 - No git/mail actions.
 - Safety policy can reject developer-relevant paths.

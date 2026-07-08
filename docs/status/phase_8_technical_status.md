@@ -452,7 +452,7 @@ What is verified in code:
 What is not claimed:
 
 - no committed evidence claims that the guarded suite was executed by the operator yet;
-- the existing committed evidence remains a single smoke run;
+- the existing committed evidence now includes both the single smoke run and the guarded suite evidence recorded in Phase 9.12;
 - production browser automation remains out of scope.
 
 ## 3.6 Phase 9.12 guarded Playwright suite evidence
@@ -563,12 +563,12 @@ Committed packet/example files remain allowed, including `artifacts/first_run_pa
 - Semantic judge scoring is not available yet.
 - API judge provider integration needs a budgeted Phase 8.30 design and operator secret-handling path.
 - Autonomous multi-agent runtime foundation exists, but production long-running deployment and true parallel execution are not implemented.
-- Browser behavior is confirmed at the fixture-backed autonomous runtime/scenario layer and by one operator-run guarded Playwright/Chromium smoke against local fixtures; production browser automation and external web/network behavior are not confirmed.
+- Browser behavior is confirmed at the fixture-backed autonomous runtime/scenario layer and by guarded Playwright/Chromium evidence against local fixtures, including a successful operator-run smoke and a successful operator-run suite; production browser automation and external web/network behavior are not confirmed.
 - Runtime artifacts are evidence for local work, but are not source-controlled.
 
 ## 8. Next technical stage
 
-The next practical browser stage should expand guarded browser coverage beyond the single smoke scenario, while keeping external network and production browser automation out of scope unless separately approved.
+The next practical browser stage should expand guarded browser coverage beyond the current suite evidence, while keeping external network and production browser automation out of scope unless separately approved.
 
 Later semantic judge work remains separate and should stay guarded:
 
