@@ -29,6 +29,16 @@ LIMITATIONS = (
     "no LLM judge",
 )
 
+SUITE_LIMITATIONS = (
+    "local loopback fixture suite only",
+    "headless Chromium only",
+    "not external websites",
+    "not production autonomous browser use",
+    "no mail/git actions",
+    "no LLM judge",
+    "no production hardening claim",
+)
+
 
 class PlaywrightSmokeEvidenceError(ValueError):
     """Raised when Playwright smoke evidence is malformed or unsafe."""
@@ -242,12 +252,15 @@ def build_playwright_smoke_evidence_report(summary: Mapping[str, Any]) -> dict[s
 
 def render_playwright_smoke_evidence_markdown(report: Mapping[str, Any]) -> str:
     logical_urls = _string_list(report.get("logical_urls_visited"), "logical_urls_visited")
-    limitations = _string_list(report.get("limitations"), "limitations")
     browser_backend = _mapping(report.get("browser_backend"), "browser_backend")
     scenario_scope = _mapping(report.get("scenario_scope"), "scenario_scope")
     served_url_policy = _mapping(report.get("served_url_policy"), "served_url_policy")
+    suite_mode = report.get("scenario_count") is not None
+    title = "guarded Playwright browser suite run" if suite_mode else "guarded Playwright browser smoke run"
+    limitations = list(SUITE_LIMITATIONS if suite_mode else LIMITATIONS)
+    scenario_label = scenario_scope.get("scenario_id") or scenario_scope.get("mode") or "unknown"
     lines = [
-        "# Evidence: guarded Playwright browser smoke run",
+        f"# Evidence: {title}",
         "",
         "## Summary",
         "",
@@ -263,7 +276,7 @@ def render_playwright_smoke_evidence_markdown(report: Mapping[str, Any]) -> str:
             f"{report.get('actions_attempted')}/{report.get('actions_succeeded')}/{report.get('actions_failed')}"
         ),
         f"- Expected results: {report.get('expected_results_passed')}/{report.get('expected_results_total')} passed",
-        f"- Scenario: {scenario_scope.get('scenario_id')}",
+        f"- Scenario: {scenario_label}",
         "- Fixture server: loopback-only local fixture server",
         f"- Evidence level: {report.get('evidence_level')}",
         "",
@@ -298,6 +311,7 @@ def render_playwright_smoke_evidence_markdown(report: Mapping[str, Any]) -> str:
                     "- Scenarios attempted/succeeded/failed: "
                     f"{report.get('scenarios_attempted')}/{report.get('scenarios_succeeded')}/{report.get('scenarios_failed')}"
                 ),
+                f"- Scenario count: {report.get('scenario_count')}",
                 f"- Overall action coverage ratio: {report.get('overall_action_coverage_ratio')}",
             ]
         )

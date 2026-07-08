@@ -89,6 +89,62 @@ def _successful_summary() -> dict[str, Any]:
     }
 
 
+def _successful_suite_summary() -> dict[str, Any]:
+    summary = _successful_summary()
+    summary.update(
+        {
+            "schema_version": "autonomous_browser_playwright_suite_summary_v1",
+            "status": "succeeded",
+            "error_code": None,
+            "expected_results_total": 30,
+            "expected_results_passed": 30,
+            "expected_results_failed": 0,
+            "scenario_count": 4,
+            "scenarios_attempted": 4,
+            "scenarios_succeeded": 4,
+            "scenarios_failed": 0,
+            "required_actions": [
+                "browser_open_url",
+                "browser_click",
+                "browser_extract_text",
+                "browser_fill",
+                "browser_submit",
+                "browser_wait",
+                "browser_search",
+                "browser_snapshot",
+            ],
+            "required_actions_covered": [
+                "browser_open_url",
+                "browser_click",
+                "browser_extract_text",
+                "browser_fill",
+                "browser_submit",
+                "browser_wait",
+                "browser_search",
+                "browser_snapshot",
+            ],
+            "required_actions_missing": [],
+            "overall_action_coverage_ratio": 1.0,
+        }
+    )
+    summary["logical_urls_visited"] = [
+        "https://local.intranet/tickets/1",
+        "https://docs.local/docs/policy",
+        "https://local-intranet.test/",
+        "https://local-intranet.test/tickets",
+        "https://local-intranet.test/docs/policy",
+        "https://local-intranet.test/portal/request",
+        "https://local-intranet.test/portal/submitted",
+        "https://local.intranet/",
+        "https://local.intranet/docs/policy",
+        "https://portal.local/portal",
+        "https://portal.local/portal/approvals",
+        "https://portal.local/portal/status",
+    ]
+    summary["scenario_scope"] = {"mode": "suite"}
+    return summary
+
+
 def test_successful_summary_validates() -> None:
     evidence = validate_playwright_smoke_summary(_successful_summary())
 
@@ -97,6 +153,17 @@ def test_successful_summary_validates() -> None:
     assert evidence.evidence_level == "guarded_real_browser_smoke_succeeded"
     assert evidence.actions_attempted == 6
     assert evidence.expected_results_passed == 6
+
+
+def test_successful_suite_summary_validates() -> None:
+    evidence = validate_playwright_smoke_summary(_successful_suite_summary())
+
+    assert evidence.schema_version == EVIDENCE_SCHEMA_VERSION
+    assert evidence.passed is True
+    assert evidence.evidence_level == "guarded_real_browser_suite_succeeded"
+    assert evidence.scenario_count == 4
+    assert evidence.scenarios_succeeded == 4
+    assert evidence.required_actions_missing == ()
 
 
 def test_failed_status_produces_passed_false() -> None:
@@ -151,6 +218,16 @@ def test_markdown_renderer_includes_status_actions_and_limitations() -> None:
     assert "single guarded smoke scenario" in markdown
 
 
+def test_markdown_renderer_includes_suite_coverage() -> None:
+    report = build_playwright_smoke_evidence_report(_successful_suite_summary())
+    markdown = render_playwright_smoke_evidence_markdown(report)
+
+    assert "guarded Playwright browser suite run" in markdown
+    assert "Scenarios attempted/succeeded/failed: 4/4/0" in markdown
+    assert "Required browser actions covered: 8/8" in markdown
+    assert "local loopback fixture suite only" in markdown
+
+
 def test_cli_writes_markdown_evidence_to_temp_docs_path(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     summary_path = tmp_path / "summary.json"
     summary_path.write_text(json.dumps(_successful_summary()), encoding="utf-8")
@@ -163,6 +240,22 @@ def test_cli_writes_markdown_evidence_to_temp_docs_path(tmp_path: Path, capsys: 
     assert payload["status"] == "succeeded"
     assert output_doc.is_file()
     assert "guarded Playwright browser smoke run" in output_doc.read_text(encoding="utf-8")
+
+
+def test_cli_writes_suite_evidence_to_temp_docs_path(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    summary_path = tmp_path / "summary.json"
+    summary_path.write_text(json.dumps(_successful_suite_summary()), encoding="utf-8")
+    output_doc = tmp_path / "docs" / "status" / "playwright_smoke_evidence.md"
+
+    rc = cli.main(["--summary", str(summary_path), "--output-doc", str(output_doc)])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert payload["status"] == "succeeded"
+    assert output_doc.is_file()
+    rendered = output_doc.read_text(encoding="utf-8")
+    assert "guarded Playwright browser suite run" in rendered
+    assert "Scenarios attempted/succeeded/failed: 4/4/0" in rendered
 
 
 def test_cli_refuses_unsafe_output_path(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

@@ -455,6 +455,29 @@ What is not claimed:
 - the existing committed evidence remains a single smoke run;
 - production browser automation remains out of scope.
 
+## 3.6 Phase 9.12 guarded Playwright suite evidence
+
+Phase 9.12 records the successful operator-run guarded Playwright/Chromium suite against the local loopback fixtures after the Phase 9.11 marker fixes.
+
+What was recorded:
+
+- guarded real browser suite result succeeded with `status: succeeded` and `error_code: null`;
+- browser backend: headless Chromium via Playwright;
+- actions attempted/succeeded/failed: 30/30/0;
+- scenarios attempted/succeeded/failed: 4/4/0;
+- expected results passed/total: 30/30;
+- required browser action coverage ratio: 1.0;
+- logical URLs stayed inside the committed local fixture domains, with loopback-only served URLs.
+
+Committed evidence:
+
+- `docs/status/playwright_smoke_evidence.md` now summarizes the successful guarded suite evidence in bounded form.
+
+Limitations:
+
+- this is still a local loopback fixture suite only;
+- it is not external websites, not production autonomous browser use, and not a production hardening claim.
+
 ## 4. Offline reproduction commands
 
 The following commands are intended for offline post-processing of already-produced artifacts. They do not start models or live API calls.
