@@ -597,6 +597,8 @@ Phase 10.11a adds a guarded Playwright backend option for validated model-plan r
 
 Phase 10.11b documents the first operator-run real Playwright replay evidence in `docs/status/model_plan_real_playwright_replay_evidence.md`; it stays limited to one validated plan against local loopback fixtures.
 
+Phase 10.12a adds a guarded replay suite for repeated model-generated plans; Codex only verified dry-run/refusal/offline paths, and real suite evidence is still pending an operator-side run.
+
 Later semantic judge work remains separate and should stay guarded:
 
 1. Define an openai-compatible/DeepSeek-style config schema that never stores secrets in committed files.
