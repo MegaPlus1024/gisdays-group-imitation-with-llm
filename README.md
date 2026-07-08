@@ -648,6 +648,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 - Phase 10.3e adds an offline planner replay suite/aggregator for candidate browser plan JSON files. It evaluates local candidate plans only and does not call LLMs or execute real browser actions.
 - Phase 10.4a adds offline ingestion for captured planner output. It extracts candidate browser plans from saved text, validates them, and replays them offline without calling models or launching a real browser.
 - Phase 10.4b adds an offline suite/aggregator for multiple captured planner outputs. It evaluates saved text only, aggregates ingestion outcomes, and does not call local LLMs or execute real browser actions.
+- Phase 10.5a adds an offline local planner operator packet for future manual local planner runs. It prepares a bounded operator handoff, but does not call models or execute real browser actions.
 - Phase 9 milestone freeze report: `docs/status/phase_9_milestone_freeze.md`.
 - Office behavior is stub/file-based.
 - No git/mail actions.

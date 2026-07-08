@@ -1,0 +1,22 @@
+{
+  "schema_version": "autonomous_browser_local_planner_operator_packet_config_v1",
+  "no_runtime_execution": true,
+  "operator_packet_id": "browser_local_planner_operator_packet_v1",
+  "planner_packet_config_path": "configs/autonomous_runtime/browser_planner_packet.example.json",
+  "expected_raw_output_path": "artifacts/autonomous_runtime_summaries/local_planner_operator_packet/raw_planner_output.txt",
+  "expected_ingestion_suite_config_path": "configs/autonomous_runtime/browser_planner_output_ingestion_suite.example.json",
+  "model_ids_allowed": [
+    "first_model",
+    "second_model"
+  ],
+  "default_recommended_planner_model": "second_model",
+  "output_dir": "artifacts/autonomous_runtime_summaries/local_planner_operator_packet",
+  "limitations": [
+    "offline local operator packet only",
+    "future manual local planner runs only",
+    "no model calls",
+    "no real browser execution",
+    "captured output verifier remains separate",
+    "not production browser automation"
+  ]
+}

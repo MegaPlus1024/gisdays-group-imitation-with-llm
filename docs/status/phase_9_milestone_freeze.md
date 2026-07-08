@@ -111,3 +111,9 @@ This does not create new real browser evidence, does not call LLMs, keeps fixtur
 Phase 10.4b adds an offline suite/aggregator for multiple captured planner outputs. It evaluates saved text outputs only, aggregates ingestion outcomes, and keeps the replay path offline without launching a real browser or calling a local LLM.
 
 This does not add new real browser evidence, does not call LLMs, keeps fixture execution offline only, keeps guarded Playwright suite evidence separate, and does not claim production readiness.
+
+## Phase 10.5a local planner operator packet
+
+Phase 10.5a adds an offline local planner operator packet for future manual local planner runs. It prepares a bounded operator handoff for saved planner prompts and captured outputs, but does not call models or execute real browser actions.
+
+This does not add new real browser evidence, does not call LLMs, keeps the operator handoff offline only, keeps guarded Playwright suite evidence separate, and does not claim production readiness.
