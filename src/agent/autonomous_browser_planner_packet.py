@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .autonomous_browser_plan_fixture_execution import run_autonomous_browser_plan_fixture_execution
 from .autonomous_browser_plan_runtime_bridge import run_autonomous_browser_plan_dry_run
 from .autonomous_browser_plan_validation import validate_autonomous_browser_plan
 
@@ -314,3 +313,15 @@ def _int(value: Any) -> int:
     if isinstance(value, int):
         return value
     return 0
+
+
+def run_autonomous_browser_plan_fixture_execution(
+    candidate_plan: str | Path | Mapping[str, Any],
+    *,
+    repo_root: str | Path | None = None,
+) -> dict[str, Any]:
+    from .autonomous_browser_plan_fixture_execution import (
+        run_autonomous_browser_plan_fixture_execution as _run_autonomous_browser_plan_fixture_execution,
+    )
+
+    return _run_autonomous_browser_plan_fixture_execution(candidate_plan, repo_root=repo_root)

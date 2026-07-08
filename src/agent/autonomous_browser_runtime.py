@@ -18,10 +18,6 @@ from .browser_fixture_resolver import (
     BrowserFixtureResolverError,
     resolve_browser_fixture_url,
 )
-from .scripts.browser_playwright_activity import (
-    PlaywrightBrowserActivityConfig,
-    run_playwright_browser_activity,
-)
 
 
 BROWSER_RUNTIME_ACTION_NAMES = frozenset(
@@ -696,10 +692,10 @@ class PlaywrightBrowserRuntimeExecutor:
     def __init__(
         self,
         *,
-        config: PlaywrightBrowserActivityConfig | None = None,
+        config: Any | None = None,
         dependency_loader: Any | None = None,
     ) -> None:
-        self.config = config or PlaywrightBrowserActivityConfig(enabled=False)
+        self.config = config
         self.dependency_loader = dependency_loader
 
     def execute(
@@ -707,6 +703,11 @@ class PlaywrightBrowserRuntimeExecutor:
         action: BrowserRuntimeAction,
         session: BrowserRuntimeSession,
     ) -> BrowserRuntimeResult:
+        from .scripts.browser_playwright_activity import (
+            PlaywrightBrowserActivityConfig,
+            run_playwright_browser_activity,
+        )
+
         del session
         action_map = {
             "browser_open_url": "open_url_real",
@@ -720,10 +721,11 @@ class PlaywrightBrowserRuntimeExecutor:
                 "Playwright browser runtime interface supports open/extract/snapshot only.",
                 metadata={"browser_launched": False, "real_browser_automation": False},
             )
+        config = self.config or PlaywrightBrowserActivityConfig(enabled=False)
         result = run_playwright_browser_activity(
             mapped,
             action.parameters,
-            self.config,
+            config,
             dependency_loader=self.dependency_loader,
         )
         return BrowserRuntimeResult(

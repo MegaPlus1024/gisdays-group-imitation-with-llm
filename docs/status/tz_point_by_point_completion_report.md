@@ -31,7 +31,7 @@
 - Phase 10.3a: added an offline browser plan schema and validator for future model-planned browser tasks; no new real browser path was introduced.
 - Phase 10.3b: added an offline validated-plan runtime dry-run bridge for future model-planned browser tasks; no new real browser path was introduced.
 - Phase 10.3c: added an offline fixture-backed execution path for validated browser plans; no new real browser path was introduced.
-- Phase 10.3d: added an offline planner prompt/output packet and replay path for future model-planned browser tasks; no new real browser path was introduced.
+- Phase 10.3d: added an offline planner prompt/output packet, builder, and replay path for future model-planned browser tasks; no new real browser path was introduced.
 - Phase 10.3e: added an offline planner replay suite/aggregator for candidate browser plan JSON files; no new real browser path was introduced.
 
 ## 2. Краткая сводка выполнения
