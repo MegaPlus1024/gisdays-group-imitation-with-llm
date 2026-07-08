@@ -59,3 +59,7 @@ Phase 10.2 / Block 11 should integrate autonomous runtime with the browser scena
 scheduler/task board -> browser task -> browser executor -> verifier -> shared state update -> runtime summary.
 
 No real LLM is required initially.
+
+## Phase 10.2a bridge
+
+Phase 10.2a now adds an offline bridge from the autonomous runtime task board to the fixture-backed browser suite in scripted mode. It stays within the existing guarded operator boundary and does not introduce real browser execution beyond the already confirmed Playwright path.
