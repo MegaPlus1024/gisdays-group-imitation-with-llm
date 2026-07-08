@@ -133,3 +133,7 @@ Phase 10.6b adds a compact local planner prompt profile for manual CPU-bound sch
 ## Local planner output evidence
 
 First controlled local planner output evidence is documented in `docs/status/local_planner_output_evidence.md`. It captures a manual `second_model` run plus offline ingestion and fixture replay only, without adding browser evidence or a live autonomous loop.
+
+## Phase 10 model-planned browser freeze
+
+The Phase 10 model-planned browser path freeze is documented in `docs/status/phase_10_model_planned_browser_freeze.md`. It summarizes the validated model-planned browser path, separate from the Phase 9 guarded Playwright/Chromium evidence.

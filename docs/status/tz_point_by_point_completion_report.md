@@ -40,6 +40,7 @@
 - Phase 10.6a: adds guarded local planner runtime diagnostics for an already-running local endpoint; no new real browser path was introduced.
 - Phase 10.6b: adds a compact local planner prompt profile for manual CPU-bound schema-following checks; no new real browser path was introduced.
 - Local planner output evidence: documented separately in `docs/status/local_planner_output_evidence.md`; manual operator output capture plus offline ingestion/fixture replay only.
+- Phase 10 model-planned browser freeze: documented separately in `docs/status/phase_10_model_planned_browser_freeze.md`; model-planned browser evidence only, not live browser automation.
 
 ## 2. Краткая сводка выполнения
 
