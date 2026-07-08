@@ -81,3 +81,9 @@ Phase 10.3a adds an offline browser plan schema and validator for future model-p
 Phase 10.3b adds an offline validated-plan runtime dry-run bridge for future model-planned browser tasks. It takes a browser plan artifact, validates it, records it as a planning task, updates shared state, and emits a structured dry-run summary without executing browser actions or calling an LLM.
 
 This does not add new real browser evidence, does not claim production readiness, and stays limited to local fixture-safe planning metadata.
+
+## Phase 10.3c fixture-backed plan execution
+
+Phase 10.3c adds an offline fixture-backed execution path for validated browser plans. It validates the plan, executes only fixture-backed browser actions through existing local runtime machinery, checks expected_text on each action, and emits a bounded structured execution summary.
+
+This is not real browser evidence, does not use Playwright or Chromium, keeps guarded Playwright suite evidence separate, does not call an LLM, and does not claim production readiness.

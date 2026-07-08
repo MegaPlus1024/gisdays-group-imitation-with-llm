@@ -643,6 +643,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 - Phase 10.2c adds bounded runtime trace evidence to the offline bridge summary.
 - Phase 10.3a adds offline browser plan schema validation for future model-planned browser tasks.
 - Phase 10.3b adds an offline validated-plan runtime dry-run bridge for future model-planned browser tasks. It does not call LLMs, does not execute browser actions, and does not add new real browser evidence.
+- Phase 10.3c adds offline fixture-backed execution for validated browser plans. It stays separate from the guarded Playwright suite evidence, does not call LLMs, and does not claim production readiness.
 - Phase 9 milestone freeze report: `docs/status/phase_9_milestone_freeze.md`.
 - Office behavior is stub/file-based.
 - No git/mail actions.
