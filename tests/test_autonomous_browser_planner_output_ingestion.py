@@ -63,6 +63,10 @@ def _config_for(source_output_path: str, *, output_dir: str = "artifacts/browser
     }
 
 
+def _write_json_bom(path: Path, payload: Any) -> None:
+    path.write_bytes(b"\xef\xbb\xbf" + json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"))
+
+
 def test_plain_json_output_accepted(tmp_path: Path) -> None:
     path = tmp_path / "plain.txt"
     path.write_text(json.dumps(_candidate_plan(), ensure_ascii=False), encoding="utf-8")
@@ -199,6 +203,55 @@ def test_cli_success_exits_zero_and_prints_compact_json() -> None:
     assert completed.returncode == 0
     assert payload["status"] == "succeeded"
     assert completed.stdout.strip() == completed.stdout.strip().replace("\n", "")
+
+
+def test_ingestion_accepts_bom_raw_output(tmp_path: Path) -> None:
+    repo_root = tmp_path
+    fixture_dir = repo_root / "tests" / "fixtures" / "browser_planner_outputs"
+    fixture_dir.mkdir(parents=True, exist_ok=True)
+    bom_output_path = fixture_dir / "bom_candidate_output.txt"
+    bom_output_path.write_bytes(b"\xef\xbb\xbf" + VALID_OUTPUT_PATH.read_bytes())
+
+    summary = ingest_autonomous_browser_planner_output(
+        _config_for("tests/fixtures/browser_planner_outputs/bom_candidate_output.txt"),
+        repo_root=repo_root,
+    )
+
+    assert summary["status"] == "succeeded"
+    assert summary["dry_run_status"] == "accepted"
+    assert summary["fixture_execution_status"] == "skipped"
+
+
+def test_cli_accepts_bom_config_and_bom_raw_output() -> None:
+    ARTIFACT_TEST_DIR.mkdir(parents=True, exist_ok=True)
+    config_path = ARTIFACT_TEST_DIR / "bom_config.json"
+    bom_output_path = PROJECT_ROOT / "tests" / "fixtures" / "browser_planner_outputs" / "bom_candidate_output.txt"
+    try:
+        bom_output_path.write_bytes(b"\xef\xbb\xbf" + VALID_OUTPUT_PATH.read_bytes())
+        _write_json_bom(
+            config_path,
+            {
+                "schema_version": CONFIG_SCHEMA_VERSION,
+                "source_output_path": "tests/fixtures/browser_planner_outputs/bom_candidate_output.txt",
+                "output_dir": "artifacts/browser_planner_output_ingestion_tests",
+                "limitations": ["test fixture"],
+            },
+        )
+
+        completed = subprocess.run(
+            [sys.executable, str(CLI_PATH), "--config", str(config_path)],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        payload = json.loads(completed.stdout)
+        assert completed.returncode == 0
+        assert payload["status"] == "succeeded"
+        assert payload["dry_run_status"] == "accepted"
+    finally:
+        bom_output_path.unlink(missing_ok=True)
+        _cleanup_artifacts()
 
 
 def test_cli_failure_exits_nonzero_with_structured_json(tmp_path: Path) -> None:

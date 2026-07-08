@@ -87,7 +87,7 @@ def ingest_autonomous_browser_planner_output(
 
     source_output_path = str(config_result["source_output_path"])
     try:
-        raw_text = (repo / source_output_path).read_text(encoding="utf-8")
+        raw_text = (repo / source_output_path).read_text(encoding="utf-8-sig")
     except OSError:
         return _failure_summary(
             source_output_path=source_output_path,
@@ -275,7 +275,7 @@ def _load_config(config_artifact: str | Path | Mapping[str, Any]) -> dict[str, A
         payload = dict(config_artifact)
     else:
         try:
-            payload = json.loads(Path(config_artifact).read_text(encoding="utf-8"))
+            payload = json.loads(Path(config_artifact).read_text(encoding="utf-8-sig"))
         except OSError:
             return {
                 "status": "failed",

@@ -59,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _load_config(path: Path) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8-sig"))
     if not isinstance(payload, dict):
         raise ValueError("config root must be a JSON object.")
     if str(payload.get("schema_version", "")) != CONFIG_SCHEMA_VERSION:

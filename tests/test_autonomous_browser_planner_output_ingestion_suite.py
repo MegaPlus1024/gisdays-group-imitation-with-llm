@@ -50,6 +50,10 @@ def _write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _write_json_bom(path: Path, payload: Any) -> None:
+    path.write_bytes(b"\xef\xbb\xbf" + json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"))
+
+
 def _cleanup_artifacts() -> None:
     shutil.rmtree(ARTIFACT_TEST_DIR, ignore_errors=True)
     shutil.rmtree(PROJECT_ROOT / "artifacts" / "autonomous_runtime_summaries" / "browser_planner_output_ingestion_suite", ignore_errors=True)
@@ -194,6 +198,32 @@ def test_cli_dry_run_success_exits_zero_and_prints_compact_json() -> None:
         assert payload["status"] == "succeeded"
         assert completed.stdout.strip() == completed.stdout.strip().replace("\n", "")
         assert (PROJECT_ROOT / "artifacts" / "browser_planner_output_ingestion_suite_tests" / "autonomous_browser_planner_output_ingestion_suite_summary.json").exists()
+    finally:
+        _cleanup_artifacts()
+
+
+def test_cli_dry_run_accepts_bom_config() -> None:
+    ARTIFACT_TEST_DIR.mkdir(parents=True, exist_ok=True)
+    config_path = ARTIFACT_TEST_DIR / "suite_bom.json"
+    _write_json_bom(
+        config_path,
+        _suite_config(
+            ["tests/fixtures/browser_planner_outputs/valid_candidate_output.txt"],
+            output_dir="artifacts/browser_planner_output_ingestion_suite_tests",
+        ),
+    )
+
+    completed = subprocess.run(
+        [sys.executable, str(CLI_PATH), "--config", str(config_path)],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    payload = json.loads(completed.stdout)
+    try:
+        assert completed.returncode == 0
+        assert payload["status"] == "succeeded"
     finally:
         _cleanup_artifacts()
 

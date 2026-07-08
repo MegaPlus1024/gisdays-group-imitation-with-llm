@@ -216,7 +216,7 @@ def _load_suite_config(config_artifact: str | Path | Mapping[str, Any]) -> dict[
         payload = dict(config_artifact)
     else:
         try:
-            payload = json.loads(Path(config_artifact).read_text(encoding="utf-8"))
+            payload = json.loads(Path(config_artifact).read_text(encoding="utf-8-sig"))
         except OSError:
             return {
                 "status": "failed",

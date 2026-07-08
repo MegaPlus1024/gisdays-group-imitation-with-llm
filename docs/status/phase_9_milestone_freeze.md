@@ -112,6 +112,8 @@ Phase 10.4b adds an offline suite/aggregator for multiple captured planner outpu
 
 This does not add new real browser evidence, does not call LLMs, keeps fixture execution offline only, keeps guarded Playwright suite evidence separate, and does not claim production readiness.
 
+Windows PowerShell BOM-prefixed ingestion configs and captured output text are tolerated by the offline ingestion path.
+
 ## Phase 10.5a local planner operator packet
 
 Phase 10.5a adds an offline local planner operator packet for future manual local planner runs. It prepares a bounded operator handoff for saved planner prompts and captured outputs, but does not call models or execute real browser actions.
