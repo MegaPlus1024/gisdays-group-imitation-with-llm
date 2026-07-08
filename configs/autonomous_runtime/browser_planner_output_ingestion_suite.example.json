@@ -1,0 +1,19 @@
+{
+  "schema_version": "autonomous_browser_planner_output_ingestion_suite_config_v1",
+  "suite_id": "browser_planner_output_ingestion_suite_example_v1",
+  "captured_outputs": [
+    "tests/fixtures/browser_planner_outputs/valid_candidate_output.txt"
+  ],
+  "replay_mode": "dry_run",
+  "output_dir": "artifacts/autonomous_runtime_summaries/browser_planner_output_ingestion_suite",
+  "expected_min_ingested": 1,
+  "expected_max_rejected": 0,
+  "limitations": [
+    "offline suite example only",
+    "captured planner outputs are local text files",
+    "no LLM calls",
+    "no real browser execution",
+    "fixture execution remains offline only",
+    "not production browser automation"
+  ]
+}

@@ -34,6 +34,7 @@
 - Phase 10.3d: added an offline planner prompt/output packet, builder, and replay path for future model-planned browser tasks; no new real browser path was introduced.
 - Phase 10.3e: added an offline planner replay suite/aggregator for candidate browser plan JSON files; no new real browser path was introduced.
 - Phase 10.4a: added offline ingestion for captured planner output; no new real browser path was introduced.
+- Phase 10.4b: added an offline suite/aggregator for captured planner outputs; no new real browser path was introduced.
 
 ## 2. Краткая сводка выполнения
 

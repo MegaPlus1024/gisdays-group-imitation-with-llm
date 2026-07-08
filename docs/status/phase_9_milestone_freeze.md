@@ -105,3 +105,9 @@ This does not generate candidates with a model, does not call LLMs, does not exe
 Phase 10.4a adds offline ingestion for captured planner output. It extracts candidate browser plans from saved text, validates them, and replays them offline without calling models or launching a real browser.
 
 This does not create new real browser evidence, does not call LLMs, keeps fixture execution offline only, keeps guarded Playwright suite evidence separate, and does not claim production readiness.
+
+## Phase 10.4b captured planner output ingestion suite
+
+Phase 10.4b adds an offline suite/aggregator for multiple captured planner outputs. It evaluates saved text outputs only, aggregates ingestion outcomes, and keeps the replay path offline without launching a real browser or calling a local LLM.
+
+This does not add new real browser evidence, does not call LLMs, keeps fixture execution offline only, keeps guarded Playwright suite evidence separate, and does not claim production readiness.
