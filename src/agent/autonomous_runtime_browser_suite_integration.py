@@ -48,6 +48,7 @@ class AutonomousRuntimeBrowserSuiteIntegrationSummary:
     required_actions_missing: tuple[str, ...] = ()
     shared_state_updates: tuple[dict[str, Any], ...] = ()
     limitations: tuple[str, ...] = ()
+    output_files: tuple[str, ...] = ()
     suite_id: str = ""
     suite_config_path: str | None = None
     runtime_summary: dict[str, Any] = field(default_factory=dict)
@@ -76,6 +77,7 @@ class AutonomousRuntimeBrowserSuiteIntegrationSummary:
             "required_actions_missing": list(self.required_actions_missing),
             "shared_state_updates": [dict(item) for item in self.shared_state_updates],
             "limitations": list(self.limitations),
+            "output_files": list(self.output_files),
             "suite_id": self.suite_id,
             "suite_config_path": self.suite_config_path,
             "runtime_summary": dict(self.runtime_summary),
@@ -87,12 +89,15 @@ def run_autonomous_browser_suite_task(
     suite_config: str | Path | AutonomousBrowserScenarioSuite | Mapping[str, Any],
     *,
     repo_root: str | Path | None = None,
+    suite_config_display_path: str | Path | None = None,
     runtime_id: str = "autonomous_browser_suite_bridge_runtime",
     agent_id: str = "browser_suite_runner",
     task_id: str = "browser_suite_task",
 ) -> dict[str, Any]:
     repo = Path(repo_root) if repo_root is not None else Path(".")
     suite, suite_source_path, load_error = _load_suite_config(suite_config, repo_root=repo)
+    if suite_config_display_path is not None:
+        suite_source_path = _safe_display_path(Path(suite_config_display_path), repo)
     if load_error is not None:
         return AutonomousRuntimeBrowserSuiteIntegrationSummary(
             schema_version=INTEGRATION_SCHEMA_VERSION,
@@ -112,6 +117,7 @@ def run_autonomous_browser_suite_task(
             expected_results_passed=0,
             expected_results_failed=0,
             limitations=_limitations(),
+            output_files=(),
             suite_config_path=suite_source_path,
         ).to_dict()
 
@@ -211,6 +217,7 @@ def run_autonomous_browser_suite_task(
         required_actions_missing=tuple(str(value) for value in suite_summary.get("required_actions_missing", [])),
         shared_state_updates=tuple(shared_updates),
         limitations=_limitations(),
+        output_files=(),
         suite_id=suite.suite_id,
         suite_config_path=suite_source_path,
         runtime_summary=runtime_summary,

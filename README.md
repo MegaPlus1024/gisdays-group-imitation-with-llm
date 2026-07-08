@@ -639,6 +639,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 - Pair-matrix and runtime-probe local orchestrator/executor evidence covers two short group scenarios only.
 - Browser behavior is confirmed at the fixture-backed autonomous runtime/scenario layer and by guarded Playwright/Chromium suite evidence against local loopback fixtures; production browser automation and external web/network behavior are not confirmed.
 - Phase 10.2a offline bridge connects the autonomous runtime task board to the fixture-backed browser suite in scripted mode.
+- Phase 10.2b offline CLI/config wraps that bridge for reproducible offline runs.
 - Phase 9 milestone freeze report: `docs/status/phase_9_milestone_freeze.md`.
 - Office behavior is stub/file-based.
 - No git/mail actions.

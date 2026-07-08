@@ -63,3 +63,7 @@ No real LLM is required initially.
 ## Phase 10.2a bridge
 
 Phase 10.2a now adds an offline bridge from the autonomous runtime task board to the fixture-backed browser suite in scripted mode. It stays within the existing guarded operator boundary and does not introduce real browser execution beyond the already confirmed Playwright path.
+
+## Phase 10.2b CLI/config
+
+Phase 10.2b adds an offline CLI and example config for reproducing the autonomous runtime to browser suite bridge from the command line. It writes a local JSON summary, can optionally emit a compact markdown note, and still stays outside real browser, Playwright, Chromium, server, or model execution.
