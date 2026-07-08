@@ -400,6 +400,7 @@ def _build_commands_markdown(commands: list[dict[str, Any]], *, output_dir: str)
         "# Repeated Local Planner Trials Commands",
         "",
         "Codex must not launch models.",
+        "Use `planner_prompt.compact.txt` as the prompt source for each trial.",
         "Do not use Invoke-RestMethod for planner generation.",
         "A human operator may run the local planner separately and save each model output as text.",
         f"The packet output directory is `{output_dir}`.",
