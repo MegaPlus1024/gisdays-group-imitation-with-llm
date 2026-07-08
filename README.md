@@ -8,6 +8,7 @@ This repository now has both the original single-agent evidence base and a conso
 - Multi-agent orchestrator/executor evidence: fake MVP, local POC, repeated group trials, simple/heavy pair matrices, runtime probe, GPU smoke, and corrected bounded stress v2.
 - Latest Phase 8 controlled office-evaluation status is documented in `docs/status/phase_8_current_state_for_leadership.md` and `docs/status/phase_8_technical_status.md`.
 - Latest confirmed controlled mini-matrix: 3/3 repeats succeeded, 6/6 office actions executed successfully, 6/6 DOCX artifacts were generated and readable, deterministic mean correctness is 1.0. Semantic LLM judge scoring is guarded and has not been run yet.
+- Real Playwright replay suite evidence for three repeated model plans is documented in `docs/status/model_plan_real_playwright_replay_suite_evidence.md`.
 - Preliminary quality-focused pair: `second_model -> second_model`.
 - Resource-balanced/simple-scenario pair: `second_model -> first_model`.
 - `first_model` is not recommended as orchestrator in the current tests.
@@ -76,7 +77,7 @@ Important limitations:
 - corrected bounded concurrent multi-agent stress evidence is preliminary only; no stable concurrency 2 row was observed;
 - pair-matrix and runtime-probe evidence covers two short group scenarios so far; no long stress test has been run;
 - GPU smoke is short and not a stress test; first wall-time result was roughly comparable, not a meaningful speedup claim;
-- browser behavior is confirmed at the fixture-backed autonomous runtime/scenario layer and by guarded Playwright/Chromium suite evidence against local loopback fixtures; production browser automation and external web/network behavior are not confirmed;
+- browser behavior is confirmed at the fixture-backed autonomous runtime/scenario layer and by guarded Playwright/Chromium suite evidence against local loopback fixtures; repeated model-plan browser replay now has both guarded suite evidence and operator-run real Playwright suite evidence against local loopback fixtures only; production browser automation and external web/network behavior are not confirmed;
 - earlier office behavior was stub/file-based; Phase 8 now includes a guarded real document-file office backend for controlled DOCX/XLSX/PPTX-style action validation and DOCX artifact execution;
 - no git/mail actions are included;
 - GGUF model files are not included in the repository;
@@ -637,7 +638,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 - Research prototype, not production-ready.
 - Corrected bounded concurrent multi-agent stress smoke exists, but no stable concurrency 2 row was observed.
 - Pair-matrix and runtime-probe local orchestrator/executor evidence covers two short group scenarios only.
-- Browser behavior is confirmed at the fixture-backed autonomous runtime/scenario layer and by guarded Playwright/Chromium suite evidence against local loopback fixtures; production browser automation and external web/network behavior are not confirmed.
+- Browser behavior is confirmed at the fixture-backed autonomous runtime/scenario layer and by guarded Playwright/Chromium suite evidence against local loopback fixtures; repeated model-plan browser replay now has both guarded suite evidence and operator-run real Playwright suite evidence against local loopback fixtures only; production browser automation and external web/network behavior are not confirmed.
 - Phase 10.2a offline bridge connects the autonomous runtime task board to the fixture-backed browser suite in scripted mode.
 - Phase 10.2b offline CLI/config wraps that bridge for reproducible offline runs.
 - Phase 10.2c adds bounded runtime trace evidence to the offline bridge summary.

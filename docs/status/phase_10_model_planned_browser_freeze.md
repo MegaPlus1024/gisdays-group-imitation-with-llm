@@ -95,4 +95,9 @@ Phase 10.11b records the first successful real Playwright replay of a validated 
 
 ## Phase 10.12a guarded replay suite
 
-Phase 10.12a adds a guarded replay suite for repeated model-generated plans. Codex only verified dry-run, refusal, and offline paths; real Playwright suite evidence is still pending an operator-side run.
+Phase 10.12a adds a guarded replay suite for repeated model-generated plans. Codex only verified dry-run, refusal, and offline paths.
+Phase 10.12b records the operator-run real Playwright replay suite evidence for the repeated model-generated plans.
+
+## Phase 10.12b real Playwright replay suite evidence
+
+Phase 10.12b documents the successful operator-run real Playwright replay suite for three repeated model-generated plans in `docs/status/model_plan_real_playwright_replay_suite_evidence.md`. It uses the guarded suite path against local loopback fixtures only and remains separate from the single-plan real Playwright evidence above.

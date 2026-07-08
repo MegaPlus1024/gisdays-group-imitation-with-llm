@@ -67,5 +67,6 @@
 * Phase 10.8: repeated `second_model` planner outputs, offline fixture replay, 3/3 outputs and 9/9 checks
 * Phase 10.10: guarded fixture-backed model-plan replay
 * Phase 10.11a: guarded Playwright backend option for validated model-plan replay
-* Phase 10.12a: guarded replay suite for repeated model-generated plans; the suite evidence itself is still pending an operator-side run
+* Phase 10.12a: guarded replay suite for repeated model-generated plans
+* Phase 10.12b: repeated-output real Playwright replay suite evidence is documented separately in `docs/status/model_plan_real_playwright_replay_suite_evidence.md`
 * this page records the first successful real Playwright replay of a validated model-generated browser plan

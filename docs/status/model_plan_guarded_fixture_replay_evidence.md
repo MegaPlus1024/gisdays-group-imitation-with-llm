@@ -45,3 +45,4 @@
 * Phase 10.11a adds a guarded Playwright backend option, but this evidence remains fixture-backed and unchanged by that future path
 * Phase 10.11b documents the first real Playwright replay evidence separately in `docs/status/model_plan_real_playwright_replay_evidence.md`
 * Phase 10.12a adds a guarded replay suite for repeated model-generated plans, but that suite evidence is separate and still pending operator-side run
+* Phase 10.12b documents the successful real Playwright replay suite evidence separately in `docs/status/model_plan_real_playwright_replay_suite_evidence.md`
