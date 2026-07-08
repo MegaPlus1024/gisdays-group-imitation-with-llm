@@ -97,7 +97,7 @@ def validate_autonomous_browser_plan(plan: str | Path | Mapping[str, Any]) -> di
             actions_total=0,
             allowed_actions=ALLOWED_BROWSER_ACTION_NAMES,
             limitations=_limitations(),
-            diagnostics=({"finding_type": "plan_load_failed", "message": str(exc)},),
+            diagnostics=({"finding_type": "plan_load_failed", "message": "plan file could not be read."},),
         ).to_dict()
 
     result = _validate_plan_payload(payload)

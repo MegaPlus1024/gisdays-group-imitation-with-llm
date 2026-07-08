@@ -1,0 +1,8 @@
+{
+  "schema_version": "autonomous_browser_plan_dry_run_config_v1",
+  "no_runtime_execution": true,
+  "plan_path": "configs/autonomous_runtime/browser_plan.example.json",
+  "runtime_id": "browser_plan_dry_run_runtime_v1",
+  "agent_id": "browser_plan_planner",
+  "task_id": "browser_plan_task_v1"
+}

@@ -75,3 +75,9 @@ Phase 10.2c adds bounded runtime trace evidence to the offline bridge summary. I
 ## Phase 10.3a browser plan validation
 
 Phase 10.3a adds an offline browser plan schema and validator for future model-planned browser tasks. It normalizes and rejects unsafe plans without executing browser actions or calling an LLM.
+
+## Phase 10.3b validated-plan runtime dry-run
+
+Phase 10.3b adds an offline validated-plan runtime dry-run bridge for future model-planned browser tasks. It takes a browser plan artifact, validates it, records it as a planning task, updates shared state, and emits a structured dry-run summary without executing browser actions or calling an LLM.
+
+This does not add new real browser evidence, does not claim production readiness, and stays limited to local fixture-safe planning metadata.

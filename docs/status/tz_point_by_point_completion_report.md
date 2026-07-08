@@ -29,6 +29,7 @@
 - Phase 10.2b: added an offline CLI/config wrapper for the autonomous runtime to browser suite bridge; no new real browser path was introduced.
 - Phase 10.2c: added bounded runtime trace evidence to the offline bridge summary; no new real browser path was introduced.
 - Phase 10.3a: added an offline browser plan schema and validator for future model-planned browser tasks; no new real browser path was introduced.
+- Phase 10.3b: added an offline validated-plan runtime dry-run bridge for future model-planned browser tasks; no new real browser path was introduced.
 
 ## 2. Краткая сводка выполнения
 
@@ -1262,7 +1263,7 @@ Safeguards and limitations:
 ## Краткий вывод
 
 - Полностью закрыто: базовая agent architecture, локальная модельная интеграция, roles/context/script formats, script registry, action selection, execution bridge, history/error logging, file/shell/office document actions, controlled single-trial and mini-matrix prototype evidence.
-- Частично закрыто и продвинуто Phase 9.1/9.2/9.3/9.4/9.5/9.6/9.7/9.8/9.9/9.10/9.12/10.2a: autonomous multi-agent runtime foundation, deterministic scheduler, shared state/task board, runtime loop, stop policy, error recovery, resource locks, virtual environment metadata, fixture-backed browser runtime integration, config-driven autonomous browser scenario evidence, expanded browser fixture coverage with click navigation, synthetic form workflow, wait action, dependencies, browser coverage summary, 4-scenario browser suite aggregation, guarded Playwright operator readiness/packet path, actual guarded Playwright execution implementation, post-smoke fixture URL/HTTP status fixes, successful guarded Playwright smoke evidence, successful guarded Playwright suite evidence, bounded guarded Playwright suite execution path and offline runtime-to-suite bridge.
+- Частично закрыто и продвинуто Phase 9.1/9.2/9.3/9.4/9.5/9.6/9.7/9.8/9.9/9.10/9.12/10.2a/10.3b: autonomous multi-agent runtime foundation, deterministic scheduler, shared state/task board, runtime loop, stop policy, error recovery, resource locks, virtual environment metadata, fixture-backed browser runtime integration, config-driven autonomous browser scenario evidence, expanded browser fixture coverage with click navigation, synthetic form workflow, wait action, dependencies, browser coverage summary, 4-scenario browser suite aggregation, guarded Playwright operator readiness/packet path, actual guarded Playwright execution implementation, post-smoke fixture URL/HTTP status fixes, successful guarded Playwright smoke evidence, successful guarded Playwright suite evidence, bounded guarded Playwright suite execution path, offline runtime-to-suite bridge, and offline validated-plan runtime dry-run bridge.
 - Частично закрыто: virtual network simulation, production browser automation, broad behavioral normality evaluation, model comparison breadth, resource/capacity sizing, GPU/stress evidence, final configuration for further development.
 - Не закрыто: mail/git/other application actions.
 - Для полного закрытия ТЗ нужны: manual operator-run guarded browser suite evidence, guarded semantic LLM-as-a-judge run later, larger N, stronger resource/capacity measurements, ясная граница virtual network scope, optional mail/git actions only if separately approved under safety policy.
