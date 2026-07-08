@@ -472,6 +472,7 @@ What was recorded:
 Committed evidence:
 
 - `docs/status/playwright_smoke_evidence.md` now summarizes the successful guarded suite evidence in bounded form.
+- Phase 9 freeze report: `docs/status/phase_9_milestone_freeze.md`.
 
 Limitations:
 

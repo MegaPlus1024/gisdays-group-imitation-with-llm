@@ -24,6 +24,7 @@
 - Phase 9.8: исправлены fixture URL mapping, HTTP 404 handling и URL sanitizer for the guarded Playwright path; Codex did not rerun real browser smoke.
 - Phase 9.9: recorded safe evidence for a successful operator-run guarded Playwright/Chromium smoke against local fixtures; raw runtime output was not committed.
 - Phase 9.12: documented a successful operator-run guarded Playwright/Chromium suite against local loopback fixtures; raw runtime output was not committed.
+- Phase 9.12 freeze report: `docs/status/phase_9_milestone_freeze.md`.
 
 ## 2. Краткая сводка выполнения
 
