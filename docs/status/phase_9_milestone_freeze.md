@@ -93,3 +93,9 @@ This is not real browser evidence, does not use Playwright or Chromium, keeps gu
 Phase 10.3d adds an offline planner prompt/output packet and replay path for future model-planned browser tasks. It prepares future local LLM planning with a bounded prompt template, a safe example candidate plan, and replay validation helpers.
 
 This does not call models, does not execute real browser actions, keeps fixture replay offline only, keeps guarded Playwright suite evidence separate, and does not claim production readiness.
+
+## Phase 10.3e replay suite and aggregator
+
+Phase 10.3e adds an offline replay suite/aggregator for multiple browser planner candidate plan JSON files. It evaluates candidate plans only, records per-candidate replay summaries, and aggregates counts for accepted and rejected candidates plus dry-run and fixture-replay outcomes.
+
+This does not generate candidates with a model, does not call LLMs, does not execute real browser actions, keeps replay offline only, keeps guarded Playwright suite evidence separate, and does not claim production readiness.

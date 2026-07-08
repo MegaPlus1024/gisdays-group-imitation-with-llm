@@ -1,0 +1,19 @@
+{
+  "schema_version": "autonomous_browser_planner_replay_suite_config_v1",
+  "suite_id": "browser_planner_replay_suite_example_v1",
+  "candidate_plans": [
+    "configs/autonomous_runtime/browser_planner_candidate.example.json"
+  ],
+  "replay_mode": "dry_run",
+  "output_dir": "artifacts/autonomous_runtime_summaries/browser_planner_replay_suite",
+  "expected_min_accepted": 1,
+  "expected_min_fixture_success": 0,
+  "limitations": [
+    "offline replay suite example only",
+    "candidate plans are local JSON files",
+    "no LLM calls",
+    "no real browser execution",
+    "fixture execution remains offline only",
+    "not production browser automation"
+  ]
+}

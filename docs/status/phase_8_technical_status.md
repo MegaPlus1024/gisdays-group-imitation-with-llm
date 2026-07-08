@@ -569,7 +569,7 @@ Committed packet/example files remain allowed, including `artifacts/first_run_pa
 
 ## 8. Next technical stage
 
-The next practical browser stage should expand guarded browser coverage through the Phase 10.2a offline runtime-to-suite bridge, the Phase 10.2b offline CLI/config wrapper, the Phase 10.2c bounded runtime trace evidence layer, the Phase 10.3a offline browser plan validator, the Phase 10.3b offline validated-plan runtime dry-run bridge, the Phase 10.3c offline fixture-backed execution path, and the Phase 10.3d offline planner packet and replay path, while keeping external network and production browser automation out of scope unless separately approved.
+The next practical browser stage should expand guarded browser coverage through the Phase 10.2a offline runtime-to-suite bridge, the Phase 10.2b offline CLI/config wrapper, the Phase 10.2c bounded runtime trace evidence layer, the Phase 10.3a offline browser plan validator, the Phase 10.3b offline validated-plan runtime dry-run bridge, the Phase 10.3c offline fixture-backed execution path, the Phase 10.3d offline planner packet and replay path, and the Phase 10.3e offline planner replay suite/aggregator, while keeping external network and production browser automation out of scope unless separately approved.
 
 Later semantic judge work remains separate and should stay guarded:
 
