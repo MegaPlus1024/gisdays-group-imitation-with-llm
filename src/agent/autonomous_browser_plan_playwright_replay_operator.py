@@ -59,6 +59,11 @@ class AutonomousBrowserPlanPlaywrightReplayOperatorSummary:
     no_runtime_execution: bool
     model_execution: bool
     real_browser_execution: bool
+    replay_backend: str | None
+    fixture_replay_execution: bool
+    playwright_execution: bool
+    browser_opened: bool
+    real_network_traffic: bool
     replay_plan_path: str | None
     plan_id: str | None
     actions_total: int
@@ -81,6 +86,11 @@ class AutonomousBrowserPlanPlaywrightReplayOperatorSummary:
             "no_runtime_execution": self.no_runtime_execution,
             "model_execution": self.model_execution,
             "real_browser_execution": self.real_browser_execution,
+            "replay_backend": self.replay_backend,
+            "fixture_replay_execution": self.fixture_replay_execution,
+            "playwright_execution": self.playwright_execution,
+            "browser_opened": self.browser_opened,
+            "real_network_traffic": self.real_network_traffic,
             "replay_plan_path": self.replay_plan_path,
             "plan_id": self.plan_id,
             "actions_total": self.actions_total,
@@ -132,6 +142,11 @@ def run_autonomous_browser_plan_playwright_replay_operator(
                 actions_total=0,
                 output_dir=None,
                 limitations=tuple(),
+                replay_backend=None,
+                fixture_replay_execution=False,
+                playwright_execution=False,
+                browser_opened=False,
+                real_network_traffic=False,
                 diagnostics={"config_error": str(exc)},
             ),
             repo,
@@ -220,6 +235,11 @@ def run_autonomous_browser_plan_playwright_replay_operator(
             output_dir=config.output_dir,
             limitations=_limitations(config),
             output_files=output_files,
+            replay_backend=None,
+            fixture_replay_execution=False,
+            playwright_execution=False,
+            browser_opened=False,
+            real_network_traffic=False,
         )
         return _write_summary(summary, repo, summary_path=summary_path)
 
@@ -288,6 +308,11 @@ def run_autonomous_browser_plan_playwright_replay_operator(
         no_runtime_execution=bool(replay_result.get("no_runtime_execution", False)),
         model_execution=False,
         real_browser_execution=False,
+        replay_backend=str(replay_result.get("replay_backend") or "fixture"),
+        fixture_replay_execution=bool(replay_result.get("fixture_replay_execution", True)),
+        playwright_execution=bool(replay_result.get("playwright_execution", False)),
+        browser_opened=bool(replay_result.get("browser_opened", False)),
+        real_network_traffic=bool(replay_result.get("real_network_traffic", False)),
         replay_plan_path=config.replay_plan_path,
         plan_id=str(validation_result.get("plan_id")) if validation_result.get("plan_id") else None,
         actions_total=_int(validation_result.get("actions_total")),
@@ -321,6 +346,11 @@ def _dry_run_summary(
         no_runtime_execution=True,
         model_execution=False,
         real_browser_execution=False,
+        replay_backend=None,
+        fixture_replay_execution=False,
+        playwright_execution=False,
+        browser_opened=False,
+        real_network_traffic=False,
         replay_plan_path=replay_plan_path,
         plan_id=str(validation_result.get("plan_id")) if validation_result.get("plan_id") else None,
         actions_total=_int(validation_result.get("actions_total")),
@@ -408,6 +438,11 @@ def _default_replay_executor(
         "status": status,
         "error_code": error_code,
         "no_runtime_execution": False,
+        "replay_backend": "fixture",
+        "fixture_replay_execution": True,
+        "playwright_execution": False,
+        "browser_opened": False,
+        "real_network_traffic": False,
         "actions_attempted": actions_attempted,
         "actions_succeeded": actions_succeeded,
         "actions_failed": actions_failed,
@@ -557,6 +592,11 @@ def _failure_summary(
     limitations: tuple[str, ...],
     output_files: tuple[str, ...] = (),
     diagnostics: Mapping[str, Any] | None = None,
+    replay_backend: str | None = None,
+    fixture_replay_execution: bool = False,
+    playwright_execution: bool = False,
+    browser_opened: bool = False,
+    real_network_traffic: bool = False,
 ) -> AutonomousBrowserPlanPlaywrightReplayOperatorSummary:
     return AutonomousBrowserPlanPlaywrightReplayOperatorSummary(
         schema_version=SUMMARY_SCHEMA_VERSION,
@@ -566,6 +606,11 @@ def _failure_summary(
         no_runtime_execution=True,
         model_execution=False,
         real_browser_execution=False,
+        replay_backend=replay_backend,
+        fixture_replay_execution=fixture_replay_execution,
+        playwright_execution=playwright_execution,
+        browser_opened=browser_opened,
+        real_network_traffic=real_network_traffic,
         replay_plan_path=replay_plan_path,
         plan_id=plan_id,
         actions_total=actions_total,
@@ -595,6 +640,11 @@ def _config_failure_summary(
         output_dir=config.output_dir,
         limitations=_limitations(config),
         output_files=_summary_output_files(config.output_dir),
+        replay_backend=None,
+        fixture_replay_execution=False,
+        playwright_execution=False,
+        browser_opened=False,
+        real_network_traffic=False,
         diagnostics={"config": _jsonable(config.to_dict())},
     )
 

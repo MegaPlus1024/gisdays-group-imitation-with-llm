@@ -44,3 +44,4 @@
 * Phase 10.6 and Phase 10.8 cover captured local planner outputs and offline ingestion/replay
 * this page documents the next offline bridge: a packaged replay target for a validated model-generated browser plan
 * Phase 10.10a builds on this packet with a guarded operator runner that refuses by default, supports dry-run, and keeps real browser execution operator-only
+* Phase 10.10b documents guarded fixture-backed replay evidence in `docs/status/model_plan_guarded_fixture_replay_evidence.md`

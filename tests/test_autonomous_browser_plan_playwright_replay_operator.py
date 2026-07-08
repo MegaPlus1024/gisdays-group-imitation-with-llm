@@ -4,6 +4,7 @@ import builtins
 import json
 import subprocess
 import sys
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +62,13 @@ def _write_replay_plan(repo_root: Path, plan: dict[str, Any], *, relative_path: 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(replay_plan, ensure_ascii=False, indent=2), encoding="utf-8")
     return output_path
+
+
+def _copy_fixture_site(repo_root: Path) -> Path:
+    source = PROJECT_ROOT / "tests" / "fixtures" / "local_intranet" / "office_site_v1"
+    target = repo_root / "tests" / "fixtures" / "local_intranet" / "office_site_v1"
+    shutil.copytree(source, target, dirs_exist_ok=True)
+    return target
 
 
 def _write_config(
@@ -163,6 +171,11 @@ def test_dry_run_succeeds_without_browser(tmp_path: Path) -> None:
     assert summary["no_runtime_execution"] is True
     assert summary["model_execution"] is False
     assert summary["real_browser_execution"] is False
+    assert summary["replay_backend"] is None
+    assert summary["fixture_replay_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["real_network_traffic"] is False
     assert summary["plan_id"] == "browser_policy_research_plan_v1"
     assert summary["actions_total"] == 3
     assert summary["actions_attempted"] == 0
@@ -222,6 +235,46 @@ def test_secret_like_values_are_not_leaked(tmp_path: Path) -> None:
     assert str(tmp_path) not in payload
 
 
+def test_guarded_fixture_replay_uses_fixture_backend(tmp_path: Path) -> None:
+    plan = _base_plan()
+    _copy_fixture_site(tmp_path)
+    _write_replay_plan(tmp_path, plan)
+    config_path = _write_config(tmp_path)
+
+    summary = run_autonomous_browser_plan_playwright_replay_operator(
+        config_path,
+        repo_root=tmp_path,
+        allow_real_browser=True,
+        confirm_real_browser=REQUIRED_CONFIRM_VALUE,
+    )
+    encoded = json.dumps(summary, ensure_ascii=False)
+
+    assert summary["schema_version"] == SUMMARY_SCHEMA_VERSION
+    assert summary["status"] == "succeeded"
+    assert summary["error_code"] is None
+    assert summary["guard_status"] == "guarded_replay"
+    assert summary["no_runtime_execution"] is False
+    assert summary["model_execution"] is False
+    assert summary["real_browser_execution"] is False
+    assert summary["replay_backend"] == "fixture"
+    assert summary["fixture_replay_execution"] is True
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["real_network_traffic"] is False
+    assert summary["plan_id"] == "browser_policy_research_plan_v1"
+    assert summary["actions_total"] == 3
+    assert summary["actions_attempted"] == 3
+    assert summary["actions_succeeded"] == 3
+    assert summary["actions_failed"] == 0
+    assert summary["expected_results_passed"] == 3
+    assert summary["expected_results_failed"] == 0
+    assert summary["expected_results_total"] == 3
+    assert "fixture_source" in encoded
+    assert "real_network_traffic" in encoded
+    assert "browser_opened" in encoded
+    assert "supersecret" not in encoded
+
+
 def test_no_playwright_import_or_browser_server_model_use(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     plan = _base_plan()
     _write_replay_plan(tmp_path, plan)
@@ -277,5 +330,10 @@ def test_cli_dry_run_smoke_uses_repo_local_paths() -> None:
     assert payload["guard_status"] == "dry_run"
     assert payload["no_runtime_execution"] is True
     assert payload["real_browser_execution"] is False
+    assert payload["replay_backend"] is None
+    assert payload["fixture_replay_execution"] is False
+    assert payload["playwright_execution"] is False
+    assert payload["browser_opened"] is False
+    assert payload["real_network_traffic"] is False
     assert payload["model_execution"] is False
     assert completed.stdout.strip() == completed.stdout.strip().replace("\n", "")
