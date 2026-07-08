@@ -1,0 +1,7 @@
+{
+  "schema_version": "autonomous_browser_planner_packet_config_v1",
+  "no_runtime_execution": true,
+  "packet_id": "browser_planner_packet_v1",
+  "output_dir": "artifacts/autonomous_runtime_summaries/browser_planner_packet",
+  "candidate_plan_example_path": "configs/autonomous_runtime/browser_planner_candidate.example.json"
+}

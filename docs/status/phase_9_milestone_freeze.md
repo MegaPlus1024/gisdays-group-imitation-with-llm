@@ -87,3 +87,9 @@ This does not add new real browser evidence, does not claim production readiness
 Phase 10.3c adds an offline fixture-backed execution path for validated browser plans. It validates the plan, executes only fixture-backed browser actions through existing local runtime machinery, checks expected_text on each action, and emits a bounded structured execution summary.
 
 This is not real browser evidence, does not use Playwright or Chromium, keeps guarded Playwright suite evidence separate, does not call an LLM, and does not claim production readiness.
+
+## Phase 10.3d planner packet and replay
+
+Phase 10.3d adds an offline planner prompt/output packet and replay path for future model-planned browser tasks. It prepares future local LLM planning with a bounded prompt template, a safe example candidate plan, and replay validation helpers.
+
+This does not call models, does not execute real browser actions, keeps fixture replay offline only, keeps guarded Playwright suite evidence separate, and does not claim production readiness.
