@@ -65,6 +65,13 @@ def test_policy_and_portal_expected_markers_match_fixture_text() -> None:
     assert portal_steps["checker_open_status"].expected_text == "Approval status: ready for fixture-backed review"
 
 
+def test_home_fixture_keeps_workspace_policy_click_target_unambiguous() -> None:
+    home_html = (PROJECT_ROOT / "tests/fixtures/local_intranet/office_site_v1/index.html").read_text(encoding="utf-8")
+
+    assert home_html.count("Workspace policy") == 1
+    assert "fixture-backed result for local policy review" in home_html
+
+
 def test_loader_rejects_missing_agents(tmp_path: Path) -> None:
     payload = _payload()
     payload["agents"] = []
