@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import importlib.util
 import json
 import subprocess
 import sys
@@ -222,10 +223,17 @@ def test_ingestion_accepts_bom_raw_output(tmp_path: Path) -> None:
     assert summary["fixture_execution_status"] == "skipped"
 
 
-def test_cli_accepts_bom_config_and_bom_raw_output() -> None:
-    ARTIFACT_TEST_DIR.mkdir(parents=True, exist_ok=True)
-    config_path = ARTIFACT_TEST_DIR / "bom_config.json"
-    bom_output_path = PROJECT_ROOT / "tests" / "fixtures" / "browser_planner_outputs" / "bom_candidate_output.txt"
+def test_cli_accepts_bom_config_and_bom_raw_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    script_spec = importlib.util.spec_from_file_location("ingest_autonomous_browser_planner_output_cli", CLI_PATH)
+    assert script_spec is not None and script_spec.loader is not None
+    cli_module = importlib.util.module_from_spec(script_spec)
+    script_spec.loader.exec_module(cli_module)
+
+    repo_root = tmp_path
+    fixture_dir = repo_root / "tests" / "fixtures" / "browser_planner_outputs"
+    fixture_dir.mkdir(parents=True, exist_ok=True)
+    config_path = repo_root / "bom_config.json"
+    bom_output_path = fixture_dir / "bom_candidate_output.txt"
     try:
         bom_output_path.write_bytes(b"\xef\xbb\xbf" + VALID_OUTPUT_PATH.read_bytes())
         _write_json_bom(
@@ -238,20 +246,19 @@ def test_cli_accepts_bom_config_and_bom_raw_output() -> None:
             },
         )
 
-        completed = subprocess.run(
-            [sys.executable, str(CLI_PATH), "--config", str(config_path)],
-            cwd=PROJECT_ROOT,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        payload = json.loads(completed.stdout)
-        assert completed.returncode == 0
+        original_project_root = cli_module.PROJECT_ROOT
+        cli_module.PROJECT_ROOT = repo_root
+        try:
+            exit_code = cli_module.main(["--config", str(config_path)])
+        finally:
+            cli_module.PROJECT_ROOT = original_project_root
+
+        payload = json.loads(capsys.readouterr().out)
+        assert exit_code == 0
         assert payload["status"] == "succeeded"
         assert payload["dry_run_status"] == "accepted"
     finally:
         bom_output_path.unlink(missing_ok=True)
-        _cleanup_artifacts()
 
 
 def test_cli_failure_exits_nonzero_with_structured_json(tmp_path: Path) -> None:
