@@ -72,3 +72,7 @@ Phase 10.8b documents the repeated-trials evidence separately in `docs/status/lo
 ## Phase 10.9a replay packet bridge
 
 Phase 10.9a prepares an offline packet for future guarded Playwright replay of a validated model-generated browser plan. It stays offline, does not execute Playwright, and does not prove real browser execution yet.
+
+## Phase 10.9b replay packet evidence
+
+Phase 10.9b documents the offline Playwright replay packet evidence in `docs/status/model_plan_playwright_replay_packet_evidence.md`. It records the packaged model-generated plan and replay instructions, but still does not execute Playwright.

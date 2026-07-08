@@ -587,6 +587,8 @@ Phase 10.8b documents the repeated local planner trials evidence in `docs/status
 
 Phase 10.9a prepares an offline packet for future guarded Playwright replay of a validated model-generated browser plan. It is a safety bridge from offline fixture evidence to future guarded browser replay and does not execute Playwright.
 
+Phase 10.9b documents the offline Playwright replay packet evidence in `docs/status/model_plan_playwright_replay_packet_evidence.md`; it packages a validated model-generated browser plan without executing Playwright.
+
 Later semantic judge work remains separate and should stay guarded:
 
 1. Define an openai-compatible/DeepSeek-style config schema that never stores secrets in committed files.
