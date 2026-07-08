@@ -55,6 +55,16 @@ def test_extended_form_workflow_config_loads() -> None:
     )
 
 
+def test_policy_and_portal_expected_markers_match_fixture_text() -> None:
+    policy = load_autonomous_runtime_scenario(PROJECT_ROOT / "configs/autonomous_runtime/browser_intranet_policy_research.example.json")
+    portal = load_autonomous_runtime_scenario(PROJECT_ROOT / "configs/autonomous_runtime/browser_portal_approval_check.example.json")
+    policy_steps = {step.step_id: step for step in policy.scripted_steps}
+    portal_steps = {step.step_id: step for step in portal.scripted_steps}
+
+    assert policy_steps["reader_search_policy"].expected_text == "fixture-backed result"
+    assert portal_steps["checker_open_status"].expected_text == "Approval status: ready for fixture-backed review"
+
+
 def test_loader_rejects_missing_agents(tmp_path: Path) -> None:
     payload = _payload()
     payload["agents"] = []

@@ -193,7 +193,7 @@
       "parameters": {
         "url": "https://portal.local/portal/status"
       },
-      "expected_text": "Approval status"
+      "expected_text": "Approval status: ready for fixture-backed review"
     },
     {
       "step_id": "checker_extract_status",
