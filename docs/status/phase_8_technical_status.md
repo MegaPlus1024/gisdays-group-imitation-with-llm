@@ -583,6 +583,8 @@ The Phase 10 model-planned browser path freeze is documented separately in `docs
 
 Phase 10.8a adds a repeated local planner trials packet for three manual `second_model` runs; it is meant to check stability across repeated local planner outputs, not to call models by Codex.
 
+Phase 10.8b documents the repeated local planner trials evidence in `docs/status/local_planner_repeated_trials_evidence.md`; it records three captured outputs, offline ingestion, dry-run acceptance, and fixture replay success, still without Codex-launched model execution or real browser automation.
+
 Later semantic judge work remains separate and should stay guarded:
 
 1. Define an openai-compatible/DeepSeek-style config schema that never stores secrets in committed files.

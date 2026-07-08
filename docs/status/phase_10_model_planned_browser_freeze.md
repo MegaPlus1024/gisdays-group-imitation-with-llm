@@ -64,3 +64,7 @@ If that is too risky, the smaller next step is to run a few more compact local p
 ## Phase 10.8a repeated trials packet
 
 Phase 10.8a adds a repeated local planner trials packet for three manual `second_model` runs using the compact prompt. It is about stability evidence across repeated local planner outputs, and it does not call models by Codex or extend into live browser automation.
+
+## Phase 10.8b repeated trials evidence
+
+Phase 10.8b documents the repeated-trials evidence separately in `docs/status/local_planner_repeated_trials_evidence.md`. It records three captured `second_model` planner outputs, offline ingestion, dry-run acceptance, and fixture replay success, still without Codex-launched model execution or real browser automation.

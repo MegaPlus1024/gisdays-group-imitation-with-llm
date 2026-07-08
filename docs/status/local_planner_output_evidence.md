@@ -63,4 +63,5 @@ The saved raw planner output lives in the local operator packet artifact area as
 ## Relation to repeated trials
 
 - Phase 10.8a adds a repeated local planner trials packet for three manual `second_model` runs.
+- The repeated-trials evidence is summarized separately in `docs/status/local_planner_repeated_trials_evidence.md`.
 - This document remains the first single-success evidence line; the repeated trials packet is for stability checks beyond one confirmed plan.
