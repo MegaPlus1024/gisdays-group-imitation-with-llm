@@ -216,6 +216,7 @@ def run_autonomous_browser_plan_playwright_replay_suite(
             confirm_real_browser=confirm_real_browser,
             output_index=index,
         )
+        output_summary = _normalize_error_code_payload(output_summary)
         output_summaries.append(output_summary)
 
         if str(output_summary.get("status")) == "succeeded":
@@ -348,6 +349,7 @@ def _replay_captured_output(
         "limitations": list(suite.limitations),
     }
     packet_summary = build_autonomous_browser_plan_playwright_replay_packet(packet_config, repo_root=repo_root)
+    packet_summary = _normalize_error_code_payload(packet_summary)
     if str(packet_summary.get("status")) != "succeeded":
         return {
             "captured_output_path": captured_output_path,
@@ -390,6 +392,7 @@ def _replay_captured_output(
         dry_run=dry_run,
         replay_backend=replay_backend,
     )
+    operator_summary = _normalize_error_code_payload(operator_summary)
     return {
         "captured_output_path": captured_output_path,
         "packet_output_dir": packet_output_dir,
@@ -647,6 +650,14 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, Path):
         return value.as_posix()
     return value
+
+
+def _normalize_error_code_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    normalized = dict(payload)
+    if "error_code" not in normalized and "error_d" in normalized:
+        normalized["error_code"] = normalized["error_d"]
+    normalized.pop("error_d", None)
+    return normalized
 
 
 def _load_json_payload(config_artifact: str | Path | Mapping[str, Any]) -> Any:

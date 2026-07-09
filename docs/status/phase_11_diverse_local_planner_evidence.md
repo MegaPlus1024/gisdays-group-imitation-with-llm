@@ -83,3 +83,13 @@
 - Phase 10 proved real Playwright replay suite for 3 captured policy-family plans.
 - Phase 11C broadens scenario diversity but currently only through offline fixture replay.
 - Real Playwright replay for Phase 11 diverse plans is a future step.
+
+## Phase 11D guarded Playwright replay preparation
+
+Phase 11D prepares the guarded real Playwright replay path for the Phase 11 captured plans through `configs/autonomous_runtime/browser_phase11_playwright_replay_suite.example.json`. It adds click and snapshot coverage in the model-plan Playwright path so the later operator-side guarded run can replay the diverse captured plans with the same local loopback fixtures.
+
+What this does not prove:
+
+- Codex did not run real Playwright for Phase 11D.
+- no live browser evidence was added for the diverse Phase 11 plans.
+- the work remains operator-gated and local-fixture-only.

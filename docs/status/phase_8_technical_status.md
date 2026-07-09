@@ -609,6 +609,8 @@ Phase 11B prepares a separate offline local planner packet for the `browser_tick
 
 Phase 11C documents the resulting manual `second_model` outputs and offline fixture replay success for those two scenarios in `docs/status/phase_11_diverse_local_planner_evidence.md`.
 
+Phase 11D prepares guarded Playwright replay support for those Phase 11 captured plans through `configs/autonomous_runtime/browser_phase11_playwright_replay_suite.example.json`; it adds click and snapshot coverage in the model-plan Playwright path, but Codex did not run real Playwright and real replay evidence remains pending an operator-side guarded run.
+
 Later semantic judge work remains separate and should stay guarded:
 
 1. Define an openai-compatible/DeepSeek-style config schema that never stores secrets in committed files.

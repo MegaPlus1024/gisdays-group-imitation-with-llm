@@ -18,6 +18,7 @@ from src.agent.autonomous_browser_plan_playwright_replay_operator import (
     load_autonomous_browser_plan_playwright_replay_operator_config,
     run_autonomous_browser_plan_playwright_replay_operator,
 )
+from src.agent.autonomous_browser_playwright_execution import PlaywrightExecutionResult
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -73,7 +74,36 @@ def _copy_fixture_site(repo_root: Path) -> Path:
 
 def _playwright_supported_plan() -> dict[str, Any]:
     plan = _base_plan()
-    plan["actions"] = plan["actions"][:2]
+    plan["max_actions"] = 4
+    plan["actions"] = [
+        {
+            "step_id": "open_home",
+            "action_name": "browser_open_url",
+            "parameters": {"url": "https://local.intranet/"},
+            "expected_text": "Office Intranet",
+        },
+        {
+            "step_id": "click_policy",
+            "action_name": "browser_click",
+            "parameters": {
+                "url": "https://local.intranet/docs/policy",
+                "target_text": "Workspace policy",
+            },
+            "expected_text": "Allowed activity",
+        },
+        {
+            "step_id": "extract_policy",
+            "action_name": "browser_extract_text",
+            "parameters": {"url": "https://docs.local/docs/policy"},
+            "expected_text": "Allowed activity",
+        },
+        {
+            "step_id": "snapshot_policy",
+            "action_name": "browser_snapshot",
+            "parameters": {"url": "https://docs.local/docs/policy"},
+            "expected_text": "Allowed activity",
+        },
+    ]
     return plan
 
 
@@ -211,6 +241,106 @@ def test_dry_run_succeeds_without_browser(tmp_path: Path) -> None:
     assert "C:\\" not in encoded
     assert "supersecret" not in encoded
     assert (tmp_path / DEFAULT_OUTPUT_DIR / "autonomous_browser_plan_playwright_replay_operator_summary.json").exists()
+
+
+def test_backend_playwright_phase11_plan_accepts_click_and_snapshot_without_playwright_import(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plan = _playwright_supported_plan()
+    _write_replay_plan(tmp_path, plan)
+    config_path = _write_config(tmp_path, replay_backend="playwright")
+    calls: list[tuple[str, str, dict[str, Any]]] = []
+
+    class FakeServer:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            del args, kwargs
+
+        def __enter__(self) -> "FakeServer":
+            return self
+
+        def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+            del exc_type, exc, tb
+
+        def to_summary(self) -> dict[str, Any]:
+            return {"base_url": "http://127.0.0.1:8765"}
+
+    class FakeMapper:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            del args, kwargs
+
+        def map_logical_url(self, logical_url: str) -> str:
+            return f"http://127.0.0.1:8765/{logical_url.split('://', 1)[-1].split('/', 1)[-1]}"
+
+    class FakeBackend:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            del args, kwargs
+
+        def __enter__(self) -> "FakeBackend":
+            return self
+
+        def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+            del exc_type, exc, tb
+
+        def run_action(
+            self,
+            action_name: str,
+            served_url: str,
+            *,
+            logical_url: str = "",
+            expected_text: str | None = None,
+            parameters: Mapping[str, Any] | None = None,
+        ) -> PlaywrightExecutionResult:
+            calls.append((action_name, served_url, dict(parameters or {})))
+            return PlaywrightExecutionResult(
+                action_name=action_name,
+                logical_url=logical_url,
+                served_url=served_url,
+                success=True,
+                text_preview=expected_text or f"fake {action_name} text",
+                artifact_ref="playwright_snapshot_placeholder" if action_name == "browser_snapshot" else None,
+                diagnostics={"fake_backend": True},
+            )
+
+    monkeypatch.setattr("src.agent.autonomous_browser_plan_playwright_replay_operator.LocalFixtureHttpServer", FakeServer)
+    monkeypatch.setattr("src.agent.autonomous_browser_plan_playwright_replay_operator.FixtureUrlMapper", FakeMapper)
+    monkeypatch.setattr("src.agent.autonomous_browser_plan_playwright_replay_operator.RealPlaywrightBackend", FakeBackend)
+
+    summary = run_autonomous_browser_plan_playwright_replay_operator(
+        config_path,
+        repo_root=tmp_path,
+        allow_real_browser=True,
+        confirm_real_browser=REQUIRED_CONFIRM_VALUE,
+        replay_backend="playwright",
+    )
+    encoded = json.dumps(summary, ensure_ascii=False)
+
+    assert summary["status"] == "succeeded"
+    assert summary["error_code"] is None
+    assert summary["guard_status"] == "guarded_replay"
+    assert summary["no_runtime_execution"] is False
+    assert summary["model_execution"] is False
+    assert summary["real_browser_execution"] is True
+    assert summary["replay_backend"] == "playwright"
+    assert summary["fixture_replay_execution"] is False
+    assert summary["playwright_execution"] is True
+    assert summary["browser_opened"] is True
+    assert summary["real_network_traffic"] is False
+    assert summary["actions_total"] == 4
+    assert summary["actions_attempted"] == 4
+    assert summary["actions_succeeded"] == 4
+    assert summary["actions_failed"] == 0
+    assert summary["expected_results_total"] == 4
+    assert summary["expected_results_passed"] == 4
+    assert summary["expected_results_failed"] == 0
+    assert [call[0] for call in calls] == [
+        "browser_open_url",
+        "browser_click",
+        "browser_extract_text",
+        "browser_snapshot",
+    ]
+    assert "supersecret" not in encoded
+    assert str(tmp_path) not in encoded
 
 
 def test_invalid_external_host_is_rejected(tmp_path: Path) -> None:

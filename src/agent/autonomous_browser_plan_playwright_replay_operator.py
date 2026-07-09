@@ -13,6 +13,7 @@ from .autonomous_browser_runtime import (
     BrowserRuntimeVerifier,
     FixtureBackedBrowserRuntimeExecutor,
 )
+from .autonomous_browser_playwright_execution import FixtureUrlMapper, LocalFixtureHttpServer, PlaywrightExecutionError, RealPlaywrightBackend
 
 
 CONFIG_SCHEMA_VERSION = "autonomous_browser_plan_playwright_replay_operator_config_v1"
@@ -559,109 +560,114 @@ def _default_playwright_replay_executor(
                 },
             }
 
-    from .autonomous_browser_playwright_execution import FixtureUrlMapper, LocalFixtureHttpServer
-    from .scripts.browser_playwright_activity import PlaywrightBrowserActivityConfig, run_playwright_browser_activity
-
-    fixture_root = Path(DEFAULT_FIXTURE_MANIFEST_PATH).parent.as_posix()
-    server = LocalFixtureHttpServer(
-        host="127.0.0.1",
-        port=8765,
-        fixture_root=fixture_root,
-        base_url="http://127.0.0.1:8765",
-        repo_root=repo_root,
-    )
-    mapper = FixtureUrlMapper(
-        manifest_path=DEFAULT_FIXTURE_MANIFEST_PATH,
-        server_base_url="http://127.0.0.1:8765",
-        repo_root=repo_root,
-    )
-    action_cfg = PlaywrightBrowserActivityConfig(
-        enabled=True,
-        headless=config.headless,
-        timeout_ms=config.timeout_ms,
-        allowed_url_prefixes=["http://127.0.0.1:8765"],
-        artifact_root=config.output_dir,
-        project_root=repo_root,
-    )
-
     actions_attempted = 0
     actions_succeeded = 0
     actions_failed = 0
     expected_passed = 0
     expected_failed = 0
     action_summaries: list[dict[str, Any]] = []
-    browser_opened = False
-    current_logical_url = ""
-
-    with server as running_server:
-        base_url = running_server.to_summary()["base_url"]
-        for action in actions:
-            action_name = str(action.get("action_name", ""))
-            logical_url = _logical_url_from_plan_action(action) or current_logical_url
-            if not logical_url:
-                return {
-                    "status": "failed",
-                    "error_code": "missing_plan_url",
-                    "no_runtime_execution": True,
-                    "real_browser_execution": False,
-                    "replay_backend": "playwright",
-                    "fixture_replay_execution": False,
-                    "playwright_execution": False,
-                    "browser_opened": False,
-                    "real_network_traffic": False,
-                    "actions_attempted": actions_attempted,
-                    "actions_succeeded": actions_succeeded,
-                    "actions_failed": actions_failed,
-                    "expected_results_passed": expected_passed,
-                    "expected_results_failed": expected_failed,
-                    "expected_results_total": expected_total,
-                    "diagnostics": {
-                        "action": {
-                            "finding_type": "missing_plan_url",
-                            "path": f"actions[{actions_attempted}].parameters.url",
+    fixture_root = Path(DEFAULT_FIXTURE_MANIFEST_PATH).parent.as_posix()
+    try:
+        with LocalFixtureHttpServer(
+            host="127.0.0.1",
+            port=8765,
+            fixture_root=fixture_root,
+            base_url="http://127.0.0.1:8765",
+            repo_root=repo_root,
+        ) as running_server:
+            base_url = running_server.to_summary()["base_url"]
+            mapper = FixtureUrlMapper(
+                manifest_path=DEFAULT_FIXTURE_MANIFEST_PATH,
+                server_base_url=base_url,
+                repo_root=repo_root,
+            )
+            with RealPlaywrightBackend(headless=config.headless, timeout_ms=config.timeout_ms) as running_backend:
+                browser_opened = True
+                for index, action in enumerate(actions):
+                    action_name = str(action.get("action_name", ""))
+                    logical_url = _logical_url_from_plan_action(action)
+                    if not logical_url:
+                        logical_url = str(action_summaries[-1]["logical_url"]) if action_summaries else ""
+                    if not logical_url:
+                        return {
+                            "status": "failed",
+                            "error_code": "missing_plan_url",
+                            "no_runtime_execution": True,
+                            "real_browser_execution": False,
+                            "replay_backend": "playwright",
+                            "fixture_replay_execution": False,
+                            "playwright_execution": False,
+                            "browser_opened": False,
+                            "real_network_traffic": False,
+                            "actions_attempted": actions_attempted,
+                            "actions_succeeded": actions_succeeded,
+                            "actions_failed": actions_failed,
+                            "expected_results_passed": expected_passed,
+                            "expected_results_failed": expected_failed,
+                            "expected_results_total": expected_total,
+                            "diagnostics": {
+                                "action": {
+                                    "finding_type": "missing_plan_url",
+                                    "path": f"actions[{index}].parameters.url",
+                                }
+                            },
                         }
-                    },
-                }
-            served_url = mapper.map_logical_url(logical_url)
-            runtime_action = _playwright_runtime_action_name(action_name)
-            result = run_playwright_browser_activity(
-                runtime_action,
-                {"url": served_url},
-                action_cfg,
-            )
-            actions_attempted += 1
-            text_preview = ""
-            if isinstance(result.metadata, Mapping):
-                text_preview = str(result.metadata.get("text_preview") or "")
-                browser_opened = browser_opened or bool(result.metadata.get("browser_launched")) or bool(
-                    result.metadata.get("real_browser_automation")
-                )
-            if result.success:
-                actions_succeeded += 1
-                current_logical_url = logical_url
-            else:
-                actions_failed += 1
-            expected_text = action.get("expected_text")
-            if isinstance(expected_text, str):
-                if expected_text in text_preview:
-                    expected_passed += 1
-                else:
-                    expected_failed += 1
-            action_summaries.append(
-                {
-                    "action_name": action_name,
-                    "logical_url": logical_url,
-                    "served_url": served_url,
-                    "success": result.success,
-                    "error_type": result.error_type,
-                    "error_message": result.error_message,
-                    "text_preview": text_preview,
-                    "output": result.output,
-                    "metadata": _jsonable(result.metadata),
-                }
-            )
-            if not result.success:
-                break
+                    served_url = mapper.map_logical_url(logical_url)
+                    parameters = dict(action.get("parameters", {})) if isinstance(action.get("parameters"), Mapping) else {}
+                    result = running_backend.run_action(
+                        action_name,
+                        served_url,
+                        logical_url=logical_url,
+                        expected_text=str(action.get("expected_text")) if isinstance(action.get("expected_text"), str) else None,
+                        parameters=parameters,
+                    )
+                    actions_attempted += 1
+                    text_preview = str(result.text_preview or "")
+                    if result.success:
+                        actions_succeeded += 1
+                    else:
+                        actions_failed += 1
+                    expected_text = action.get("expected_text")
+                    if isinstance(expected_text, str):
+                        if expected_text in text_preview:
+                            expected_passed += 1
+                        else:
+                            expected_failed += 1
+                    action_summaries.append(
+                        {
+                            "action_name": action_name,
+                            "logical_url": logical_url,
+                            "served_url": served_url,
+                            "success": result.success,
+                            "error_code": result.error_code,
+                            "text_preview": text_preview,
+                            "artifact_ref": result.artifact_ref,
+                            "diagnostics": _jsonable(result.diagnostics),
+                        }
+                    )
+                    if not result.success:
+                        break
+    except PlaywrightExecutionError as exc:
+        return {
+            "status": "failed",
+            "error_code": _safe_error_code(str(exc)),
+            "no_runtime_execution": True,
+            "real_browser_execution": False,
+            "replay_backend": "playwright",
+            "fixture_replay_execution": False,
+            "playwright_execution": False,
+            "browser_opened": False,
+            "real_network_traffic": False,
+            "actions_attempted": actions_attempted,
+            "actions_succeeded": actions_succeeded,
+            "actions_failed": actions_failed,
+            "expected_results_passed": expected_passed,
+            "expected_results_failed": expected_failed,
+            "expected_results_total": expected_total,
+            "diagnostics": {
+                "exception_type": exc.__class__.__name__,
+            },
+        }
 
     status = "succeeded" if actions_failed == 0 and expected_failed == 0 else "failed"
     error_code = None
@@ -677,7 +683,7 @@ def _default_playwright_replay_executor(
         "replay_backend": "playwright",
         "fixture_replay_execution": False,
         "playwright_execution": True,
-        "browser_opened": browser_opened,
+        "browser_opened": True,
         "real_network_traffic": False,
         "actions_attempted": actions_attempted,
         "actions_succeeded": actions_succeeded,
@@ -847,7 +853,7 @@ def _select_backend_executor(
 
 
 def _real_playwright_supported_action_names() -> frozenset[str]:
-    return frozenset({"browser_open_url", "browser_extract_text", "browser_snapshot"})
+    return frozenset({"browser_open_url", "browser_click", "browser_extract_text", "browser_snapshot"})
 
 
 def _playwright_runtime_action_name(action_name: str) -> str:

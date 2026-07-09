@@ -14,6 +14,7 @@ This repository now has both the original single-agent evidence base and a conso
 - Phase 11A fixture-only browser scenario expansion is documented through `configs/autonomous_runtime/browser_phase11_fixture_suite.example.json`; it broadens local fixture coverage with ticket triage and approval form review, and no model or real browser was called.
 - Phase 11B local planner packet expansion is documented through `configs/autonomous_runtime/browser_phase11_local_planner_packet.example.json`; it prepares dual compact prompts for manual `second_model` trials and no model was called by Codex.
 - Phase 11C diverse local planner evidence is documented in `docs/status/phase_11_diverse_local_planner_evidence.md`; it records two manual `second_model` plans, offline ingestion, and fixture replay success.
+- Phase 11D prepares guarded Playwright replay support for the Phase 11 captured plans through `configs/autonomous_runtime/browser_phase11_playwright_replay_suite.example.json`; it adds click and snapshot coverage in the model-plan Playwright path, and Codex did not run real Playwright.
 - Preliminary quality-focused pair: `second_model -> second_model`.
 - Resource-balanced/simple-scenario pair: `second_model -> first_model`.
 - `first_model` is not recommended as orchestrator in the current tests.
@@ -84,6 +85,7 @@ Important limitations:
 - GPU smoke is short and not a stress test; first wall-time result was roughly comparable, not a meaningful speedup claim;
 - browser behavior is confirmed at the fixture-backed autonomous runtime/scenario layer and by guarded Playwright/Chromium suite evidence against local loopback fixtures; repeated model-plan browser replay now has both guarded suite evidence and operator-run real Playwright suite evidence against local loopback fixtures only; production browser automation and external web/network behavior are not confirmed;
 - Phase 11A broadens the fixture-only side of browser coverage with ticket triage and approval form review scenarios for future diverse model-generated plan trials; no new real browser evidence is added by that expansion;
+- Phase 11D prepares guarded Playwright replay support for the Phase 11 captured plans; it adds click and snapshot coverage in the model-plan Playwright path, but real browser evidence for those diverse plans remains pending an operator-side guarded run;
 - earlier office behavior was stub/file-based; Phase 8 now includes a guarded real document-file office backend for controlled DOCX/XLSX/PPTX-style action validation and DOCX artifact execution;
 - no git/mail actions are included;
 - GGUF model files are not included in the repository;
@@ -669,6 +671,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 - Phase 10.11a adds a guarded Playwright backend option for validated model-plan replay. It is disabled unless explicitly selected and guarded; Codex did not run it, existing verified evidence remains fixture-backed, and real Playwright evidence is still pending an operator-side run. Phase 10.11b records the first operator-run real Playwright replay evidence for one validated model-generated plan against local loopback fixtures in `docs/status/model_plan_real_playwright_replay_evidence.md`. Phase 10.12a adds a guarded replay suite for repeated model-generated plans; Codex only verified dry-run/refusal/offline paths, and real Playwright suite evidence remains pending an operator-side run.
 - Phase 11B prepares a new offline packet for manual `second_model` trials against the `browser_ticket_triage_review` and `browser_approval_form_review` fixture scenarios; it does not call models or add new real browser evidence.
 - Phase 11C documents two diverse local planner plans for those new Phase 11 fixture scenarios; it remains offline and does not add real browser evidence.
+- Phase 11D prepares guarded Playwright replay support for those Phase 11 captured plans through `configs/autonomous_runtime/browser_phase11_playwright_replay_suite.example.json`; real browser evidence for that diverse replay path remains pending an operator-side guarded run.
 - Windows PowerShell BOM-prefixed JSON configs are tolerated by the ingestion path.
 - Phase 10.6a adds guarded local planner runtime diagnostics for an already-running local endpoint. It helps explain planner prompt hangs, but does not launch models or claim production readiness.
 - Phase 9 milestone freeze report: `docs/status/phase_9_milestone_freeze.md`.

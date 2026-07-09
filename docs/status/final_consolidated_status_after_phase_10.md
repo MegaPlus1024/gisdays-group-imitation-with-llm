@@ -106,6 +106,7 @@ A local `second_model` planner can produce bounded `autonomous_browser_plan_v1` 
 2. Phase 11A already broadened fixture-only scenario families with ticket triage and approval form review; use that wider set for future diverse model-generated plan trials
 3. Phase 11B prepares a separate offline packet for manual `second_model` trials against `browser_ticket_triage_review` and `browser_approval_form_review`; it stays offline and does not add new real browser evidence
 4. Phase 11C documents the two resulting manual `second_model` outputs and fixture replay success in `docs/status/phase_11_diverse_local_planner_evidence.md`
+5. Phase 11D prepares guarded Playwright replay support for those Phase 11 captured plans through `configs/autonomous_runtime/browser_phase11_playwright_replay_suite.example.json`; real browser evidence for that replay path is still pending an operator-side guarded run
 5. add richer guarded local browser actions
 6. run repeated real Playwright suite across diverse model-generated plans
 7. revisit LLM judge only as an explicit guarded evaluation phase

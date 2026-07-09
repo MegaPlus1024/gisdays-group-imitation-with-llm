@@ -22,10 +22,50 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PLAN_PATH = PROJECT_ROOT / "configs" / "autonomous_runtime" / "browser_plan.example.json"
 CLI_PATH = PROJECT_ROOT / "scripts" / "run_autonomous_browser_plan_playwright_replay_suite.py"
 EXAMPLE_CONFIG_PATH = PROJECT_ROOT / "configs" / "autonomous_runtime" / "browser_plan_playwright_replay_suite.example.json"
+PHASE11_EXAMPLE_CONFIG_PATH = PROJECT_ROOT / "configs" / "autonomous_runtime" / "browser_phase11_playwright_replay_suite.example.json"
 
 
 def _base_plan() -> dict[str, Any]:
     return json.loads(PLAN_PATH.read_text(encoding="utf-8"))
+
+
+def _phase11_plan() -> dict[str, Any]:
+    return {
+        "schema_version": "autonomous_browser_plan_v1",
+        "plan_id": "browser_phase11_playwright_replay_plan_v1",
+        "goal": "Review local policy fixture and capture evidence.",
+        "scenario_id": "browser_ticket_triage_review",
+        "max_actions": 4,
+        "actions": [
+            {
+                "step_id": "open_home",
+                "action_name": "browser_open_url",
+                "parameters": {"url": "https://local.intranet/"},
+                "expected_text": "Office Intranet",
+            },
+            {
+                "step_id": "click_policy",
+                "action_name": "browser_click",
+                "parameters": {
+                    "url": "https://local.intranet/docs/policy",
+                    "target_text": "Workspace policy",
+                },
+                "expected_text": "Allowed activity",
+            },
+            {
+                "step_id": "extract_policy",
+                "action_name": "browser_extract_text",
+                "parameters": {"url": "https://docs.local/docs/policy"},
+                "expected_text": "Allowed activity",
+            },
+            {
+                "step_id": "snapshot_policy",
+                "action_name": "browser_snapshot",
+                "parameters": {"url": "https://docs.local/docs/policy"},
+                "expected_text": "Allowed activity",
+            },
+        ],
+    }
 
 
 def _write_captured_output(repo_root: Path, relative_path: str, text: str) -> Path:
@@ -78,6 +118,24 @@ def test_example_config_loads_with_relative_paths() -> None:
     assert config.expected_max_failed == 0
 
 
+def test_phase11_example_config_loads_with_relative_paths() -> None:
+    config = load_autonomous_browser_plan_playwright_replay_suite_config(PHASE11_EXAMPLE_CONFIG_PATH)
+
+    assert config.schema_version == CONFIG_SCHEMA_VERSION
+    assert config.suite_id == "browser_phase11_playwright_replay_suite_v1"
+    assert config.replay_backend == "playwright"
+    assert config.output_dir == "artifacts/autonomous_runtime_summaries/phase11_playwright_replay_suite"
+    assert config.captured_outputs == (
+        "artifacts/autonomous_runtime_summaries/phase11_local_planner_packet/ticket_triage/raw_planner_output.txt",
+        "artifacts/autonomous_runtime_summaries/phase11_local_planner_packet/approval_review/raw_planner_output.txt",
+    )
+    assert config.fixture_scope == "local_only"
+    assert config.headless is True
+    assert config.timeout_ms == 30_000
+    assert config.expected_min_succeeded == 2
+    assert config.expected_max_failed == 0
+
+
 def test_suite_dry_run_with_three_fixture_outputs_succeeds(tmp_path: Path) -> None:
     captured_outputs = [
         "inputs/trial_01/raw_planner_output.txt",
@@ -85,7 +143,7 @@ def test_suite_dry_run_with_three_fixture_outputs_succeeds(tmp_path: Path) -> No
         "inputs/trial_03/raw_planner_output.txt",
     ]
     for relative_path in captured_outputs:
-        _write_captured_output(tmp_path, relative_path, json.dumps(_base_plan(), ensure_ascii=False, indent=2))
+        _write_captured_output(tmp_path, relative_path, json.dumps(_phase11_plan(), ensure_ascii=False, indent=2))
 
     summary = run_autonomous_browser_plan_playwright_replay_suite(
         _suite_config(captured_outputs=captured_outputs),
@@ -114,7 +172,7 @@ def test_suite_dry_run_with_three_fixture_outputs_succeeds(tmp_path: Path) -> No
     assert summary["actions_failed_total"] == 0
     assert summary["expected_results_passed"] == 0
     assert summary["expected_results_failed"] == 0
-    assert summary["expected_results_total"] == 9
+    assert summary["expected_results_total"] == 12
     assert summary["thresholds"] == {"expected_min_succeeded": 3, "expected_max_failed": 0}
     assert len(summary["output_summaries"]) == 3
     assert all(item["status"] == "succeeded" for item in summary["output_summaries"])
@@ -169,7 +227,7 @@ def test_backend_playwright_dry_run_succeeds_without_playwright_import(monkeypat
         "inputs/trial_03/raw_planner_output.txt",
     ]
     for relative_path in captured_outputs:
-        _write_captured_output(tmp_path, relative_path, json.dumps(_base_plan(), ensure_ascii=False, indent=2))
+        _write_captured_output(tmp_path, relative_path, json.dumps(_phase11_plan(), ensure_ascii=False, indent=2))
 
     original_import = builtins.__import__
     forbidden = ("playwright", "llama_cpp", "http.server", "socketserver")
@@ -200,11 +258,12 @@ def test_backend_playwright_dry_run_succeeds_without_playwright_import(monkeypat
     assert summary["playwright_execution"] is False
     assert summary["browser_opened"] is False
     assert summary["outputs_succeeded"] == 3
+    assert summary["expected_results_total"] == 12
 
 
 def test_backend_playwright_refuses_without_guards(tmp_path: Path) -> None:
     captured_outputs = ["inputs/trial_01/raw_planner_output.txt"]
-    _write_captured_output(tmp_path, captured_outputs[0], json.dumps(_base_plan(), ensure_ascii=False, indent=2))
+    _write_captured_output(tmp_path, captured_outputs[0], json.dumps(_phase11_plan(), ensure_ascii=False, indent=2))
 
     summary = run_autonomous_browser_plan_playwright_replay_suite(
         _suite_config(captured_outputs=captured_outputs, replay_backend="playwright"),
@@ -312,6 +371,34 @@ def test_invalid_captured_output_counted_failed_and_thresholds_respected(tmp_pat
     assert any(item["status"] != "succeeded" for item in summary["output_summaries"])
 
 
+def test_missing_captured_output_returns_safe_error_code_without_error_d(tmp_path: Path) -> None:
+    captured_outputs = [
+        "inputs/trial_01/raw_planner_output.txt",
+        "inputs/trial_02/raw_planner_output.txt",
+    ]
+    _write_captured_output(tmp_path, captured_outputs[0], json.dumps(_base_plan(), ensure_ascii=False, indent=2))
+
+    summary = run_autonomous_browser_plan_playwright_replay_suite(
+        _suite_config(captured_outputs=captured_outputs, expected_min_succeeded=2, expected_max_failed=0),
+        repo_root=tmp_path,
+        dry_run=True,
+    )
+    encoded = json.dumps(summary, ensure_ascii=False)
+
+    assert summary["status"] == "failed"
+    assert summary["error_code"] in {"source_output_read_failed", "suite_outputs_failed", "captured_output_failed"}
+    assert "error_d" not in summary
+    assert summary["no_runtime_execution"] is True
+    assert summary["model_execution"] is False
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["outputs_total"] == 2
+    assert summary["outputs_succeeded"] == 1
+    assert summary["outputs_failed"] == 1
+    assert "error_d" not in encoded
+
+
 def test_summary_fields_correct_and_no_absolute_paths_or_secret_leakage(tmp_path: Path) -> None:
     captured_outputs = ["inputs/trial_01/raw_planner_output.txt"]
     _write_captured_output(tmp_path, captured_outputs[0], json.dumps(_base_plan(), ensure_ascii=False, indent=2))
@@ -333,7 +420,7 @@ def test_summary_fields_correct_and_no_absolute_paths_or_secret_leakage(tmp_path
 
 def test_no_playwright_import_or_browser_server_model_use(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     captured_outputs = ["inputs/trial_01/raw_planner_output.txt"]
-    _write_captured_output(tmp_path, captured_outputs[0], json.dumps(_base_plan(), ensure_ascii=False, indent=2))
+    _write_captured_output(tmp_path, captured_outputs[0], json.dumps(_phase11_plan(), ensure_ascii=False, indent=2))
     original_import = builtins.__import__
     forbidden = ("playwright", "llama_cpp", "openai", "http.server", "socketserver")
 

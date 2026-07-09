@@ -1,0 +1,26 @@
+{
+  "schema_version": "autonomous_browser_plan_playwright_replay_suite_config_v1",
+  "suite_id": "browser_phase11_playwright_replay_suite_v1",
+  "captured_outputs": [
+    "artifacts/autonomous_runtime_summaries/phase11_local_planner_packet/ticket_triage/raw_planner_output.txt",
+    "artifacts/autonomous_runtime_summaries/phase11_local_planner_packet/approval_review/raw_planner_output.txt"
+  ],
+  "output_dir": "artifacts/autonomous_runtime_summaries/phase11_playwright_replay_suite",
+  "replay_backend": "playwright",
+  "allowed_hosts": [
+    "local.intranet",
+    "local-intranet.test",
+    "docs.local",
+    "portal.local"
+  ],
+  "fixture_scope": "local_only",
+  "headless": true,
+  "timeout_ms": 30000,
+  "expected_min_succeeded": 2,
+  "expected_max_failed": 0,
+  "limitations": [
+    "prepared for guarded real Playwright replay",
+    "click and snapshot are supported in the model-plan Playwright path",
+    "operator approval required for future real browser execution"
+  ]
+}
