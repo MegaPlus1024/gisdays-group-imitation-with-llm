@@ -54,3 +54,8 @@
 
 - `docs/operator/phase_13b_guarded_local_model_live_loop.md` records the guarded local-model adapter commands and refusal-by-default smoke path.
 - Phase 13B keeps the live loop fixture-backed by default and does not add real browser or Codex-launched model execution.
+
+## Phase 13B3 note
+
+- the guarded local-model planner diagnostics now preserve safe structured error codes for non-local endpoints and local HTTP failures
+- the first operator-side live-model attempt can now fail safely with structured JSON instead of a generic traceback, while still not launching browser or Playwright from Codex

@@ -16,6 +16,14 @@
 
 This path should refuse with `allow_model_calls_required` unless the operator explicitly enables model calls.
 
+## Diagnostics notes
+
+- non-local endpoints are rejected with `non_local_model_endpoint`
+- local HTTP transport failures surface as `model_http_request_failed`
+- local HTTP status errors surface as `model_http_status_error`
+- malformed or truncated model responses surface as `model_response_invalid_json`, `model_response_missing_choices`, `model_response_missing_content`, `model_output_no_json_object`, or `model_output_invalid_action` depending on the failure shape
+- these codes stay structured and safe for operator troubleshooting and do not imply production readiness
+
 ## Guarded operator run
 
 ```powershell

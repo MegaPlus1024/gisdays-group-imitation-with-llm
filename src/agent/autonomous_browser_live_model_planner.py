@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import urllib.parse
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -17,6 +18,7 @@ LOCAL_MODEL_LIVE_PLANNER_SCHEMA_VERSION = "autonomous_browser_live_model_planner
 DEFAULT_LOCAL_MODEL_PLANNER_ID = "browser_live_loop_local_model_planner_v1"
 DEFAULT_LOCAL_MODEL_ALIAS = "third_model"
 DEFAULT_LOCAL_MODEL_ENDPOINT = "http://127.0.0.1:8082/v1"
+MIN_LOCAL_MODEL_MAX_TOKENS = 1200
 DEFAULT_LOCAL_MODEL_TEMPERATURE = 0.0
 DEFAULT_LOCAL_MODEL_MAX_TOKENS = 256
 DEFAULT_LOCAL_MODEL_TIMEOUT_SECONDS = 120.0
@@ -30,6 +32,7 @@ class ChatCompletionRequest:
     messages: tuple[dict[str, str], ...]
     temperature: float
     max_tokens: int
+    stream: bool
     timeout_seconds: float
 
 
@@ -55,11 +58,42 @@ class HttpxChatCompletionClient:
             "messages": [dict(message) for message in request.messages],
             "temperature": request.temperature,
             "max_tokens": request.max_tokens,
+            "stream": request.stream,
         }
         with httpx.Client(timeout=request.timeout_seconds, trust_env=False) as client:
-            response = client.post(url, json=payload)
-            response.raise_for_status()
-            response_json = response.json()
+            try:
+                response = client.post(url, json=payload)
+                response.raise_for_status()
+                response_json = response.json()
+            except httpx.HTTPStatusError as exc:
+                raise LocalModelLivePlannerError(
+                    "Local model endpoint returned an HTTP error.",
+                    "model_http_status_error",
+                    {
+                        "exception_type": exc.__class__.__name__,
+                        "http_status": exc.response.status_code,
+                        "endpoint_host": _endpoint_host(request.endpoint_base_url),
+                        "endpoint_port": _endpoint_port(request.endpoint_base_url),
+                        "endpoint_path": _endpoint_path(url),
+                        "model_alias": request.model,
+                        "request_payload_metadata": _request_payload_metadata(request),
+                        "response_text_preview_sanitized": _safe_response_excerpt(exc.response.text, limit=300),
+                    },
+                ) from exc
+            except httpx.HTTPError as exc:
+                raise LocalModelLivePlannerError(
+                    "Local model request failed.",
+                    "model_http_request_failed",
+                    {
+                        "exception_type": exc.__class__.__name__,
+                        "endpoint_path": _endpoint_path(url),
+                        "endpoint_host": _endpoint_host(request.endpoint_base_url),
+                        "endpoint_port": _endpoint_port(request.endpoint_base_url),
+                        "model_alias": request.model,
+                        "request_payload_metadata": _request_payload_metadata(request),
+                        "response_text_preview_sanitized": _safe_response_excerpt(str(exc), limit=300),
+                    },
+                ) from exc
         return ChatCompletionResponse(
             content=_assistant_content(response_json),
             finish_reason=_finish_reason(response_json),
@@ -161,7 +195,13 @@ class LocalModelLivePlanner:
     model_execution_attempted: bool = field(default=False, init=False)
     model_execution_completed: bool = field(default=False, init=False)
     last_error_code: str | None = field(default=None, init=False)
+    last_error_message_sanitized: str | None = field(default=None, init=False)
+    last_exception_type: str | None = field(default=None, init=False)
+    last_http_status: int | None = field(default=None, init=False)
+    last_error_diagnostics: dict[str, Any] = field(default_factory=dict, init=False)
     last_finish_reason: str | None = field(default=None, init=False)
+    last_response_text_preview_sanitized: str | None = field(default=None, init=False)
+    last_request_payload_metadata: dict[str, Any] = field(default_factory=dict, init=False)
     last_request: ChatCompletionRequest | None = field(default=None, init=False)
     last_response: ChatCompletionResponse | None = field(default=None, init=False)
 
@@ -191,34 +231,38 @@ class LocalModelLivePlanner:
 
     def validate_runtime_guard(self) -> None:
         if not self.config.allow_model_calls:
-            self.last_error_code = "allow_model_calls_required"
-            raise LocalModelLivePlannerError(
+            error = LocalModelLivePlannerError(
                 "Model calls are disabled for this planner backend.",
                 "allow_model_calls_required",
             )
+            self._record_error(error)
+            raise error
 
         parsed = urllib.parse.urlparse(self.config.model_endpoint)
         if parsed.scheme not in {"http", "https"} or parsed.username or parsed.password:
-            self.last_error_code = "endpoint_host_not_allowed"
-            raise LocalModelLivePlannerError(
+            error = LocalModelLivePlannerError(
                 "Model endpoint must be a local loopback HTTP(S) URL.",
-                "endpoint_host_not_allowed",
+                "non_local_model_endpoint",
             )
+            self._record_error(error)
+            raise error
         hostname = (parsed.hostname or "").lower()
         if hostname not in ALLOWED_LOCAL_HOSTS:
-            self.last_error_code = "endpoint_host_not_allowed"
-            raise LocalModelLivePlannerError(
+            error = LocalModelLivePlannerError(
                 "Model endpoint host is not allowed.",
-                "endpoint_host_not_allowed",
+                "non_local_model_endpoint",
             )
+            self._record_error(error)
+            raise error
 
         allowed_aliases = self.allowed_model_aliases()
         if self.config.model_alias not in allowed_aliases:
-            self.last_error_code = "model_alias_not_allowed"
-            raise LocalModelLivePlannerError(
+            error = LocalModelLivePlannerError(
                 "Model alias is not listed in the allowed planner config.",
-                "model_alias_not_allowed",
+                "unsupported_model_alias",
             )
+            self._record_error(error)
+            raise error
 
     def allowed_model_aliases(self) -> tuple[str, ...]:
         if self.config.allowed_model_aliases:
@@ -233,66 +277,112 @@ class LocalModelLivePlanner:
             model=self.config.model_alias,
             messages=tuple(self.build_messages(observation)),
             temperature=self.config.temperature,
-            max_tokens=self.config.max_tokens,
+            max_tokens=max(self.config.max_tokens, MIN_LOCAL_MODEL_MAX_TOKENS),
+            stream=False,
             timeout_seconds=self.config.timeout_seconds,
         )
         self.last_request = request
+        self.last_request_payload_metadata = _request_payload_metadata(request)
+        self.last_error_diagnostics = {}
+        self.last_error_message_sanitized = None
+        self.last_exception_type = None
+        self.last_http_status = None
+        self.last_response_text_preview_sanitized = None
         self.model_execution_attempted = True
         client = self.client or HttpxChatCompletionClient()
         try:
             response = client.complete(request)
+        except LocalModelLivePlannerError as exc:
+            self._record_error(exc)
+            raise
         except (httpx.HTTPError, OSError, TimeoutError) as exc:
-            self.last_error_code = "planner_request_failed"
-            raise LocalModelLivePlannerError(
+            wrapped = LocalModelLivePlannerError(
                 "Model request failed.",
                 "planner_request_failed",
-            ) from exc
+                {
+                    "exception_type": exc.__class__.__name__,
+                    "request_payload_metadata": dict(self.last_request_payload_metadata),
+                    "response_text_preview_sanitized": _safe_response_excerpt(str(exc), limit=300),
+                },
+            )
+            self._record_error(wrapped)
+            raise wrapped from exc
         self.last_response = response
         self.model_execution_completed = True
         self.last_finish_reason = response.finish_reason
+        self.last_response_text_preview_sanitized = _safe_response_excerpt(response.content, limit=300)
         if (response.finish_reason or "").strip().lower() == "length":
-            self.last_error_code = "planner_response_truncated"
-            raise LocalModelLivePlannerError(
+            error = LocalModelLivePlannerError(
                 "Model response finished due to length limit.",
-                "planner_response_truncated",
+                "model_finish_reason_length",
+                {
+                    "exception_type": "LocalModelLivePlannerError",
+                    "finish_reason": response.finish_reason,
+                    "request_payload_metadata": dict(self.last_request_payload_metadata),
+                    "response_text_preview_sanitized": self.last_response_text_preview_sanitized,
+                },
             )
+            self._record_error(error)
+            raise error
 
         content = response.content.strip()
         if not content:
-            self.last_error_code = "planner_response_parse_failed"
-            raise LocalModelLivePlannerError(
+            error = LocalModelLivePlannerError(
                 "Model response content was empty.",
-                "planner_response_parse_failed",
+                "model_response_missing_content",
+                {
+                    "exception_type": "LocalModelLivePlannerError",
+                    "finish_reason": response.finish_reason,
+                    "request_payload_metadata": dict(self.last_request_payload_metadata),
+                    "response_text_preview_sanitized": self.last_response_text_preview_sanitized,
+                },
             )
+            self._record_error(error)
+            raise error
 
         try:
             parsed = json.loads(content)
         except json.JSONDecodeError as exc:
-            self.last_error_code = "planner_response_parse_failed"
-            raise LocalModelLivePlannerError(
+            error = LocalModelLivePlannerError(
                 "Model response was not valid JSON.",
-                "planner_response_parse_failed",
-            ) from exc
+                "model_response_invalid_json",
+                {
+                    "exception_type": exc.__class__.__name__,
+                    "finish_reason": response.finish_reason,
+                    "request_payload_metadata": dict(self.last_request_payload_metadata),
+                    "response_text_preview_sanitized": self.last_response_text_preview_sanitized,
+                },
+            )
+            self._record_error(error)
+            raise error from exc
 
         if not isinstance(parsed, Mapping):
-            if isinstance(parsed, list):
-                self.last_error_code = "planner_response_array_not_allowed"
-                raise LocalModelLivePlannerError(
-                    "Model response JSON array is not allowed.",
-                    "planner_response_array_not_allowed",
-                )
-            self.last_error_code = "planner_response_must_be_object"
-            raise LocalModelLivePlannerError(
+            error = LocalModelLivePlannerError(
                 "Model response must be a JSON object.",
-                "planner_response_must_be_object",
+                "model_output_no_json_object",
+                {
+                    "exception_type": "LocalModelLivePlannerError",
+                    "finish_reason": response.finish_reason,
+                    "request_payload_metadata": dict(self.last_request_payload_metadata),
+                    "response_text_preview_sanitized": self.last_response_text_preview_sanitized,
+                },
             )
+            self._record_error(error)
+            raise error
 
         if "actions" in parsed:
-            self.last_error_code = "planner_response_plan_shape_not_allowed"
-            raise LocalModelLivePlannerError(
+            error = LocalModelLivePlannerError(
                 "Full plan objects are not allowed.",
-                "planner_response_plan_shape_not_allowed",
+                "model_output_invalid_action",
+                {
+                    "exception_type": "LocalModelLivePlannerError",
+                    "finish_reason": response.finish_reason,
+                    "request_payload_metadata": dict(self.last_request_payload_metadata),
+                    "response_text_preview_sanitized": self.last_response_text_preview_sanitized,
+                },
             )
+            self._record_error(error)
+            raise error
 
         step = self._step_from_payload(parsed)
         return step
@@ -309,25 +399,37 @@ class LocalModelLivePlanner:
             "model_execution_attempted": self.model_execution_attempted,
             "model_execution_completed": self.model_execution_completed,
             "last_error_code": self.last_error_code,
+            "last_error_message_sanitized": self.last_error_message_sanitized,
+            "last_exception_type": self.last_exception_type,
+            "last_http_status": self.last_http_status,
+            "last_error_diagnostics": dict(self.last_error_diagnostics) if self.last_error_diagnostics else {},
             "last_finish_reason": self.last_finish_reason,
+            "last_response_text_preview_sanitized": self.last_response_text_preview_sanitized,
+            "request_payload_metadata": dict(self.last_request_payload_metadata),
+            "last_request_preview": _request_preview(self.last_request) if self.last_request is not None else None,
+            "last_response_preview": _response_preview(self.last_response) if self.last_response is not None else None,
             "allowed_model_aliases": list(self.allowed_model_aliases()),
         }
 
     def _step_from_payload(self, payload: Mapping[str, Any]) -> AutonomousBrowserLivePlannerStep:
         if "actions" in payload:
-            self.last_error_code = "planner_response_plan_shape_not_allowed"
-            raise LocalModelLivePlannerError(
+            error = LocalModelLivePlannerError(
                 "Full plan objects are not allowed.",
-                "planner_response_plan_shape_not_allowed",
+                "model_output_invalid_action",
+                {"request_payload_metadata": dict(self.last_request_payload_metadata)},
             )
+            self._record_error(error)
+            raise error
 
         action_name = _safe_text(payload.get("action_name"), "action_name")
         if action_name is None:
-            self.last_error_code = "missing_action_name"
-            raise LocalModelLivePlannerError(
+            error = LocalModelLivePlannerError(
                 "Model response is missing action_name.",
-                "missing_action_name",
+                "model_output_invalid_action",
+                {"request_payload_metadata": dict(self.last_request_payload_metadata)},
             )
+            self._record_error(error)
+            raise error
 
         step_id = _safe_text(payload.get("step_id"), "step_id")
         if step_id is None:
@@ -351,11 +453,13 @@ class LocalModelLivePlanner:
             )
 
         if not expected_text:
-            self.last_error_code = "missing_expected_text"
-            raise LocalModelLivePlannerError(
+            error = LocalModelLivePlannerError(
                 "Model response is missing expected_text.",
-                "missing_expected_text",
+                "model_output_invalid_action",
+                {"request_payload_metadata": dict(self.last_request_payload_metadata)},
             )
+            self._record_error(error)
+            raise error
 
         validation_result = validate_autonomous_browser_plan(
             {
@@ -377,21 +481,28 @@ class LocalModelLivePlanner:
         )
         if str(validation_result.get("status")) != "accepted":
             error_code = str(validation_result.get("error_code") or "planner_action_validation_failed")
-            self.last_error_code = error_code
-            raise LocalModelLivePlannerError(
+            error = LocalModelLivePlannerError(
                 "Model response action failed validation.",
                 error_code,
                 {"validation_result": validation_result},
             )
+            self._record_error(error)
+            raise error
         normalized_plan = validation_result.get("normalized_plan")
         if not isinstance(normalized_plan, Mapping):
-            self.last_error_code = "planner_action_validation_failed"
-            raise LocalModelLivePlannerError(
+            error = LocalModelLivePlannerError(
                 "Model response validation did not produce a normalized plan.",
-                "planner_action_validation_failed",
+                "model_output_invalid_action",
+                {"request_payload_metadata": dict(self.last_request_payload_metadata)},
             )
+            self._record_error(error)
+            raise error
         normalized_action = normalized_plan["actions"][0]
         self.last_error_code = None
+        self.last_error_message_sanitized = None
+        self.last_exception_type = None
+        self.last_http_status = None
+        self.last_error_diagnostics = {}
         return AutonomousBrowserLivePlannerStep(
             step_id=str(normalized_action["step_id"]),
             action_name=str(normalized_action["action_name"]),
@@ -406,6 +517,18 @@ class LocalModelLivePlanner:
         if self.config.no_think is not None:
             return self.config.no_think
         return self.config.model_alias == DEFAULT_LOCAL_MODEL_ALIAS
+
+    def _record_error(self, exc: LocalModelLivePlannerError) -> None:
+        self.last_error_code = exc.error_code
+        self.last_error_message_sanitized = _safe_response_excerpt(str(exc), limit=300)
+        diagnostics = dict(exc.diagnostics)
+        self.last_error_diagnostics = diagnostics
+        self.last_exception_type = str(diagnostics.get("exception_type") or exc.__class__.__name__)
+        http_status = diagnostics.get("http_status")
+        self.last_http_status = http_status if isinstance(http_status, int) else None
+        response_preview = diagnostics.get("response_text_preview_sanitized")
+        if isinstance(response_preview, str):
+            self.last_response_text_preview_sanitized = response_preview
 
 
 def _load_model_aliases(repo_root: Path) -> tuple[str, ...]:
@@ -437,24 +560,49 @@ def _load_model_aliases(repo_root: Path) -> tuple[str, ...]:
 
 
 def _assistant_content(response_json: Mapping[str, Any]) -> str:
+    if not isinstance(response_json, Mapping):
+        raise LocalModelLivePlannerError(
+            "Chat completion response root must be a JSON object.",
+            "model_response_missing_choices",
+        )
+    choices = response_json.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise LocalModelLivePlannerError(
+            "Chat completion response is missing choices.",
+            "model_response_missing_choices",
+        )
     try:
-        content = response_json["choices"][0]["message"]["content"]
+        first_choice = choices[0]
+        if not isinstance(first_choice, Mapping):
+            raise KeyError("choice")
+        message = first_choice.get("message")
+        if not isinstance(message, Mapping):
+            raise KeyError("message")
+        content = message.get("content")
     except (KeyError, IndexError, TypeError) as exc:
         raise LocalModelLivePlannerError(
             "Chat completion response is missing assistant content.",
-            "planner_response_parse_failed",
+            "model_response_missing_content",
         ) from exc
-    if not isinstance(content, str):
+    if not isinstance(content, str) or not content.strip():
         raise LocalModelLivePlannerError(
             "Chat completion assistant content must be text.",
-            "planner_response_parse_failed",
+            "model_response_missing_content",
         )
     return content
 
 
 def _finish_reason(response_json: Mapping[str, Any]) -> str | None:
+    if not isinstance(response_json, Mapping):
+        return None
+    choices = response_json.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return None
     try:
-        finish_reason = response_json["choices"][0]["finish_reason"]
+        first_choice = choices[0]
+        if not isinstance(first_choice, Mapping):
+            return None
+        finish_reason = first_choice.get("finish_reason")
     except (KeyError, IndexError, TypeError):
         return None
     return finish_reason if isinstance(finish_reason, str) else None
@@ -532,3 +680,82 @@ def _int(value: Any, label: str) -> int | None:
     except (TypeError, ValueError):
         return None
     return number
+
+
+def _request_preview(request: ChatCompletionRequest) -> dict[str, Any]:
+    return {
+        "endpoint_host": _endpoint_host(request.endpoint_base_url),
+        "endpoint_port": _endpoint_port(request.endpoint_base_url),
+        "model_id": request.model,
+        "request_payload_metadata": _request_payload_metadata(request),
+    }
+
+
+def _response_preview(response: ChatCompletionResponse) -> dict[str, Any]:
+    return {
+        "model": response.model,
+        "finish_reason": response.finish_reason,
+    }
+
+
+def _endpoint_path(url: str) -> str:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.path.startswith("/"):
+        return parsed.path.rstrip("/") or "/"
+    return "/chat/completions"
+
+
+def _endpoint_host(url: str) -> str | None:
+    parsed = urllib.parse.urlparse(url)
+    return parsed.hostname.lower() if parsed.hostname else None
+
+
+def _endpoint_port(url: str) -> int | None:
+    parsed = urllib.parse.urlparse(url)
+    return parsed.port
+
+
+def _request_payload_metadata(request: ChatCompletionRequest) -> dict[str, Any]:
+    return {
+        "endpoint_host": _endpoint_host(request.endpoint_base_url),
+        "endpoint_port": _endpoint_port(request.endpoint_base_url),
+        "model_alias": request.model,
+        "message_count": len(request.messages),
+        "max_tokens": request.max_tokens,
+        "temperature": request.temperature,
+        "stream": request.stream,
+    }
+
+
+def _request_shape(request: ChatCompletionRequest) -> dict[str, Any]:
+    messages = request.messages
+    return {
+        "has_messages": isinstance(messages, Sequence),
+        "message_count": len(messages) if isinstance(messages, Sequence) else 0,
+        "has_tools": False,
+        "has_response_format": False,
+        "has_stream": False,
+        "temperature_present": True,
+        "max_tokens_present": True,
+    }
+
+
+def _safe_response_excerpt(value: str, *, limit: int = 800) -> str:
+    text = _redact_secret_text(value)
+    text = re.sub(r"[A-Za-z]:[\\/][^\s\"']+", "<absolute_path>", text)
+    text = re.sub(r"(?<!\w)/(?:[^\s\"']+/)+[^\s\"']+", "<absolute_path>", text)
+    text = re.sub(r"\\\\[^\s\"']+", "<absolute_path>", text)
+    return text[:limit] + ("...[truncated]" if len(text) > limit else "")
+
+
+def _redact_secret_text(value: str) -> str:
+    text = re.sub(
+        r"(?i)['\"]?\b(api[_-]?key|token|secret|password|credential|auth)\b['\"]?\s*[:=]\s*['\"]?[^,\s'\"}]+",
+        lambda match: f"{match.group(1)}=<redacted_secret>",
+        value,
+    )
+    return re.sub(
+        r"(?i)['\"]?\b(raw_prompt|raw_response|raw_output|raw_model_output|full_prompt|full_response|prompt_text|response_text)\b['\"]?\s*[:=]\s*['\"]?[^,\s'\"}]+",
+        "<redacted_raw_text>",
+        text,
+    )

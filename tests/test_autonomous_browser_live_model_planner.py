@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
+import httpx
 import pytest
 
 from src.agent.autonomous_browser_live_model_planner import (
@@ -97,7 +99,11 @@ def test_valid_next_action_returns_step() -> None:
     assert planner.model_execution_attempted is True
     assert planner.model_execution_completed is True
     assert client.requests[0].model == "third_model"
+    assert client.requests[0].stream is False
+    assert client.requests[0].max_tokens >= 1200
     assert client.requests[0].messages[0]["content"].startswith("/no_think")
+    assert planner.to_summary()["request_payload_metadata"]["stream"] is False
+    assert planner.to_summary()["request_payload_metadata"]["max_tokens"] >= 1200
 
 
 def test_done_action_returns_done_step() -> None:
@@ -125,10 +131,10 @@ def test_json_array_is_rejected() -> None:
     with pytest.raises(LocalModelLivePlannerError) as excinfo:
         planner.next_step(OBSERVATION)
 
-    assert excinfo.value.error_code == "planner_response_array_not_allowed"
+    assert excinfo.value.error_code == "model_output_no_json_object"
 
 
-def test_multiple_json_objects_are_rejected() -> None:
+def test_invalid_json_is_rejected() -> None:
     client = FakeChatCompletionClient(
         [ChatCompletionResponse(content='{"step_id":"one"} {"step_id":"two"}', finish_reason="stop")]
     )
@@ -137,7 +143,7 @@ def test_multiple_json_objects_are_rejected() -> None:
     with pytest.raises(LocalModelLivePlannerError) as excinfo:
         planner.next_step(OBSERVATION)
 
-    assert excinfo.value.error_code == "planner_response_parse_failed"
+    assert excinfo.value.error_code == "model_response_invalid_json"
 
 
 def test_full_plan_object_is_rejected() -> None:
@@ -154,7 +160,7 @@ def test_full_plan_object_is_rejected() -> None:
     with pytest.raises(LocalModelLivePlannerError) as excinfo:
         planner.next_step(OBSERVATION)
 
-    assert excinfo.value.error_code == "planner_response_plan_shape_not_allowed"
+    assert excinfo.value.error_code == "model_output_invalid_action"
 
 
 def test_external_url_is_rejected() -> None:
@@ -188,7 +194,15 @@ def test_secret_like_request_is_rejected() -> None:
     with pytest.raises(LocalModelLivePlannerError) as excinfo:
         planner.next_step(OBSERVATION)
 
-    assert excinfo.value.error_code in {"secret_like_parameter_value", "secret_like_parameter_key"}
+    diagnostics = excinfo.value.diagnostics
+    diagnostics_text = json.dumps(diagnostics, ensure_ascii=False)
+
+    assert excinfo.value.error_code == "secret_like_parameter_value"
+    assert diagnostics["validation_result"]["diagnostics"][0]["finding_type"] == "secret_like_parameter_value"
+    assert diagnostics["validation_result"]["diagnostics"][0]["path"] == "actions[0].parameters.query"
+    assert diagnostics["validation_result"]["diagnostics"][0]["parameter_key"] == "api_key"
+    assert "supersecret" not in diagnostics_text
+    assert "Traceback" not in diagnostics_text
 
 
 def test_finish_reason_length_is_rejected() -> None:
@@ -205,7 +219,7 @@ def test_finish_reason_length_is_rejected() -> None:
     with pytest.raises(LocalModelLivePlannerError) as excinfo:
         planner.next_step(OBSERVATION)
 
-    assert excinfo.value.error_code == "planner_response_truncated"
+    assert excinfo.value.error_code == "model_finish_reason_length"
 
 
 def test_allow_model_calls_required_refusal() -> None:
@@ -240,7 +254,7 @@ def test_non_local_endpoint_is_rejected_without_calling_client() -> None:
     with pytest.raises(LocalModelLivePlannerError) as excinfo:
         planner.next_step(OBSERVATION)
 
-    assert excinfo.value.error_code == "endpoint_host_not_allowed"
+    assert excinfo.value.error_code == "non_local_model_endpoint"
     assert client.requests == []
 
 
@@ -260,3 +274,167 @@ def test_localhost_endpoint_is_allowed_with_fake_client() -> None:
     assert step is not None
     assert step.action_name == "browser_open_url"
     assert client.requests[0].endpoint_base_url == "http://localhost:8082/v1"
+
+
+def test_http_transport_failure_reports_request_failed(monkeypatch: pytest.MonkeyPatch) -> None:
+    class ErrorClient:
+        def __init__(self, *, timeout: float, trust_env: bool) -> None:
+            self.timeout = timeout
+            self.trust_env = trust_env
+
+        def __enter__(self) -> ErrorClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+            return None
+
+        def post(self, url: str, json: dict[str, object]) -> httpx.Response:
+            del json
+            raise httpx.ConnectError("connection refused: PROMPT_DO_NOT_COPY token=SECRET_TOKEN")
+
+    monkeypatch.setattr(httpx, "Client", ErrorClient)
+    planner = _planner(allow_model_calls=True)
+
+    with pytest.raises(LocalModelLivePlannerError) as excinfo:
+        planner.next_step(OBSERVATION)
+
+    exc = excinfo.value
+    diagnostics = exc.diagnostics
+    diagnostics_text = str(diagnostics)
+
+    assert exc.error_code == "model_http_request_failed"
+    assert diagnostics["exception_type"] == "ConnectError"
+    assert diagnostics["endpoint_path"] == "/v1/chat/completions"
+    assert diagnostics["model_alias"] == "third_model"
+    assert diagnostics["request_payload_metadata"]["message_count"] == 2
+    assert diagnostics["request_payload_metadata"]["stream"] is False
+    assert "connection refused" in diagnostics["response_text_preview_sanitized"]
+    assert "SECRET_TOKEN" not in diagnostics_text
+    assert "Traceback" not in diagnostics_text
+
+
+def test_http_500_reports_status_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    class BadStatusClient:
+        def __init__(self, *, timeout: float, trust_env: bool) -> None:
+            self.timeout = timeout
+            self.trust_env = trust_env
+
+        def __enter__(self) -> BadStatusClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+            return None
+
+        def post(self, url: str, json: dict[str, object]) -> httpx.Response:
+            del json
+            return httpx.Response(
+                500,
+                text='{"error":"bad model","raw_prompt":"PROMPT_DO_NOT_COPY","token":"SECRET_TOKEN"}',
+                request=httpx.Request("POST", url),
+            )
+
+    monkeypatch.setattr(httpx, "Client", BadStatusClient)
+    planner = _planner(allow_model_calls=True)
+
+    with pytest.raises(LocalModelLivePlannerError) as excinfo:
+        planner.next_step(OBSERVATION)
+
+    exc = excinfo.value
+    diagnostics = exc.diagnostics
+    diagnostics_text = str(diagnostics)
+
+    assert exc.error_code == "model_http_status_error"
+    assert diagnostics["http_status"] == 500
+    assert diagnostics["endpoint_path"] == "/v1/chat/completions"
+    assert diagnostics["request_payload_metadata"]["max_tokens"] >= 1200
+    assert diagnostics["request_payload_metadata"]["stream"] is False
+    assert "bad model" in diagnostics["response_text_preview_sanitized"]
+    assert "PROMPT_DO_NOT_COPY" not in diagnostics_text
+    assert "SECRET_TOKEN" not in diagnostics_text
+
+
+def test_missing_choices_response_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    class MissingChoicesClient:
+        def __init__(self, *, timeout: float, trust_env: bool) -> None:
+            self.timeout = timeout
+            self.trust_env = trust_env
+
+        def __enter__(self) -> MissingChoicesClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+            return None
+
+        def post(self, url: str, json: dict[str, object]) -> httpx.Response:
+            del json
+            return httpx.Response(200, json={"model": "third_model"}, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx, "Client", MissingChoicesClient)
+    planner = _planner(allow_model_calls=True)
+
+    with pytest.raises(LocalModelLivePlannerError) as excinfo:
+        planner.next_step(OBSERVATION)
+
+    assert excinfo.value.error_code == "model_response_missing_choices"
+
+
+def test_missing_content_response_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    class MissingContentClient:
+        def __init__(self, *, timeout: float, trust_env: bool) -> None:
+            self.timeout = timeout
+            self.trust_env = trust_env
+
+        def __enter__(self) -> MissingContentClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+            return None
+
+        def post(self, url: str, json: dict[str, object]) -> httpx.Response:
+            del json
+            return httpx.Response(
+                200,
+                json={"choices": [{"finish_reason": "stop", "message": {}}]},
+                request=httpx.Request("POST", url),
+            )
+
+    monkeypatch.setattr(httpx, "Client", MissingContentClient)
+    planner = _planner(allow_model_calls=True)
+
+    with pytest.raises(LocalModelLivePlannerError) as excinfo:
+        planner.next_step(OBSERVATION)
+
+    assert excinfo.value.error_code == "model_response_missing_content"
+
+
+def test_no_json_object_response_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    class ArrayContentClient:
+        def __init__(self, *, timeout: float, trust_env: bool) -> None:
+            self.timeout = timeout
+            self.trust_env = trust_env
+
+        def __enter__(self) -> ArrayContentClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+            return None
+
+        def post(self, url: str, json: dict[str, object]) -> httpx.Response:
+            del json
+            return httpx.Response(
+                200,
+                json={"choices": [{"finish_reason": "stop", "message": {"content": "[]"}}]},
+                request=httpx.Request("POST", url),
+            )
+
+    monkeypatch.setattr(httpx, "Client", ArrayContentClient)
+    planner = _planner(allow_model_calls=True)
+
+    with pytest.raises(LocalModelLivePlannerError) as excinfo:
+        planner.next_step(OBSERVATION)
+
+    diagnostics_text = json.dumps(excinfo.value.diagnostics, ensure_ascii=False)
+
+    assert excinfo.value.error_code == "model_output_no_json_object"
+    assert "supersecret" not in diagnostics_text
+    assert "Traceback" not in diagnostics_text

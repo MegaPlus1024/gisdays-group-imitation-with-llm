@@ -454,7 +454,7 @@ def run_autonomous_browser_live_loop(
             planned_step = planner_backend.next_step(planner_input)
         except LocalModelLivePlannerError as exc:
             error_code = exc.error_code
-            status = "refused" if exc.error_code in {"allow_model_calls_required", "endpoint_host_not_allowed", "model_alias_not_allowed"} else "rejected"
+            status = "refused" if exc.error_code in {"allow_model_calls_required", "non_local_model_endpoint", "unsupported_model_alias"} else "rejected"
             stop_reason = "planner_backend_refused" if status == "refused" else "planner_action_rejected"
             trace_entries.append(
                 {

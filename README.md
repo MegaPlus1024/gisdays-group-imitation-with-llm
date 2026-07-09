@@ -23,6 +23,8 @@ This repository now has both the original single-agent evidence base and a conso
 - Phase 12E4 records corrected repeated hard-trials variance evidence in `docs/status/phase_12e_repeated_hard_trials.md`; `third_model` is more stable than `second_model` under offline fixture replay, and no production recommendation is made.
 - Phase 13A adds an offline live-loop foundation in `docs/status/phase_13_live_loop_foundation.md`; it is scripted-planner only, fixture-backed only, and does not call models or real browsers.
 - Phase 13B adds a guarded local-model live planner adapter in `docs/operator/phase_13b_guarded_local_model_live_loop.md`; it stays fixture-backed by default, requires an explicit allow-model-calls guard, and does not claim production readiness.
+- Phase 13B3 tightens the guarded local-model diagnostics with safe structured error codes for non-local endpoints and local HTTP failures; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
+- Phase 13B3 tightens the guarded local-model diagnostics with safe structured error codes for non-local endpoints and local HTTP failures; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Preliminary quality-focused pair: `second_model -> second_model`.
 - Resource-balanced/simple-scenario pair: `second_model -> first_model`.
 - `first_model` is not recommended as orchestrator in the current tests.

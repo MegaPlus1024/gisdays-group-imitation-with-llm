@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+import src.agent.autonomous_browser_live_model_planner as live_model_planner
 from src.agent.autonomous_browser_live_loop import (
     CONFIG_SCHEMA_VERSION,
     SUMMARY_SCHEMA_VERSION,
@@ -326,6 +327,59 @@ def test_local_model_backend_succeeds_with_fake_client() -> None:
     assert [entry["validation_status"] for entry in summary["runtime_trace"]] == ["accepted", "accepted", "skipped"]
     assert client.requests[0].model == "third_model"
     assert client.requests[0].messages[0]["content"].startswith("/no_think")
+    assert client.requests[0].stream is False
+    assert client.requests[0].max_tokens >= 1200
+    assert summary["planner_backend"]["request_payload_metadata"]["stream"] is False
+    assert summary["planner_backend"]["request_payload_metadata"]["max_tokens"] >= 1200
+
+
+def test_local_model_backend_http_400_reports_safe_diagnostics(monkeypatch: pytest.MonkeyPatch) -> None:
+    class BadRequestClient:
+        def __init__(self, *, timeout: float, trust_env: bool) -> None:
+            self.timeout = timeout
+            self.trust_env = trust_env
+
+        def __enter__(self) -> BadRequestClient:
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+            return None
+
+        def post(self, url: str, json: dict[str, Any]) -> live_model_planner.httpx.Response:
+            del json
+            return live_model_planner.httpx.Response(
+                400,
+                text='{"error":"bad model","raw_prompt":"PROMPT_DO_NOT_COPY","token":"SECRET_TOKEN","path":"C:\\\\Users\\\\m\\\\secret.txt"}',
+                request=live_model_planner.httpx.Request("POST", url),
+            )
+
+    monkeypatch.setattr(live_model_planner.httpx, "Client", BadRequestClient)
+    config = _load_local_model_config()
+    config["planner_backend"]["allow_model_calls"] = True
+    config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+
+    summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT)
+    diagnostics = summary["planner_backend"]["last_error_diagnostics"]
+    diagnostics_text = str(diagnostics)
+
+    assert summary["status"] == "rejected"
+    assert summary["error_code"] == "model_http_status_error"
+    assert summary["stop_reason"] == "planner_action_rejected"
+    assert summary["model_execution"] is True
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["planner_backend"]["last_error_code"] == "model_http_status_error"
+    assert summary["planner_backend"]["last_exception_type"] == "HTTPStatusError"
+    assert diagnostics["http_status"] == 400
+    assert diagnostics["endpoint_path"] == "/v1/chat/completions"
+    assert diagnostics["request_payload_metadata"]["message_count"] == 2
+    assert diagnostics["request_payload_metadata"]["stream"] is False
+    assert diagnostics["response_text_preview_sanitized"] is not None
+    assert "bad model" in diagnostics["response_text_preview_sanitized"]
+    assert "PROMPT_DO_NOT_COPY" not in diagnostics_text
+    assert "SECRET_TOKEN" not in diagnostics_text
+    assert "C:\\Users" not in diagnostics_text
 
 
 def test_local_model_cli_refuses_without_allow_flag() -> None:
