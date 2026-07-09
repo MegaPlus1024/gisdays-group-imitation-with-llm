@@ -33,7 +33,6 @@ from .autonomous_browser_runtime import (
     BrowserRuntimeVerifier,
     FixtureBackedBrowserRuntimeExecutor,
 )
-from .browser_fixture_resolver import resolve_browser_fixture_url
 
 
 CONFIG_SCHEMA_VERSION = "autonomous_browser_live_loop_config_v1"
@@ -662,6 +661,9 @@ def run_autonomous_browser_live_loop(
         if next_observation is not None:
             observation_count += 1
         next_observation_dict = _observation_dict(next_observation, observation_count)
+        metadata = next_observation_dict.get("metadata")
+        if isinstance(metadata, dict):
+            metadata["page_opened"] = True
         trace_entries.append(
             {
                 "step_index": steps_attempted,
@@ -774,29 +776,32 @@ def _initial_observation(
     fixture_manifest_path: str,
     repo_root: Path,
 ) -> dict[str, Any]:
+    metadata = {
+        "fixture_source": False,
+        "browser_opened": False,
+        "network_used": False,
+        "page_opened": False,
+    }
     if not session.start_url:
         observation = BrowserRuntimeObservation(
             action_name="planner_observe",
             current_url=None,
             title=None,
             text_preview="",
-            metadata={"fixture_source": False, "browser_opened": False, "network_used": False},
+            metadata=metadata,
         )
         return _observation_dict(observation, 1)
 
-    resolution = resolve_browser_fixture_url(
-        session.start_url,
-        fixture_manifest_path,
-        project_root=repo_root,
-        allowed_url_prefixes=_prefixes_for_domains(session.allowed_domains),
-        preview_chars=2_000,
-    )
     observation = BrowserRuntimeObservation(
         action_name="planner_observe",
-        current_url=resolution.url,
-        title=resolution.title,
-        text_preview=resolution.extracted_text_preview,
-        metadata=resolution.to_metadata(),
+        current_url=None,
+        title=None,
+        text_preview="",
+        metadata={
+            **metadata,
+            "start_url": session.start_url,
+            "scenario_start_url": session.start_url,
+        },
     )
     return _observation_dict(observation, 1)
 
@@ -1050,13 +1055,13 @@ def _jsonable(value: Any) -> Any:
 
 
 def _observation_has_open_page(observation: Mapping[str, Any]) -> bool:
-    current_url = _optional_text(observation.get("current_url"))
-    if current_url is not None:
-        return True
     metadata = observation.get("metadata")
     if not isinstance(metadata, Mapping):
         return False
-    return bool(metadata.get("browser_opened")) or bool(metadata.get("fixture_source"))
+    for key in ("page_opened", "browser_opened", "fixture_document_opened", "document_opened"):
+        if bool(metadata.get(key)):
+            return True
+    return False
 
 
 class AutonomousBrowserLiveLoopConfigError(ValueError):

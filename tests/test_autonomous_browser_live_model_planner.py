@@ -105,7 +105,8 @@ def test_prompt_reinforces_allowed_actions_and_start_url_guidance() -> None:
     assert "Do not invent search actions." in system
     assert "You are already inside a local fixture environment." in system
     assert "Choose only from visible local links/buttons and allowed local fixture actions." in system
-    assert "Prefer visible link/button text for browser_click; do not guess CSS selectors." in system
+    assert 'For browser_click, use parameters {"target_text": "<visible link/button text>"}.' in system
+    assert "Do not use link_text, button_text, selector, href, XPath, or CSS selectors for browser_click." in system
     assert "When current_url is null, open the scenario start URL before click, extract, or snapshot actions." in system
     assert "Scenario start URL: https://docs.local/docs/policy-disambiguation. First action must be browser_open_url with that URL." in user
     assert "Do not click before opening." in user
@@ -144,6 +145,71 @@ def test_valid_next_action_returns_step() -> None:
     assert planner.to_summary()["request_payload_metadata"]["stream"] is False
     assert planner.to_summary()["request_payload_metadata"]["max_tokens"] >= 1200
     assert planner.to_summary()["model_endpoint"] == "http://127.0.0.1:8082/v1/chat/completions"
+
+
+@pytest.mark.parametrize(
+    "click_key",
+    [
+        "target_text",
+        "text",
+        "link_text",
+        "button_text",
+    ],
+)
+def test_browser_click_aliases_normalize_to_target_text(click_key: str) -> None:
+    content = json.dumps(
+        {
+            "step_id": "click_policy",
+            "action_name": "browser_click",
+            "parameters": {click_key: "Workspace policy"},
+            "expected_text": "Policy review",
+            "expected_url": "https://docs.local/docs/policy",
+        },
+        ensure_ascii=False,
+    )
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content=content,
+                finish_reason="stop",
+            )
+        ]
+    )
+    planner = _planner(client=client)
+
+    step = planner.next_step(OBSERVATION)
+
+    assert step is not None
+    assert step.action_name == "browser_click"
+    assert step.parameters == {"target_text": "Workspace policy"}
+    assert "target_text" in step.parameters
+    assert "link_text" not in step.parameters
+    assert "button_text" not in step.parameters
+    assert "text" not in step.parameters
+
+
+def test_browser_click_without_visible_target_is_rejected() -> None:
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"click_policy","action_name":"browser_click","parameters":{"selector":"#policy"},"expected_text":"Policy review"}',
+                finish_reason="stop",
+            )
+        ]
+    )
+    planner = _planner(client=client)
+
+    with pytest.raises(LocalModelLivePlannerError) as excinfo:
+        planner.next_step(OBSERVATION)
+
+    diagnostics = excinfo.value.diagnostics
+    diagnostics_text = json.dumps(diagnostics, ensure_ascii=False)
+
+    assert excinfo.value.error_code == "missing_required_parameter"
+    assert diagnostics["action_name"] == "browser_click"
+    assert diagnostics["parameter_key"] == "target_text"
+    assert "selector" not in diagnostics_text
+    assert "Traceback" not in diagnostics_text
 
 
 @pytest.mark.parametrize(

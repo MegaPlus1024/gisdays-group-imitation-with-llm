@@ -240,7 +240,8 @@ class LocalModelLivePlanner:
             "Do not invent search actions.",
             "You are already inside a local fixture environment.",
             "Choose only from visible local links/buttons and allowed local fixture actions.",
-            "Prefer visible link/button text for browser_click; do not guess CSS selectors.",
+            "For browser_click, use parameters {\"target_text\": \"<visible link/button text>\"}.",
+            "Do not use link_text, button_text, selector, href, XPath, or CSS selectors for browser_click.",
             "Never request secrets, credentials, tokens, passwords, file URLs, external URLs, or real browser access.",
         ]
         if self._effective_no_think():
@@ -478,6 +479,14 @@ class LocalModelLivePlanner:
 
         done = bool(payload.get("done", False)) or action_name == "done"
         parameters = payload.get("parameters", {})
+        if not isinstance(parameters, Mapping):
+            error = LocalModelLivePlannerError(
+                "Model response parameters must be an object.",
+                "model_output_invalid_action",
+                {"request_payload_metadata": dict(self.last_request_payload_metadata)},
+            )
+            self._record_error(error)
+            raise error
         expected_text = _safe_text(payload.get("expected_text"), "expected_text") or ""
         expected_url = _safe_expected_url(
             payload.get("expected_url"),
@@ -517,6 +526,9 @@ class LocalModelLivePlanner:
             )
             self._record_error(error)
             raise error
+
+        if action_name == "browser_click":
+            parameters = self._normalize_click_parameters(parameters)
 
         validation_result = validate_autonomous_browser_plan(
             {
@@ -569,6 +581,34 @@ class LocalModelLivePlanner:
             done=False,
             metadata=metadata,
         )
+
+    def _normalize_click_parameters(self, parameters: Mapping[str, Any]) -> dict[str, Any]:
+        normalized = dict(parameters)
+        target_text = None
+        for key in ("target_text", "text", "link_text", "button_text"):
+            value = normalized.get(key)
+            candidate = _safe_text(value, key)
+            if candidate:
+                target_text = candidate
+                break
+
+        if target_text is None:
+            error = LocalModelLivePlannerError(
+                "Model response click target must use visible link/button text.",
+                "missing_required_parameter",
+                {
+                    "request_payload_metadata": dict(self.last_request_payload_metadata),
+                    "action_name": "browser_click",
+                    "parameter_key": "target_text",
+                },
+            )
+            self._record_error(error)
+            raise error
+
+        for key in ("target_text", "text", "link_text", "button_text", "target_url", "href", "selector"):
+            normalized.pop(key, None)
+        normalized["target_text"] = target_text
+        return normalized
 
     def _effective_no_think(self) -> bool:
         if self.config.no_think is not None:

@@ -317,7 +317,13 @@ def test_local_model_backend_rejects_first_action_without_open_page(action_name:
                 content=(
                     '{"step_id":"first_step","action_name":"'
                     f'{action_name}'
-                    '","parameters":{"query":"shared document policy"},"expected_text":"Open the page first"}'
+                    '","parameters":'
+                    + (
+                        '{"target_text":"Workspace policy"}'
+                        if action_name == "browser_click"
+                        else '{"query":"shared document policy"}'
+                    )
+                    + ',"expected_text":"Open the page first"}'
                 ),
                 finish_reason="stop",
             )
@@ -342,6 +348,44 @@ def test_local_model_backend_rejects_first_action_without_open_page(action_name:
     assert summary["runtime_trace"][0]["error_code"] == "live_action_requires_open_page"
     assert summary["runtime_trace"][0]["step_index"] == 1
     assert client.requests[0].endpoint_base_url == "http://127.0.0.1:8082/v1/chat/completions"
+
+
+def test_local_model_backend_rejects_first_click_with_start_url_before_open_page() -> None:
+    config = _load_local_model_config()
+    config["planner_backend"]["allow_model_calls"] = True
+    config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content=(
+                    '{"step_id":"click_policy","action_name":"browser_click","parameters":{"link_text":"Workspace policy"},'
+                    '"expected_text":"Shared Document Policy Review","metadata":{'
+                    '"fixture_path_relative":"policy.html","fixture_route":"/policy","fixture_site_id":"office_site_v1"}}'
+                ),
+                finish_reason="stop",
+            )
+        ]
+    )
+
+    summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
+
+    assert summary["status"] == "rejected"
+    assert summary["error_code"] == "live_action_requires_open_page"
+    assert summary["stop_reason"] == "planner_action_rejected"
+    assert summary["model_execution"] is True
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["steps_attempted"] == 0
+    assert summary["actions_attempted"] == 0
+    assert summary["actions_succeeded"] == 0
+    assert summary["actions_failed"] == 0
+    assert summary["runtime_trace"][0]["fixture_execution_status"] == "skipped"
+    assert summary["runtime_trace"][0]["validation_status"] == "rejected"
+    assert summary["runtime_trace"][0]["error_code"] == "live_action_requires_open_page"
+    assert summary["runtime_trace"][0]["step_index"] == 1
+    assert client.requests[0].endpoint_base_url == "http://127.0.0.1:8082/v1/chat/completions"
+    assert "Scenario start URL: https://local.intranet/." in client.requests[0].messages[1]["content"]
 
 
 def test_local_model_backend_accepts_first_open_url_without_start_page() -> None:
