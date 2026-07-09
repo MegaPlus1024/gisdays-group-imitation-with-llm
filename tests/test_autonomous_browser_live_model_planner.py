@@ -82,15 +82,16 @@ def test_prompt_reinforces_allowed_actions_and_start_url_guidance() -> None:
     observation = {
         "observation_id": "observation_0002",
         "current_url": None,
-        "title": None,
-        "text_preview": "",
+        "title": "Office Intranet Home",
+        "text_preview": "Office Intranet Home Ticket board Workspace policy Search marker: fixture-backed result for local policy review.",
         "metadata": {
+            "scenario_id": "hard_policy_disambiguation",
             "scenario_start_url": "https://docs.local/docs/policy-disambiguation",
-            "available_links": [
-                {"text": "Current policy", "url": "https://docs.local/docs/policy"},
-                {"text": "Policy Disambiguation", "url": "https://docs.local/docs/policy-disambiguation"},
+            "start_page_visible_anchors": [
+                "Office Intranet Home",
+                "Workspace policy",
+                "Search marker: fixture-backed result for local policy review.",
             ],
-            "available_buttons": [{"text": "Open policy", "url": "https://docs.local/docs/policy-disambiguation"}],
         },
     }
 
@@ -110,9 +111,12 @@ def test_prompt_reinforces_allowed_actions_and_start_url_guidance() -> None:
     assert "When current_url is null, open the scenario start URL before click, extract, or snapshot actions." in system
     assert "Scenario start URL: https://docs.local/docs/policy-disambiguation. First action must be browser_open_url with that URL." in user
     assert "Do not click before opening." in user
-    assert "Visible local hints:" in user
-    assert "Current policy" in user
-    assert "Policy Disambiguation" in user
+    assert "Start-page visible anchors: Office Intranet Home; Workspace policy; Search marker: fixture-backed result for local policy review." in user
+    assert "For the first browser_open_url action, expected_text must be an exact visible substring from the page that will be open after the action." in user
+    assert "Do not invent welcome text." in user
+    assert 'For this start page, prefer "Office Intranet Home" or "Workspace policy".' in user
+    assert "Office Intranet Home" in user
+    assert "Workspace policy" in user
 
 
 def test_valid_next_action_returns_step() -> None:

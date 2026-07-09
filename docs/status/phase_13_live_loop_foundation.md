@@ -72,3 +72,10 @@
 - the local-model live loop now rejects first-step `browser_click`, `browser_extract_text`, and `browser_snapshot` actions when no page is open yet, using `live_action_requires_open_page`
 - `browser_open_url` remains the first accepted action in the no-page state, so the scenario start URL can be opened before any click or extract step
 - the guard stays fixture-backed and does not launch browser, Playwright, or a live model loop from Codex
+
+## Phase 13B7 note
+
+- the first local-model action can now reach fixture execution as `browser_open_url`, and the failure has moved to invented `expected_text` on the opened start page instead of the initial no-page guard
+- the live-model prompt now carries exact visible start-page anchors such as `Office Intranet Home`, `Workspace policy`, and the local policy review search marker so the model can choose a real substring for `expected_text`
+- a safe preflight can reject obviously invented start-page `expected_text` values before fixture execution when the target page is already known from local fixtures
+- Codex still does not launch browser, Playwright, Chromium, or a model here

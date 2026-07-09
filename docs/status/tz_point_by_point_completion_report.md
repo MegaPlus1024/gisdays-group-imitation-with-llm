@@ -80,6 +80,7 @@
 - Phase 13B3: tightens the guarded local-model diagnostics so non-local endpoints and local HTTP failures return safe structured error codes instead of a generic traceback; it still does not launch models or browsers from Codex.
 - Phase 13B4: normalizes guarded local-model endpoints and rejects unsupported actions like `browser_search` before fixture execution; it does not add web/search support or browser launch capability.
 - Phase 13B5: adds a state-aware no-page guard so the local-model live loop requires `browser_open_url` before click/extract/snapshot actions; it remains fixture-backed and does not add production browser execution.
+- Phase 13B7: adds exact start-page anchor guidance plus a safe `browser_open_url` expected-text preflight so invented welcome text can be rejected before fixture execution.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

@@ -258,6 +258,13 @@ class LocalModelLivePlanner:
             if start_url:
                 user_parts.append(f"Scenario start URL: {start_url}. First action must be browser_open_url with that URL.")
                 user_parts.append("Do not click before opening.")
+            anchor_hints = _start_page_anchor_hints(payload, metadata)
+            if anchor_hints:
+                user_parts.append(f"Start-page visible anchors: {'; '.join(anchor_hints)}")
+                user_parts.append("For the first browser_open_url action, expected_text must be an exact visible substring from the page that will be open after the action.")
+                user_parts.append("Do not invent welcome text.")
+                if "Office Intranet Home" in anchor_hints or "Workspace policy" in anchor_hints:
+                    user_parts.append('For this start page, prefer "Office Intranet Home" or "Workspace policy".')
             system_parts.append("When current_url is null, open the scenario start URL before click, extract, or snapshot actions.")
         user_parts.extend(
             [
@@ -939,6 +946,42 @@ def _prompt_text(value: Any) -> str | None:
         return None
     stripped = value.strip()
     return stripped or None
+
+
+def _start_page_anchor_hints(payload: Mapping[str, Any], metadata: Mapping[str, Any]) -> list[str] | None:
+    anchors: list[str] = []
+    raw_anchors = metadata.get("start_page_visible_anchors")
+    if isinstance(raw_anchors, list):
+        for item in raw_anchors:
+            if isinstance(item, str) and item.strip() and item.strip() not in anchors:
+                anchors.append(item.strip())
+    if anchors:
+        return anchors
+
+    start_url = _prompt_text(metadata.get("scenario_start_url") or metadata.get("start_url"))
+    title = _prompt_text(payload.get("title"))
+    text_preview = _prompt_text(payload.get("text_preview")) or ""
+    known_hints: dict[str, tuple[str, ...]] = {
+        "https://local.intranet/": (
+            "Office Intranet Home",
+            "Workspace policy",
+            "Search marker: fixture-backed result for local policy review.",
+        ),
+        "https://docs.local/docs/policy-disambiguation": (
+            "Policy Disambiguation",
+            "Current policy",
+            "Search marker: current policy source is the fixture-backed answer.",
+        ),
+    }
+    candidates: list[str] = []
+    if start_url in known_hints:
+        candidates.extend(known_hints[start_url])
+    elif title:
+        candidates.append(title)
+    for candidate in candidates:
+        if candidate and candidate not in anchors and (candidate == title or candidate in text_preview):
+            anchors.append(candidate)
+    return anchors or None
 
 
 def _redact_secret_text(value: str) -> str:

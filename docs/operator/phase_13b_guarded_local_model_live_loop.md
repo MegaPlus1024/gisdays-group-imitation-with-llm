@@ -36,6 +36,12 @@ This path should refuse with `allow_model_calls_required` unless the operator ex
 - `browser_open_url` remains the valid first action in that state, so the operator should open the scenario start URL before expecting click or extract behavior
 - this is still fixture-backed operator guidance only; it does not add browser launch capability or production readiness
 
+## Phase 13B7 note
+
+- if `browser_open_url` succeeds but the run stops with `expected_text_missing` or `model_output_expected_text_not_visible`, the model invented a start-page anchor instead of reusing visible fixture text
+- for the current policy scenario, valid first-page anchors include `Office Intranet Home`, `Workspace policy`, and `Search marker: fixture-backed result for local policy review.`
+- retry with an exact visible substring from the start page, not a welcome phrase, and keep the run fixture-backed only
+
 ## Guarded operator run
 
 ```powershell

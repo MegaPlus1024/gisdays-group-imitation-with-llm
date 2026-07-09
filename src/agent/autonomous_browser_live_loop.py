@@ -33,6 +33,7 @@ from .autonomous_browser_runtime import (
     BrowserRuntimeVerifier,
     FixtureBackedBrowserRuntimeExecutor,
 )
+from .browser_fixture_resolver import resolve_browser_fixture_url
 
 
 CONFIG_SCHEMA_VERSION = "autonomous_browser_live_loop_config_v1"
@@ -430,7 +431,12 @@ def run_autonomous_browser_live_loop(
     )
     verifier = BrowserRuntimeVerifier()
 
-    current_observation = _initial_observation(session, config.browser_session.fixture_manifest_path, repo)
+    current_observation = _initial_observation(
+        session,
+        config.scenario_id,
+        config.browser_session.fixture_manifest_path,
+        repo,
+    )
     observation_count = 1
     trace_entries: list[dict[str, Any]] = []
     actions_attempted = 0
@@ -625,6 +631,38 @@ def run_autonomous_browser_live_loop(
             )
             break
 
+        if planned_step.action_name == "browser_open_url":
+            expected_text_issue = _browser_open_url_expected_text_not_visible(
+                planned_step.expected_text,
+                planned_step.parameters,
+                session=session,
+                fixture_manifest_path=config.browser_session.fixture_manifest_path,
+                repo_root=repo,
+            )
+            if expected_text_issue is not None:
+                steps_attempted += 1
+                error_code = expected_text_issue["error_code"]
+                status = "rejected"
+                stop_reason = "planner_action_rejected"
+                trace_entries.append(
+                    {
+                        "step_index": steps_attempted,
+                        "observation_id": current_observation["observation_id"],
+                        "planner_action": planner_action,
+                        "validation_status": "accepted",
+                        "fixture_execution_status": "skipped",
+                        "action_result": None,
+                        "expected_result": {
+                            "passed": False,
+                            "reason": error_code,
+                            "metadata": expected_text_issue["metadata"],
+                        },
+                        "next_observation_id": current_observation["observation_id"],
+                        "error_code": error_code,
+                    }
+                )
+                break
+
         steps_attempted += 1
         normalized_plan = validation_result.get("normalized_plan")
         assert isinstance(normalized_plan, Mapping)
@@ -773,6 +811,7 @@ def _load_planner_backend(
 
 def _initial_observation(
     session: BrowserRuntimeSession,
+    scenario_id: str,
     fixture_manifest_path: str,
     repo_root: Path,
 ) -> dict[str, Any]:
@@ -781,6 +820,7 @@ def _initial_observation(
         "browser_opened": False,
         "network_used": False,
         "page_opened": False,
+        "scenario_id": scenario_id,
     }
     if not session.start_url:
         observation = BrowserRuntimeObservation(
@@ -792,15 +832,26 @@ def _initial_observation(
         )
         return _observation_dict(observation, 1)
 
+    resolution = resolve_browser_fixture_url(
+        session.start_url,
+        fixture_manifest_path,
+        project_root=repo_root,
+        allowed_url_prefixes=_prefixes_for_domains(session.allowed_domains),
+        preview_chars=2_000,
+    )
+    anchors = _start_page_visible_anchors(session.start_url, resolution.title, resolution.extracted_text_preview)
     observation = BrowserRuntimeObservation(
         action_name="planner_observe",
         current_url=None,
-        title=None,
-        text_preview="",
+        title=resolution.title,
+        text_preview=resolution.extracted_text_preview,
         metadata={
             **metadata,
             "start_url": session.start_url,
             "scenario_start_url": session.start_url,
+            "start_page_title": resolution.title,
+            "start_page_text_preview": resolution.extracted_text_preview,
+            "start_page_visible_anchors": list(anchors),
         },
     )
     return _observation_dict(observation, 1)
@@ -1062,6 +1113,63 @@ def _observation_has_open_page(observation: Mapping[str, Any]) -> bool:
         if bool(metadata.get(key)):
             return True
     return False
+
+
+def _start_page_visible_anchors(start_url: str, title: str | None, text_preview: str) -> tuple[str, ...]:
+    hints: list[str] = []
+    known_hints = {
+        "https://local.intranet/": (
+            "Office Intranet Home",
+            "Workspace policy",
+            "Search marker: fixture-backed result for local policy review.",
+        ),
+        "https://docs.local/docs/policy-disambiguation": (
+            "Policy Disambiguation",
+            "Current policy",
+            "Search marker: current policy source is the fixture-backed answer.",
+        ),
+    }
+    for hint in known_hints.get(start_url, ()):
+        if hint and hint in text_preview or hint == title:
+            if hint not in hints:
+                hints.append(hint)
+    if title and title not in hints:
+        hints.insert(0, title)
+    return tuple(hints)
+
+
+def _browser_open_url_expected_text_not_visible(
+    expected_text: str,
+    parameters: Mapping[str, Any],
+    *,
+    session: BrowserRuntimeSession,
+    fixture_manifest_path: str,
+    repo_root: Path,
+) -> dict[str, Any] | None:
+    url = parameters.get("url")
+    if not isinstance(url, str) or not expected_text.strip():
+        return None
+    try:
+        resolution = resolve_browser_fixture_url(
+            url,
+            fixture_manifest_path,
+            project_root=repo_root,
+            allowed_url_prefixes=_prefixes_for_domains(session.allowed_domains),
+            preview_chars=2_000,
+        )
+    except Exception:
+        return None
+    visible_text = f"{resolution.title or ''} {resolution.extracted_text_preview}".strip()
+    if expected_text in visible_text:
+        return None
+    return {
+        "error_code": "model_output_expected_text_not_visible",
+        "metadata": {
+            "expected_text": expected_text,
+            "target_url": resolution.url,
+            "visible_anchors": _start_page_visible_anchors(resolution.url, resolution.title, resolution.extracted_text_preview),
+        },
+    }
 
 
 class AutonomousBrowserLiveLoopConfigError(ValueError):
