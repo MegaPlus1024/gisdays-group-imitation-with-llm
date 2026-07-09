@@ -77,6 +77,40 @@ def test_second_model_prompt_omits_no_think() -> None:
     assert "/no_think" not in messages[0]["content"]
 
 
+def test_prompt_reinforces_allowed_actions_and_start_url_guidance() -> None:
+    planner = _planner(model_alias="third_model", allow_model_calls=False)
+    observation = {
+        "observation_id": "observation_0002",
+        "current_url": None,
+        "title": None,
+        "text_preview": "",
+        "metadata": {
+            "scenario_start_url": "https://docs.local/docs/policy-disambiguation",
+            "available_links": [
+                {"text": "Current policy", "url": "https://docs.local/docs/policy"},
+                {"text": "Policy Disambiguation", "url": "https://docs.local/docs/policy-disambiguation"},
+            ],
+            "available_buttons": [{"text": "Open policy", "url": "https://docs.local/docs/policy-disambiguation"}],
+        },
+    }
+
+    messages = planner.build_messages(observation)
+    system = messages[0]["content"]
+    user = messages[1]["content"]
+
+    assert system.startswith("/no_think")
+    assert "Allowed action names exactly: browser_open_url, browser_click, browser_extract_text, browser_snapshot, done." in system
+    assert "Do not use browser_search." in system
+    assert "Do not search the web." in system
+    assert "Do not invent search actions." in system
+    assert "You are already inside a local fixture environment." in system
+    assert "Choose only from visible local links/buttons and allowed local fixture actions." in system
+    assert "Scenario start URL: https://docs.local/docs/policy-disambiguation. First valid action should usually open it." in user
+    assert "Visible local hints:" in user
+    assert "Current policy" in user
+    assert "Policy Disambiguation" in user
+
+
 def test_valid_next_action_returns_step() -> None:
     client = FakeChatCompletionClient(
         [
@@ -101,9 +135,39 @@ def test_valid_next_action_returns_step() -> None:
     assert client.requests[0].model == "third_model"
     assert client.requests[0].stream is False
     assert client.requests[0].max_tokens >= 1200
+    assert client.requests[0].endpoint_base_url == "http://127.0.0.1:8082/v1/chat/completions"
     assert client.requests[0].messages[0]["content"].startswith("/no_think")
     assert planner.to_summary()["request_payload_metadata"]["stream"] is False
     assert planner.to_summary()["request_payload_metadata"]["max_tokens"] >= 1200
+    assert planner.to_summary()["model_endpoint"] == "http://127.0.0.1:8082/v1/chat/completions"
+
+
+@pytest.mark.parametrize(
+    "model_endpoint",
+    [
+        "http://127.0.0.1:8082",
+        "http://127.0.0.1:8082/v1",
+        "http://127.0.0.1:8082/v1/",
+        "http://127.0.0.1:8082/v1/chat/completions",
+        "http://127.0.0.1:8082/v1/chat/completions/",
+    ],
+)
+def test_endpoint_normalization_accepts_base_and_full_chat_completions_url(model_endpoint: str) -> None:
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet"}',
+                finish_reason="stop",
+            )
+        ]
+    )
+    planner = _planner(model_endpoint=model_endpoint, client=client)
+
+    step = planner.next_step(OBSERVATION)
+
+    assert step is not None
+    assert client.requests[0].endpoint_base_url == "http://127.0.0.1:8082/v1/chat/completions"
+    assert planner.to_summary()["model_endpoint"] == "http://127.0.0.1:8082/v1/chat/completions"
 
 
 def test_done_action_returns_done_step() -> None:
@@ -273,7 +337,7 @@ def test_localhost_endpoint_is_allowed_with_fake_client() -> None:
 
     assert step is not None
     assert step.action_name == "browser_open_url"
-    assert client.requests[0].endpoint_base_url == "http://localhost:8082/v1"
+    assert client.requests[0].endpoint_base_url == "http://localhost:8082/v1/chat/completions"
 
 
 def test_http_transport_failure_reports_request_failed(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -438,3 +502,21 @@ def test_no_json_object_response_is_rejected(monkeypatch: pytest.MonkeyPatch) ->
     assert excinfo.value.error_code == "model_output_no_json_object"
     assert "supersecret" not in diagnostics_text
     assert "Traceback" not in diagnostics_text
+
+
+def test_unsupported_action_is_rejected_before_validation() -> None:
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"search_docs","action_name":"browser_search","parameters":{"query":"shared document policy"},"expected_text":"check shared document policy"}',
+                finish_reason="stop",
+            )
+        ]
+    )
+    planner = _planner(client=client)
+
+    with pytest.raises(LocalModelLivePlannerError) as excinfo:
+        planner.next_step(OBSERVATION)
+
+    assert excinfo.value.error_code == "model_output_unsupported_action"
+    assert client.requests[0].endpoint_base_url == "http://127.0.0.1:8082/v1/chat/completions"

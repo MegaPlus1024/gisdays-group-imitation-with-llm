@@ -24,6 +24,7 @@ This repository now has both the original single-agent evidence base and a conso
 - Phase 13A adds an offline live-loop foundation in `docs/status/phase_13_live_loop_foundation.md`; it is scripted-planner only, fixture-backed only, and does not call models or real browsers.
 - Phase 13B adds a guarded local-model live planner adapter in `docs/operator/phase_13b_guarded_local_model_live_loop.md`; it stays fixture-backed by default, requires an explicit allow-model-calls guard, and does not claim production readiness.
 - Phase 13B3 tightens the guarded local-model diagnostics with safe structured error codes for non-local endpoints and local HTTP failures; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
+- Phase 13B4 normalizes guarded local-model endpoints and rejects unsupported local-model actions like `browser_search` before fixture execution; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B3 tightens the guarded local-model diagnostics with safe structured error codes for non-local endpoints and local HTTP failures; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Preliminary quality-focused pair: `second_model -> second_model`.
 - Resource-balanced/simple-scenario pair: `second_model -> first_model`.
@@ -690,6 +691,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 - Phase 12E4 records corrected repeated hard-trials variance evidence in `docs/status/phase_12e_repeated_hard_trials.md`; `third_model` is more stable than `second_model` under offline fixture replay, and no production recommendation is made.
 - Phase 13A adds an offline live-loop foundation in `docs/status/phase_13_live_loop_foundation.md`; it is scripted-planner only, fixture-backed only, and does not call models or real browsers.
 - Phase 13B adds a guarded local-model live planner adapter in `docs/operator/phase_13b_guarded_local_model_live_loop.md`; it stays fixture-backed by default, requires an explicit allow-model-calls guard, and does not claim production readiness.
+- Phase 13B4 normalizes guarded local-model endpoints and rejects unsupported local-model actions like `browser_search` before fixture execution; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Windows PowerShell BOM-prefixed JSON configs are tolerated by the ingestion path.
 - Phase 10.6a adds guarded local planner runtime diagnostics for an already-running local endpoint. It helps explain planner prompt hangs, but does not launch models or claim production readiness.
 - Phase 9 milestone freeze report: `docs/status/phase_9_milestone_freeze.md`.

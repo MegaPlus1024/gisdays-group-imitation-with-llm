@@ -59,3 +59,10 @@
 
 - the guarded local-model planner diagnostics now preserve safe structured error codes for non-local endpoints and local HTTP failures
 - the first operator-side live-model attempt can now fail safely with structured JSON instead of a generic traceback, while still not launching browser or Playwright from Codex
+
+## Phase 13B4 note
+
+- the operator retry with `http://127.0.0.1:8082/v1` proved the local model request reaches llama-server
+- the retry returned `browser_search`, which Phase 13B now rejects as `model_output_unsupported_action` before fixture execution
+- endpoint normalization now accepts both `/v1` and full `/v1/chat/completions` inputs without duplicating the path
+- Codex still does not launch browser or Playwright here

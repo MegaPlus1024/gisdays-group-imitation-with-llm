@@ -24,6 +24,12 @@ This path should refuse with `allow_model_calls_required` unless the operator ex
 - malformed or truncated model responses surface as `model_response_invalid_json`, `model_response_missing_choices`, `model_response_missing_content`, `model_output_no_json_object`, or `model_output_invalid_action` depending on the failure shape
 - these codes stay structured and safe for operator troubleshooting and do not imply production readiness
 
+## Phase 13B4 note
+
+- `--model-endpoint` may be either `http://127.0.0.1:8082/v1` or the full `http://127.0.0.1:8082/v1/chat/completions`; the planner normalizes both to the same chat-completions target
+- if the model emits `browser_search`, `browser_submit`, `browser_type`, or any other unsupported action, the live loop rejects it as `model_output_unsupported_action` before fixture execution
+- do not add web/search support for Phase 13B; retry only after the prompt and guard patch
+
 ## Guarded operator run
 
 ```powershell

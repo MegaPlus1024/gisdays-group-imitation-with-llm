@@ -23,6 +23,13 @@ DEFAULT_LOCAL_MODEL_TEMPERATURE = 0.0
 DEFAULT_LOCAL_MODEL_MAX_TOKENS = 256
 DEFAULT_LOCAL_MODEL_TIMEOUT_SECONDS = 120.0
 ALLOWED_LOCAL_HOSTS = {"127.0.0.1", "localhost"}
+ALLOWED_LOCAL_MODEL_ACTION_NAMES = {
+    "browser_open_url",
+    "browser_click",
+    "browser_extract_text",
+    "browser_snapshot",
+    "done",
+}
 
 
 @dataclass(frozen=True)
@@ -52,7 +59,7 @@ class ChatCompletionClient(Protocol):
 
 class HttpxChatCompletionClient:
     def complete(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
-        url = f"{request.endpoint_base_url.rstrip('/')}/chat/completions"
+        url = request.endpoint_base_url.rstrip("/")
         payload = {
             "model": request.model,
             "messages": [dict(message) for message in request.messages],
@@ -122,6 +129,12 @@ class LocalModelPlannerConfig:
     max_tokens: int = DEFAULT_LOCAL_MODEL_MAX_TOKENS
     timeout_seconds: float = DEFAULT_LOCAL_MODEL_TIMEOUT_SECONDS
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        normalized_endpoint = _normalize_local_model_endpoint(self.model_endpoint)
+        if normalized_endpoint is None:
+            raise LocalModelLivePlannerError("planner_backend.model_endpoint must be a safe endpoint URL.", "model_endpoint_invalid")
+        object.__setattr__(self, "model_endpoint", normalized_endpoint)
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> LocalModelPlannerConfig:
@@ -207,12 +220,18 @@ class LocalModelLivePlanner:
 
     def build_messages(self, observation: Mapping[str, Any] | None = None) -> list[dict[str, str]]:
         payload = _observation_payload(observation)
+        metadata = payload.get("metadata") if isinstance(payload.get("metadata"), Mapping) else {}
         system_parts = [
             "You are a guarded local browser planner for a fixture-backed loop.",
             "Return exactly one JSON object only.",
             "Do not use markdown, code fences, arrays, or multiple JSON objects.",
             "The JSON object must represent one next browser action or a done signal.",
-            "Allowed action names: browser_open_url, browser_click, browser_extract_text, browser_fill, browser_submit, browser_wait, browser_search, browser_snapshot, done.",
+            "Allowed action names exactly: browser_open_url, browser_click, browser_extract_text, browser_snapshot, done.",
+            "Do not use browser_search.",
+            "Do not search the web.",
+            "Do not invent search actions.",
+            "You are already inside a local fixture environment.",
+            "Choose only from visible local links/buttons and allowed local fixture actions.",
             "Never request secrets, credentials, tokens, passwords, file URLs, external URLs, or real browser access.",
         ]
         if self._effective_no_think():
@@ -220,10 +239,21 @@ class LocalModelLivePlanner:
         user_parts = [
             "Observation JSON:",
             json.dumps(payload, ensure_ascii=False, sort_keys=True),
-            "Return one JSON object with keys step_id, action_name, parameters, expected_text, optional expected_url, optional done, optional metadata.",
-            "If you are done, set action_name to done and done to true.",
-            "If you are not done, keep expected_text short and grounded in the local fixture observation.",
         ]
+        surface_hints = _surface_hints(payload)
+        if surface_hints:
+            user_parts.append(f"Visible local hints: {surface_hints}")
+        if payload.get("current_url") is None:
+            start_url = _prompt_text(metadata.get("scenario_start_url") or metadata.get("start_url"))
+            if start_url:
+                user_parts.append(f"Scenario start URL: {start_url}. First valid action should usually open it.")
+        user_parts.extend(
+            [
+                "Return one JSON object with keys step_id, action_name, parameters, expected_text, optional expected_url, optional done, optional metadata.",
+                "If you are done, set action_name to done and done to true.",
+                "If you are not done, keep expected_text short and grounded in the local fixture observation.",
+            ]
+        )
         return [
             {"role": "system", "content": "\n".join(system_parts)},
             {"role": "user", "content": "\n".join(user_parts)},
@@ -461,6 +491,18 @@ class LocalModelLivePlanner:
             self._record_error(error)
             raise error
 
+        if action_name not in ALLOWED_LOCAL_MODEL_ACTION_NAMES:
+            error = LocalModelLivePlannerError(
+                "Model response action is not supported by the guarded local-model live loop.",
+                "model_output_unsupported_action",
+                {
+                    "request_payload_metadata": dict(self.last_request_payload_metadata),
+                    "action_name": action_name,
+                },
+            )
+            self._record_error(error)
+            raise error
+
         validation_result = validate_autonomous_browser_plan(
             {
                 "schema_version": PLAN_SCHEMA_VERSION,
@@ -645,6 +687,10 @@ def _safe_identifier(value: Any, label: str) -> str | None:
 
 
 def _safe_endpoint_base_url(value: Any) -> str | None:
+    return _normalize_local_model_endpoint(value)
+
+
+def _normalize_local_model_endpoint(value: Any) -> str | None:
     if not isinstance(value, str) or not value.strip():
         return None
     normalized = value.strip().rstrip("/")
@@ -653,6 +699,18 @@ def _safe_endpoint_base_url(value: Any) -> str | None:
         return None
     if parsed.params or parsed.query or parsed.fragment:
         return None
+    hostname = (parsed.hostname or "").lower()
+    path = parsed.path.rstrip("/")
+    if hostname in ALLOWED_LOCAL_HOSTS:
+        if path in {"", "/"}:
+            path = "/v1/chat/completions"
+        elif path == "/v1":
+            path = "/v1/chat/completions"
+        elif path == "/v1/chat/completions":
+            path = "/v1/chat/completions"
+        else:
+            return None
+        return urllib.parse.urlunparse((parsed.scheme, parsed.netloc, path, "", "", ""))
     return normalized
 
 
@@ -700,9 +758,8 @@ def _response_preview(response: ChatCompletionResponse) -> dict[str, Any]:
 
 def _endpoint_path(url: str) -> str:
     parsed = urllib.parse.urlparse(url)
-    if parsed.path.startswith("/"):
-        return parsed.path.rstrip("/") or "/"
-    return "/chat/completions"
+    path = parsed.path.rstrip("/")
+    return path or "/"
 
 
 def _endpoint_host(url: str) -> str | None:
@@ -719,6 +776,7 @@ def _request_payload_metadata(request: ChatCompletionRequest) -> dict[str, Any]:
     return {
         "endpoint_host": _endpoint_host(request.endpoint_base_url),
         "endpoint_port": _endpoint_port(request.endpoint_base_url),
+        "endpoint_path": _endpoint_path(request.endpoint_base_url),
         "model_alias": request.model,
         "message_count": len(request.messages),
         "max_tokens": request.max_tokens,
@@ -746,6 +804,45 @@ def _safe_response_excerpt(value: str, *, limit: int = 800) -> str:
     text = re.sub(r"(?<!\w)/(?:[^\s\"']+/)+[^\s\"']+", "<absolute_path>", text)
     text = re.sub(r"\\\\[^\s\"']+", "<absolute_path>", text)
     return text[:limit] + ("...[truncated]" if len(text) > limit else "")
+
+
+def _surface_hints(payload: Mapping[str, Any]) -> str | None:
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, Mapping):
+        return None
+    hints: list[str] = []
+    for key in ("available_links", "links", "available_buttons", "buttons"):
+        items = metadata.get(key)
+        if isinstance(items, list):
+            for item in items[:3]:
+                hint = _compact_hint(item)
+                if hint:
+                    hints.append(hint)
+    if not hints:
+        return None
+    return "; ".join(hints[:4])
+
+
+def _compact_hint(item: Any) -> str | None:
+    if isinstance(item, str) and item.strip():
+        return item.strip()
+    if isinstance(item, Mapping):
+        text = _prompt_text(item.get("text") or item.get("label") or item.get("title"))
+        url = _prompt_text(item.get("url") or item.get("href"))
+        if text and url:
+            return f"{text} -> {url}"
+        if text:
+            return text
+        if url:
+            return url
+    return None
+
+
+def _prompt_text(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
 
 
 def _redact_secret_text(value: str) -> str:

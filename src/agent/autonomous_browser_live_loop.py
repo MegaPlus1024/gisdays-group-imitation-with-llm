@@ -18,6 +18,7 @@ from .autonomous_browser_live_planner import (
 from .autonomous_browser_live_model_planner import (
     DEFAULT_LOCAL_MODEL_ALIAS,
     DEFAULT_LOCAL_MODEL_ENDPOINT,
+    ALLOWED_LOCAL_MODEL_ACTION_NAMES,
     ChatCompletionClient,
     LocalModelLivePlanner,
     LocalModelLivePlannerError,
@@ -492,6 +493,25 @@ def run_autonomous_browser_live_loop(
                 }
             )
             stop_reason = "planner_signaled_done"
+            break
+
+        if isinstance(planner_backend, LocalModelLivePlanner) and planned_step.action_name not in ALLOWED_LOCAL_MODEL_ACTION_NAMES:
+            error_code = "model_output_unsupported_action"
+            status = "rejected"
+            stop_reason = "planner_action_rejected"
+            trace_entries.append(
+                {
+                    "step_index": steps_attempted,
+                    "observation_id": current_observation["observation_id"],
+                    "planner_action": planner_action,
+                    "validation_status": "rejected",
+                    "fixture_execution_status": "skipped",
+                    "action_result": None,
+                    "expected_result": None,
+                    "next_observation_id": current_observation["observation_id"],
+                    "error_code": error_code,
+                }
+            )
             break
 
         if not planned_step.expected_text.strip():

@@ -329,8 +329,10 @@ def test_local_model_backend_succeeds_with_fake_client() -> None:
     assert client.requests[0].messages[0]["content"].startswith("/no_think")
     assert client.requests[0].stream is False
     assert client.requests[0].max_tokens >= 1200
+    assert client.requests[0].endpoint_base_url == "http://localhost:8082/v1/chat/completions"
     assert summary["planner_backend"]["request_payload_metadata"]["stream"] is False
     assert summary["planner_backend"]["request_payload_metadata"]["max_tokens"] >= 1200
+    assert summary["planner_backend"]["model_endpoint"] == "http://localhost:8082/v1/chat/completions"
 
 
 def test_local_model_backend_http_400_reports_safe_diagnostics(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -375,11 +377,45 @@ def test_local_model_backend_http_400_reports_safe_diagnostics(monkeypatch: pyte
     assert diagnostics["endpoint_path"] == "/v1/chat/completions"
     assert diagnostics["request_payload_metadata"]["message_count"] == 2
     assert diagnostics["request_payload_metadata"]["stream"] is False
+    assert diagnostics["request_payload_metadata"]["endpoint_path"] == "/v1/chat/completions"
     assert diagnostics["response_text_preview_sanitized"] is not None
     assert "bad model" in diagnostics["response_text_preview_sanitized"]
     assert "PROMPT_DO_NOT_COPY" not in diagnostics_text
     assert "SECRET_TOKEN" not in diagnostics_text
     assert "C:\\Users" not in diagnostics_text
+
+
+def test_local_model_backend_unsupported_browser_search_is_rejected_before_fixture_execution() -> None:
+    config = _load_local_model_config()
+    config["planner_backend"]["allow_model_calls"] = True
+    config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"search_docs","action_name":"browser_search","parameters":{"query":"shared document policy"},"expected_text":"check shared document policy"}',
+                finish_reason="stop",
+            )
+        ]
+    )
+
+    summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
+
+    assert summary["status"] == "rejected"
+    assert summary["error_code"] == "model_output_unsupported_action"
+    assert summary["stop_reason"] == "planner_action_rejected"
+    assert summary["model_execution"] is True
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["steps_attempted"] == 0
+    assert summary["actions_attempted"] == 0
+    assert summary["actions_succeeded"] == 0
+    assert summary["actions_failed"] == 0
+    assert summary["runtime_trace"][0]["fixture_execution_status"] == "skipped"
+    assert summary["runtime_trace"][0]["validation_status"] == "skipped"
+    assert summary["runtime_trace"][0]["error_code"] == "model_output_unsupported_action"
+    assert summary["runtime_trace"][0]["step_index"] == 1
+    assert client.requests[0].endpoint_base_url == "http://127.0.0.1:8082/v1/chat/completions"
 
 
 def test_local_model_cli_refuses_without_allow_flag() -> None:
