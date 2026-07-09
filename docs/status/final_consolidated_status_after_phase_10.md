@@ -8,6 +8,8 @@ Phase 12A adds offline support for a future stronger `third_model` planner candi
 
 Phase 12B documents the first successful `third_model` planner-output evidence in `docs/status/phase_12_third_model_initial_evidence.md`; it stays offline and replay-only.
 
+Phase 12C documents the `second_model` vs `third_model` baseline comparison in `docs/status/phase_12_model_comparison_baseline.md`; on the current compact prompts it is a tie, not a winner declaration.
+
 It is not production-ready, not general web browsing, not external browsing, and not an autonomous live LLM loop. No production recommendation is made.
 
 ## Project scope
@@ -124,6 +126,7 @@ A local `second_model` planner can produce bounded `autonomous_browser_plan_v1` 
 * `docs/status/phase_10_model_plan_playwright_milestone_freeze.md`
 * `docs/status/local_planner_output_evidence.md`
 * `docs/status/phase_12_third_model_initial_evidence.md`
+* `docs/status/phase_12_model_comparison_baseline.md`
 * `docs/status/local_planner_repeated_trials_evidence.md`
 * `docs/status/model_plan_playwright_replay_packet_evidence.md`
 * `docs/status/model_plan_guarded_fixture_replay_evidence.md`
