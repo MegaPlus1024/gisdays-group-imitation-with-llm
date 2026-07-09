@@ -72,6 +72,7 @@
 - Phase 12D8: calibrates the post-click policy/ticket anchors to the exact visible page strings after navigation.
 - Phase 12D8 operator rerun: policy and ticket now pass the click checks, but final evidence anchors still miss on the last extract/snapshot step.
 - Phase 12D9: calibrates the final policy/ticket evidence anchors to the exact visible literals on the target pages.
+- Phase 12D10: records the final successful offline fixture replay evidence, with both `second_model` and `third_model` passing all 3 calibrated hard scenarios and 25/25 expected checks overall.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

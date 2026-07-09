@@ -169,6 +169,75 @@
 - approval remains unchanged
 - no production recommendation is made
 
+## Phase 12D10 final successful hard packet evidence
+
+- the operator reran the hard discrimination packet after D9 and then executed the offline fixture evaluator with `--execute-fixture`
+- top-level evaluator status: `succeeded`
+- outputs_total: `6`
+- outputs_present: `6`
+- outputs_ingested: `6`
+- outputs_rejected: `0`
+- outputs_missing: `0`
+- dry_runs_succeeded: `6`
+- dry_runs_failed: `0`
+- fixture_runs_succeeded: `6`
+- fixture_runs_failed: `0`
+- actions_attempted_total: `25`
+- actions_succeeded_total: `25`
+- actions_failed_total: `0`
+- expected_results_total: `25`
+- expected_results_passed_total: `25`
+- expected_results_failed_total: `0`
+- model_execution: `false`
+- real_browser_execution: `false`
+- playwright_execution: `false`
+- browser_opened: `false`
+
+### Per-model final D10 evidence
+
+- `second_model`
+  - `outputs_present`: `3`
+  - `outputs_ingested`: `3`
+  - `outputs_rejected`: `0`
+  - `outputs_missing`: `0`
+  - `dry_runs_succeeded`: `3`
+  - `fixture_runs_succeeded`: `3`
+  - `fixture_runs_failed`: `0`
+  - `actions_succeeded_total`: `12`
+  - `actions_failed_total`: `0`
+  - `expected_results_passed_total`: `12`
+  - `expected_results_failed_total`: `0`
+  - hard scenarios succeeded:
+    - `hard_policy_disambiguation`: `3/3`
+    - `hard_ticket_priority_crosscheck`: `5/5`
+    - `hard_approval_policy_match`: `4/4`
+- `third_model`
+  - `outputs_present`: `3`
+  - `outputs_ingested`: `3`
+  - `outputs_rejected`: `0`
+  - `outputs_missing`: `0`
+  - `dry_runs_succeeded`: `3`
+  - `fixture_runs_succeeded`: `3`
+  - `fixture_runs_failed`: `0`
+  - `actions_succeeded_total`: `13`
+  - `actions_failed_total`: `0`
+  - `expected_results_passed_total`: `13`
+  - `expected_results_failed_total`: `0`
+  - hard scenarios succeeded:
+    - `hard_policy_disambiguation`: `3/3`
+    - `hard_ticket_priority_crosscheck`: `5/5`
+    - `hard_approval_policy_match`: `5/5`
+
+## What this final evidence proves
+
+- D7 restored top-level wrapper/schema/action validation
+- D8 fixed the post-click anchors
+- D9 fixed the final evidence anchors
+- both `second_model` and `third_model` now pass all calibrated hard fixture scenarios
+- the final calibrated packet validates compatibility, but it does not choose a default planner
+- no production recommendation is made
+- this remains offline fixture replay only, not real browser execution, not external web, and not production automation
+
 ## Relation to prior evidence
 
 - Phase 12B remains the first successful `third_model` planner-output evidence.
