@@ -60,6 +60,7 @@
 - Phase 12C: documents the `second_model` vs `third_model` baseline comparison in `docs/status/phase_12_model_comparison_baseline.md`; the current compact prompts tie functionally and do not justify a default-planner winner.
 - Phase 12D: adds the harder offline discrimination packet in `docs/status/phase_12d_hard_discrimination_packet.md`.
 - Phase 12D2: strengthens the hard discrimination prompts so captured model outputs are instructed to emit `autonomous_browser_plan_v1` with explicit top-level fields, allowed actions, and local fixture constraints.
+- Phase 12D3: strengthens the hard discrimination prompts with the exact action object contract (`step_id`, `action_name`, `parameters`, `expected_text`) after validation showed alternate field names such as `name`, `url`, and `selector`.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

@@ -36,7 +36,19 @@ def _write_json(path: Path, payload: Any) -> None:
 def _assert_hard_plan_prompt(prompt: str) -> None:
     assert "autonomous_browser_plan_v1" in prompt
     assert "Required top-level fields: schema_version, plan_id, goal, scenario_id, max_actions, actions." in prompt
+    assert "Each action MUST be an object with step_id, action_name, parameters, and expected_text." in prompt
     assert "Allowed action names: browser_open_url, browser_click, browser_extract_text, browser_snapshot." in prompt
+    assert "For browser_open_url, parameters must be {\"url\": \"<allowed local URL>\"}." in prompt
+    assert "For browser_click, parameters must be {\"target_text\": \"<visible link/button text>\"}" in prompt
+    assert "For browser_extract_text, parameters must be {}." in prompt
+    assert "For browser_snapshot, parameters must be {}." in prompt
+    assert "Do NOT use these invalid action fields: name, action, url at top level, selector, selectors, target, target_url, target_css, description." in prompt
+    assert "Do NOT put browser URL or click target outside parameters." in prompt
+    assert "max_actions must be" in prompt
+    assert "actions array length must be <= max_actions." in prompt
+    assert "Suggested action count:" in prompt
+    assert "Example browser_open_url action:" in prompt
+    assert "Example browser_click action:" in prompt
     assert "Do not output markdown, prose, code fences, or multiple JSON objects." in prompt
 
 
@@ -132,13 +144,19 @@ def test_model_discrimination_packet_builder_writes_expected_files_and_summary(t
     assert "https://local.intranet/docs/policy-disambiguation" in policy_prompt
     assert "https://local.intranet/docs/policy-archive" in policy_prompt
     assert "archive copy is intentionally not the correct answer" in policy_prompt
+    assert "Current policy" in policy_prompt
+    assert "target_text" in policy_prompt
     assert "https://local.intranet/tickets/hardboard" in ticket_prompt
     assert "Ticket 7 is the escalation review" in ticket_prompt
     assert "Requester tier: facilities." in ticket_prompt or "requester tier facilities" in ticket_prompt.lower()
+    assert "Ticket 8 is the decoy" in ticket_prompt
+    assert "target_text\": \"Ticket 7\"" in ticket_prompt
     assert "https://portal.local/portal/approval-match" in approval_prompt
     assert "APR-51" in approval_prompt
     assert "policy match confirmed" in approval_prompt
     assert "local fixtures only" in approval_prompt
+    assert "Policy match review" in approval_prompt
+    assert "target_text\": \"Policy match review\"" in approval_prompt
     _assert_hard_plan_prompt(policy_prompt)
     _assert_hard_plan_prompt(ticket_prompt)
     _assert_hard_plan_prompt(approval_prompt)

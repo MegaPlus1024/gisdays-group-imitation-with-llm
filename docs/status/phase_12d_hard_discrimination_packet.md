@@ -71,6 +71,15 @@
 - `third_model` still keeps the existing `/no_think` prefix behavior, while `second_model` does not
 - the packet remains offline and local-fixture-only from Codex's point of view
 
+## Phase 12D3 action contract strengthening
+
+- the first rerun after Phase 12D2 fixed `schema_version`, but validation still rejected all six outputs
+- the root cause was alternate action field names such as `name`, `url`, `selector`, `target_url`, and `target_css` instead of the validator contract
+- Phase 12D3 strengthens each hard prompt with the exact action object contract: `step_id`, `action_name`, `parameters`, and `expected_text`
+- the prompts now include compact valid action examples, explicit `browser_open_url` and `browser_click` parameter shapes, and scenario-specific `target_text` values from the fixtures
+- `max_actions` is now stated explicitly for each scenario, with the actions array required to stay within that bound
+- no model, server, browser, or Playwright execution was launched by Codex
+
 ## Relation to prior evidence
 
 - Phase 12B remains the first successful `third_model` planner-output evidence.
