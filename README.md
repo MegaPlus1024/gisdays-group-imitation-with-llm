@@ -173,6 +173,7 @@ GGUF files are not included in the repository. Place local models manually under
 ```text
 models\gguf\first_model.gguf
 models\gguf\second_model.gguf
+models\gguf\third_model.gguf
 ```
 
 Or edit:
@@ -187,6 +188,7 @@ Current canonical mapping:
 |---|---|---|
 | `first_model` | `first_model.gguf` | `models\gguf\first_model.gguf` |
 | `second_model` | `second_model.gguf` | `models\gguf\second_model.gguf` |
+| `third_model` | `third_model.gguf` | `models\gguf\third_model.gguf` |
 
 See `docs/ai/model_file_mapping.md` and `docs/ai/model_research_metadata.md` for publication-safe mapping and research metadata. See `docs/ai/adding_new_models.md` for adding third or test models.
 

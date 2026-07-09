@@ -50,7 +50,20 @@ def test_evaluation_models_config_loads() -> None:
 
     assert "first_model" in ids
     assert "second_model" in ids
+    assert "third_model" in ids
     assert "qwen2_5_3b_instruct_q4_k_m" not in ids
+
+
+def test_third_model_registry_entry_uses_relative_gguf_path() -> None:
+    config = load_evaluation_models_config(MODELS_CONFIG)
+    third_model = next(model for model in config.models if model.model_id == "third_model")
+
+    assert third_model.gguf_path == "models/gguf/third_model.gguf"
+    assert not Path(third_model.gguf_path).is_absolute()
+    assert third_model.display_name == "Third Model"
+    assert third_model.api_model == "third_model"
+    assert third_model.enabled is True
+    assert any("local GGUF file" in note for note in third_model.notes)
 
 
 def test_duplicate_model_id_rejected() -> None:

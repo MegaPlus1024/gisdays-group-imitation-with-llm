@@ -51,6 +51,30 @@
         "Upstream/logical model name: qwen2.5-3b-instruct-q4_k_m.gguf.",
         "Do not claim behavior quality improvement until real scenario trajectories are evaluated."
       ]
+    },
+    {
+      "model_id": "third_model",
+      "display_name": "Third Model",
+      "model_name": "third_model.gguf",
+      "api_model": "third_model",
+      "upstream_model_name": "qwen3-14b-q5_k_m.gguf",
+      "gguf_path": "models/gguf/third_model.gguf",
+      "quantization": "Q5_K_M",
+      "parameter_size": "14B",
+      "runtime": "llama.cpp / llama-server",
+      "base_url": "http://127.0.0.1:8082/v1",
+      "api_style": "openai_compatible",
+      "expected_cpu_only": true,
+      "ctx_size": 12288,
+      "timeout_seconds": 120.0,
+      "temperature": 0.0,
+      "max_tokens": 512,
+      "enabled": true,
+      "notes": [
+        "Stronger planner candidate provided by the operator as a local GGUF file.",
+        "Local alias mapping documented in docs/ai/model_registry.md: third_model.gguf -> qwen3-14b-q5_k_m.gguf.",
+        "Do not claim behavior quality improvement until real scenario trajectories are evaluated."
+      ]
     }
   ]
 }
