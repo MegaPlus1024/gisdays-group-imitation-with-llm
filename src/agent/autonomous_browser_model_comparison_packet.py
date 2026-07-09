@@ -606,11 +606,18 @@ def _build_prompt_text(scenario_id: str) -> str:
 def _build_hard_policy_disambiguation_prompt_text() -> str:
     return "\n".join(
         [
-            "You are planning an offline browser task against local fixtures only.",
-            "Scenario: hard_policy_disambiguation.",
-            "Open the policy disambiguation fixture, choose the current policy source, ignore the archive copy, and extract the current policy markers.",
-            "Keep the plan compact and deterministic.",
-            "Return only JSON.",
+            "You are generating one offline browser plan for local fixtures only.",
+            "Scenario id: hard_policy_disambiguation.",
+            "Goal: choose the live policy source and ignore the archived copy.",
+            "Use the local fixture pages only: https://local.intranet/docs/policy-disambiguation and https://local.intranet/docs/policy; the archive decoy is https://local.intranet/docs/policy-archive.",
+            "Required output schema_version: autonomous_browser_plan_v1.",
+            "Required top-level fields: schema_version, plan_id, goal, scenario_id, max_actions, actions.",
+            "Allowed action names: browser_open_url, browser_click, browser_extract_text, browser_snapshot.",
+            "Plan skeleton: start with browser_open_url for the disambiguation page, click the current policy link, extract the current policy marker, and stop after the live source is confirmed.",
+            "Do not use the archive page as the answer source.",
+            "The archive copy is intentionally not the correct answer.",
+            "Do not output markdown, prose, code fences, or multiple JSON objects.",
+            "Return exactly one JSON object with only the plan fields.",
         ]
     )
 
@@ -618,11 +625,18 @@ def _build_hard_policy_disambiguation_prompt_text() -> str:
 def _build_hard_ticket_priority_crosscheck_prompt_text() -> str:
     return "\n".join(
         [
-            "You are planning an offline browser task against local fixtures only.",
-            "Scenario: hard_ticket_priority_crosscheck.",
-            "Open the ticket board, inspect the target escalation ticket, cross-check the priority against the requester tier, and extract the urgent marker.",
-            "Keep the plan compact and deterministic.",
-            "Return only JSON.",
+            "You are generating one offline browser plan for local fixtures only.",
+            "Scenario id: hard_ticket_priority_crosscheck.",
+            "Goal: identify the urgent escalation ticket by cross-checking requester tier against priority.",
+            "Use the local fixture pages only: https://local.intranet/tickets/hardboard, https://local.intranet/tickets/7, and https://local.intranet/tickets/8.",
+            "Required output schema_version: autonomous_browser_plan_v1.",
+            "Required top-level fields: schema_version, plan_id, goal, scenario_id, max_actions, actions.",
+            "Allowed action names: browser_open_url, browser_click, browser_extract_text, browser_snapshot.",
+            "Plan skeleton: open the ticket board, inspect the escalation ticket, compare requester tier versus priority, and extract the urgent marker from the correct ticket.",
+            "Ticket 7 is the escalation review with requester tier facilities and priority urgent; Ticket 8 is the decoy with requester tier office worker and priority low.",
+            "Do not follow the decoy ticket to the final answer.",
+            "Do not output markdown, prose, code fences, or multiple JSON objects.",
+            "Return exactly one JSON object with only the plan fields.",
         ]
     )
 
@@ -630,11 +644,18 @@ def _build_hard_ticket_priority_crosscheck_prompt_text() -> str:
 def _build_hard_approval_policy_match_prompt_text() -> str:
     return "\n".join(
         [
-            "You are planning an offline browser task against local fixtures only.",
-            "Scenario: hard_approval_policy_match.",
-            "Open the portal, follow the approvals queue, inspect the local policy match page, and confirm the local-only approval marker.",
-            "Keep the plan compact and deterministic.",
-            "Return only JSON.",
+            "You are generating one offline browser plan for local fixtures only.",
+            "Scenario id: hard_approval_policy_match.",
+            "Goal: confirm the local-only approval marker from the policy-matched portal page.",
+            "Use the local fixture pages only: https://portal.local/portal, https://portal.local/portal/approvals, and https://portal.local/portal/approval-match.",
+            "Required output schema_version: autonomous_browser_plan_v1.",
+            "Required top-level fields: schema_version, plan_id, goal, scenario_id, max_actions, actions.",
+            "Allowed action names: browser_open_url, browser_click, browser_extract_text, browser_snapshot.",
+            "Plan skeleton: open the portal, follow the approvals queue, inspect the policy-match page, and extract the local-only approval marker.",
+            "The approval-match page states request id APR-51, requester office worker, policy match confirmed, and decision note local fixtures only.",
+            "Do not use any external site, mail, calendar, or non-fixture source.",
+            "Do not output markdown, prose, code fences, or multiple JSON objects.",
+            "Return exactly one JSON object with only the plan fields.",
         ]
     )
 
@@ -830,9 +851,9 @@ def _build_commands_markdown(
                     f"## {model_spec['alias']} {scenario_spec['scenario_label']}",
                     "```powershell",
                     (
-                        rf"curl.exe --max-time 90 -sS -X POST http://127.0.0.1:8080/v1/chat/completions -H ""Content-Type: application/json"" "
-                        rf"--data-binary ""@.\{output_dir}\{model_spec['alias']}\{scenario_spec['scenario_label']}\request.json"" "
-                        rf"--output ""@.\{output_dir}\{model_spec['alias']}\{scenario_spec['scenario_label']}\response.json"""
+                        f'curl.exe --max-time 90 -sS -X POST http://127.0.0.1:8080/v1/chat/completions -H "Content-Type: application/json" '
+                        f'--data-binary "@.\\{output_dir}\\{model_spec["alias"]}\\{scenario_spec["scenario_label"]}\\request.json" '
+                        f'--output "@.\\{output_dir}\\{model_spec["alias"]}\\{scenario_spec["scenario_label"]}\\response.json"'
                     ),
                     "```",
                     "",

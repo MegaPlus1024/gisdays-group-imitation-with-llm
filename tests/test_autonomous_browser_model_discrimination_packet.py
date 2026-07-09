@@ -33,6 +33,13 @@ def _write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _assert_hard_plan_prompt(prompt: str) -> None:
+    assert "autonomous_browser_plan_v1" in prompt
+    assert "Required top-level fields: schema_version, plan_id, goal, scenario_id, max_actions, actions." in prompt
+    assert "Allowed action names: browser_open_url, browser_click, browser_extract_text, browser_snapshot." in prompt
+    assert "Do not output markdown, prose, code fences, or multiple JSON objects." in prompt
+
+
 def _load_cli_module(path: Path):
     spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec is not None and spec.loader is not None
@@ -103,6 +110,7 @@ def test_model_discrimination_packet_builder_writes_expected_files_and_summary(t
     assert comparison_config["models"][1]["alias"] == "third_model"
     assert comparison_config["models"][1]["prompt_prefix"] == "/no_think"
     assert comparison_config["scenarios"][0]["prompt_filename"] == "planner_prompt.compact.txt"
+    assert comparison_config["scenarios"][0]["max_tokens"] == 1200
     assert "planner_prompt.compact.txt" in commands_md
     assert "second_model" in commands_md
     assert "third_model" in commands_md
@@ -112,13 +120,32 @@ def test_model_discrimination_packet_builder_writes_expected_files_and_summary(t
     policy_prompt = prompt_policy_path.read_text(encoding="utf-8")
     ticket_prompt = prompt_ticket_path.read_text(encoding="utf-8")
     approval_prompt = prompt_approval_path.read_text(encoding="utf-8")
+    second_model_policy_request = json.loads(
+        (output_dir / "second_model" / "hard_policy_disambiguation" / "request.json").read_text(encoding="utf-8")
+    )
     third_model_request = json.loads(
         (output_dir / "third_model" / "hard_policy_disambiguation" / "request.json").read_text(encoding="utf-8")
     )
-    assert "policy disambiguation" in policy_prompt
-    assert "ticket board" in ticket_prompt
-    assert "local-only approval marker" in approval_prompt
+    assert "schema_version: autonomous_browser_plan_v1" in policy_prompt
+    assert "schema_version: autonomous_browser_plan_v1" in ticket_prompt
+    assert "schema_version: autonomous_browser_plan_v1" in approval_prompt
+    assert "https://local.intranet/docs/policy-disambiguation" in policy_prompt
+    assert "https://local.intranet/docs/policy-archive" in policy_prompt
+    assert "archive copy is intentionally not the correct answer" in policy_prompt
+    assert "https://local.intranet/tickets/hardboard" in ticket_prompt
+    assert "Ticket 7 is the escalation review" in ticket_prompt
+    assert "Requester tier: facilities." in ticket_prompt or "requester tier facilities" in ticket_prompt.lower()
+    assert "https://portal.local/portal/approval-match" in approval_prompt
+    assert "APR-51" in approval_prompt
+    assert "policy match confirmed" in approval_prompt
+    assert "local fixtures only" in approval_prompt
+    _assert_hard_plan_prompt(policy_prompt)
+    _assert_hard_plan_prompt(ticket_prompt)
+    _assert_hard_plan_prompt(approval_prompt)
+    assert second_model_policy_request["messages"][1]["content"].startswith("You are generating one offline browser plan")
+    assert not second_model_policy_request["messages"][1]["content"].startswith("/no_think\n")
     assert third_model_request["messages"][1]["content"].startswith("/no_think\n")
+    assert "autonomous_browser_plan_v1" in third_model_request["messages"][1]["content"]
     assert "supersecret" not in json.dumps(summary)
     assert "C:\\" not in json.dumps(summary)
     assert str(tmp_path) not in json.dumps(summary)

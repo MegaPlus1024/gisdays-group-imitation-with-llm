@@ -62,6 +62,15 @@
 - not general web browsing
 - not a production readiness claim
 
+## Phase 12D2 prompt strengthening
+
+- the first operator-run hard packet attempt reached the model endpoints, but the captured outputs were rejected with `wrong_schema_version`
+- that failure reflected an underspecified prompt shape, not a model/server launch problem
+- Phase 12D2 strengthens the generated hard prompts so they explicitly ask for `autonomous_browser_plan_v1`
+- the prompt text now spells out required top-level fields, allowed browser actions, local fixture URLs, and one-JSON-object-only output constraints
+- `third_model` still keeps the existing `/no_think` prefix behavior, while `second_model` does not
+- the packet remains offline and local-fixture-only from Codex's point of view
+
 ## Relation to prior evidence
 
 - Phase 12B remains the first successful `third_model` planner-output evidence.
