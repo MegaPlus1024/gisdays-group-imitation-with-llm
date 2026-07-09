@@ -17,6 +17,7 @@ This repository now has both the original single-agent evidence base and a conso
 - Phase 11D prepares guarded Playwright replay support for the Phase 11 captured plans through `configs/autonomous_runtime/browser_phase11_playwright_replay_suite.example.json`; it adds click and snapshot coverage in the model-plan Playwright path, and Codex did not run real Playwright.
 - Phase 12A adds offline support for a future stronger `third_model` planner candidate through `src/agent/autonomous_browser_model_comparison_packet.py` and `src/agent/autonomous_browser_model_comparison_evaluator.py`; the expected path is `models/gguf/third_model.gguf`, but Codex does not read, download, or modify it.
 - The model-comparison packet/evaluator compares `first_model`, `second_model`, and `third_model` over the existing Phase 10/11 browser-planner prompts; model execution remains manual operator work, missing outputs are handled safely, and fixture replay stays offline/local-fixture only.
+- Phase 12B documents the first successful `third_model` planner-output evidence in `docs/status/phase_12_third_model_initial_evidence.md`; it is still offline, locally replayed, and not a production claim.
 - Preliminary quality-focused pair: `second_model -> second_model`.
 - Resource-balanced/simple-scenario pair: `second_model -> first_model`.
 - `first_model` is not recommended as orchestrator in the current tests.
@@ -677,6 +678,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 - Phase 11C documents two diverse local planner plans for those new Phase 11 fixture scenarios; it remains offline and does not add real browser evidence.
 - Phase 11D prepares guarded Playwright replay support for those Phase 11 captured plans through `configs/autonomous_runtime/browser_phase11_playwright_replay_suite.example.json`; real browser evidence for that diverse replay path remains pending an operator-side guarded run.
 - Phase 12A adds offline support for a future stronger `third_model` planner candidate; the packet/evaluator compares `first_model`, `second_model`, and `third_model` over existing Phase 10/11 browser-planner prompts, uses `models/gguf/third_model.gguf` only as a documented path, keeps model execution manual, and remains local-fixture-only with safe handling for missing outputs.
+- Phase 12B documents the first successful `third_model` planner-output evidence in `docs/status/phase_12_third_model_initial_evidence.md`; it remains offline, locally replayed, and not a production readiness claim.
 - Windows PowerShell BOM-prefixed JSON configs are tolerated by the ingestion path.
 - Phase 10.6a adds guarded local planner runtime diagnostics for an already-running local endpoint. It helps explain planner prompt hangs, but does not launch models or claim production readiness.
 - Phase 9 milestone freeze report: `docs/status/phase_9_milestone_freeze.md`.

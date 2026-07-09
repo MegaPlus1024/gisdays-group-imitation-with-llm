@@ -104,3 +104,7 @@ What this does prove:
 - missing captured outputs are handled safely
 - fixture replay stays offline/local-fixture only
 - there is still no production recommendation
+
+## Phase 12B first `third_model` evidence note
+
+Phase 12B documents the first successful `third_model` planner-output evidence in `docs/status/phase_12_third_model_initial_evidence.md`. It is still offline, locally replayed, and does not turn the packet into production browser automation.

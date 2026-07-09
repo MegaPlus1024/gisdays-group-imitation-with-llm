@@ -20,7 +20,11 @@ DEFAULT_COMPARISON_CONFIG_PATH = "artifacts/autonomous_runtime_summaries/model_c
 DEFAULT_MODEL_SPECS = (
     {"alias": "first_model", "model_path": "models/gguf/first_model.gguf"},
     {"alias": "second_model", "model_path": "models/gguf/second_model.gguf"},
-    {"alias": "third_model", "model_path": "models/gguf/third_model.gguf"},
+    {
+        "alias": "third_model",
+        "model_path": "models/gguf/third_model.gguf",
+        "prompt_prefix": "/no_think",
+    },
 )
 DEFAULT_SCENARIO_SPECS = (
     {
@@ -168,6 +172,7 @@ def build_autonomous_browser_model_comparison_packet(
                 packet_id=packet_id,
                 model_alias=model_alias,
                 model_path=model_path,
+                prompt_prefix=str(model_spec.get("prompt_prefix")) if model_spec.get("prompt_prefix") else None,
                 scenario_id=scenario_id,
                 scenario_label=scenario_label,
                 prompt_filename=prompt_filename,
@@ -303,6 +308,7 @@ def _build_request_payload(
     packet_id: str,
     model_alias: str,
     model_path: str,
+    prompt_prefix: str | None,
     scenario_id: str,
     scenario_label: str,
     prompt_filename: str,
@@ -316,7 +322,7 @@ def _build_request_payload(
         "model": model_alias,
         "messages": [
             {"role": "system", "content": "Return only valid JSON. No markdown. No explanation. No code fences."},
-            {"role": "user", "content": prompt_text},
+            {"role": "user", "content": _build_user_prompt(prompt_text, prompt_prefix)},
         ],
         "temperature": 0,
         "max_tokens": max_tokens,
@@ -353,7 +359,11 @@ def _build_comparison_config(
         "output_dir": evaluation_output_dir,
         "packet_output_dir": output_dir,
         "models": [
-            {"alias": item["alias"], "model_path": item["model_path"]}
+            {
+                "alias": item["alias"],
+                "model_path": item["model_path"],
+                **({"prompt_prefix": item["prompt_prefix"]} if "prompt_prefix" in item else {}),
+            }
             for item in model_specs
         ],
         "scenarios": [
@@ -544,7 +554,10 @@ def _build_readme(
         "",
     ]
     for spec in model_specs:
-        lines.append(f"- `{spec['alias']}` -> `{spec['model_path']}`")
+        model_note = f"- `{spec['alias']}` -> `{spec['model_path']}`"
+        if spec.get("prompt_prefix"):
+            model_note += f" with prompt prefix `{spec['prompt_prefix']}`"
+        lines.append(model_note)
     lines.extend(
         [
             "",
@@ -709,7 +722,13 @@ def _safe_model_specs(value: list[Any]) -> tuple[dict[str, str], ...] | None:
         model_path = _safe_relative_path(entry.get("model_path"))
         if alias is None or model_path is None:
             return None
-        items.append({"alias": alias, "model_path": model_path})
+        prompt_prefix = _safe_prompt_prefix(entry.get("prompt_prefix"))
+        if prompt_prefix is None and alias == "third_model":
+            prompt_prefix = "/no_think"
+        model_spec = {"alias": alias, "model_path": model_path}
+        if prompt_prefix is not None:
+            model_spec["prompt_prefix"] = prompt_prefix
+        items.append(model_spec)
     return tuple(items)
 
 
@@ -818,6 +837,19 @@ def _safe_relative_path(value: Any) -> str | None:
     if path.is_absolute() or "://" in normalized or any(part == ".." for part in path.parts):
         return None
     return path.as_posix()
+
+
+def _safe_prompt_prefix(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text or None
+
+
+def _build_user_prompt(prompt_text: str, prompt_prefix: str | None) -> str:
+    if not prompt_prefix:
+        return prompt_text
+    return f"{prompt_prefix}\n{prompt_text}"
 
 
 def _safe_identifier(value: Any) -> str | None:

@@ -6,6 +6,8 @@ This research prototype now demonstrates that local `second_model` can generate 
 
 Phase 12A adds offline support for a future stronger `third_model` planner candidate. The packet/evaluator compares `first_model`, `second_model`, and `third_model` over the existing Phase 10/11 browser-planner prompts; the expected `third_model` path is `models/gguf/third_model.gguf`, but Codex does not read, download, or modify it.
 
+Phase 12B documents the first successful `third_model` planner-output evidence in `docs/status/phase_12_third_model_initial_evidence.md`; it stays offline and replay-only.
+
 It is not production-ready, not general web browsing, not external browsing, and not an autonomous live LLM loop. No production recommendation is made.
 
 ## Project scope
@@ -121,6 +123,7 @@ A local `second_model` planner can produce bounded `autonomous_browser_plan_v1` 
 * `docs/status/phase_10_model_planned_browser_freeze.md`
 * `docs/status/phase_10_model_plan_playwright_milestone_freeze.md`
 * `docs/status/local_planner_output_evidence.md`
+* `docs/status/phase_12_third_model_initial_evidence.md`
 * `docs/status/local_planner_repeated_trials_evidence.md`
 * `docs/status/model_plan_playwright_replay_packet_evidence.md`
 * `docs/status/model_plan_guarded_fixture_replay_evidence.md`

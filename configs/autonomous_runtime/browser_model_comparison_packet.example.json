@@ -15,7 +15,8 @@
     },
     {
       "alias": "third_model",
-      "model_path": "models/gguf/third_model.gguf"
+      "model_path": "models/gguf/third_model.gguf",
+      "prompt_prefix": "/no_think"
     }
   ],
   "scenario_specs": [

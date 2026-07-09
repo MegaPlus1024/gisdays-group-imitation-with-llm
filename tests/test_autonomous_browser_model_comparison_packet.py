@@ -104,6 +104,7 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert request_paths["third_model"]["approval_review"].endswith("third_model/approval_review/request.json")
     assert output_paths["third_model"]["approval_review"].endswith("third_model/approval_review/raw_planner_output.txt")
     assert comparison_config["models"][2]["model_path"] == "models/gguf/third_model.gguf"
+    assert comparison_config["models"][2]["prompt_prefix"] == "/no_think"
     assert comparison_config["scenarios"][2]["max_tokens"] >= 1200
     assert "third_model" in commands_md
     assert "models/gguf/third_model.gguf" in commands_md
@@ -115,9 +116,13 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     policy_prompt = prompt_policy_path.read_text(encoding="utf-8")
     ticket_prompt = prompt_ticket_path.read_text(encoding="utf-8")
     approval_prompt = prompt_approval_path.read_text(encoding="utf-8")
+    third_model_request = json.loads(
+        (output_dir / "third_model" / "policy_family" / "request.json").read_text(encoding="utf-8")
+    )
     assert "Return only valid JSON." in policy_prompt
     assert "No markdown." in ticket_prompt
     assert "No markdown." in approval_prompt
+    assert third_model_request["messages"][1]["content"].startswith("/no_think\n")
     assert "local.intranet" in policy_prompt
     assert "Ticket 1" in ticket_prompt
     assert "Approvals queue" in approval_prompt
@@ -246,6 +251,8 @@ def test_evaluator_one_valid_captured_output_aggregates_metrics(tmp_path: Path) 
     assert policy_result["prompt_tokens"] == 312
     assert policy_result["completion_tokens"] == 185
     assert policy_result["total_tokens"] == 497
+    assert policy_result["response_metadata_path"] == "artifacts/autonomous_runtime_summaries/model_comparison_packet/first_model/policy_family/response.json"
+    assert not Path(policy_result["response_metadata_path"]).is_absolute()
 
 
 def test_fixture_root_fallback_uses_repo_local_manifest_for_temp_packet_root(tmp_path: Path) -> None:

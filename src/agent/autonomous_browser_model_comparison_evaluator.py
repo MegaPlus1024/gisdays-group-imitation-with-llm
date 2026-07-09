@@ -342,7 +342,7 @@ def _evaluate_output(
         execute_fixture=execute_fixture,
     )
 
-    response_metadata = _load_response_metadata(raw_path.with_name("response.json"))
+    response_metadata = _load_response_metadata(raw_path.with_name("response.json"), repo_root=repo_root)
     scenario_result = {
         "packet_id": packet_id,
         "model_alias": model_alias,
@@ -378,7 +378,8 @@ def _evaluate_output(
     return scenario_result
 
 
-def _load_response_metadata(path: Path) -> dict[str, Any]:
+def _load_response_metadata(path: Path, *, repo_root: Path) -> dict[str, Any]:
+    response_metadata_path = _relative_path(repo_root, path)
     if not path.exists():
         return {
             "finish_reason": None,
@@ -395,7 +396,7 @@ def _load_response_metadata(path: Path) -> dict[str, Any]:
             "prompt_tokens": None,
             "completion_tokens": None,
             "total_tokens": None,
-            "response_metadata_path": path.as_posix(),
+            "response_metadata_path": response_metadata_path,
         }
 
     finish_reason = None
@@ -418,7 +419,7 @@ def _load_response_metadata(path: Path) -> dict[str, Any]:
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
         "total_tokens": total_tokens,
-        "response_metadata_path": path.as_posix(),
+        "response_metadata_path": response_metadata_path,
     }
 
 
@@ -604,6 +605,13 @@ def _safe_text(value: Any) -> str | None:
         return None
     text = value.strip()
     return text or None
+
+
+def _relative_path(base: Path, path: Path) -> str:
+    try:
+        return path.relative_to(base).as_posix()
+    except ValueError:
+        return path.name if path.is_absolute() else path.as_posix()
 
 
 def _safe_identifier(value: Any) -> str | None:
