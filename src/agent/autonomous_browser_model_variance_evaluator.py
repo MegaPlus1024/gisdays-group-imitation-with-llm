@@ -83,6 +83,7 @@ class ModelVarianceEvaluatorSummary:
     trial_results: tuple[dict[str, Any], ...] = ()
     model_summaries: tuple[dict[str, Any], ...] = ()
     scenario_model_summaries: tuple[dict[str, Any], ...] = ()
+    scenario_summaries: tuple[dict[str, Any], ...] = ()
     limitations: tuple[str, ...] = ()
     fixture_execution_requested: bool = False
 
@@ -121,6 +122,7 @@ class ModelVarianceEvaluatorSummary:
             "trial_results": [_jsonable(item) for item in self.trial_results],
             "model_summaries": [_jsonable(item) for item in self.model_summaries],
             "scenario_model_summaries": [_jsonable(item) for item in self.scenario_model_summaries],
+            "scenario_summaries": [_jsonable(item) for item in self.scenario_summaries],
             "limitations": list(self.limitations),
             "fixture_execution_requested": self.fixture_execution_requested,
         }
@@ -177,6 +179,8 @@ def run_autonomous_browser_model_variance_evaluator(
     outputs_missing = 0
     outputs_ingested = 0
     outputs_rejected = 0
+    validation_accepted_total = 0
+    validation_rejected_total = 0
     dry_runs_succeeded = 0
     dry_runs_failed = 0
     fixture_runs_succeeded = 0
@@ -220,6 +224,14 @@ def run_autonomous_browser_model_variance_evaluator(
             outputs_present += 1
             model_summary["outputs_present"] += 1
             scenario_summary["outputs_present"] += 1
+            if result["validation_status"] == "accepted":
+                validation_accepted_total += 1
+                model_summary["validation_accepted_total"] += 1
+                scenario_summary["validation_accepted_total"] += 1
+            else:
+                validation_rejected_total += 1
+                model_summary["validation_rejected_total"] += 1
+                scenario_summary["validation_rejected_total"] += 1
         else:
             outputs_missing += 1
             any_missing = True
@@ -342,6 +354,7 @@ def run_autonomous_browser_model_variance_evaluator(
         trial_results=tuple(trial_results),
         model_summaries=finalized_model_summaries,
         scenario_model_summaries=finalized_scenario_summaries,
+        scenario_summaries=finalized_scenario_summaries,
         limitations=limitations,
         fixture_execution_requested=execute_fixture,
     )
@@ -524,8 +537,8 @@ def _finalize_model_summary(summary: dict[str, Any]) -> dict[str, Any]:
     completion_tokens = [value for value in summary.pop("completion_tokens") if isinstance(value, int)]
     total_tokens = [value for value in summary.pop("total_tokens") if isinstance(value, int)]
     fingerprints = sorted(summary.pop("_plan_fingerprints"))
-    summary["pass_rate_validation"] = _safe_ratio(summary["outputs_ingested"], summary["outputs_present"])
-    summary["pass_rate_fixture"] = _safe_ratio(summary["fixture_runs_succeeded"], summary["outputs_ingested"])
+    summary["pass_rate_validation"] = _safe_ratio(summary["validation_accepted_total"], summary["outputs_present"])
+    summary["pass_rate_fixture"] = _safe_ratio(summary["fixture_runs_succeeded"], summary["scenario_trials_total"])
     summary["finish_reason_counts"] = dict(sorted(summary["finish_reason_counts"].items()))
     summary["error_code_counts"] = dict(sorted(summary["error_code_counts"].items()))
     summary["unique_plan_fingerprints"] = fingerprints
@@ -551,11 +564,15 @@ def _empty_model_summary(alias: str, model_path: str, trial_ids: tuple[str, ...]
         "alias": alias,
         "model_path": model_path,
         "trials_total": len(trial_ids),
+        "trial_count_per_scenario": len(trial_ids),
+        "scenario_trials_total": len(trial_ids) * len(DEFAULT_SCENARIO_SPECS),
         "outputs_total": 0,
         "outputs_present": 0,
         "outputs_missing": 0,
         "outputs_ingested": 0,
         "outputs_rejected": 0,
+        "validation_accepted_total": 0,
+        "validation_rejected_total": 0,
         "dry_runs_succeeded": 0,
         "dry_runs_failed": 0,
         "fixture_runs_succeeded": 0,
@@ -588,6 +605,8 @@ def _empty_scenario_summary(
         "scenario_id": scenario_id,
         "scenario_label": scenario_label,
         "trials_total": len(trial_ids),
+        "validation_accepted_total": 0,
+        "validation_rejected_total": 0,
         "outputs_total": 0,
         "outputs_present": 0,
         "outputs_missing": 0,

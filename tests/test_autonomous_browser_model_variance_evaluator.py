@@ -12,6 +12,7 @@ import pytest
 
 from src.agent.autonomous_browser_model_variance_evaluator import (
     SUMMARY_SCHEMA_VERSION as EVALUATOR_SUMMARY_SCHEMA_VERSION,
+    _finalize_model_summary,
     run_autonomous_browser_model_variance_evaluator,
 )
 from src.agent.autonomous_browser_model_variance_packet import (
@@ -84,8 +85,13 @@ def test_missing_outputs_are_marked_without_crashing(tmp_path: Path) -> None:
     assert evaluation["real_browser_execution"] is False
     assert evaluation["playwright_execution"] is False
     assert evaluation["browser_opened"] is False
+    assert evaluation["scenario_summaries"] == evaluation["scenario_model_summaries"]
     assert "C:\\" not in encoded
     assert str(tmp_path) not in encoded
+
+    second_model = next(item for item in evaluation["model_summaries"] if item["alias"] == "second_model")
+    assert second_model["trial_count_per_scenario"] == 3
+    assert second_model["scenario_trials_total"] == 9
 
 
 def test_three_repeated_trials_for_one_model_scenario_are_stable(tmp_path: Path) -> None:
@@ -124,12 +130,54 @@ def test_three_repeated_trials_for_one_model_scenario_are_stable(tmp_path: Path)
     assert second_model["outputs_ingested"] == 3
     assert second_model["unique_plan_fingerprints_total"] == 1
     assert second_model["pass_rate_validation"] == 1.0
-    assert second_model["pass_rate_fixture"] == 1.0
+    assert second_model["pass_rate_fixture"] == pytest.approx(1 / 3, abs=0.001)
+    assert second_model["trial_count_per_scenario"] == 3
+    assert second_model["scenario_trials_total"] == 9
     assert policy_scenario["trials_total"] == 3
     assert policy_scenario["stable_plan"] is True
     assert len(policy_scenario["unique_plan_fingerprints"]) == 1
     assert all(item["plan_fingerprint"] == policy_scenario["unique_plan_fingerprints"][0] for item in trial_results)
     assert all(item["fixture_execution_status"] == "succeeded" for item in trial_results)
+
+
+def test_model_summary_pass_rate_semantics_use_validation_and_fixture_denominators() -> None:
+    model_summary = _finalize_model_summary(
+        {
+            "alias": "second_model",
+            "model_path": "models/gguf/second_model.gguf",
+            "trials_total": 3,
+            "trial_count_per_scenario": 3,
+            "scenario_trials_total": 9,
+            "outputs_total": 9,
+            "outputs_present": 9,
+            "outputs_missing": 0,
+            "outputs_ingested": 6,
+            "outputs_rejected": 3,
+            "validation_accepted_total": 9,
+            "validation_rejected_total": 0,
+            "dry_runs_succeeded": 9,
+            "dry_runs_failed": 0,
+            "fixture_runs_succeeded": 6,
+            "fixture_runs_failed": 3,
+            "actions_attempted_total": 63,
+            "actions_succeeded_total": 63,
+            "actions_failed_total": 0,
+            "expected_results_total": 78,
+            "expected_results_passed_total": 63,
+            "expected_results_failed_total": 15,
+            "finish_reason_counts": {"stop": 9},
+            "error_code_counts": {},
+            "completion_tokens": [282, 282, 282],
+            "total_tokens": [956, 956, 956],
+            "_plan_fingerprints": {"fingerprint"},
+            "trial_results": [],
+        }
+    )
+
+    assert model_summary["pass_rate_validation"] == 1.0
+    assert model_summary["pass_rate_fixture"] == pytest.approx(6 / 9, abs=0.001)
+    assert model_summary["scenario_trials_total"] == 9
+    assert model_summary["trial_count_per_scenario"] == 3
 
 
 def test_cli_missing_outputs_exits_zero_and_prints_compact_json(tmp_path: Path) -> None:
