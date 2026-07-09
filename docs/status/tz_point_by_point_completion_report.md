@@ -74,6 +74,7 @@
 - Phase 12D9: calibrates the final policy/ticket evidence anchors to the exact visible literals on the target pages.
 - Phase 12D10: records the final successful offline fixture replay evidence, with both `second_model` and `third_model` passing all 3 calibrated hard scenarios and 25/25 expected checks overall.
 - Phase 12E2: documents repeated hard-trials variance evidence in `docs/status/phase_12e_repeated_hard_trials.md`; it compares `second_model` vs `third_model` offline and does not add any live model or browser execution.
+- Phase 12E4: records corrected variance evaluator evidence in `docs/status/phase_12e_repeated_hard_trials.md`; `third_model` passes 9/9 fixture replay, `second_model` passes 6/9 fixture replay and fails approval 3/3 with `missing_expected_text`, both models have `pass_rate_validation` 1.0, and no production recommendation is made.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

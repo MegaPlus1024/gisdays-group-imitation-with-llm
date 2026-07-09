@@ -36,6 +36,24 @@
 - playwright_execution: `false`
 - browser_opened: `false`
 
+## Corrected evaluator evidence
+
+- commit `773a49c` fixed the variance evaluator pass-rate semantics and added the `scenario_summaries` alias.
+- corrected evaluator output was produced by rerunning the existing 18 variance outputs with `--execute-fixture` only.
+- corrected pass rates:
+  - `second_model` `pass_rate_fixture`: `0.667`
+  - `second_model` `pass_rate_validation`: `1.0`
+  - `third_model` `pass_rate_fixture`: `1.0`
+  - `third_model` `pass_rate_validation`: `1.0`
+- scenario-level outcome:
+  - `second_model` `hard_policy_disambiguation`: `3/3` fixture succeeded, `stable_plan` true
+  - `second_model` `hard_ticket_priority_crosscheck`: `3/3` fixture succeeded, `stable_plan` true
+  - `second_model` `hard_approval_policy_match`: `0/3` fixture succeeded, `3/3` failed, `missing_expected_text`, `stable_plan` false
+  - `third_model` `hard_policy_disambiguation`: `3/3` fixture succeeded, `stable_plan` true
+  - `third_model` `hard_ticket_priority_crosscheck`: `3/3` fixture succeeded, `stable_plan` true
+  - `third_model` `hard_approval_policy_match`: `3/3` fixture succeeded, `stable_plan` true
+- this closes Phase 12E evidence collection unless more trials are explicitly requested.
+
 ## What this proves
 
 - repeated captured planner outputs can be ingested, validated, dry-run accepted, and replayed offline
