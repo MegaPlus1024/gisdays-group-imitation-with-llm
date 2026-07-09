@@ -77,3 +77,11 @@
 * Phase 10.11: one validated model plan reached real Playwright replay
 * Phase 10.12a: guarded replay suite for repeated model-generated plans
 * Phase 10.12b: this page records the successful real Playwright replay suite evidence for the 3 repeated outputs
+
+## Next possible directions
+
+1. broaden scenario families while staying fixture-only
+2. add repeated real Playwright suite across more diverse validated plans
+3. add richer browser actions only under guarded local fixtures
+4. optionally revisit LLM judge later
+5. stop browser track and move to another system area
