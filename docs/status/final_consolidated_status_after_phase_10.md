@@ -4,6 +4,8 @@
 
 This research prototype now demonstrates that local `second_model` can generate bounded browser plans under a compact prompt, and those captured plans can be validated, replayed offline, packetized, and replayed through a guarded real Playwright/Chromium backend against controlled local loopback fixtures.
 
+Phase 12A adds offline support for a future stronger `third_model` planner candidate. The packet/evaluator compares `first_model`, `second_model`, and `third_model` over the existing Phase 10/11 browser-planner prompts; the expected `third_model` path is `models/gguf/third_model.gguf`, but Codex does not read, download, or modify it.
+
 It is not production-ready, not general web browsing, not external browsing, and not an autonomous live LLM loop. No production recommendation is made.
 
 ## Project scope

@@ -1,0 +1,49 @@
+{
+  "schema_version": "autonomous_browser_model_comparison_packet_config_v1",
+  "no_runtime_execution": true,
+  "packet_id": "browser_model_comparison_packet_v1",
+  "output_dir": "artifacts/autonomous_runtime_summaries/model_comparison_packet",
+  "evaluation_output_dir": "artifacts/autonomous_runtime_summaries/model_comparison_packet/evaluation_runs",
+  "model_specs": [
+    {
+      "alias": "first_model",
+      "model_path": "models/gguf/first_model.gguf"
+    },
+    {
+      "alias": "second_model",
+      "model_path": "models/gguf/second_model.gguf"
+    },
+    {
+      "alias": "third_model",
+      "model_path": "models/gguf/third_model.gguf"
+    }
+  ],
+  "scenario_specs": [
+    {
+      "scenario_id": "browser_intranet_policy_research",
+      "scenario_label": "policy_family",
+      "prompt_filename": "planner_prompt.policy_family.compact.txt",
+      "max_tokens": 1200
+    },
+    {
+      "scenario_id": "browser_ticket_triage_review",
+      "scenario_label": "ticket_triage",
+      "prompt_filename": "planner_prompt.ticket_triage.compact.txt",
+      "max_tokens": 1200
+    },
+    {
+      "scenario_id": "browser_approval_form_review",
+      "scenario_label": "approval_review",
+      "prompt_filename": "planner_prompt.approval_review.compact.txt",
+      "max_tokens": 1200
+    }
+  ],
+  "limitations": [
+    "offline comparison packet only",
+    "manual operator model runs only",
+    "no model calls by Codex",
+    "no real browser execution",
+    "fixture replay remains offline only",
+    "not production browser automation"
+  ]
+}

@@ -611,6 +611,8 @@ Phase 11C documents the resulting manual `second_model` outputs and offline fixt
 
 Phase 11D prepares guarded Playwright replay support for those Phase 11 captured plans through `configs/autonomous_runtime/browser_phase11_playwright_replay_suite.example.json`; it adds click and snapshot coverage in the model-plan Playwright path, but Codex did not run real Playwright and real replay evidence remains pending an operator-side guarded run.
 
+Phase 12A adds offline support for a future stronger `third_model` planner candidate; the packet/evaluator compares `first_model`, `second_model`, and `third_model` over the existing Phase 10/11 browser-planner prompts, uses `models/gguf/third_model.gguf` only as a documented path, keeps model execution manual, and remains local-fixture-only with safe handling for missing outputs.
+
 Later semantic judge work remains separate and should stay guarded:
 
 1. Define an openai-compatible/DeepSeek-style config schema that never stores secrets in committed files.

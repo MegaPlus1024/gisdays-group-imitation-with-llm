@@ -94,6 +94,7 @@ def run_autonomous_browser_plan_fixture_execution(
     task_id: str = "browser_plan_fixture_task",
 ) -> dict[str, Any]:
     repo = Path(repo_root) if repo_root is not None else Path(".")
+    fixture_repo = _resolve_fixture_repo_root(repo)
     validation_result = validate_autonomous_browser_plan(plan_artifact)
     plan_id = validation_result.get("plan_id")
     validation_status = str(validation_result.get("status", "rejected"))
@@ -186,7 +187,7 @@ def run_autonomous_browser_plan_fixture_execution(
 
     executor = FixtureBackedBrowserRuntimeExecutor(
         fixture_manifest_path=FIXTURE_MANIFEST_RELATIVE_PATH,
-        project_root=repo,
+        project_root=fixture_repo,
         policy=BrowserRuntimePolicy(
             allowed_action_names=tuple(sorted(BROWSER_RUNTIME_ACTION_NAMES)),
             fixture_mode=True,
@@ -480,3 +481,12 @@ def _int(value: Any) -> int:
     if isinstance(value, int):
         return value
     return 0
+
+
+def _resolve_fixture_repo_root(repo_root: Path) -> Path:
+    if (repo_root / FIXTURE_MANIFEST_RELATIVE_PATH).exists():
+        return repo_root
+    fallback_root = Path(__file__).resolve().parents[2]
+    if (fallback_root / FIXTURE_MANIFEST_RELATIVE_PATH).exists():
+        return fallback_root
+    return repo_root

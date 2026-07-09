@@ -93,3 +93,14 @@ What this does not prove:
 - Codex did not run real Playwright for Phase 11D.
 - no live browser evidence was added for the diverse Phase 11 plans.
 - the work remains operator-gated and local-fixture-only.
+
+## Phase 12A model-comparison packet note
+
+Phase 12A adds offline support for a future stronger `third_model` planner candidate. The packet/evaluator compares `first_model`, `second_model`, and `third_model` over the existing Phase 10/11 browser-planner prompts. The expected `third_model` path is `models/gguf/third_model.gguf`, but Codex does not read, download, or modify that file.
+
+What this does prove:
+
+- model execution remains manual operator work
+- missing captured outputs are handled safely
+- fixture replay stays offline/local-fixture only
+- there is still no production recommendation
