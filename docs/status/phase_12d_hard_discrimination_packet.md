@@ -115,6 +115,33 @@
 - `third_model` continues to outscore `second_model`, so the packet stays useful for discrimination while the anchors are calibrated
 - no production recommendation is made
 
+## Phase 12D5 operator rerun evidence
+
+- `second_model`
+  - `outputs_present`: `3`
+  - `outputs_ingested`: `1`
+  - `outputs_rejected`: `2`
+  - `fixture_runs_succeeded`: `1`
+  - approval succeeded
+  - policy failed `missing_expected_text`
+  - ticket rejected `max_actions_exceeded`
+- `third_model`
+  - `outputs_present`: `3`
+  - `outputs_ingested`: `1`
+  - `outputs_rejected`: `2`
+  - `fixture_runs_succeeded`: `1`
+  - approval succeeded
+  - policy rejected `missing_step_id`
+  - ticket rejected `missing_step_id`
+
+## Phase 12D6 exact template stabilization
+
+- D5 made approval stable but policy/ticket still failed
+- D5 introduced regressions that were still prompt-following specific: numeric `step_id` for `third_model`, `max_actions_exceeded` for the `second_model` ticket path, and missing `expected_text` for the `second_model` policy path
+- Phase 12D6 replaces policy/ticket guidance with compact exact action templates
+- approval is left unchanged
+- no production recommendation is made
+
 ## Relation to prior evidence
 
 - Phase 12B remains the first successful `third_model` planner-output evidence.

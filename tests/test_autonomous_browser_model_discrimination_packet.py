@@ -35,26 +35,16 @@ def _write_json(path: Path, payload: Any) -> None:
 
 def _assert_hard_plan_prompt(prompt: str) -> None:
     assert "autonomous_browser_plan_v1" in prompt
-    assert "Required top-level fields: schema_version, plan_id, goal, scenario_id, max_actions, actions." in prompt
-    assert "Each action MUST be an object with step_id, action_name, parameters, and expected_text." in prompt
-    assert "Allowed action names: browser_open_url, browser_click, browser_extract_text, browser_snapshot." in prompt
-    assert "For browser_open_url, parameters must be {\"url\": \"<allowed local URL>\"}." in prompt
-    assert "For browser_click, parameters must be {\"target_text\": \"<visible link/button text>\"}" in prompt
-    assert "For browser_extract_text, parameters must be {}." in prompt
-    assert "For browser_snapshot, parameters must be {}." in prompt
-    assert "Do NOT use these invalid action fields: name, action, url at top level, selector, selectors, target, target_url, target_css, description." in prompt
-    assert "Do NOT put browser URL or click target outside parameters." in prompt
-    assert "expected_text is REQUIRED on every action." in prompt
-    assert "exact literal substring" in prompt
-    assert "Do not summarize." in prompt
-    assert "Do not invent expected_text." in prompt
-    assert "Do not use snapshot descriptions as expected_text." in prompt
-    assert "For browser_snapshot" in prompt
-    assert "expected_url" in prompt
-    assert "max_actions must be" in prompt
-    assert "actions array length must be <= max_actions." in prompt
-    assert "Suggested action count:" in prompt
-    assert "Do not output markdown, prose, code fences, or multiple JSON objects." in prompt
+    assert "Return exactly one JSON object only." in prompt
+    assert "schema_version must be \"autonomous_browser_plan_v1\"." in prompt
+    assert "actions must use step_id/action_name/parameters/expected_text." in prompt
+    assert "step_id must be a string." in prompt
+    assert "expected_text must be an exact literal visible substring after the action." in prompt
+    assert "Do not use invalid action fields: name, action, url at top level, selector, target_url, target_css, target." in prompt
+    assert "Every action must include expected_text." in prompt
+    assert "Do not use numeric step_id values like 1, 2, 3." in prompt
+    assert "Do not add extra actions." in prompt
+    assert "Compact action template:" in prompt
 
 
 def _load_cli_module(path: Path):
@@ -143,31 +133,35 @@ def test_model_discrimination_packet_builder_writes_expected_files_and_summary(t
     third_model_request = json.loads(
         (output_dir / "third_model" / "hard_policy_disambiguation" / "request.json").read_text(encoding="utf-8")
     )
-    assert "schema_version: autonomous_browser_plan_v1" in policy_prompt
-    assert "schema_version: autonomous_browser_plan_v1" in ticket_prompt
-    assert "schema_version: autonomous_browser_plan_v1" in approval_prompt
+    assert "schema_version must be \"autonomous_browser_plan_v1\"." in policy_prompt
+    assert "schema_version must be \"autonomous_browser_plan_v1\"." in ticket_prompt
+    assert "Use exactly 3 actions" in policy_prompt
+    assert "Every step_id must be a string, not a number" in policy_prompt
+    assert "Do not use numeric step_id" in policy_prompt
+    assert "open_policy_disambiguation" in policy_prompt
+    assert "Search marker: current policy source is the fixture-backed answer." in policy_prompt
+    assert "expected_url: \"https://local.intranet/docs/policy\"" in policy_prompt
+    assert "Archive decoy URL: https://local.intranet/docs/policy-archive." in policy_prompt
+    assert "Use exactly 5 actions" in ticket_prompt
+    assert "Do not add a sixth action" in ticket_prompt
+    assert "Do not click Ticket 8" in ticket_prompt
+    assert "Do not click Escalation Review as a separate action" in ticket_prompt
+    assert "open_ticket_board" in ticket_prompt
+    assert "click_ticket_7" in ticket_prompt
+    assert "extract_requester_tier" in ticket_prompt
+    assert "extract_priority" in ticket_prompt
+    assert "snapshot_ticket_marker" in ticket_prompt
+    assert "expected_url: \"https://local.intranet/tickets/7\"" in ticket_prompt
     assert "https://local.intranet/docs/policy-disambiguation" in policy_prompt
     assert "https://local.intranet/docs/policy-archive" in policy_prompt
     assert "archive copy is intentionally not the correct answer" in policy_prompt
     assert "Current policy" in policy_prompt
     assert "Search marker: current policy source is the fixture-backed answer." in policy_prompt
-    assert "Step-to-anchor guidance:" in policy_prompt
-    assert "target_text: \"Current policy\"" in policy_prompt
-    assert "expected_url: \"https://local.intranet/docs/policy\"" in policy_prompt
-    assert "Do not use vague text like \"Allowed activity\"" in policy_prompt
-    assert "Choose the live source" in policy_prompt
-    assert "Do not synthesize combined expected_text" in policy_prompt
     assert "https://local.intranet/tickets/hardboard" in ticket_prompt
     assert "Ticket 7: escalation review for facilities." in ticket_prompt
     assert "Requester tier: facilities." in ticket_prompt
-    assert "Step-to-anchor guidance:" in ticket_prompt
-    assert "target_text: \"Ticket 7\"" in ticket_prompt
-    assert "expected_url: \"https://local.intranet/tickets/7\"" in ticket_prompt
-    assert "Ticket 8 is only a decoy" in ticket_prompt
     assert "Priority cross-check board" in ticket_prompt
     assert "Search marker: the escalation ticket is the urgent one." in ticket_prompt
-    assert "Do not inspect Ticket 8 unless" in ticket_prompt
-    assert "Do not synthesize combined expected_text like requester tier and priority joined into one sentence unless that exact sentence appears on the page." in ticket_prompt
     assert "https://portal.local/portal/approval-match" in approval_prompt
     assert "APR-51" in approval_prompt
     assert "policy match confirmed" in approval_prompt
@@ -178,9 +172,16 @@ def test_model_discrimination_packet_builder_writes_expected_files_and_summary(t
     assert "target_text\": \"Policy match review\"" in approval_prompt
     _assert_hard_plan_prompt(policy_prompt)
     _assert_hard_plan_prompt(ticket_prompt)
-    _assert_hard_plan_prompt(approval_prompt)
-    assert "Use only these literal expected_text anchors where applicable:" in policy_prompt
-    assert "Use only these literal expected_text anchors where applicable:" in ticket_prompt
+    assert "Use only these literal expected_text anchors where applicable:" in approval_prompt
+    assert "target_text\": \"Policy match review\"" in approval_prompt
+    assert "open_policy_disambiguation" in policy_prompt
+    assert "click_current_policy" in policy_prompt
+    assert "extract_current_policy_marker" in policy_prompt
+    assert "open_ticket_board" in ticket_prompt
+    assert "click_ticket_7" in ticket_prompt
+    assert "extract_requester_tier" in ticket_prompt
+    assert "extract_priority" in ticket_prompt
+    assert "snapshot_ticket_marker" in ticket_prompt
     assert second_model_policy_request["messages"][1]["content"].startswith("You are generating one offline browser plan")
     assert not second_model_policy_request["messages"][1]["content"].startswith("/no_think\n")
     assert third_model_request["messages"][1]["content"].startswith("/no_think\n")

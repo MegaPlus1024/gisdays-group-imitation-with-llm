@@ -64,6 +64,8 @@
 - Phase 12D4: strengthens the hard discrimination prompts with literal `expected_text` anchor lists after replay showed the models still needed exact visible substrings from the fixtures.
 - Phase 12D4 operator rerun: approval scenario passed for both models, `third_model` materially outperformed `second_model`, and the remaining failures were concentrated in policy/ticket anchor calibration.
 - Phase 12D5: further calibrates policy/ticket anchors with step-to-anchor guidance and exact visible strings from the fixtures.
+- Phase 12D5 operator rerun: approval remained stable; `second_model` and `third_model` still differed on policy/ticket replay, with `third_model` ahead overall but both still needing policy/ticket exact-template stabilization.
+- Phase 12D6: replaces policy/ticket guidance with compact exact action templates while leaving approval unchanged.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения
