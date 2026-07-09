@@ -58,6 +58,7 @@
 - Phase 12A: adds offline support for a future stronger `third_model` planner candidate; the packet/evaluator compares `first_model`, `second_model`, and `third_model` over the existing Phase 10/11 browser-planner prompts, uses `models/gguf/third_model.gguf` only as a documented path, keeps model execution manual, and remains local-fixture-only with safe handling for missing outputs.
 - Phase 12B: documents the first successful `third_model` planner-output evidence in `docs/status/phase_12_third_model_initial_evidence.md`; it remains offline and replay-only.
 - Phase 12C: documents the `second_model` vs `third_model` baseline comparison in `docs/status/phase_12_model_comparison_baseline.md`; the current compact prompts tie functionally and do not justify a default-planner winner.
+- Phase 12D: adds the harder offline discrimination packet in `docs/status/phase_12d_hard_discrimination_packet.md`.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

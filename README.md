@@ -19,6 +19,7 @@ This repository now has both the original single-agent evidence base and a conso
 - The model-comparison packet/evaluator compares `first_model`, `second_model`, and `third_model` over the existing Phase 10/11 browser-planner prompts; model execution remains manual operator work, missing outputs are handled safely, and fixture replay stays offline/local-fixture only.
 - Phase 12B documents the first successful `third_model` planner-output evidence in `docs/status/phase_12_third_model_initial_evidence.md`; it is still offline, locally replayed, and not a production claim.
 - Phase 12C documents the `second_model` vs `third_model` baseline comparison in `docs/status/phase_12_model_comparison_baseline.md`; on the current compact prompts the packet is a tie, not a winner declaration.
+- Phase 12D adds a harder offline discrimination packet in `docs/status/phase_12d_hard_discrimination_packet.md`; it still keeps model execution manual and fixture replay offline.
 - Preliminary quality-focused pair: `second_model -> second_model`.
 - Resource-balanced/simple-scenario pair: `second_model -> first_model`.
 - `first_model` is not recommended as orchestrator in the current tests.

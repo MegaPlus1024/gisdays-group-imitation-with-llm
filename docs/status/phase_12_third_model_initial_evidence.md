@@ -104,3 +104,4 @@
 - Phase 10.8 remains the repeated local planner trials evidence line.
 - Phase 12B adds the first successful `third_model` planner-output evidence line, still offline and replay-only.
 - Phase 12C compares `second_model` and `third_model` on the same compact harness and documents the tie in `docs/status/phase_12_model_comparison_baseline.md`.
+- Phase 12D builds on that with a harder offline discrimination packet in `docs/status/phase_12d_hard_discrimination_packet.md`.

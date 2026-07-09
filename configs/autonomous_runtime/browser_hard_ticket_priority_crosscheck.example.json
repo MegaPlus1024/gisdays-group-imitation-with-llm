@@ -1,0 +1,177 @@
+{
+  "schema_version": "autonomous_runtime_scenario_v1",
+  "scenario_id": "hard_ticket_priority_crosscheck",
+  "description": "Offline browser-only ticket priority cross-check using local fixtures.",
+  "agents": [
+    {
+      "agent_id": "ticket_reviewer",
+      "role": "Local ticket priority cross-check reviewer",
+      "priority": 1
+    }
+  ],
+  "tasks": [
+    {
+      "task_id": "ticket_01_open_hardboard",
+      "description": "Open the hard ticket board fixture.",
+      "priority": 80,
+      "assigned_agent_id": "ticket_reviewer"
+    },
+    {
+      "task_id": "ticket_02_click_escalation",
+      "description": "Navigate to the escalation ticket fixture.",
+      "priority": 70,
+      "assigned_agent_id": "ticket_reviewer",
+      "depends_on": [
+        "ticket_01_open_hardboard"
+      ]
+    },
+    {
+      "task_id": "ticket_03_extract_escalation",
+      "description": "Extract the urgent ticket markers from the detail page.",
+      "priority": 60,
+      "assigned_agent_id": "ticket_reviewer",
+      "depends_on": [
+        "ticket_02_click_escalation"
+      ]
+    },
+    {
+      "task_id": "ticket_04_snapshot_escalation",
+      "description": "Create a synthetic snapshot artifact for the escalation ticket page.",
+      "priority": 50,
+      "assigned_agent_id": "ticket_reviewer",
+      "depends_on": [
+        "ticket_03_extract_escalation"
+      ]
+    }
+  ],
+  "virtual_environment": {
+    "environment_id": "browser_hard_ticket_priority_crosscheck_fixture_environment",
+    "allowed_resource_namespaces": [
+      "browser"
+    ],
+    "workspace": {
+      "workspace_root": "artifacts/autonomous_runtime_workspace/browser_hard_ticket_priority_crosscheck",
+      "per_agent_workspaces": {
+        "ticket_reviewer": "artifacts/autonomous_runtime_workspace/browser_hard_ticket_priority_crosscheck/ticket_reviewer"
+      },
+      "reset_policy": "never"
+    },
+    "metadata": {
+      "offline_fixture_only": true,
+      "real_browser_launch": false
+    }
+  },
+  "browser_sessions": [
+    {
+      "session_id": "ticket_session",
+      "agent_id": "ticket_reviewer",
+      "workspace_id": "ticket_session_workspace",
+      "environment_id": "browser_hard_ticket_priority_crosscheck_fixture_environment",
+      "allowed_domains": [
+        "local.intranet",
+        "local-intranet.test",
+        "docs.local",
+        "localhost",
+        "127.0.0.1"
+      ],
+      "start_url": "https://local.intranet/tickets/hardboard",
+      "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json"
+    }
+  ],
+  "scripted_steps": [
+    {
+      "step_id": "open_hard_ticket_board",
+      "agent_id": "ticket_reviewer",
+      "task_id": "ticket_01_open_hardboard",
+      "browser_session_id": "ticket_session",
+      "action_name": "browser_open_url",
+      "parameters": {
+        "url": "https://local.intranet/tickets/hardboard"
+      },
+      "expected_text": "Priority cross-check board"
+    },
+    {
+      "step_id": "click_escalation_ticket",
+      "agent_id": "ticket_reviewer",
+      "task_id": "ticket_02_click_escalation",
+      "browser_session_id": "ticket_session",
+      "action_name": "browser_click",
+      "parameters": {
+        "target_text": "Ticket 7"
+      },
+      "expected_text": "Escalation Review",
+      "expected_url": "https://local.intranet/tickets/7"
+    },
+    {
+      "step_id": "extract_escalation_priority",
+      "agent_id": "ticket_reviewer",
+      "task_id": "ticket_03_extract_escalation",
+      "browser_session_id": "ticket_session",
+      "action_name": "browser_extract_text",
+      "parameters": {},
+      "expected_text": "Priority: urgent."
+    },
+    {
+      "step_id": "snapshot_escalation_ticket",
+      "agent_id": "ticket_reviewer",
+      "task_id": "ticket_04_snapshot_escalation",
+      "browser_session_id": "ticket_session",
+      "action_name": "browser_snapshot",
+      "parameters": {},
+      "required_artifact_ref": "browser/ticket_session/ticket_session-snapshot-1.json"
+    }
+  ],
+  "runtime_policy": {
+    "scheduler": "round_robin",
+    "max_ticks": 20,
+    "max_actions_total": 10,
+    "max_actions_per_agent": 10,
+    "idle_tick_limit": 5,
+    "max_failures_total": 2,
+    "max_retries_per_task": 0,
+    "max_agent_failures": 2,
+    "stop_when_all_tasks_terminal": true,
+    "stop_when_no_runnable_agents": true
+  },
+  "expected_results": [
+    {
+      "result_id": "ticket_hardboard_opened",
+      "kind": "task_browser_expected_result",
+      "task_id": "ticket_01_open_hardboard",
+      "expected_text": "Priority cross-check board",
+      "expected_current_url": "https://local.intranet/tickets/hardboard"
+    },
+    {
+      "result_id": "ticket_escalation_followed",
+      "kind": "task_browser_expected_result",
+      "task_id": "ticket_02_click_escalation",
+      "expected_text": "Escalation Review",
+      "expected_current_url": "https://local.intranet/tickets/7"
+    },
+    {
+      "result_id": "ticket_priority_seen",
+      "kind": "task_browser_expected_result",
+      "task_id": "ticket_03_extract_escalation",
+      "expected_text": "Priority: urgent."
+    },
+    {
+      "result_id": "ticket_snapshot_recorded",
+      "kind": "task_browser_expected_result",
+      "task_id": "ticket_04_snapshot_escalation",
+      "expected_snapshot_count_min": 1,
+      "expected_artifact_kinds": [
+        "browser_snapshot"
+      ]
+    },
+    {
+      "result_id": "ticket_session_url",
+      "kind": "browser_session_current_url",
+      "session_id": "ticket_session",
+      "expected_url": "https://local.intranet/tickets/7"
+    }
+  ],
+  "validation_warnings": [
+    "fixture_backed_browser_runtime_only",
+    "no_real_browser_or_external_network"
+  ]
+}

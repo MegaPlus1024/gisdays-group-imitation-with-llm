@@ -468,13 +468,14 @@ def _build_commands_markdown(
     scenario_specs: tuple[dict[str, Any], ...],
     evaluation_output_dir: str,
 ) -> str:
+    model_aliases = ", ".join(f"`{spec['alias']}`" for spec in model_specs)
     lines = [
         "# Model Comparison Packet Commands",
         "",
         "Codex must not launch models.",
-        "The packet prepares comparison requests for first_model, second_model, and third_model.",
-        "Use the scenario prompt files as the prompt sources for manual operator runs.",
-        "The third_model path is documented as `models/gguf/third_model.gguf` and is not accessed by Codex.",
+        f"The packet prepares comparison requests for {model_aliases}.",
+        "Use `planner_prompt.compact.txt` as the prompt source for each trial.",
+        "The `third_model` path is documented as `models/gguf/third_model.gguf` and is not accessed by Codex.",
         f"Packet output directory: `{output_dir}`.",
         f"Evaluator output directory: `{evaluation_output_dir}`.",
         "",
@@ -536,6 +537,7 @@ def _build_readme(
     request_paths: Mapping[str, Mapping[str, str]],
     output_paths: Mapping[str, Mapping[str, str]],
 ) -> str:
+    model_aliases = ", ".join(f"`{spec['alias']}`" for spec in model_specs)
     lines = [
         "# Model Comparison Packet",
         "",
@@ -544,7 +546,7 @@ def _build_readme(
         "## Scope",
         "",
         "- Offline packet only.",
-        "- Prepares comparison requests for first_model, second_model, and third_model.",
+        f"- Prepares comparison requests for {model_aliases}.",
         "- Reuses the existing compact browser-planner prompts from Phase 10 and Phase 11.",
         "- No model execution by Codex.",
         "- No browser execution by Codex.",
@@ -592,7 +594,49 @@ def _build_prompt_text(scenario_id: str) -> str:
         return _build_phase11_prompt_text(scenario_id)
     if scenario_id == "browser_approval_form_review":
         return _build_phase11_prompt_text(scenario_id)
+    if scenario_id == "hard_policy_disambiguation":
+        return _build_hard_policy_disambiguation_prompt_text()
+    if scenario_id == "hard_ticket_priority_crosscheck":
+        return _build_hard_ticket_priority_crosscheck_prompt_text()
+    if scenario_id == "hard_approval_policy_match":
+        return _build_hard_approval_policy_match_prompt_text()
     raise ValueError(f"unsupported scenario_id: {scenario_id}")
+
+
+def _build_hard_policy_disambiguation_prompt_text() -> str:
+    return "\n".join(
+        [
+            "You are planning an offline browser task against local fixtures only.",
+            "Scenario: hard_policy_disambiguation.",
+            "Open the policy disambiguation fixture, choose the current policy source, ignore the archive copy, and extract the current policy markers.",
+            "Keep the plan compact and deterministic.",
+            "Return only JSON.",
+        ]
+    )
+
+
+def _build_hard_ticket_priority_crosscheck_prompt_text() -> str:
+    return "\n".join(
+        [
+            "You are planning an offline browser task against local fixtures only.",
+            "Scenario: hard_ticket_priority_crosscheck.",
+            "Open the ticket board, inspect the target escalation ticket, cross-check the priority against the requester tier, and extract the urgent marker.",
+            "Keep the plan compact and deterministic.",
+            "Return only JSON.",
+        ]
+    )
+
+
+def _build_hard_approval_policy_match_prompt_text() -> str:
+    return "\n".join(
+        [
+            "You are planning an offline browser task against local fixtures only.",
+            "Scenario: hard_approval_policy_match.",
+            "Open the portal, follow the approvals queue, inspect the local policy match page, and confirm the local-only approval marker.",
+            "Keep the plan compact and deterministic.",
+            "Return only JSON.",
+        ]
+    )
 
 
 def _load_config(config_artifact: str | Path | Mapping[str, Any]) -> dict[str, Any]:
@@ -674,16 +718,7 @@ def _load_config(config_artifact: str | Path | Mapping[str, Any]) -> dict[str, A
             "evaluation_output_dir": evaluation_output_dir,
             "limitations": _limitations(),
         }
-    if tuple(item["alias"] for item in model_specs) != tuple(spec["alias"] for spec in DEFAULT_MODEL_SPECS):
-        return {
-            "status": "failed",
-            "error_code": "config_validation_failed",
-            "packet_id": packet_id,
-            "output_dir": output_dir,
-            "evaluation_output_dir": evaluation_output_dir,
-            "limitations": _limitations(),
-        }
-    if tuple(item["scenario_id"] for item in scenario_specs) != tuple(spec["scenario_id"] for spec in DEFAULT_SCENARIO_SPECS):
+    if not model_specs or not scenario_specs:
         return {
             "status": "failed",
             "error_code": "config_validation_failed",
@@ -768,13 +803,14 @@ def _build_commands_markdown(
     scenario_specs: tuple[dict[str, Any], ...],
     evaluation_output_dir: str,
 ) -> str:
+    model_aliases = ", ".join(f"`{spec['alias']}`" for spec in model_specs)
     lines = [
         "# Model Comparison Packet Commands",
         "",
         "Codex must not launch models.",
-        "The packet prepares request files for first_model, second_model, and third_model.",
-        "The third_model path is documented as `models/gguf/third_model.gguf`.",
-        "Do not use Invoke-RestMethod for planner generation.",
+        f"The packet prepares comparison requests for {model_aliases}.",
+        "Use `planner_prompt.compact.txt` as the prompt source for each trial.",
+        "The `third_model` path is documented as `models/gguf/third_model.gguf` and is not accessed by Codex.",
         "",
     ]
     for scenario_spec in scenario_specs:

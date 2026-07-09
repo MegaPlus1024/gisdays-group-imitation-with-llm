@@ -108,5 +108,5 @@ This packet is non-discriminating for model quality on the current compact tasks
 
 - Phase 12B records the first successful `third_model` planner-output evidence in `docs/status/phase_12_third_model_initial_evidence.md`.
 - Phase 12C adds the baseline comparison over `second_model` and `third_model` using the same harness.
+- Phase 12D raises the difficulty with a new offline discrimination packet in `docs/status/phase_12d_hard_discrimination_packet.md`.
 - Phase 9 remains the separate guarded Playwright/Chromium local-fixture evidence line.
-

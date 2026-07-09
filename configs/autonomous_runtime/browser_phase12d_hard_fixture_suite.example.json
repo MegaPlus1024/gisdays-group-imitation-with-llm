@@ -1,0 +1,17 @@
+{
+  "schema_version": "autonomous_browser_scenario_suite_v1",
+  "suite_id": "browser_phase12d_hard_fixture_suite_v1",
+  "description": "Phase 12D hard fixture suite for local fixture-only discrimination scenarios.",
+  "scenario_paths": [
+    "configs/autonomous_runtime/browser_hard_policy_disambiguation.example.json",
+    "configs/autonomous_runtime/browser_hard_ticket_priority_crosscheck.example.json",
+    "configs/autonomous_runtime/browser_hard_approval_policy_match.example.json"
+  ],
+  "expected_min_passed_scenarios": 3,
+  "expected_required_actions": [
+    "browser_open_url",
+    "browser_click",
+    "browser_extract_text",
+    "browser_snapshot"
+  ]
+}

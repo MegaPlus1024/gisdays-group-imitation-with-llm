@@ -620,3 +620,7 @@ Later semantic judge work remains separate and should stay guarded:
 3. Keep live API execution behind explicit flags and confirmation.
 4. Parse judge outputs into a semantic scorecard separate from deterministic correctness.
 5. Add tests for missing key, malformed response, schema mismatch and no-runtime safety.
+
+## Phase 12D hard discrimination packet
+
+Phase 12D adds `docs/status/phase_12d_hard_discrimination_packet.md` as a harder offline comparison packet for `second_model` versus `third_model`. It stays local-fixture-only, operator-managed, and non-production.
