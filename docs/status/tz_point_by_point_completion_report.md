@@ -66,6 +66,8 @@
 - Phase 12D5: further calibrates policy/ticket anchors with step-to-anchor guidance and exact visible strings from the fixtures.
 - Phase 12D5 operator rerun: approval remained stable; `second_model` and `third_model` still differed on policy/ticket replay, with `third_model` ahead overall but both still needing policy/ticket exact-template stabilization.
 - Phase 12D6: replaces policy/ticket guidance with compact exact action templates while leaving approval unchanged.
+- Phase 12D6 operator rerun: approval stayed stable, but policy/ticket prompts became too action-array-like for `second_model`, while `third_model` still missed required top-level wrapper fields.
+- Phase 12D7: restores full top-level plan wrapper templates for policy/ticket while leaving approval unchanged.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

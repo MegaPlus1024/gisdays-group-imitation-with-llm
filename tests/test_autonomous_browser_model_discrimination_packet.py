@@ -36,7 +36,10 @@ def _write_json(path: Path, payload: Any) -> None:
 def _assert_hard_plan_prompt(prompt: str) -> None:
     assert "autonomous_browser_plan_v1" in prompt
     assert "Return exactly one JSON object only." in prompt
+    assert "Do not return a JSON array." in prompt
+    assert "Do not return actions by themselves." in prompt
     assert "schema_version must be \"autonomous_browser_plan_v1\"." in prompt
+    assert "The outer object MUST contain schema_version, plan_id, goal, scenario_id, max_actions, and actions." in prompt
     assert "actions must use step_id/action_name/parameters/expected_text." in prompt
     assert "step_id must be a string." in prompt
     assert "expected_text must be an exact literal visible substring after the action." in prompt
@@ -44,7 +47,8 @@ def _assert_hard_plan_prompt(prompt: str) -> None:
     assert "Every action must include expected_text." in prompt
     assert "Do not use numeric step_id values like 1, 2, 3." in prompt
     assert "Do not add extra actions." in prompt
-    assert "Compact action template:" in prompt
+    assert "Full plan shape:" in prompt
+    assert "\"actions\": [" in prompt
 
 
 def _load_cli_module(path: Path):
@@ -135,13 +139,25 @@ def test_model_discrimination_packet_builder_writes_expected_files_and_summary(t
     )
     assert "schema_version must be \"autonomous_browser_plan_v1\"." in policy_prompt
     assert "schema_version must be \"autonomous_browser_plan_v1\"." in ticket_prompt
+    assert "Do not return a JSON array" in policy_prompt
+    assert "Do not return actions by themselves" in policy_prompt
+    assert "plan_id must be \"hard_policy_disambiguation_plan\"." in policy_prompt
+    assert "goal must be \"choose the live policy source and ignore the archived copy\"." in policy_prompt
+    assert "scenario_id must be \"hard_policy_disambiguation\"." in policy_prompt
+    assert "The outer object MUST contain schema_version, plan_id, goal, scenario_id, max_actions, and actions." in policy_prompt
     assert "Use exactly 3 actions" in policy_prompt
     assert "Every step_id must be a string, not a number" in policy_prompt
     assert "Do not use numeric step_id" in policy_prompt
     assert "open_policy_disambiguation" in policy_prompt
     assert "Search marker: current policy source is the fixture-backed answer." in policy_prompt
-    assert "expected_url: \"https://local.intranet/docs/policy\"" in policy_prompt
+    assert "expected_url" in policy_prompt
     assert "Archive decoy URL: https://local.intranet/docs/policy-archive." in policy_prompt
+    assert "Do not return a JSON array" in ticket_prompt
+    assert "Do not return actions by themselves" in ticket_prompt
+    assert "plan_id must be \"hard_ticket_priority_crosscheck_plan\"." in ticket_prompt
+    assert "goal must be \"identify the urgent escalation ticket by cross-checking requester tier against priority\"." in ticket_prompt
+    assert "scenario_id must be \"hard_ticket_priority_crosscheck\"." in ticket_prompt
+    assert "The outer object MUST contain schema_version, plan_id, goal, scenario_id, max_actions, and actions." in ticket_prompt
     assert "Use exactly 5 actions" in ticket_prompt
     assert "Do not add a sixth action" in ticket_prompt
     assert "Do not click Ticket 8" in ticket_prompt
@@ -151,7 +167,7 @@ def test_model_discrimination_packet_builder_writes_expected_files_and_summary(t
     assert "extract_requester_tier" in ticket_prompt
     assert "extract_priority" in ticket_prompt
     assert "snapshot_ticket_marker" in ticket_prompt
-    assert "expected_url: \"https://local.intranet/tickets/7\"" in ticket_prompt
+    assert "expected_url" in ticket_prompt
     assert "https://local.intranet/docs/policy-disambiguation" in policy_prompt
     assert "https://local.intranet/docs/policy-archive" in policy_prompt
     assert "archive copy is intentionally not the correct answer" in policy_prompt
@@ -162,6 +178,7 @@ def test_model_discrimination_packet_builder_writes_expected_files_and_summary(t
     assert "Requester tier: facilities." in ticket_prompt
     assert "Priority cross-check board" in ticket_prompt
     assert "Search marker: the escalation ticket is the urgent one." in ticket_prompt
+    assert "}2." not in ticket_prompt
     assert "https://portal.local/portal/approval-match" in approval_prompt
     assert "APR-51" in approval_prompt
     assert "policy match confirmed" in approval_prompt

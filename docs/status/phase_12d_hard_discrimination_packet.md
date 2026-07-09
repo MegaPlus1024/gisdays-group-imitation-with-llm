@@ -142,6 +142,15 @@
 - approval is left unchanged
 - no production recommendation is made
 
+## Phase 12D7 full plan wrapper stabilization
+
+- D6 kept approval stable, but policy/ticket prompts looked too much like action-array answers
+- the operator rerun showed `second_model` returned actions arrays only for policy/ticket, while `third_model` returned top-level objects missing required wrapper fields
+- `second_model` policy/ticket were rejected with `multiple_json_objects_found`
+- `third_model` policy/ticket were rejected with `missing_required_field`
+- Phase 12D7 restores full top-level plan wrapper templates for policy/ticket while approval remains unchanged
+- no production recommendation is made
+
 ## Relation to prior evidence
 
 - Phase 12B remains the first successful `third_model` planner-output evidence.
