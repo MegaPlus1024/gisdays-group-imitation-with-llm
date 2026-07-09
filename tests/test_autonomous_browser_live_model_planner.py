@@ -105,7 +105,10 @@ def test_prompt_reinforces_allowed_actions_and_start_url_guidance() -> None:
     assert "Do not invent search actions." in system
     assert "You are already inside a local fixture environment." in system
     assert "Choose only from visible local links/buttons and allowed local fixture actions." in system
-    assert "Scenario start URL: https://docs.local/docs/policy-disambiguation. First valid action should usually open it." in user
+    assert "Prefer visible link/button text for browser_click; do not guess CSS selectors." in system
+    assert "When current_url is null, open the scenario start URL before click, extract, or snapshot actions." in system
+    assert "Scenario start URL: https://docs.local/docs/policy-disambiguation. First action must be browser_open_url with that URL." in user
+    assert "Do not click before opening." in user
     assert "Visible local hints:" in user
     assert "Current policy" in user
     assert "Policy Disambiguation" in user
@@ -115,7 +118,7 @@ def test_valid_next_action_returns_step() -> None:
     client = FakeChatCompletionClient(
         [
             ChatCompletionResponse(
-                content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet"}',
+                content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet","expected_url":"https://local.intranet/"}',
                 finish_reason="stop",
             )
         ]
@@ -129,6 +132,7 @@ def test_valid_next_action_returns_step() -> None:
     assert step.action_name == "browser_open_url"
     assert step.parameters["url"] == "https://local.intranet/"
     assert step.expected_text == "Office Intranet"
+    assert step.expected_url == "https://local.intranet/"
     assert step.done is False
     assert planner.model_execution_attempted is True
     assert planner.model_execution_completed is True
@@ -140,6 +144,38 @@ def test_valid_next_action_returns_step() -> None:
     assert planner.to_summary()["request_payload_metadata"]["stream"] is False
     assert planner.to_summary()["request_payload_metadata"]["max_tokens"] >= 1200
     assert planner.to_summary()["model_endpoint"] == "http://127.0.0.1:8082/v1/chat/completions"
+
+
+@pytest.mark.parametrize(
+    "expected_url",
+    [
+        "https://example.com/",
+        "http<absolute_path>",
+    ],
+)
+def test_non_local_expected_url_is_rejected(expected_url: str) -> None:
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content=(
+                    '{"step_id":"open_external","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"'
+                    f'expected_text":"Office Intranet","expected_url":"{expected_url}"}}'
+                ),
+                finish_reason="stop",
+            )
+        ]
+    )
+    planner = _planner(client=client)
+
+    with pytest.raises(LocalModelLivePlannerError) as excinfo:
+        planner.next_step(OBSERVATION)
+
+    diagnostics = excinfo.value.diagnostics
+    diagnostics_text = json.dumps(diagnostics, ensure_ascii=False)
+
+    assert excinfo.value.error_code == "model_output_invalid_expected_url"
+    assert diagnostics["expected_url_path"] == "expected_url"
+    assert "Traceback" not in diagnostics_text
 
 
 @pytest.mark.parametrize(

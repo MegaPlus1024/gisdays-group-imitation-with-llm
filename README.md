@@ -25,6 +25,7 @@ This repository now has both the original single-agent evidence base and a conso
 - Phase 13B adds a guarded local-model live planner adapter in `docs/operator/phase_13b_guarded_local_model_live_loop.md`; it stays fixture-backed by default, requires an explicit allow-model-calls guard, and does not claim production readiness.
 - Phase 13B3 tightens the guarded local-model diagnostics with safe structured error codes for non-local endpoints and local HTTP failures; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B4 normalizes guarded local-model endpoints and rejects unsupported local-model actions like `browser_search` before fixture execution; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
+- Phase 13B5 adds a state-aware no-page guard that requires `browser_open_url` before click/extract/snapshot actions in the local-model live loop; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B3 tightens the guarded local-model diagnostics with safe structured error codes for non-local endpoints and local HTTP failures; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Preliminary quality-focused pair: `second_model -> second_model`.
 - Resource-balanced/simple-scenario pair: `second_model -> first_model`.

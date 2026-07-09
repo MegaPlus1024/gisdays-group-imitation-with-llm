@@ -30,6 +30,12 @@ This path should refuse with `allow_model_calls_required` unless the operator ex
 - if the model emits `browser_search`, `browser_submit`, `browser_type`, or any other unsupported action, the live loop rejects it as `model_output_unsupported_action` before fixture execution
 - do not add web/search support for Phase 13B; retry only after the prompt and guard patch
 
+## Phase 13B5 note
+
+- when the current observation has no opened page yet, the live loop now rejects first-step `browser_click`, `browser_extract_text`, and `browser_snapshot` actions with `live_action_requires_open_page`
+- `browser_open_url` remains the valid first action in that state, so the operator should open the scenario start URL before expecting click or extract behavior
+- this is still fixture-backed operator guidance only; it does not add browser launch capability or production readiness
+
 ## Guarded operator run
 
 ```powershell

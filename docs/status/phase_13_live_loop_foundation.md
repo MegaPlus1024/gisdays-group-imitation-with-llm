@@ -66,3 +66,9 @@
 - the retry returned `browser_search`, which Phase 13B now rejects as `model_output_unsupported_action` before fixture execution
 - endpoint normalization now accepts both `/v1` and full `/v1/chat/completions` inputs without duplicating the path
 - Codex still does not launch browser or Playwright here
+
+## Phase 13B5 note
+
+- the local-model live loop now rejects first-step `browser_click`, `browser_extract_text`, and `browser_snapshot` actions when no page is open yet, using `live_action_requires_open_page`
+- `browser_open_url` remains the first accepted action in the no-page state, so the scenario start URL can be opened before any click or extract step
+- the guard stays fixture-backed and does not launch browser, Playwright, or a live model loop from Codex

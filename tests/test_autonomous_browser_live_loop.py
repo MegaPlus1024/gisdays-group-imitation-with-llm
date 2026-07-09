@@ -90,6 +90,17 @@ def _load_local_model_config() -> dict[str, Any]:
     }
 
 
+def _load_local_model_no_page_config() -> dict[str, Any]:
+    config = _load_local_model_config()
+    config["scenario_id"] = "browser_live_loop_local_model_no_page_v1"
+    config["browser_session"]["start_url"] = None
+    config["browser_session"]["metadata"] = {
+        "fixture_only": True,
+        "browser_opened": False,
+    }
+    return config
+
+
 def test_example_config_loads_with_relative_paths() -> None:
     config = load_autonomous_browser_live_loop_config(EXAMPLE_CONFIG_PATH)
 
@@ -172,7 +183,7 @@ def test_unsupported_action_is_rejected() -> None:
     assert summary["status"] == "rejected"
     assert summary["error_code"] == "unknown_browser_action"
     assert summary["stop_reason"] == "planner_action_rejected"
-    assert summary["steps_attempted"] == 1
+    assert summary["steps_attempted"] == 0
     assert summary["actions_attempted"] == 0
     assert summary["no_runtime_execution"] is True
 
@@ -185,7 +196,7 @@ def test_external_url_is_rejected() -> None:
     assert summary["status"] == "rejected"
     assert summary["error_code"] == "external_url_not_allowed"
     assert summary["stop_reason"] == "planner_action_rejected"
-    assert summary["steps_attempted"] == 1
+    assert summary["steps_attempted"] == 0
     assert summary["actions_attempted"] == 0
 
 
@@ -286,6 +297,86 @@ def test_local_model_backend_refuses_without_allow_model_calls() -> None:
     assert summary["playwright_execution"] is False
     assert summary["browser_opened"] is False
     assert summary["no_runtime_execution"] is True
+
+
+@pytest.mark.parametrize(
+    "action_name",
+    [
+        "browser_click",
+        "browser_extract_text",
+        "browser_snapshot",
+    ],
+)
+def test_local_model_backend_rejects_first_action_without_open_page(action_name: str) -> None:
+    config = _load_local_model_no_page_config()
+    config["planner_backend"]["allow_model_calls"] = True
+    config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content=(
+                    '{"step_id":"first_step","action_name":"'
+                    f'{action_name}'
+                    '","parameters":{"query":"shared document policy"},"expected_text":"Open the page first"}'
+                ),
+                finish_reason="stop",
+            )
+        ]
+    )
+
+    summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
+
+    assert summary["status"] == "rejected"
+    assert summary["error_code"] == "live_action_requires_open_page"
+    assert summary["stop_reason"] == "planner_action_rejected"
+    assert summary["model_execution"] is True
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["steps_attempted"] == 0
+    assert summary["actions_attempted"] == 0
+    assert summary["actions_succeeded"] == 0
+    assert summary["actions_failed"] == 0
+    assert summary["runtime_trace"][0]["fixture_execution_status"] == "skipped"
+    assert summary["runtime_trace"][0]["validation_status"] == "rejected"
+    assert summary["runtime_trace"][0]["error_code"] == "live_action_requires_open_page"
+    assert summary["runtime_trace"][0]["step_index"] == 1
+    assert client.requests[0].endpoint_base_url == "http://127.0.0.1:8082/v1/chat/completions"
+
+
+def test_local_model_backend_accepts_first_open_url_without_start_page() -> None:
+    config = _load_local_model_no_page_config()
+    config["planner_backend"]["allow_model_calls"] = True
+    config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"done","action_name":"done","parameters":{},"expected_text":"","done":true}',
+                finish_reason="stop",
+            ),
+        ]
+    )
+
+    summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
+
+    assert summary["status"] == "succeeded"
+    assert summary["error_code"] is None
+    assert summary["stop_reason"] == "planner_signaled_done"
+    assert summary["model_execution"] is True
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["steps_attempted"] == 2
+    assert summary["actions_attempted"] == 1
+    assert summary["actions_succeeded"] == 1
+    assert summary["actions_failed"] == 0
+    assert summary["expected_results_passed"] == 1
+    assert [entry["validation_status"] for entry in summary["runtime_trace"]] == ["accepted", "skipped"]
+    assert client.requests[0].messages[1]["content"].find("Scenario start URL:") == -1
 
 
 def test_local_model_backend_succeeds_with_fake_client() -> None:

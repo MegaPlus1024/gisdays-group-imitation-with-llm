@@ -457,28 +457,32 @@ def run_autonomous_browser_live_loop(
             error_code = exc.error_code
             status = "refused" if exc.error_code in {"allow_model_calls_required", "non_local_model_endpoint", "unsupported_model_alias"} else "rejected"
             stop_reason = "planner_backend_refused" if status == "refused" else "planner_action_rejected"
-            trace_entries.append(
-                {
-                    "step_index": steps_attempted + 1,
-                    "observation_id": current_observation["observation_id"],
-                    "planner_action": None,
-                    "validation_status": "skipped",
-                    "fixture_execution_status": "skipped",
-                    "action_result": None,
-                    "expected_result": None,
-                    "next_observation_id": current_observation["observation_id"],
-                    "error_code": error_code,
-                }
-            )
+            runtime_trace: tuple[dict[str, Any], ...] = ()
+            if status == "rejected" and (exc.error_code or "").startswith(("model_output_", "model_response_", "model_finish_reason_")):
+                runtime_trace = (
+                    {
+                        "step_index": steps_attempted + 1,
+                        "observation_id": current_observation["observation_id"],
+                        "planner_action": None,
+                        "validation_status": "skipped",
+                        "fixture_execution_status": "skipped",
+                        "action_result": None,
+                        "expected_result": None,
+                        "next_observation_id": current_observation["observation_id"],
+                        "error_code": error_code,
+                    },
+                )
+            if runtime_trace:
+                trace_entries = list(runtime_trace)
             break
         if planned_step is None:
             stop_reason = "planner_exhausted"
             break
 
-        steps_attempted += 1
         planner_action = planned_step.to_dict()
 
         if planned_step.done:
+            steps_attempted += 1
             trace_entries.append(
                 {
                     "step_index": steps_attempted,
@@ -496,6 +500,7 @@ def run_autonomous_browser_live_loop(
             break
 
         if isinstance(planner_backend, LocalModelLivePlanner) and planned_step.action_name not in ALLOWED_LOCAL_MODEL_ACTION_NAMES:
+            steps_attempted += 1
             error_code = "model_output_unsupported_action"
             status = "rejected"
             stop_reason = "planner_action_rejected"
@@ -514,7 +519,31 @@ def run_autonomous_browser_live_loop(
             )
             break
 
+        if isinstance(planner_backend, LocalModelLivePlanner) and not _observation_has_open_page(current_observation) and planned_step.action_name in {
+            "browser_click",
+            "browser_extract_text",
+            "browser_snapshot",
+        }:
+            error_code = "live_action_requires_open_page"
+            status = "rejected"
+            stop_reason = "planner_action_rejected"
+            trace_entries.append(
+                {
+                    "step_index": steps_attempted + 1,
+                    "observation_id": current_observation["observation_id"],
+                    "planner_action": planner_action,
+                    "validation_status": "rejected",
+                    "fixture_execution_status": "skipped",
+                    "action_result": None,
+                    "expected_result": None,
+                    "next_observation_id": current_observation["observation_id"],
+                    "error_code": error_code,
+                }
+            )
+            break
+
         if not planned_step.expected_text.strip():
+            steps_attempted += 1
             error_code = "missing_expected_text"
             status = "rejected"
             stop_reason = "planner_action_rejected"
@@ -540,6 +569,7 @@ def run_autonomous_browser_live_loop(
             repeated_signature = signature
             repeated_count = 1
         if repeated_count > config.max_repeated_action_count:
+            steps_attempted += 1
             error_code = "repeated_planner_action_limit_reached"
             status = "rejected"
             stop_reason = "repeated_action_guard_triggered"
@@ -561,7 +591,7 @@ def run_autonomous_browser_live_loop(
         validation_result = validate_autonomous_browser_plan(
             {
                 "schema_version": "autonomous_browser_plan_v1",
-                "plan_id": f"{config.scenario_id}_{planned_step.step_id}_{steps_attempted}",
+                "plan_id": f"{config.scenario_id}_{planned_step.step_id}_{steps_attempted + 1}",
                 "goal": f"Live loop step {planned_step.step_id}",
                 "scenario_id": config.scenario_id,
                 "max_actions": 1,
@@ -596,6 +626,7 @@ def run_autonomous_browser_live_loop(
             )
             break
 
+        steps_attempted += 1
         normalized_plan = validation_result.get("normalized_plan")
         assert isinstance(normalized_plan, Mapping)
         normalized_action = normalized_plan["actions"][0]
@@ -841,6 +872,7 @@ def _failure_summary(
     trace_path: str | None,
     limitations: tuple[str, ...],
     diagnostics: Mapping[str, Any] | None = None,
+    runtime_trace: tuple[dict[str, Any], ...] = (),
 ) -> dict[str, Any]:
     if error_code == "config_validation_failed":
         stop_reason = "config_validation_failed"
@@ -872,6 +904,7 @@ def _failure_summary(
         output_dir=output_dir or DEFAULT_OUTPUT_DIR,
         trace_path=trace_path or f"{DEFAULT_OUTPUT_DIR}/autonomous_browser_live_loop_trace.json",
         limitations=limitations,
+        runtime_trace=runtime_trace,
     )
     payload = summary.to_dict()
     if diagnostics:
@@ -1014,6 +1047,16 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, str | int | float | bool) or value is None:
         return value
     return str(value)
+
+
+def _observation_has_open_page(observation: Mapping[str, Any]) -> bool:
+    current_url = _optional_text(observation.get("current_url"))
+    if current_url is not None:
+        return True
+    metadata = observation.get("metadata")
+    if not isinstance(metadata, Mapping):
+        return False
+    return bool(metadata.get("browser_opened")) or bool(metadata.get("fixture_source"))
 
 
 class AutonomousBrowserLiveLoopConfigError(ValueError):

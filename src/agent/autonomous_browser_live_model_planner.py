@@ -23,6 +23,14 @@ DEFAULT_LOCAL_MODEL_TEMPERATURE = 0.0
 DEFAULT_LOCAL_MODEL_MAX_TOKENS = 256
 DEFAULT_LOCAL_MODEL_TIMEOUT_SECONDS = 120.0
 ALLOWED_LOCAL_HOSTS = {"127.0.0.1", "localhost"}
+ALLOWED_LOCAL_EXPECTED_URL_HOSTS = {
+    "127.0.0.1",
+    "localhost",
+    "local.intranet",
+    "local-intranet.test",
+    "docs.local",
+    "portal.local",
+}
 ALLOWED_LOCAL_MODEL_ACTION_NAMES = {
     "browser_open_url",
     "browser_click",
@@ -232,6 +240,7 @@ class LocalModelLivePlanner:
             "Do not invent search actions.",
             "You are already inside a local fixture environment.",
             "Choose only from visible local links/buttons and allowed local fixture actions.",
+            "Prefer visible link/button text for browser_click; do not guess CSS selectors.",
             "Never request secrets, credentials, tokens, passwords, file URLs, external URLs, or real browser access.",
         ]
         if self._effective_no_think():
@@ -246,7 +255,9 @@ class LocalModelLivePlanner:
         if payload.get("current_url") is None:
             start_url = _prompt_text(metadata.get("scenario_start_url") or metadata.get("start_url"))
             if start_url:
-                user_parts.append(f"Scenario start URL: {start_url}. First valid action should usually open it.")
+                user_parts.append(f"Scenario start URL: {start_url}. First action must be browser_open_url with that URL.")
+                user_parts.append("Do not click before opening.")
+            system_parts.append("When current_url is null, open the scenario start URL before click, extract, or snapshot actions.")
         user_parts.extend(
             [
                 "Return one JSON object with keys step_id, action_name, parameters, expected_text, optional expected_url, optional done, optional metadata.",
@@ -468,7 +479,11 @@ class LocalModelLivePlanner:
         done = bool(payload.get("done", False)) or action_name == "done"
         parameters = payload.get("parameters", {})
         expected_text = _safe_text(payload.get("expected_text"), "expected_text") or ""
-        expected_url = _safe_text(payload.get("expected_url"), "expected_url")
+        expected_url = _safe_expected_url(
+            payload.get("expected_url"),
+            "expected_url",
+            request_payload_metadata=dict(self.last_request_payload_metadata),
+        )
         metadata = _dict(payload.get("metadata", {}), "metadata")
 
         if done:
@@ -550,7 +565,7 @@ class LocalModelLivePlanner:
             action_name=str(normalized_action["action_name"]),
             parameters=dict(normalized_action["parameters"]),
             expected_text=str(normalized_action.get("expected_text", "")),
-            expected_url=str(normalized_action["expected_url"]) if isinstance(normalized_action.get("expected_url"), str) else None,
+            expected_url=expected_url,
             done=False,
             metadata=metadata,
         )
@@ -684,6 +699,47 @@ def _safe_text(value: Any, label: str) -> str | None:
 
 def _safe_identifier(value: Any, label: str) -> str | None:
     return _safe_text(value, label)
+
+
+def _safe_expected_url(
+    value: Any,
+    label: str,
+    *,
+    request_payload_metadata: Mapping[str, Any] | None = None,
+) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise LocalModelLivePlannerError(
+            "Model response expected_url must be a safe local URL.",
+            "model_output_invalid_expected_url",
+            {
+                "request_payload_metadata": dict(request_payload_metadata or {}),
+                "expected_url_path": label,
+            },
+        )
+    stripped = value.strip()
+    parsed = urllib.parse.urlparse(stripped)
+    if parsed.scheme not in {"http", "https"} or parsed.username or parsed.password:
+        raise LocalModelLivePlannerError(
+            "Model response expected_url must be a safe local URL.",
+            "model_output_invalid_expected_url",
+            {
+                "request_payload_metadata": dict(request_payload_metadata or {}),
+                "expected_url_path": label,
+            },
+        )
+    hostname = (parsed.hostname or "").lower()
+    if hostname not in ALLOWED_LOCAL_EXPECTED_URL_HOSTS:
+        raise LocalModelLivePlannerError(
+            "Model response expected_url must be a safe local URL.",
+            "model_output_invalid_expected_url",
+            {
+                "request_payload_metadata": dict(request_payload_metadata or {}),
+                "expected_url_path": label,
+            },
+        )
+    return stripped
 
 
 def _safe_endpoint_base_url(value: Any) -> str | None:
