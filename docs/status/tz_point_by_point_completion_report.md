@@ -76,6 +76,7 @@
 - Phase 12E2: documents repeated hard-trials variance evidence in `docs/status/phase_12e_repeated_hard_trials.md`; it compares `second_model` vs `third_model` offline and does not add any live model or browser execution.
 - Phase 12E4: records corrected variance evaluator evidence in `docs/status/phase_12e_repeated_hard_trials.md`; `third_model` passes 9/9 fixture replay, `second_model` passes 6/9 fixture replay and fails approval 3/3 with `missing_expected_text`, both models have `pass_rate_validation` 1.0, and no production recommendation is made.
 - Phase 13A: adds an offline live-loop foundation in `docs/status/phase_13_live_loop_foundation.md`; it is scripted-planner only, fixture-backed only, and does not call models or real browsers.
+- Phase 13B: adds a guarded local-model live planner adapter in `docs/operator/phase_13b_guarded_local_model_live_loop.md`; it keeps the live loop fixture-backed by default, requires an explicit allow-model-calls guard, and does not claim production readiness.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

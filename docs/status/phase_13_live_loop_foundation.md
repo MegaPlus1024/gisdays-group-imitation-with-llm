@@ -49,3 +49,8 @@
 - Phase 12E documents repeated local planner trials evidence for captured model outputs.
 - Phase 13A builds the offline live-loop scaffold that can later host a guarded model planner adapter.
 - The guarded Playwright suite evidence from Phase 9 remains the separate real-browser benchmark.
+
+## Phase 13B note
+
+- `docs/operator/phase_13b_guarded_local_model_live_loop.md` records the guarded local-model adapter commands and refusal-by-default smoke path.
+- Phase 13B keeps the live loop fixture-backed by default and does not add real browser or Codex-launched model execution.

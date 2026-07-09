@@ -1,0 +1,48 @@
+{
+  "schema_version": "autonomous_browser_live_loop_config_v1",
+  "scenario_id": "browser_live_loop_local_model_policy_review_v1",
+  "loop_backend": "offline_fixture",
+  "output_dir": "artifacts/autonomous_runtime_summaries/browser_live_loop_local_model",
+  "no_runtime_execution": true,
+  "max_steps": 4,
+  "max_repeated_action_count": 2,
+  "browser_session": {
+    "session_id": "browser_live_loop_local_model_session_v1",
+    "agent_id": "browser_live_loop_agent",
+    "workspace_id": "browser_live_loop_workspace",
+    "environment_id": "browser_live_loop_environment",
+    "allowed_domains": [
+      "local.intranet",
+      "local-intranet.test",
+      "docs.local",
+      "portal.local"
+    ],
+    "start_url": "https://local.intranet/",
+    "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+    "metadata": {
+      "fixture_only": true
+    }
+  },
+  "planner_backend": {
+    "kind": "local_model",
+    "planner_id": "browser_live_loop_local_model_planner_v1",
+    "model_alias": "third_model",
+    "model_endpoint": "http://127.0.0.1:8082/v1",
+    "allow_model_calls": false,
+    "allowed_model_aliases": [
+      "first_model",
+      "second_model",
+      "third_model"
+    ],
+    "temperature": 0,
+    "max_tokens": 256,
+    "timeout_seconds": 120
+  },
+  "limitations": [
+    "guarded local-model live loop only",
+    "no model calls unless allow_model_calls is explicitly enabled",
+    "no real browser execution",
+    "fixture-backed observation and execution only",
+    "not production browser automation"
+  ]
+}

@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
+import urllib.parse
 
 from .autonomous_browser_live_planner import (
     CAPTURED_PLAN_PLANNER_KIND,
@@ -13,6 +14,14 @@ from .autonomous_browser_live_planner import (
     CapturedPlanStepPlanner,
     ScriptedLivePlanner,
     load_live_planner_backend,
+)
+from .autonomous_browser_live_model_planner import (
+    DEFAULT_LOCAL_MODEL_ALIAS,
+    DEFAULT_LOCAL_MODEL_ENDPOINT,
+    ChatCompletionClient,
+    LocalModelLivePlanner,
+    LocalModelLivePlannerError,
+    LocalModelPlannerConfig,
 )
 from .autonomous_browser_plan_validation import validate_autonomous_browser_plan
 from .autonomous_browser_runtime import (
@@ -34,6 +43,7 @@ DEFAULT_OUTPUT_DIR = "artifacts/autonomous_runtime_summaries/browser_live_loop_o
 DEFAULT_FIXTURE_MANIFEST_PATH = "tests/fixtures/local_intranet/office_site_v1/site_manifest.json"
 DEFAULT_MAX_STEPS = 16
 DEFAULT_MAX_REPEATED_ACTION_COUNT = 2
+LOCAL_MODEL_PLANNER_KIND = "local_model"
 DEFAULT_ALLOWED_DOMAINS = (
     "local.intranet",
     "local-intranet.test",
@@ -88,7 +98,15 @@ class AutonomousBrowserLiveLoopPlannerConfig:
     kind: str
     scripted_steps: tuple[AutonomousBrowserLivePlannerStep, ...] = ()
     captured_plan_path: str | None = None
+    model_alias: str | None = None
+    model_endpoint: str | None = None
+    allow_model_calls: bool = False
     planner_id: str = "browser_live_loop_planner"
+    allowed_model_aliases: tuple[str, ...] = ()
+    no_think: bool | None = None
+    temperature: float = 0.0
+    max_tokens: int = 256
+    timeout_seconds: float = 120.0
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -112,7 +130,43 @@ class AutonomousBrowserLiveLoopPlannerConfig:
                 planner_id=planner_id,
                 metadata=metadata,
             )
-        raise AutonomousBrowserLiveLoopConfigError("planner_backend.kind must be scripted or captured_plan.")
+        if kind == LOCAL_MODEL_PLANNER_KIND:
+            model_alias = _safe_identifier(payload.get("model_alias", DEFAULT_LOCAL_MODEL_ALIAS), "planner_backend.model_alias")
+            model_endpoint = _safe_endpoint_base_url(payload.get("model_endpoint", DEFAULT_LOCAL_MODEL_ENDPOINT))
+            if model_alias is None:
+                raise AutonomousBrowserLiveLoopConfigError("planner_backend.model_alias must be a safe identifier.")
+            if model_endpoint is None:
+                raise AutonomousBrowserLiveLoopConfigError("planner_backend.model_endpoint must be a safe endpoint URL.")
+            allow_model_calls = payload.get("allow_model_calls", False)
+            if not isinstance(allow_model_calls, bool):
+                raise AutonomousBrowserLiveLoopConfigError("planner_backend.allow_model_calls must be a boolean.")
+            allowed_model_aliases = tuple(
+                str(item).strip()
+                for item in payload.get("allowed_model_aliases", [])
+                if isinstance(item, str) and item.strip()
+            )
+            no_think = payload.get("no_think")
+            if no_think is not None and not isinstance(no_think, bool):
+                raise AutonomousBrowserLiveLoopConfigError("planner_backend.no_think must be a boolean if provided.")
+            temperature = _float(payload.get("temperature", 0.0), "planner_backend.temperature")
+            max_tokens = _int(payload.get("max_tokens", 256), "planner_backend.max_tokens")
+            timeout_seconds = _float(payload.get("timeout_seconds", 120.0), "planner_backend.timeout_seconds")
+            if temperature is None or max_tokens is None or timeout_seconds is None:
+                raise AutonomousBrowserLiveLoopConfigError("planner_backend numeric fields are invalid.")
+            return cls(
+                kind=kind,
+                model_alias=model_alias,
+                model_endpoint=model_endpoint,
+                allow_model_calls=allow_model_calls,
+                planner_id=planner_id,
+                allowed_model_aliases=allowed_model_aliases,
+                no_think=no_think,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                timeout_seconds=timeout_seconds,
+                metadata=metadata,
+            )
+        raise AutonomousBrowserLiveLoopConfigError("planner_backend.kind must be scripted, captured_plan, or local_model.")
 
     def to_dict(self) -> dict[str, Any]:
         payload = {
@@ -124,6 +178,20 @@ class AutonomousBrowserLiveLoopPlannerConfig:
             payload["scripted_steps"] = [step.to_dict() for step in self.scripted_steps]
         if self.captured_plan_path is not None:
             payload["captured_plan_path"] = self.captured_plan_path
+        if self.model_alias is not None:
+            payload["model_alias"] = self.model_alias
+        if self.model_endpoint is not None:
+            payload["model_endpoint"] = self.model_endpoint
+        if self.allowed_model_aliases:
+            payload["allowed_model_aliases"] = list(self.allowed_model_aliases)
+        if self.kind == LOCAL_MODEL_PLANNER_KIND or self.allow_model_calls:
+            payload["allow_model_calls"] = self.allow_model_calls
+        if self.no_think is not None:
+            payload["no_think"] = self.no_think
+        if self.kind == LOCAL_MODEL_PLANNER_KIND:
+            payload["temperature"] = self.temperature
+            payload["max_tokens"] = self.max_tokens
+            payload["timeout_seconds"] = self.timeout_seconds
         return payload
 
 
@@ -193,6 +261,11 @@ class AutonomousBrowserLiveLoopConfig:
             raise AutonomousBrowserLiveLoopConfigError("planner_backend.scripted_steps must be non-empty.")
         if self.planner_backend.kind == CAPTURED_PLAN_PLANNER_KIND and self.planner_backend.captured_plan_path is None:
             raise AutonomousBrowserLiveLoopConfigError("planner_backend.captured_plan_path must be provided.")
+        if self.planner_backend.kind == LOCAL_MODEL_PLANNER_KIND:
+            if self.planner_backend.model_alias is None:
+                raise AutonomousBrowserLiveLoopConfigError("planner_backend.model_alias must be provided.")
+            if self.planner_backend.model_endpoint is None:
+                raise AutonomousBrowserLiveLoopConfigError("planner_backend.model_endpoint must be provided.")
         return self
 
     def to_dict(self) -> dict[str, Any]:
@@ -282,6 +355,7 @@ def run_autonomous_browser_live_loop(
     config_artifact: str | Path | Mapping[str, Any],
     *,
     repo_root: str | Path | None = None,
+    model_client: ChatCompletionClient | None = None,
 ) -> dict[str, Any]:
     repo = Path(repo_root) if repo_root is not None else Path(".")
     try:
@@ -302,10 +376,10 @@ def run_autonomous_browser_live_loop(
 
     try:
         planner_backend = _load_planner_backend(config.planner_backend, repo_root=repo)
-    except (AutonomousBrowserLiveLoopConfigError, ValueError) as exc:
+    except (AutonomousBrowserLiveLoopConfigError, LocalModelLivePlannerError, ValueError) as exc:
         return _failure_summary(
-            status="failed",
-            error_code="planner_backend_validation_failed",
+            status="refused" if isinstance(exc, LocalModelLivePlannerError) else "failed",
+            error_code=getattr(exc, "error_code", None) or "planner_backend_validation_failed",
             scenario_id=config.scenario_id,
             loop_backend=config.loop_backend,
             planner_backend=config.planner_backend.to_dict(),
@@ -315,6 +389,25 @@ def run_autonomous_browser_live_loop(
             limitations=_limitations(config),
             diagnostics={"planner_backend_error": str(exc)},
         )
+
+    if isinstance(planner_backend, LocalModelLivePlanner):
+        if model_client is not None:
+            planner_backend.client = model_client
+        try:
+            planner_backend.validate_runtime_guard()
+        except LocalModelLivePlannerError as exc:
+            return _failure_summary(
+                status="refused",
+                error_code=exc.error_code,
+                scenario_id=config.scenario_id,
+                loop_backend=config.loop_backend,
+                planner_backend=planner_backend.to_summary(),
+                max_steps=config.max_steps,
+                output_dir=config.output_dir,
+                trace_path=f"{config.output_dir}/autonomous_browser_live_loop_trace.json",
+                limitations=_limitations(config),
+                diagnostics={"planner_backend_error": str(exc), **exc.diagnostics},
+            )
 
     output_dir = repo / config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -349,12 +442,34 @@ def run_autonomous_browser_live_loop(
     stop_reason: str | None = None
     error_code: str | None = None
     status = "succeeded"
+    model_execution = False
     repeated_signature: tuple[str, str, str, str, bool] | None = None
     repeated_count = 0
 
     while steps_attempted < config.max_steps:
         planner_input = _planner_observation_dict(current_observation, observation_count)
-        planned_step = planner_backend.next_step(planner_input)
+        if isinstance(planner_backend, LocalModelLivePlanner):
+            model_execution = True
+        try:
+            planned_step = planner_backend.next_step(planner_input)
+        except LocalModelLivePlannerError as exc:
+            error_code = exc.error_code
+            status = "refused" if exc.error_code in {"allow_model_calls_required", "endpoint_host_not_allowed", "model_alias_not_allowed"} else "rejected"
+            stop_reason = "planner_backend_refused" if status == "refused" else "planner_action_rejected"
+            trace_entries.append(
+                {
+                    "step_index": steps_attempted + 1,
+                    "observation_id": current_observation["observation_id"],
+                    "planner_action": None,
+                    "validation_status": "skipped",
+                    "fixture_execution_status": "skipped",
+                    "action_result": None,
+                    "expected_result": None,
+                    "next_observation_id": current_observation["observation_id"],
+                    "error_code": error_code,
+                }
+            )
+            break
         if planned_step is None:
             stop_reason = "planner_exhausted"
             break
@@ -552,7 +667,7 @@ def run_autonomous_browser_live_loop(
         observations_total=observation_count,
         stop_reason=stop_reason,
         error_code=error_code,
-        model_execution=False,
+        model_execution=model_execution,
         real_browser_execution=False,
         playwright_execution=False,
         browser_opened=False,
@@ -593,7 +708,13 @@ def _load_planner_backend(
     planner_backend_config: AutonomousBrowserLiveLoopPlannerConfig,
     *,
     repo_root: Path,
-) -> ScriptedLivePlanner | CapturedPlanStepPlanner:
+) -> ScriptedLivePlanner | CapturedPlanStepPlanner | LocalModelLivePlanner:
+    if planner_backend_config.kind == LOCAL_MODEL_PLANNER_KIND:
+        return LocalModelLivePlanner(
+            config=LocalModelPlannerConfig.from_dict(planner_backend_config.to_dict()),
+            client=None,
+            repo_root=repo_root,
+        )
     return load_live_planner_backend(planner_backend_config.to_dict(), repo_root=repo_root)
 
 
@@ -674,12 +795,14 @@ def _action_signature(step: AutonomousBrowserLivePlannerStep) -> tuple[str, str,
 def _limitations(config: AutonomousBrowserLiveLoopConfig) -> tuple[str, ...]:
     base = [
         "offline fixture-only live loop",
-        "planner backend is scripted or captured-plan only",
+        "planner backend is scripted, captured-plan, or guarded local-model only",
         "no model calls",
         "no real browser execution",
         "no Playwright import",
         "not production browser automation",
     ]
+    if config.planner_backend.kind == LOCAL_MODEL_PLANNER_KIND:
+        base[2] = "no model calls unless allow_model_calls is explicitly enabled"
     for item in config.limitations:
         if item and item not in base:
             base.append(item)
@@ -699,6 +822,12 @@ def _failure_summary(
     limitations: tuple[str, ...],
     diagnostics: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if error_code == "config_validation_failed":
+        stop_reason = "config_validation_failed"
+    elif status == "refused":
+        stop_reason = "planner_backend_refused"
+    else:
+        stop_reason = "failed"
     summary = AutonomousBrowserLiveLoopSummary(
         schema_version=SUMMARY_SCHEMA_VERSION,
         status=status,
@@ -713,7 +842,7 @@ def _failure_summary(
         expected_results_passed=0,
         expected_results_failed=0,
         observations_total=0,
-        stop_reason="config_validation_failed" if error_code == "config_validation_failed" else "failed",
+        stop_reason=stop_reason,
         error_code=error_code,
         model_execution=False,
         real_browser_execution=False,
@@ -753,12 +882,33 @@ def _safe_relative_path(value: Any, label: str) -> str | None:
     return path.as_posix()
 
 
+def _safe_endpoint_base_url(value: Any) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    normalized = value.strip().rstrip("/")
+    parsed = urllib.parse.urlparse(normalized)
+    if parsed.scheme not in {"http", "https"} or parsed.username or parsed.password:
+        return None
+    if parsed.params or parsed.query or parsed.fragment:
+        return None
+    return normalized
+
+
 def _required_identifier(value: Any, label: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise AutonomousBrowserLiveLoopConfigError(f"{label} must be a non-empty string.")
     stripped = value.strip()
     if any(ch in stripped for ch in ("\\", "/", ":", "\0")):
         raise AutonomousBrowserLiveLoopConfigError(f"{label} must be a safe identifier.")
+    return stripped
+
+
+def _safe_identifier(value: Any, label: str) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    stripped = value.strip()
+    if any(ch in stripped for ch in ("\\", "/", ":", "\0")):
+        return None
     return stripped
 
 
@@ -790,6 +940,15 @@ def _dict(value: Any, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise AutonomousBrowserLiveLoopConfigError(f"{label} must be an object.")
     return dict(value)
+
+
+def _float(value: Any, label: str) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _int(value: Any, label: str) -> int:

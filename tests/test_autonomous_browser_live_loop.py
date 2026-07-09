@@ -15,11 +15,25 @@ from src.agent.autonomous_browser_live_loop import (
     load_autonomous_browser_live_loop_config,
     run_autonomous_browser_live_loop,
 )
+from src.agent.autonomous_browser_live_model_planner import ChatCompletionResponse
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_CONFIG_PATH = PROJECT_ROOT / "configs" / "autonomous_runtime" / "browser_live_loop_offline.example.json"
+LOCAL_MODEL_CONFIG_PATH = PROJECT_ROOT / "configs" / "autonomous_runtime" / "browser_live_loop_local_model.example.json"
 SCRIPT_PATH = PROJECT_ROOT / "scripts" / "run_autonomous_browser_live_loop.py"
+
+
+class FakeChatCompletionClient:
+    def __init__(self, responses: list[ChatCompletionResponse]) -> None:
+        self.responses = list(responses)
+        self.requests = []
+
+    def complete(self, request):  # type: ignore[no-untyped-def]
+        self.requests.append(request)
+        if not self.responses:
+            raise AssertionError("unexpected model request")
+        return self.responses.pop(0)
 
 
 def _load_example_config() -> dict[str, Any]:
@@ -30,6 +44,49 @@ def _write_config(tmp_path: Path, payload: dict[str, Any]) -> Path:
     path = tmp_path / "browser_live_loop_config.json"
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
+
+
+def _load_local_model_config() -> dict[str, Any]:
+    return {
+        "schema_version": CONFIG_SCHEMA_VERSION,
+        "scenario_id": "browser_live_loop_local_model_policy_review_v1",
+        "loop_backend": "offline_fixture",
+        "output_dir": "artifacts/autonomous_runtime_summaries/browser_live_loop_local_model_tests",
+        "no_runtime_execution": True,
+        "max_steps": 4,
+        "max_repeated_action_count": 2,
+        "browser_session": {
+            "session_id": "browser_live_loop_local_model_session_v1",
+            "agent_id": "browser_live_loop_agent",
+            "workspace_id": "browser_live_loop_workspace",
+            "environment_id": "browser_live_loop_environment",
+            "allowed_domains": [
+                "local.intranet",
+                "local-intranet.test",
+                "docs.local",
+                "portal.local",
+            ],
+            "start_url": "https://local.intranet/",
+            "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+            "metadata": {
+                "fixture_only": True,
+            },
+        },
+        "planner_backend": {
+            "kind": "local_model",
+            "planner_id": "browser_live_loop_local_model_planner_test",
+            "model_alias": "third_model",
+            "model_endpoint": "http://127.0.0.1:8082/v1",
+            "allow_model_calls": False,
+            "allowed_model_aliases": ["first_model", "second_model", "third_model"],
+            "temperature": 0.0,
+            "max_tokens": 256,
+            "timeout_seconds": 120.0,
+        },
+        "limitations": [
+            "fixture-backed local-model live loop only",
+        ],
+    }
 
 
 def test_example_config_loads_with_relative_paths() -> None:
@@ -44,6 +101,21 @@ def test_example_config_loads_with_relative_paths() -> None:
     assert config.output_dir == "artifacts/autonomous_runtime_summaries/browser_live_loop_offline"
     assert config.browser_session.fixture_manifest_path == "tests/fixtures/local_intranet/office_site_v1/site_manifest.json"
     assert config.planner_backend.kind == "scripted"
+
+
+def test_local_model_example_config_loads_with_relative_paths() -> None:
+    config = load_autonomous_browser_live_loop_config(LOCAL_MODEL_CONFIG_PATH)
+
+    assert config.schema_version == CONFIG_SCHEMA_VERSION
+    assert config.scenario_id == "browser_live_loop_local_model_policy_review_v1"
+    assert config.loop_backend == "offline_fixture"
+    assert config.no_runtime_execution is True
+    assert config.max_steps == 4
+    assert config.planner_backend.kind == "local_model"
+    assert config.planner_backend.model_alias == "third_model"
+    assert config.planner_backend.model_endpoint == "http://127.0.0.1:8082/v1"
+    assert config.planner_backend.allow_model_calls is False
+    assert config.planner_backend.allowed_model_aliases == ("first_model", "second_model", "third_model")
 
 
 def test_offline_live_loop_succeeds_with_scripted_backend() -> None:
@@ -199,6 +271,76 @@ def test_cli_rejects_invalid_config_with_nonzero_exit(tmp_path: Path) -> None:
     assert completed.returncode != 0
     assert payload["status"] == "failed"
     assert payload["error_code"] == "config_validation_failed"
+    assert payload["no_runtime_execution"] is True
+
+
+def test_local_model_backend_refuses_without_allow_model_calls() -> None:
+    summary = run_autonomous_browser_live_loop(_load_local_model_config(), repo_root=PROJECT_ROOT)
+
+    assert summary["status"] == "refused"
+    assert summary["error_code"] == "allow_model_calls_required"
+    assert summary["stop_reason"] == "planner_backend_refused"
+    assert summary["model_execution"] is False
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["no_runtime_execution"] is True
+
+
+def test_local_model_backend_succeeds_with_fake_client() -> None:
+    config = _load_local_model_config()
+    config["planner_backend"]["allow_model_calls"] = True
+    config["planner_backend"]["model_endpoint"] = "http://localhost:8082/v1"
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"open_policy","action_name":"browser_open_url","parameters":{"url":"https://docs.local/docs/policy"},"expected_text":"Allowed activity"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"done","action_name":"done","parameters":{},"expected_text":"","done":true}',
+                finish_reason="stop",
+            ),
+        ]
+    )
+
+    summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
+
+    assert summary["status"] == "succeeded"
+    assert summary["scenario_id"] == "browser_live_loop_local_model_policy_review_v1"
+    assert summary["planner_backend"]["kind"] == "local_model"
+    assert summary["planner_backend"]["model_alias"] == "third_model"
+    assert summary["model_execution"] is True
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["no_runtime_execution"] is True
+    assert summary["steps_attempted"] == 3
+    assert summary["actions_attempted"] == 2
+    assert summary["actions_succeeded"] == 2
+    assert summary["expected_results_passed"] == 2
+    assert [entry["validation_status"] for entry in summary["runtime_trace"]] == ["accepted", "accepted", "skipped"]
+    assert client.requests[0].model == "third_model"
+    assert client.requests[0].messages[0]["content"].startswith("/no_think")
+
+
+def test_local_model_cli_refuses_without_allow_flag() -> None:
+    completed = subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), "--config", str(LOCAL_MODEL_CONFIG_PATH)],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    payload = json.loads(completed.stdout)
+
+    assert completed.returncode != 0
+    assert payload["status"] == "refused"
+    assert payload["error_code"] == "allow_model_calls_required"
     assert payload["no_runtime_execution"] is True
 
 

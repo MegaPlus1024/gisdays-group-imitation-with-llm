@@ -22,6 +22,7 @@ This repository now has both the original single-agent evidence base and a conso
 - Phase 12D adds a harder offline discrimination packet in `docs/status/phase_12d_hard_discrimination_packet.md`; it still keeps model execution manual and fixture replay offline.
 - Phase 12E4 records corrected repeated hard-trials variance evidence in `docs/status/phase_12e_repeated_hard_trials.md`; `third_model` is more stable than `second_model` under offline fixture replay, and no production recommendation is made.
 - Phase 13A adds an offline live-loop foundation in `docs/status/phase_13_live_loop_foundation.md`; it is scripted-planner only, fixture-backed only, and does not call models or real browsers.
+- Phase 13B adds a guarded local-model live planner adapter in `docs/operator/phase_13b_guarded_local_model_live_loop.md`; it stays fixture-backed by default, requires an explicit allow-model-calls guard, and does not claim production readiness.
 - Preliminary quality-focused pair: `second_model -> second_model`.
 - Resource-balanced/simple-scenario pair: `second_model -> first_model`.
 - `first_model` is not recommended as orchestrator in the current tests.
@@ -686,6 +687,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 - Phase 12C documents the `second_model` vs `third_model` baseline comparison in `docs/status/phase_12_model_comparison_baseline.md`; the current compact packet ties functionally and does not establish a default-planner winner.
 - Phase 12E4 records corrected repeated hard-trials variance evidence in `docs/status/phase_12e_repeated_hard_trials.md`; `third_model` is more stable than `second_model` under offline fixture replay, and no production recommendation is made.
 - Phase 13A adds an offline live-loop foundation in `docs/status/phase_13_live_loop_foundation.md`; it is scripted-planner only, fixture-backed only, and does not call models or real browsers.
+- Phase 13B adds a guarded local-model live planner adapter in `docs/operator/phase_13b_guarded_local_model_live_loop.md`; it stays fixture-backed by default, requires an explicit allow-model-calls guard, and does not claim production readiness.
 - Windows PowerShell BOM-prefixed JSON configs are tolerated by the ingestion path.
 - Phase 10.6a adds guarded local planner runtime diagnostics for an already-running local endpoint. It helps explain planner prompt hangs, but does not launch models or claim production readiness.
 - Phase 9 milestone freeze report: `docs/status/phase_9_milestone_freeze.md`.
