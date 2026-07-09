@@ -77,6 +77,7 @@
 * Phase 10.11: one validated model plan reached real Playwright replay
 * Phase 10.12a: guarded replay suite for repeated model-generated plans
 * Phase 10.12b: this page records the successful real Playwright replay suite evidence for the 3 repeated outputs
+* Phase 10.13: milestone freeze is documented in `docs/status/phase_10_model_plan_playwright_milestone_freeze.md`
 
 ## Next possible directions
 

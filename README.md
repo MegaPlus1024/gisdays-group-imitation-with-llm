@@ -9,6 +9,7 @@ This repository now has both the original single-agent evidence base and a conso
 - Latest Phase 8 controlled office-evaluation status is documented in `docs/status/phase_8_current_state_for_leadership.md` and `docs/status/phase_8_technical_status.md`.
 - Latest confirmed controlled mini-matrix: 3/3 repeats succeeded, 6/6 office actions executed successfully, 6/6 DOCX artifacts were generated and readable, deterministic mean correctness is 1.0. Semantic LLM judge scoring is guarded and has not been run yet.
 - Real Playwright replay suite evidence for three repeated model plans is documented in `docs/status/model_plan_real_playwright_replay_suite_evidence.md`.
+- Phase 10.13 freeze is documented in `docs/status/phase_10_model_plan_playwright_milestone_freeze.md`.
 - Preliminary quality-focused pair: `second_model -> second_model`.
 - Resource-balanced/simple-scenario pair: `second_model -> first_model`.
 - `first_model` is not recommended as orchestrator in the current tests.

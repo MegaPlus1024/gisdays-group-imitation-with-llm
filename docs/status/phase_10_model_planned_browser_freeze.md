@@ -101,3 +101,7 @@ It keeps real Playwright suite evidence operator-run only.
 ## Phase 10.12b real Playwright replay suite evidence
 
 Phase 10.12b documents the successful operator-run real Playwright replay suite for three repeated model-generated plans in `docs/status/model_plan_real_playwright_replay_suite_evidence.md`. It uses the guarded suite path against local loopback fixtures only and remains separate from the single-plan real Playwright evidence above.
+
+## Phase 10.13 milestone freeze
+
+Phase 10.13 milestone freeze is documented in `docs/status/phase_10_model_plan_playwright_milestone_freeze.md`.
