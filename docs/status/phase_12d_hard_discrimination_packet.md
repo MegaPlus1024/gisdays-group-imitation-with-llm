@@ -80,6 +80,15 @@
 - `max_actions` is now stated explicitly for each scenario, with the actions array required to stay within that bound
 - no model, server, browser, or Playwright execution was launched by Codex
 
+## Phase 12D4 literal expected_text anchors
+
+- the Phase 12D3 rerun improved validation, but replay still failed because `expected_text` values were not literal enough
+- the root cause is under-specified literal evidence strings: models used summaries or incomplete phrases instead of exact visible substrings from the fixtures
+- Phase 12D4 strengthens the prompts with compact literal `expected_text` anchor lists for each hard scenario
+- the prompts now require `expected_text` on every action, forbid invented summary wording, and remind the model that snapshot evidence still needs a literal visible page string
+- `second_model` and `third_model` remain offline comparison candidates only; no production recommendation is made
+- no model, server, browser, or Playwright execution was launched by Codex
+
 ## Relation to prior evidence
 
 - Phase 12B remains the first successful `third_model` planner-output evidence.
