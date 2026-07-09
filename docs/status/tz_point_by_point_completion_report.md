@@ -70,6 +70,8 @@
 - Phase 12D7: restores full top-level plan wrapper templates for policy/ticket while leaving approval unchanged.
 - Phase 12D7 operator rerun: extraction, validation, and dry-run acceptance were restored for all hard outputs, but policy/ticket still failed on post-click literal anchors.
 - Phase 12D8: calibrates the post-click policy/ticket anchors to the exact visible page strings after navigation.
+- Phase 12D8 operator rerun: policy and ticket now pass the click checks, but final evidence anchors still miss on the last extract/snapshot step.
+- Phase 12D9: calibrates the final policy/ticket evidence anchors to the exact visible literals on the target pages.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

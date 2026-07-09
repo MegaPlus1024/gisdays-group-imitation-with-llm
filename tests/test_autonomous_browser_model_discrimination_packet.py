@@ -149,7 +149,7 @@ def test_model_discrimination_packet_builder_writes_expected_files_and_summary(t
     assert "Every step_id must be a string, not a number" in policy_prompt
     assert "Do not use numeric step_id" in policy_prompt
     assert "open_policy_disambiguation" in policy_prompt
-    assert "Search marker: current policy source is the fixture-backed answer." in policy_prompt
+    assert "\"expected_text\": \"Allowed activity\"" in policy_prompt
     assert "\"expected_text\": \"Workspace Policy\"" in policy_prompt
     assert "expected_url" in policy_prompt
     assert "Archive decoy URL: https://local.intranet/docs/policy-archive." in policy_prompt
@@ -173,12 +173,12 @@ def test_model_discrimination_packet_builder_writes_expected_files_and_summary(t
     assert "https://local.intranet/docs/policy-archive" in policy_prompt
     assert "archive copy is intentionally not the correct answer" in policy_prompt
     assert "Current policy" in policy_prompt
-    assert "Search marker: current policy source is the fixture-backed answer." in policy_prompt
+    assert "\"expected_text\": \"Allowed activity\"" in policy_prompt
     assert "https://local.intranet/tickets/hardboard" in ticket_prompt
     assert "\"expected_text\": \"Escalation Review\"" in ticket_prompt
     assert "Requester tier: facilities." in ticket_prompt
     assert "Priority cross-check board" in ticket_prompt
-    assert "Search marker: the escalation ticket is the urgent one." in ticket_prompt
+    assert "\"expected_text\": \"Cross-check marker: the board summary is intentionally misleading.\"" in ticket_prompt
     assert "}2." not in ticket_prompt
     assert "https://portal.local/portal/approval-match" in approval_prompt
     assert "APR-51" in approval_prompt

@@ -643,14 +643,14 @@ def _build_hard_policy_disambiguation_prompt_text() -> str:
             "  \"actions\": [",
             "    {\"step_id\": \"open_policy_disambiguation\", \"action_name\": \"browser_open_url\", \"parameters\": {\"url\": \"https://local.intranet/docs/policy-disambiguation\"}, \"expected_text\": \"Policy Disambiguation\"},",
             "    {\"step_id\": \"click_current_policy\", \"action_name\": \"browser_click\", \"parameters\": {\"target_text\": \"Current policy\"}, \"expected_text\": \"Workspace Policy\", \"expected_url\": \"https://local.intranet/docs/policy\"},",
-            "    {\"step_id\": \"extract_current_policy_marker\", \"action_name\": \"browser_extract_text\", \"parameters\": {}, \"expected_text\": \"Search marker: current policy source is the fixture-backed answer.\"}",
+            "    {\"step_id\": \"extract_current_policy_marker\", \"action_name\": \"browser_extract_text\", \"parameters\": {}, \"expected_text\": \"Allowed activity\"}",
             "  ]",
             "}",
             "Do not use archive page.",
             "Do not click or use archived policy.",
             "Use only these literal expected_text anchors where applicable:",
             "* \"Policy Disambiguation\"",
-            "* \"Search marker: current policy source is the fixture-backed answer.\"",
+            "* \"Allowed activity\"",
             "* \"Workspace Policy\"",
             "Do not use vague text like \"Allowed activity\" unless that exact phrase is visible on the current page.",
         ]
@@ -699,7 +699,7 @@ def _build_hard_ticket_priority_crosscheck_prompt_text() -> str:
             "    {\"step_id\": \"click_ticket_7\", \"action_name\": \"browser_click\", \"parameters\": {\"target_text\": \"Ticket 7\"}, \"expected_text\": \"Escalation Review\", \"expected_url\": \"https://local.intranet/tickets/7\"},",
             "    {\"step_id\": \"extract_requester_tier\", \"action_name\": \"browser_extract_text\", \"parameters\": {}, \"expected_text\": \"Requester tier: facilities.\"},",
             "    {\"step_id\": \"extract_priority\", \"action_name\": \"browser_extract_text\", \"parameters\": {}, \"expected_text\": \"Priority: urgent.\"},",
-            "    {\"step_id\": \"snapshot_ticket_marker\", \"action_name\": \"browser_snapshot\", \"parameters\": {}, \"expected_text\": \"Search marker: the escalation ticket is the urgent one.\"}",
+            "    {\"step_id\": \"snapshot_ticket_marker\", \"action_name\": \"browser_snapshot\", \"parameters\": {}, \"expected_text\": \"Cross-check marker: the board summary is intentionally misleading.\"}",
             "  ]",
             "}",
             "click_ticket_7 expected_url: \"https://local.intranet/tickets/7\".",
@@ -708,7 +708,7 @@ def _build_hard_ticket_priority_crosscheck_prompt_text() -> str:
             "* \"Escalation Review\"",
             "* \"Requester tier: facilities.\"",
             "* \"Priority: urgent.\"",
-            "* \"Search marker: the escalation ticket is the urgent one.\"",
+            "* \"Cross-check marker: the board summary is intentionally misleading.\"",
         ]
     )
 

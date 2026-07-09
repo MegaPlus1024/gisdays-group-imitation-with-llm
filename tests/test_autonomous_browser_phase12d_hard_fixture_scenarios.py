@@ -23,6 +23,7 @@ def test_hard_policy_disambiguation_scenario_loads_and_completes() -> None:
     assert summary["task_counts"]["completed"] == 4
     assert summary["browser_session_summaries"]["policy_session"]["current_url"] == "https://docs.local/docs/policy"
     assert "Workspace Policy" in json.dumps(summary)
+    assert "Allowed activity" in json.dumps(summary)
     assert "Choose the live source" in json.dumps(summary)
 
 
@@ -35,6 +36,7 @@ def test_hard_ticket_priority_crosscheck_scenario_loads_and_completes() -> None:
     assert summary["task_counts"]["completed"] == 4
     assert summary["browser_session_summaries"]["ticket_session"]["current_url"] == "https://local.intranet/tickets/7"
     assert "Escalation Review" in json.dumps(summary)
+    assert "Cross-check marker: the board summary is intentionally misleading." in json.dumps(summary)
     assert "Priority: urgent." in json.dumps(summary)
 
 

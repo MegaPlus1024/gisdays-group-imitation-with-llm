@@ -160,6 +160,15 @@
 - approval remains unchanged
 - no production recommendation is made
 
+## Phase 12D9 final evidence calibration
+
+- D8 moved policy/ticket to 2/3 and 4/5 expected checks respectively, with only the final evidence anchors still failing
+- the current policy page visibly contains `Allowed activity`
+- the ticket 7 page visibly contains `Cross-check marker: the board summary is intentionally misleading.`
+- Phase 12D9 calibrates the final policy/ticket evidence anchors to those exact visible literals
+- approval remains unchanged
+- no production recommendation is made
+
 ## Relation to prior evidence
 
 - Phase 12B remains the first successful `third_model` planner-output evidence.
