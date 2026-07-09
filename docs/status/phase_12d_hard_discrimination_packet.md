@@ -45,11 +45,29 @@
   - `browser_extract_text`
   - `browser_snapshot`
 
+## Phase 12D4 operator rerun evidence
+
+- `second_model`
+  - `fixture_runs_succeeded`: `1/3`
+  - `expected_results_passed_total`: `5`
+  - `expected_results_failed_total`: `6`
+  - `actions_succeeded_total`: `6`
+- `third_model`
+  - `fixture_runs_succeeded`: `1/3`
+  - `expected_results_passed_total`: `10`
+  - `expected_results_failed_total`: `2`
+  - `actions_succeeded_total`: `12`
+- approval scenario succeeded for both models
+- `third_model` materially outperformed `second_model` overall
+- remaining failures are expected_text anchor mismatches in policy and ticket scenarios
+
 ## What this proves
 
 - the packet can be built fully offline
 - `third_model` is still configured as a stronger candidate with automatic `/no_think`
-- the packet can be evaluated safely when captured outputs are missing
+- the packet can be evaluated safely when captured outputs are missing or when replay is limited by literal anchor mismatches
+- the hard discrimination packet is now actually discriminating, with `third_model` ahead of `second_model`
+- the approval path is stable; the remaining tuning work is in policy/ticket anchors
 - the three hard fixture scenarios remain fixture-only and reproducible
 
 ## What this does not prove
@@ -88,6 +106,14 @@
 - the prompts now require `expected_text` on every action, forbid invented summary wording, and remind the model that snapshot evidence still needs a literal visible page string
 - `second_model` and `third_model` remain offline comparison candidates only; no production recommendation is made
 - no model, server, browser, or Playwright execution was launched by Codex
+
+## Phase 12D5 anchor calibration
+
+- the operator rerun after Phase 12D4 shows the approval scenario is already passing for both models
+- the remaining differences are concentrated in policy/ticket literal `expected_text` anchors
+- Phase 12D5 narrows those anchors with step-to-anchor guidance and exact visible strings from the fixtures
+- `third_model` continues to outscore `second_model`, so the packet stays useful for discrimination while the anchors are calibrated
+- no production recommendation is made
 
 ## Relation to prior evidence
 

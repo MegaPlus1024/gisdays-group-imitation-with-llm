@@ -62,6 +62,8 @@
 - Phase 12D2: strengthens the hard discrimination prompts so captured model outputs are instructed to emit `autonomous_browser_plan_v1` with explicit top-level fields, allowed actions, and local fixture constraints.
 - Phase 12D3: strengthens the hard discrimination prompts with the exact action object contract (`step_id`, `action_name`, `parameters`, `expected_text`) after validation showed alternate field names such as `name`, `url`, and `selector`.
 - Phase 12D4: strengthens the hard discrimination prompts with literal `expected_text` anchor lists after replay showed the models still needed exact visible substrings from the fixtures.
+- Phase 12D4 operator rerun: approval scenario passed for both models, `third_model` materially outperformed `second_model`, and the remaining failures were concentrated in policy/ticket anchor calibration.
+- Phase 12D5: further calibrates policy/ticket anchors with step-to-anchor guidance and exact visible strings from the fixtures.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

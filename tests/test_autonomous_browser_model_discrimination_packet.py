@@ -54,8 +54,6 @@ def _assert_hard_plan_prompt(prompt: str) -> None:
     assert "max_actions must be" in prompt
     assert "actions array length must be <= max_actions." in prompt
     assert "Suggested action count:" in prompt
-    assert "Example browser_open_url action:" in prompt
-    assert "Example browser_click action:" in prompt
     assert "Do not output markdown, prose, code fences, or multiple JSON objects." in prompt
 
 
@@ -153,14 +151,23 @@ def test_model_discrimination_packet_builder_writes_expected_files_and_summary(t
     assert "archive copy is intentionally not the correct answer" in policy_prompt
     assert "Current policy" in policy_prompt
     assert "Search marker: current policy source is the fixture-backed answer." in policy_prompt
-    assert "target_text" in policy_prompt
+    assert "Step-to-anchor guidance:" in policy_prompt
+    assert "target_text: \"Current policy\"" in policy_prompt
+    assert "expected_url: \"https://local.intranet/docs/policy\"" in policy_prompt
+    assert "Do not use vague text like \"Allowed activity\"" in policy_prompt
+    assert "Choose the live source" in policy_prompt
+    assert "Do not synthesize combined expected_text" in policy_prompt
     assert "https://local.intranet/tickets/hardboard" in ticket_prompt
-    assert "Ticket 7 is the escalation review" in ticket_prompt
-    assert "Requester tier: facilities." in ticket_prompt or "requester tier facilities" in ticket_prompt.lower()
-    assert "Ticket 8 is the decoy" in ticket_prompt
+    assert "Ticket 7: escalation review for facilities." in ticket_prompt
+    assert "Requester tier: facilities." in ticket_prompt
+    assert "Step-to-anchor guidance:" in ticket_prompt
+    assert "target_text: \"Ticket 7\"" in ticket_prompt
+    assert "expected_url: \"https://local.intranet/tickets/7\"" in ticket_prompt
+    assert "Ticket 8 is only a decoy" in ticket_prompt
     assert "Priority cross-check board" in ticket_prompt
     assert "Search marker: the escalation ticket is the urgent one." in ticket_prompt
-    assert "target_text\": \"Ticket 7\"" in ticket_prompt
+    assert "Do not inspect Ticket 8 unless" in ticket_prompt
+    assert "Do not synthesize combined expected_text like requester tier and priority joined into one sentence unless that exact sentence appears on the page." in ticket_prompt
     assert "https://portal.local/portal/approval-match" in approval_prompt
     assert "APR-51" in approval_prompt
     assert "policy match confirmed" in approval_prompt
@@ -172,6 +179,8 @@ def test_model_discrimination_packet_builder_writes_expected_files_and_summary(t
     _assert_hard_plan_prompt(policy_prompt)
     _assert_hard_plan_prompt(ticket_prompt)
     _assert_hard_plan_prompt(approval_prompt)
+    assert "Use only these literal expected_text anchors where applicable:" in policy_prompt
+    assert "Use only these literal expected_text anchors where applicable:" in ticket_prompt
     assert second_model_policy_request["messages"][1]["content"].startswith("You are generating one offline browser plan")
     assert not second_model_policy_request["messages"][1]["content"].startswith("/no_think\n")
     assert third_model_request["messages"][1]["content"].startswith("/no_think\n")
