@@ -69,4 +69,5 @@
 * Phase 10.11a: guarded Playwright backend option for validated model-plan replay
 * Phase 10.12a: guarded replay suite for repeated model-generated plans
 * Phase 10.12b: repeated-output real Playwright replay suite evidence is documented separately in `docs/status/model_plan_real_playwright_replay_suite_evidence.md`
+* Final consolidation: `docs/status/final_consolidated_status_after_phase_10.md`
 * this page records the first successful real Playwright replay of a validated model-generated browser plan

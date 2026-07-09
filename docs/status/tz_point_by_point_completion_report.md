@@ -51,6 +51,7 @@
 - Phase 10.11b: documents the first operator-run real Playwright replay evidence in `docs/status/model_plan_real_playwright_replay_evidence.md`; it remains limited to one validated plan against local loopback fixtures.
 - Phase 10.12a: adds a guarded replay suite for repeated model-generated plans; Codex only verified dry-run/refusal/offline paths, and real Playwright suite evidence is still pending an operator-side run.
 - Phase 10.12b: documents the successful operator-run real Playwright replay suite evidence in `docs/status/model_plan_real_playwright_replay_suite_evidence.md`; it remains limited to local loopback fixtures and repeated compact-prompt plans.
+- Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения
 

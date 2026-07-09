@@ -95,6 +95,10 @@ A local `second_model` planner can produce bounded `autonomous_browser_plan_v1` 
 * Phase 10 extends this to model-generated plans from `second_model`.
 * Both remain controlled local fixture evidence.
 
+## Consolidated status
+
+The final consolidated status after Phase 10 is documented in `docs/status/final_consolidated_status_after_phase_10.md`.
+
 ## Next possible directions
 
 1. broaden scenario families while staying fixture-only

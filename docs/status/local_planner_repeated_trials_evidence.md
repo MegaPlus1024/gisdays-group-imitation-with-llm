@@ -66,3 +66,4 @@ This confirms that three manually captured `second_model` planner outputs were e
 - Phase 10.11b: real Playwright replay evidence in `docs/status/model_plan_real_playwright_replay_evidence.md`; it is separate from the repeated offline planner-trials evidence here.
 - Phase 10.12a: guarded replay suite for repeated model-generated plans; Codex only verified dry-run/refusal/offline paths, and real suite evidence is still pending an operator-side run.
 - Phase 10.12b: successful real Playwright replay suite evidence in `docs/status/model_plan_real_playwright_replay_suite_evidence.md`; it is separate from the offline repeated planner-trials evidence here.
+- Final consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
