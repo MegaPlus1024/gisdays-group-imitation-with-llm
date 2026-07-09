@@ -68,6 +68,8 @@
 - Phase 12D6: replaces policy/ticket guidance with compact exact action templates while leaving approval unchanged.
 - Phase 12D6 operator rerun: approval stayed stable, but policy/ticket prompts became too action-array-like for `second_model`, while `third_model` still missed required top-level wrapper fields.
 - Phase 12D7: restores full top-level plan wrapper templates for policy/ticket while leaving approval unchanged.
+- Phase 12D7 operator rerun: extraction, validation, and dry-run acceptance were restored for all hard outputs, but policy/ticket still failed on post-click literal anchors.
+- Phase 12D8: calibrates the post-click policy/ticket anchors to the exact visible page strings after navigation.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

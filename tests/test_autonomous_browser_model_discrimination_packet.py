@@ -150,6 +150,7 @@ def test_model_discrimination_packet_builder_writes_expected_files_and_summary(t
     assert "Do not use numeric step_id" in policy_prompt
     assert "open_policy_disambiguation" in policy_prompt
     assert "Search marker: current policy source is the fixture-backed answer." in policy_prompt
+    assert "\"expected_text\": \"Workspace Policy\"" in policy_prompt
     assert "expected_url" in policy_prompt
     assert "Archive decoy URL: https://local.intranet/docs/policy-archive." in policy_prompt
     assert "Do not return a JSON array" in ticket_prompt
@@ -174,7 +175,7 @@ def test_model_discrimination_packet_builder_writes_expected_files_and_summary(t
     assert "Current policy" in policy_prompt
     assert "Search marker: current policy source is the fixture-backed answer." in policy_prompt
     assert "https://local.intranet/tickets/hardboard" in ticket_prompt
-    assert "Ticket 7: escalation review for facilities." in ticket_prompt
+    assert "\"expected_text\": \"Escalation Review\"" in ticket_prompt
     assert "Requester tier: facilities." in ticket_prompt
     assert "Priority cross-check board" in ticket_prompt
     assert "Search marker: the escalation ticket is the urgent one." in ticket_prompt

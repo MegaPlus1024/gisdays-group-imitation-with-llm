@@ -151,6 +151,15 @@
 - Phase 12D7 restores full top-level plan wrapper templates for policy/ticket while approval remains unchanged
 - no production recommendation is made
 
+## Phase 12D8 post-click anchor calibration
+
+- D7 restored extraction, validation, and dry-run acceptance for all hard outputs
+- the remaining failure moved to post-click `expected_text_missing` on policy/ticket
+- the fixture pages show the click transition lands on `Workspace Policy` for policy and `Escalation Review` for ticket
+- Phase 12D8 calibrates the post-click literal anchors to those exact visible page strings while keeping the later extract/snapshot markers unchanged
+- approval remains unchanged
+- no production recommendation is made
+
 ## Relation to prior evidence
 
 - Phase 12B remains the first successful `third_model` planner-output evidence.
