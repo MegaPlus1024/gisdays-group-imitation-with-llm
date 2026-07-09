@@ -103,7 +103,7 @@ A local `second_model` planner can produce bounded `autonomous_browser_plan_v1` 
 ## Recommended next directions
 
 1. stop browser track and publish/archive current evidence
-2. broaden fixture-only scenario families
+2. Phase 11A already broadened fixture-only scenario families with ticket triage and approval form review; use that wider set for future diverse model-generated plan trials
 3. add richer guarded local browser actions
 4. run repeated real Playwright suite across diverse model-generated plans
 5. revisit LLM judge only as an explicit guarded evaluation phase
@@ -123,4 +123,3 @@ A local `second_model` planner can produce bounded `autonomous_browser_plan_v1` 
 * `docs/status/model_plan_real_playwright_replay_suite_evidence.md`
 * `docs/status/tz_point_by_point_completion_report.md`
 * `docs/status/phase_8_technical_status.md`
-

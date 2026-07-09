@@ -82,7 +82,7 @@ A local `second_model` planner can produce bounded `autonomous_browser_plan_v1` 
 * not autonomous live LLM loop
 * not production-ready agent
 * not mail/git/calendar actions
-* not broad scenario coverage
+* Phase 10 model-plan replay itself used only one scenario family; Phase 11A later broadened fixture-only scenario coverage for future diverse trials
 * only compact prompt profile
 * only one scenario family
 * only local fixtures / loopback server
@@ -101,7 +101,7 @@ The final consolidated status after Phase 10 is documented in `docs/status/final
 
 ## Next possible directions
 
-1. broaden scenario families while staying fixture-only
+1. Phase 11A already broadens scenario families while staying fixture-only via ticket triage and approval form review; the next browser-model step is to feed those scenarios into diverse validated plan trials
 2. add repeated real Playwright suite across more diverse validated plans
 3. add richer browser actions only under guarded local fixtures
 4. optionally revisit LLM judge later

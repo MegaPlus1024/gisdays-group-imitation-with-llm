@@ -603,6 +603,8 @@ The final consolidated post-Phase-10 status is documented in `docs/status/final_
 
 Phase 10.12a adds a guarded replay suite for repeated model-generated plans; Codex only verified dry-run/refusal/offline paths, and real suite evidence is still pending an operator-side run.
 
+Phase 11A later broadens local fixture-only browser scenario coverage with ticket triage and approval form review, keeping the work offline and preparing for future diverse model-generated plan trials without adding new real browser evidence.
+
 Later semantic judge work remains separate and should stay guarded:
 
 1. Define an openai-compatible/DeepSeek-style config schema that never stores secrets in committed files.

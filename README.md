@@ -11,6 +11,7 @@ This repository now has both the original single-agent evidence base and a conso
 - Real Playwright replay suite evidence for three repeated model plans is documented in `docs/status/model_plan_real_playwright_replay_suite_evidence.md`.
 - Phase 10.13 freeze is documented in `docs/status/phase_10_model_plan_playwright_milestone_freeze.md`.
 - Final consolidated Phase 10 status is documented in `docs/status/final_consolidated_status_after_phase_10.md`.
+- Phase 11A fixture-only browser scenario expansion is documented through `configs/autonomous_runtime/browser_phase11_fixture_suite.example.json`; it broadens local fixture coverage with ticket triage and approval form review, and no model or real browser was called.
 - Preliminary quality-focused pair: `second_model -> second_model`.
 - Resource-balanced/simple-scenario pair: `second_model -> first_model`.
 - `first_model` is not recommended as orchestrator in the current tests.
@@ -80,6 +81,7 @@ Important limitations:
 - pair-matrix and runtime-probe evidence covers two short group scenarios so far; no long stress test has been run;
 - GPU smoke is short and not a stress test; first wall-time result was roughly comparable, not a meaningful speedup claim;
 - browser behavior is confirmed at the fixture-backed autonomous runtime/scenario layer and by guarded Playwright/Chromium suite evidence against local loopback fixtures; repeated model-plan browser replay now has both guarded suite evidence and operator-run real Playwright suite evidence against local loopback fixtures only; production browser automation and external web/network behavior are not confirmed;
+- Phase 11A broadens the fixture-only side of browser coverage with ticket triage and approval form review scenarios for future diverse model-generated plan trials; no new real browser evidence is added by that expansion;
 - earlier office behavior was stub/file-based; Phase 8 now includes a guarded real document-file office backend for controlled DOCX/XLSX/PPTX-style action validation and DOCX artifact execution;
 - no git/mail actions are included;
 - GGUF model files are not included in the repository;

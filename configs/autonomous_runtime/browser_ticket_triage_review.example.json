@@ -1,0 +1,169 @@
+{
+  "schema_version": "autonomous_runtime_scenario_v1",
+  "scenario_id": "browser_ticket_triage_review",
+  "description": "Offline browser-only ticket triage review using local fixtures.",
+  "agents": [
+    {
+      "agent_id": "ticket_reviewer",
+      "role": "Local ticket triage reviewer",
+      "priority": 1
+    }
+  ],
+  "tasks": [
+    {
+      "task_id": "ticket_01_open_board",
+      "description": "Open the local ticket board fixture.",
+      "priority": 80,
+      "assigned_agent_id": "ticket_reviewer"
+    },
+    {
+      "task_id": "ticket_02_click_detail",
+      "description": "Navigate to the ticket detail fixture.",
+      "priority": 70,
+      "assigned_agent_id": "ticket_reviewer",
+      "depends_on": [
+        "ticket_01_open_board"
+      ]
+    },
+    {
+      "task_id": "ticket_03_extract_detail",
+      "description": "Extract ticket detail text from the fixture-backed page.",
+      "priority": 60,
+      "assigned_agent_id": "ticket_reviewer",
+      "depends_on": [
+        "ticket_02_click_detail"
+      ]
+    },
+    {
+      "task_id": "ticket_04_snapshot_detail",
+      "description": "Create a synthetic snapshot artifact for the ticket detail page.",
+      "priority": 50,
+      "assigned_agent_id": "ticket_reviewer",
+      "depends_on": [
+        "ticket_03_extract_detail"
+      ]
+    }
+  ],
+  "virtual_environment": {
+    "environment_id": "browser_ticket_triage_fixture_environment",
+    "allowed_resource_namespaces": [
+      "browser"
+    ],
+    "workspace": {
+      "workspace_root": "artifacts/autonomous_runtime_workspace/browser_ticket_triage_review",
+      "per_agent_workspaces": {
+        "ticket_reviewer": "artifacts/autonomous_runtime_workspace/browser_ticket_triage_review/ticket_reviewer"
+      },
+      "reset_policy": "never"
+    },
+    "metadata": {
+      "offline_fixture_only": true,
+      "real_browser_launch": false
+    }
+  },
+  "browser_sessions": [
+    {
+      "session_id": "ticket_reader_session",
+      "agent_id": "ticket_reviewer",
+      "workspace_id": "ticket_reader_workspace",
+      "environment_id": "browser_ticket_triage_fixture_environment",
+      "allowed_domains": [
+        "local.intranet",
+        "local-intranet.test",
+        "localhost",
+        "127.0.0.1"
+      ],
+      "start_url": "https://local.intranet/tickets",
+      "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json"
+    }
+  ],
+  "scripted_steps": [
+    {
+      "step_id": "open_ticket_board",
+      "agent_id": "ticket_reviewer",
+      "task_id": "ticket_01_open_board",
+      "browser_session_id": "ticket_reader_session",
+      "action_name": "browser_open_url",
+      "parameters": {
+        "url": "https://local.intranet/tickets"
+      },
+      "expected_text": "Ticket Board"
+    },
+    {
+      "step_id": "click_ticket_detail",
+      "agent_id": "ticket_reviewer",
+      "task_id": "ticket_02_click_detail",
+      "browser_session_id": "ticket_reader_session",
+      "action_name": "browser_click",
+      "parameters": {
+        "target_text": "Ticket 1"
+      },
+      "expected_text": "Quarterly Access Review",
+      "expected_url": "https://local.intranet/tickets/1"
+    },
+    {
+      "step_id": "extract_ticket_detail",
+      "agent_id": "ticket_reviewer",
+      "task_id": "ticket_03_extract_detail",
+      "browser_session_id": "ticket_reader_session",
+      "action_name": "browser_extract_text",
+      "parameters": {},
+      "expected_text": "Priority: high. Local fixture only."
+    },
+    {
+      "step_id": "snapshot_ticket_detail",
+      "agent_id": "ticket_reviewer",
+      "task_id": "ticket_04_snapshot_detail",
+      "browser_session_id": "ticket_reader_session",
+      "action_name": "browser_snapshot",
+      "parameters": {},
+      "required_artifact_ref": "browser/ticket_reader_session/ticket_reader_session-snapshot-1.json"
+    }
+  ],
+  "runtime_policy": {
+    "scheduler": "round_robin",
+    "max_ticks": 20,
+    "max_actions_total": 10,
+    "max_actions_per_agent": 10,
+    "idle_tick_limit": 5,
+    "max_failures_total": 2,
+    "max_retries_per_task": 0,
+    "max_agent_failures": 2,
+    "stop_when_all_tasks_terminal": true,
+    "stop_when_no_runnable_agents": true
+  },
+  "expected_results": [
+    {
+      "result_id": "ticket_board_opened",
+      "kind": "task_browser_expected_result",
+      "task_id": "ticket_01_open_board",
+      "expected_text": "Ticket Board",
+      "expected_current_url": "https://local.intranet/tickets"
+    },
+    {
+      "result_id": "ticket_detail_markers",
+      "kind": "task_browser_expected_result",
+      "task_id": "ticket_03_extract_detail",
+      "expected_text": "Priority: high. Local fixture only."
+    },
+    {
+      "result_id": "ticket_snapshot_recorded",
+      "kind": "task_browser_expected_result",
+      "task_id": "ticket_04_snapshot_detail",
+      "expected_snapshot_count_min": 1,
+      "expected_artifact_kinds": [
+        "browser_snapshot"
+      ]
+    },
+    {
+      "result_id": "ticket_session_url",
+      "kind": "browser_session_current_url",
+      "session_id": "ticket_reader_session",
+      "expected_url": "https://local.intranet/tickets/1"
+    }
+  ],
+  "validation_warnings": [
+    "fixture_backed_browser_runtime_only",
+    "no_real_browser_or_external_network"
+  ]
+}

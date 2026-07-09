@@ -1,0 +1,273 @@
+{
+  "schema_version": "autonomous_runtime_scenario_v1",
+  "scenario_id": "browser_approval_form_review",
+  "description": "Offline browser-only approval form review using local fixtures.",
+  "agents": [
+    {
+      "agent_id": "approval_reviewer",
+      "role": "Local approval workflow reviewer",
+      "priority": 2
+    },
+    {
+      "agent_id": "policy_checker",
+      "role": "Local policy checker",
+      "priority": 1
+    }
+  ],
+  "tasks": [
+    {
+      "task_id": "approval_01_open_portal",
+      "description": "Open the local portal home fixture.",
+      "priority": 80,
+      "assigned_agent_id": "approval_reviewer"
+    },
+    {
+      "task_id": "approval_02_click_queue",
+      "description": "Navigate to the approvals queue by clicking a fixture link.",
+      "priority": 70,
+      "assigned_agent_id": "approval_reviewer",
+      "depends_on": [
+        "approval_01_open_portal"
+      ]
+    },
+    {
+      "task_id": "approval_03_open_request",
+      "description": "Open the local approval request fixture.",
+      "priority": 60,
+      "assigned_agent_id": "approval_reviewer",
+      "depends_on": [
+        "approval_02_click_queue"
+      ]
+    },
+    {
+      "task_id": "approval_04_snapshot_request",
+      "description": "Create a synthetic snapshot artifact for the approval request page.",
+      "priority": 50,
+      "assigned_agent_id": "approval_reviewer",
+      "depends_on": [
+        "approval_03_open_request"
+      ]
+    },
+    {
+      "task_id": "policy_01_open_docs",
+      "description": "Open the workspace policy fixture.",
+      "priority": 80,
+      "assigned_agent_id": "policy_checker",
+      "depends_on": [
+        "approval_04_snapshot_request"
+      ]
+    },
+    {
+      "task_id": "policy_02_extract_docs",
+      "description": "Extract policy text from the fixture-backed page.",
+      "priority": 70,
+      "assigned_agent_id": "policy_checker",
+      "depends_on": [
+        "policy_01_open_docs"
+      ]
+    },
+    {
+      "task_id": "policy_03_snapshot_docs",
+      "description": "Create a synthetic snapshot artifact for the policy page.",
+      "priority": 60,
+      "assigned_agent_id": "policy_checker",
+      "depends_on": [
+        "policy_02_extract_docs"
+      ]
+    }
+  ],
+  "virtual_environment": {
+    "environment_id": "browser_approval_form_fixture_environment",
+    "allowed_resource_namespaces": [
+      "browser"
+    ],
+    "workspace": {
+      "workspace_root": "artifacts/autonomous_runtime_workspace/browser_approval_form_review",
+      "per_agent_workspaces": {
+        "approval_reviewer": "artifacts/autonomous_runtime_workspace/browser_approval_form_review/approval_reviewer",
+        "policy_checker": "artifacts/autonomous_runtime_workspace/browser_approval_form_review/policy_checker"
+      },
+      "reset_policy": "never"
+    },
+    "metadata": {
+      "offline_fixture_only": true,
+      "real_browser_launch": false
+    }
+  },
+  "browser_sessions": [
+    {
+      "session_id": "approval_session",
+      "agent_id": "approval_reviewer",
+      "workspace_id": "approval_session_workspace",
+      "environment_id": "browser_approval_form_fixture_environment",
+      "allowed_domains": [
+        "local.intranet",
+        "local-intranet.test",
+        "docs.local",
+        "portal.local",
+        "localhost",
+        "127.0.0.1"
+      ],
+      "start_url": "https://portal.local/portal",
+      "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json"
+    },
+    {
+      "session_id": "policy_session",
+      "agent_id": "policy_checker",
+      "workspace_id": "policy_session_workspace",
+      "environment_id": "browser_approval_form_fixture_environment",
+      "allowed_domains": [
+        "local.intranet",
+        "local-intranet.test",
+        "docs.local",
+        "portal.local",
+        "localhost",
+        "127.0.0.1"
+      ],
+      "start_url": "https://docs.local/docs/policy",
+      "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json"
+    }
+  ],
+  "scripted_steps": [
+    {
+      "step_id": "open_portal_home",
+      "agent_id": "approval_reviewer",
+      "task_id": "approval_01_open_portal",
+      "browser_session_id": "approval_session",
+      "action_name": "browser_open_url",
+      "parameters": {
+        "url": "https://portal.local/portal"
+      },
+      "expected_text": "Portal fixture for local approval checks only"
+    },
+    {
+      "step_id": "click_approvals_queue",
+      "agent_id": "approval_reviewer",
+      "task_id": "approval_02_click_queue",
+      "browser_session_id": "approval_session",
+      "action_name": "browser_click",
+      "parameters": {
+        "target_text": "Approvals queue"
+      },
+      "expected_text": "Pending approval check",
+      "expected_url": "https://portal.local/portal/approvals"
+    },
+    {
+      "step_id": "open_request_form",
+      "agent_id": "approval_reviewer",
+      "task_id": "approval_03_open_request",
+      "browser_session_id": "approval_session",
+      "action_name": "browser_open_url",
+      "parameters": {
+        "url": "https://local-intranet.test/portal/request"
+      },
+      "expected_text": "Approval request"
+    },
+    {
+      "step_id": "snapshot_request_form",
+      "agent_id": "approval_reviewer",
+      "task_id": "approval_04_snapshot_request",
+      "browser_session_id": "approval_session",
+      "action_name": "browser_snapshot",
+      "parameters": {},
+      "required_artifact_ref": "browser/approval_session/approval_session-snapshot-1.json"
+    },
+    {
+      "step_id": "open_policy_docs",
+      "agent_id": "policy_checker",
+      "task_id": "policy_01_open_docs",
+      "browser_session_id": "policy_session",
+      "action_name": "browser_open_url",
+      "parameters": {
+        "url": "https://docs.local/docs/policy"
+      },
+      "expected_text": "Allowed activity"
+    },
+    {
+      "step_id": "extract_policy_docs",
+      "agent_id": "policy_checker",
+      "task_id": "policy_02_extract_docs",
+      "browser_session_id": "policy_session",
+      "action_name": "browser_extract_text",
+      "parameters": {},
+      "expected_text": "fixture-backed"
+    },
+    {
+      "step_id": "snapshot_policy_docs",
+      "agent_id": "policy_checker",
+      "task_id": "policy_03_snapshot_docs",
+      "browser_session_id": "policy_session",
+      "action_name": "browser_snapshot",
+      "parameters": {},
+      "required_artifact_ref": "browser/policy_session/policy_session-snapshot-1.json"
+    }
+  ],
+  "runtime_policy": {
+    "scheduler": "round_robin",
+    "max_ticks": 25,
+    "max_actions_total": 12,
+    "max_actions_per_agent": 10,
+    "idle_tick_limit": 5,
+    "max_failures_total": 2,
+    "max_retries_per_task": 0,
+    "max_agent_failures": 2,
+    "stop_when_all_tasks_terminal": true,
+    "stop_when_no_runnable_agents": true
+  },
+  "expected_results": [
+    {
+      "result_id": "approval_queue_reached",
+      "kind": "task_browser_expected_result",
+      "task_id": "approval_02_click_queue",
+      "expected_text": "Pending approval check",
+      "expected_current_url": "https://portal.local/portal/approvals"
+    },
+    {
+      "result_id": "approval_request_seen",
+      "kind": "task_browser_expected_result",
+      "task_id": "approval_03_open_request",
+      "expected_text": "Approval request"
+    },
+    {
+      "result_id": "approval_request_snapshot",
+      "kind": "task_browser_expected_result",
+      "task_id": "approval_04_snapshot_request",
+      "expected_snapshot_count_min": 1,
+      "expected_artifact_kinds": [
+        "browser_snapshot"
+      ]
+    },
+    {
+      "result_id": "policy_allowed_activity_seen",
+      "kind": "task_browser_expected_result",
+      "task_id": "policy_02_extract_docs",
+      "expected_text": "Allowed activity",
+      "expected_current_url": "https://docs.local/docs/policy"
+    },
+    {
+      "result_id": "policy_snapshot_recorded",
+      "kind": "task_browser_expected_result",
+      "task_id": "policy_03_snapshot_docs",
+      "expected_snapshot_count_min": 1,
+      "expected_artifact_kinds": [
+        "browser_snapshot"
+      ]
+    },
+    {
+      "result_id": "approval_session_url",
+      "kind": "browser_session_current_url",
+      "session_id": "approval_session",
+      "expected_url": "https://local-intranet.test/portal/request"
+    },
+    {
+      "result_id": "policy_session_text",
+      "kind": "browser_session_text",
+      "session_id": "policy_session",
+      "expected_text": "fixture-backed"
+    }
+  ],
+  "validation_warnings": [
+    "fixture_backed_browser_runtime_only",
+    "no_real_browser_or_external_network"
+  ]
+}

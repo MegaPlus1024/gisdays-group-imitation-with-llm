@@ -1,0 +1,16 @@
+{
+  "schema_version": "autonomous_browser_scenario_suite_v1",
+  "suite_id": "browser_phase11_fixture_suite_v1",
+  "description": "Phase 11A fixture-only browser scenario suite for ticket triage and approval form review.",
+  "scenario_paths": [
+    "configs/autonomous_runtime/browser_ticket_triage_review.example.json",
+    "configs/autonomous_runtime/browser_approval_form_review.example.json"
+  ],
+  "expected_min_passed_scenarios": 2,
+  "expected_required_actions": [
+    "browser_open_url",
+    "browser_click",
+    "browser_extract_text",
+    "browser_snapshot"
+  ]
+}
