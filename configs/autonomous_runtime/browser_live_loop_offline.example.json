@@ -1,0 +1,71 @@
+{
+  "schema_version": "autonomous_browser_live_loop_config_v1",
+  "scenario_id": "browser_live_loop_offline_policy_review_v1",
+  "loop_backend": "offline_fixture",
+  "output_dir": "artifacts/autonomous_runtime_summaries/browser_live_loop_offline",
+  "no_runtime_execution": true,
+  "max_steps": 8,
+  "max_repeated_action_count": 2,
+  "browser_session": {
+    "session_id": "browser_live_loop_session_v1",
+    "agent_id": "browser_live_loop_agent",
+    "workspace_id": "browser_live_loop_workspace",
+    "environment_id": "browser_live_loop_environment",
+    "allowed_domains": [
+      "local.intranet",
+      "local-intranet.test",
+      "docs.local",
+      "portal.local"
+    ],
+    "start_url": "https://local.intranet/",
+    "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+    "metadata": {
+      "fixture_only": true
+    }
+  },
+  "planner_backend": {
+    "kind": "scripted",
+    "planner_id": "browser_live_loop_scripted_planner_v1",
+    "scripted_steps": [
+      {
+        "step_id": "open_home",
+        "action_name": "browser_open_url",
+        "parameters": {
+          "url": "https://local.intranet/"
+        },
+        "expected_text": "Office Intranet"
+      },
+      {
+        "step_id": "open_policy",
+        "action_name": "browser_open_url",
+        "parameters": {
+          "url": "https://docs.local/docs/policy"
+        },
+        "expected_text": "Allowed activity"
+      },
+      {
+        "step_id": "search_policy",
+        "action_name": "browser_search",
+        "parameters": {
+          "query": "fixture-backed result"
+        },
+        "expected_text": "fixture-backed result"
+      },
+      {
+        "step_id": "done",
+        "action_name": "done",
+        "parameters": {},
+        "expected_text": "",
+        "done": true
+      }
+    ]
+  },
+  "limitations": [
+    "offline live-loop foundation only",
+    "scripted planner backend only",
+    "no model calls",
+    "no real browser execution",
+    "fixture-backed observation and execution only",
+    "not production browser automation"
+  ]
+}
