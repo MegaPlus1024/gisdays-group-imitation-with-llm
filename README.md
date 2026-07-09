@@ -20,6 +20,7 @@ This repository now has both the original single-agent evidence base and a conso
 - Phase 12B documents the first successful `third_model` planner-output evidence in `docs/status/phase_12_third_model_initial_evidence.md`; it is still offline, locally replayed, and not a production claim.
 - Phase 12C documents the `second_model` vs `third_model` baseline comparison in `docs/status/phase_12_model_comparison_baseline.md`; on the current compact prompts the packet is a tie, not a winner declaration.
 - Phase 12D adds a harder offline discrimination packet in `docs/status/phase_12d_hard_discrimination_packet.md`; it still keeps model execution manual and fixture replay offline.
+- Phase 12E1 adds the repeated hard-trials variance packet in `docs/status/phase_12e_repeated_hard_trials.md`; it prepares repeatability evidence for `second_model` vs `third_model` without adding live model or browser execution.
 - Preliminary quality-focused pair: `second_model -> second_model`.
 - Resource-balanced/simple-scenario pair: `second_model -> first_model`.
 - `first_model` is not recommended as orchestrator in the current tests.
@@ -682,6 +683,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 - Phase 12A adds offline support for a future stronger `third_model` planner candidate; the packet/evaluator compares `first_model`, `second_model`, and `third_model` over existing Phase 10/11 browser-planner prompts, uses `models/gguf/third_model.gguf` only as a documented path, keeps model execution manual, and remains local-fixture-only with safe handling for missing outputs.
 - Phase 12B documents the first successful `third_model` planner-output evidence in `docs/status/phase_12_third_model_initial_evidence.md`; it remains offline, locally replayed, and not a production readiness claim.
 - Phase 12C documents the `second_model` vs `third_model` baseline comparison in `docs/status/phase_12_model_comparison_baseline.md`; the current compact packet ties functionally and does not establish a default-planner winner.
+- Phase 12E1 adds the repeated hard-trials variance packet in `docs/status/phase_12e_repeated_hard_trials.md`; it prepares repeatability evidence for `second_model` vs `third_model` without adding live model or browser execution.
 - Windows PowerShell BOM-prefixed JSON configs are tolerated by the ingestion path.
 - Phase 10.6a adds guarded local planner runtime diagnostics for an already-running local endpoint. It helps explain planner prompt hangs, but does not launch models or claim production readiness.
 - Phase 9 milestone freeze report: `docs/status/phase_9_milestone_freeze.md`.

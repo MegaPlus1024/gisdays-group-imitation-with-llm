@@ -1,0 +1,52 @@
+{
+  "schema_version": "autonomous_browser_model_variance_packet_config_v1",
+  "no_runtime_execution": true,
+  "packet_id": "browser_model_variance_packet_v1",
+  "output_dir": "artifacts/autonomous_runtime_summaries/model_variance_packet",
+  "evaluation_output_dir": "artifacts/autonomous_runtime_summaries/model_variance_packet/evaluation_runs",
+  "variance_config_path": "artifacts/autonomous_runtime_summaries/model_variance_packet/variance_config.local.json",
+  "model_specs": [
+    {
+      "alias": "second_model",
+      "model_path": "models/gguf/second_model.gguf"
+    },
+    {
+      "alias": "third_model",
+      "model_path": "models/gguf/third_model.gguf",
+      "prompt_prefix": "/no_think"
+    }
+  ],
+  "scenario_specs": [
+    {
+      "scenario_id": "hard_policy_disambiguation",
+      "scenario_label": "hard_policy_disambiguation",
+      "prompt_filename": "planner_prompt.compact.txt",
+      "max_tokens": 1200
+    },
+    {
+      "scenario_id": "hard_ticket_priority_crosscheck",
+      "scenario_label": "hard_ticket_priority_crosscheck",
+      "prompt_filename": "planner_prompt.compact.txt",
+      "max_tokens": 1200
+    },
+    {
+      "scenario_id": "hard_approval_policy_match",
+      "scenario_label": "hard_approval_policy_match",
+      "prompt_filename": "planner_prompt.compact.txt",
+      "max_tokens": 1200
+    }
+  ],
+  "trial_ids": [
+    "trial_01",
+    "trial_02",
+    "trial_03"
+  ],
+  "limitations": [
+    "offline repeated hard-trials packet only",
+    "manual second_model and third_model runs only",
+    "no model calls by Codex",
+    "no real browser execution",
+    "fixture replay remains offline only",
+    "not production browser automation"
+  ]
+}
