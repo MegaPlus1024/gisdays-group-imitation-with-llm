@@ -105,3 +105,7 @@ Phase 10.12b documents the successful operator-run real Playwright replay suite 
 ## Phase 10.13 milestone freeze
 
 Phase 10.13 milestone freeze is documented in `docs/status/phase_10_model_plan_playwright_milestone_freeze.md`.
+
+## Phase 11B local planner packet
+
+Phase 11B prepares a diverse local planner operator packet for the new `browser_ticket_triage_review` and `browser_approval_form_review` fixture scenarios. It uses two compact prompt files, stays offline, and does not call models or execute browser actions.

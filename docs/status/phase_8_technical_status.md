@@ -605,6 +605,8 @@ Phase 10.12a adds a guarded replay suite for repeated model-generated plans; Cod
 
 Phase 11A later broadens local fixture-only browser scenario coverage with ticket triage and approval form review, keeping the work offline and preparing for future diverse model-generated plan trials without adding new real browser evidence.
 
+Phase 11B prepares a separate offline local planner packet for the `browser_ticket_triage_review` and `browser_approval_form_review` scenarios. It adds two compact prompt files for manual `second_model` trials and does not call models or launch a browser.
+
 Later semantic judge work remains separate and should stay guarded:
 
 1. Define an openai-compatible/DeepSeek-style config schema that never stores secrets in committed files.

@@ -1,0 +1,20 @@
+{
+  "schema_version": "autonomous_browser_phase11_local_planner_packet_config_v1",
+  "no_runtime_execution": true,
+  "packet_id": "browser_phase11_local_planner_packet_v1",
+  "model": "second_model",
+  "output_dir": "artifacts/autonomous_runtime_summaries/phase11_local_planner_packet",
+  "scenario_ids": [
+    "browser_ticket_triage_review",
+    "browser_approval_form_review"
+  ],
+  "ingestion_suite_config_path": "artifacts/autonomous_runtime_summaries/phase11_local_planner_packet/ingestion_suite_config.local.json",
+  "limitations": [
+    "phase 11 local planner packet only",
+    "manual second_model runs only",
+    "no model calls by Codex",
+    "no real browser execution",
+    "fixture replay remains offline only",
+    "not production browser automation"
+  ]
+}
