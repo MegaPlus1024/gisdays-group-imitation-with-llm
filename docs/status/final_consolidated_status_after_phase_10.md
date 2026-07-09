@@ -105,11 +105,12 @@ A local `second_model` planner can produce bounded `autonomous_browser_plan_v1` 
 1. stop browser track and publish/archive current evidence
 2. Phase 11A already broadened fixture-only scenario families with ticket triage and approval form review; use that wider set for future diverse model-generated plan trials
 3. Phase 11B prepares a separate offline packet for manual `second_model` trials against `browser_ticket_triage_review` and `browser_approval_form_review`; it stays offline and does not add new real browser evidence
-4. add richer guarded local browser actions
-5. run repeated real Playwright suite across diverse model-generated plans
-6. revisit LLM judge only as an explicit guarded evaluation phase
-7. separately explore mail/git/calendar if desired
-8. treat production hardening as a separate project, not a continuation assumption
+4. Phase 11C documents the two resulting manual `second_model` outputs and fixture replay success in `docs/status/phase_11_diverse_local_planner_evidence.md`
+5. add richer guarded local browser actions
+6. run repeated real Playwright suite across diverse model-generated plans
+7. revisit LLM judge only as an explicit guarded evaluation phase
+8. separately explore mail/git/calendar if desired
+9. treat production hardening as a separate project, not a continuation assumption
 
 ## Evidence documents index
 

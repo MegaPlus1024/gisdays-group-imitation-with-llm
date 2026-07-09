@@ -53,6 +53,7 @@
 - Phase 10.12b: documents the successful operator-run real Playwright replay suite evidence in `docs/status/model_plan_real_playwright_replay_suite_evidence.md`; it remains limited to local loopback fixtures and repeated compact-prompt plans.
 - Phase 11A: broadens local fixture-only browser scenario coverage with ticket triage and approval form review; no model was called and no real browser/Playwright execution was added.
 - Phase 11B: prepares a separate offline packet for manual `second_model` trials against `browser_ticket_triage_review` and `browser_approval_form_review`; no model was called by Codex and no new real browser evidence was added.
+- Phase 11C: documents the resulting manual `second_model` outputs and offline fixture replay success for those two scenarios in `docs/status/phase_11_diverse_local_planner_evidence.md`.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

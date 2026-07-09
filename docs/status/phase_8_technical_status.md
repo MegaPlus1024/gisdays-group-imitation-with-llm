@@ -607,6 +607,8 @@ Phase 11A later broadens local fixture-only browser scenario coverage with ticke
 
 Phase 11B prepares a separate offline local planner packet for the `browser_ticket_triage_review` and `browser_approval_form_review` scenarios. It adds two compact prompt files for manual `second_model` trials and does not call models or launch a browser.
 
+Phase 11C documents the resulting manual `second_model` outputs and offline fixture replay success for those two scenarios in `docs/status/phase_11_diverse_local_planner_evidence.md`.
+
 Later semantic judge work remains separate and should stay guarded:
 
 1. Define an openai-compatible/DeepSeek-style config schema that never stores secrets in committed files.

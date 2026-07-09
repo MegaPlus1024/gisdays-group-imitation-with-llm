@@ -99,6 +99,10 @@ A local `second_model` planner can produce bounded `autonomous_browser_plan_v1` 
 
 The final consolidated status after Phase 10 is documented in `docs/status/final_consolidated_status_after_phase_10.md`.
 
+## Phase 11C diverse local planner evidence
+
+Phase 11C documents the resulting manual `second_model` outputs for the new `browser_ticket_triage_review` and `browser_approval_form_review` fixture scenarios in `docs/status/phase_11_diverse_local_planner_evidence.md`. It records offline ingestion and fixture replay success only; no real browser evidence was added.
+
 ## Next possible directions
 
 1. Phase 11A already broadens scenario families while staying fixture-only via ticket triage and approval form review; the next browser-model step is to feed those scenarios into diverse validated plan trials
