@@ -31,3 +31,9 @@ If you want to recheck the offline evaluator shape, use:
 - no alias normalization is enabled by default
 - no models, browser, Playwright, Chromium, or llama-server are launched by Codex
 - generated packet artifacts are evidence only and should not be committed
+
+## Phase 13E2b follow-up
+
+- `final_answer.confidence` is optional; if present, use exactly `low`, `medium`, or `high`
+- the evaluator will now report `truncated_model_output` if `response.json` says `finish_reason: length`
+- the packet config raises `max_tokens` to `1800` for the next capture pass

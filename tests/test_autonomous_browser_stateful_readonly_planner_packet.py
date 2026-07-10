@@ -52,6 +52,7 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert len(summary["request_records"]) == 5
     assert len(summary["packet_files"]) >= 8
     assert all(not Path(item).is_absolute() for item in summary["packet_files"])
+    assert summary["request_records"][0]["max_tokens"] == 1800
 
     packet_path = output_dir / "autonomous_browser_stateful_readonly_planner_packet.json"
     summary_path = output_dir / "autonomous_browser_stateful_readonly_planner_packet_summary.json"
@@ -108,6 +109,8 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert "Ticket board" in prompt_text
     assert "Workspace Policy" in prompt_text
     assert "browser_click" in prompt_text
+    assert "confidence` is optional" in prompt_text
+    assert "low`, `medium`, or `high`" in prompt_text
     assert "fixture-backed" in prompt_text
     assert "a[href" not in prompt_text
     assert "queryselector" not in prompt_text.lower()
@@ -120,6 +123,8 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert "evidence_items` must be an array" in schema_text.lower()
     assert "cited_fact_ids" in schema_text
     assert "cited_evidence_item_ids" in schema_text
+    assert "confidence` (optional)" in schema_text
+    assert "low`, `medium`, or `high`" in schema_text
     assert "Missing citations are invalid." in schema_text
 
 

@@ -20,7 +20,7 @@
   "fixture_only": true,
   "external_network_allowed": false,
   "writes_allowed": false,
-  "max_tokens": 1200,
+  "max_tokens": 1800,
   "temperature": 0.0,
   "limitations": [
     "read-only fixture-backed planner packet only",

@@ -152,7 +152,7 @@ def _policy_ticket_output(scenario) -> dict[str, Any]:
             "stateful_policy_ticket_crosscheck-evidence-1",
             "stateful_policy_ticket_crosscheck-evidence-2",
         ],
-        "confidence": 1.0,
+        "confidence": "medium",
     }
     return {
         "schema_version": "autonomous_browser_stateful_readonly_planner_output_v1",
@@ -250,7 +250,7 @@ def _approval_output(scenario) -> dict[str, Any]:
             "stateful_approval_policy_crosscheck-evidence-1",
             "stateful_approval_policy_crosscheck-evidence-2",
         ],
-        "confidence": 1.0,
+        "confidence": "high",
     }
     return {
         "schema_version": "autonomous_browser_stateful_readonly_planner_output_v1",
@@ -340,7 +340,7 @@ def _overview_output(scenario) -> dict[str, Any]:
             "stateful_intranet_overview_digest-evidence-3",
             "stateful_intranet_overview_digest-evidence-4",
         ],
-        "confidence": 1.0,
+        "confidence": "low",
     }
     return {
         "schema_version": "autonomous_browser_stateful_readonly_planner_output_v1",
@@ -474,7 +474,7 @@ def _ticket_priority_output(scenario) -> dict[str, Any]:
             "stateful_ticket_priority_digest-evidence-1",
             "stateful_ticket_priority_digest-evidence-2",
         ],
-        "confidence": 1.0,
+        "confidence": "medium",
     }
     return {
         "schema_version": "autonomous_browser_stateful_readonly_planner_output_v1",
@@ -522,7 +522,7 @@ def _policy_marker_output(scenario) -> dict[str, Any]:
         "answer_text": "The workspace policy marker is the fixture-backed review result.",
         "cited_fact_ids": ["policy_marker_fact_1", "policy_marker_fact_2"],
         "cited_evidence_item_ids": ["stateful_policy_search_marker_review-evidence-1"],
-        "confidence": 1.0,
+        "confidence": "medium",
     }
     return {
         "schema_version": "autonomous_browser_stateful_readonly_planner_output_v1",
@@ -576,6 +576,27 @@ def _output_copy(scenario_id: str) -> dict[str, Any]:
     return json.loads(json.dumps(_output_for_scenario(scenario)))
 
 
+def _write_response_metadata(packet_summary: dict[str, Any], repo_root: Path, *, scenario_id: str, finish_reason: str) -> None:
+    record = next(item for item in packet_summary["request_records"] if str(item["scenario_id"]) == scenario_id)
+    response_path = repo_root / str(record["response_path"])
+    response_path.parent.mkdir(parents=True, exist_ok=True)
+    response_path.write_text(
+        json.dumps(
+            {
+                "choices": [
+                    {
+                        "finish_reason": finish_reason,
+                        "message": {"content": ""},
+                    }
+                ]
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_dry_run_accepts_valid_outputs_without_fixture_execution(tmp_path: Path) -> None:
     packet_summary, packet_dir = _build_packet(tmp_path)
     _write_valid_outputs(packet_summary, tmp_path)
@@ -604,6 +625,48 @@ def test_dry_run_accepts_valid_outputs_without_fixture_execution(tmp_path: Path)
     assert evaluation["browser_opened"] is False
     assert "C:\\" not in encoded
     assert str(tmp_path) not in encoded
+
+
+def test_dry_run_accepts_outputs_without_confidence(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    overrides = {"stateful_policy_ticket_crosscheck": _output_copy("stateful_policy_ticket_crosscheck")}
+    del overrides["stateful_policy_ticket_crosscheck"]["final_answer"]["confidence"]
+    _write_outputs(packet_summary, tmp_path, overrides=overrides)
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path)
+
+    assert evaluation["status"] == "succeeded"
+    assert evaluation["validation_accepted"] == 5
+    assert evaluation["dry_runs_succeeded"] == 5
+    policy_summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_policy_ticket_crosscheck")
+    assert policy_summary["status"] == "succeeded"
+    assert policy_summary["validation_status"] == "accepted"
+    assert policy_summary["dry_run_status"] == "accepted"
+
+
+@pytest.mark.parametrize("confidence_value", ["certain", 2])
+def test_invalid_confidence_rejected_with_allowed_values_and_field_path(
+    tmp_path: Path,
+    confidence_value: Any,
+) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    payload = _output_copy("stateful_approval_policy_crosscheck")
+    payload["final_answer"]["confidence"] = confidence_value
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_approval_policy_crosscheck": payload})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_approval_policy_crosscheck")
+    diagnostics = summary["diagnostics"]
+
+    assert evaluation["status"] == "completed_with_failures"
+    assert evaluation["error_code"] == "invalid_confidence"
+    assert summary["status"] == "rejected"
+    assert summary["failure_class"] == "model_failed_task"
+    assert diagnostics[0]["finding_type"] == "invalid_confidence"
+    assert diagnostics[0]["field_path"] == "final_answer.confidence"
+    assert diagnostics[0]["path"] == "final_answer.confidence"
+    assert diagnostics[0]["allowed_values"] == ["low", "medium", "high"]
+    assert diagnostics[0]["present_value"] == confidence_value
 
 
 def test_fixture_execution_succeeds_for_valid_outputs(tmp_path: Path) -> None:
@@ -647,6 +710,43 @@ def test_fixture_execution_succeeds_for_valid_outputs(tmp_path: Path) -> None:
     assert evaluation["scenario_summaries"][1]["scenario_id"] == "stateful_approval_policy_crosscheck"
     assert evaluation["scenario_summaries"][1]["route_stable"] is True
     assert evaluation["scenario_summaries"][1]["unique_matched_urls"] == ["https://local.intranet/docs/policy"]
+
+
+def test_truncated_response_json_is_reported_before_raw_output_parsing(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    _write_valid_outputs(packet_summary, tmp_path)
+    _write_response_metadata(
+        packet_summary,
+        tmp_path,
+        scenario_id="stateful_ticket_priority_digest",
+        finish_reason="length",
+    )
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(
+        packet_dir,
+        repo_root=tmp_path,
+        execute_fixture=True,
+    )
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_ticket_priority_digest")
+    diagnostics = summary["diagnostics"]
+
+    assert evaluation["status"] == "completed_with_failures"
+    assert evaluation["error_code"] == "truncated_model_output"
+    assert summary["status"] == "rejected"
+    assert summary["failure_class"] == "model_failed_task"
+    assert summary["validation_status"] == "rejected"
+    assert summary["dry_run_status"] == "rejected"
+    assert summary["fixture_execution_status"] == "skipped"
+    assert summary["no_runtime_execution"] is True
+    assert summary["model_execution"] is False
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert diagnostics["source_output"]["finding_type"] == "truncated_model_output"
+    assert diagnostics["source_output"]["finish_reason"] == "length"
+    assert diagnostics["source_output"]["response_path"] == "artifacts/autonomous_runtime_planner_outputs/stateful_readonly_planner/third_model/stateful_ticket_priority_digest/response.json"
+    assert diagnostics["source_output"]["raw_output_path"] == "artifacts/autonomous_runtime_planner_outputs/stateful_readonly_planner/third_model/stateful_ticket_priority_digest/raw_planner_output.txt"
+    assert "increase max_tokens or reduce prompt/output length" in diagnostics["source_output"]["hint"]
 
 
 def test_missing_action_field_diagnostics_include_index_and_present_fields(tmp_path: Path) -> None:

@@ -27,7 +27,7 @@ DEFAULT_SCENARIO_IDS = (
     "stateful_ticket_priority_digest",
     "stateful_policy_search_marker_review",
 )
-DEFAULT_MAX_TOKENS = 1200
+DEFAULT_MAX_TOKENS = 1800
 DEFAULT_TEMPERATURE = 0.0
 DEFAULT_PROMPT_PREFIXES = {"third_model": "/no_think"}
 DEFAULT_PROMPT_FILENAME = "planner_prompt.compact.txt"
@@ -781,6 +781,7 @@ def _build_expected_output_schema_doc() -> str:
         - `cited_fact_ids`
         - `cited_evidence_item_ids`
         - `confidence` (optional)
+        - If included, `confidence` must be exactly one of `low`, `medium`, or `high`.
 
         Missing citations are invalid.
 
@@ -872,6 +873,12 @@ def _build_scenario_prompt_text(*, scenario_id: str, scenario) -> str:
         ## Final answer requirements
 
         {final_answer_requirements}
+
+        ## Confidence
+
+        - `confidence` is optional.
+        - If you include `confidence`, use exactly one of `low`, `medium`, or `high`.
+        - Do not use numbers, percentages, booleans, or words like `certain` or `confident`.
 
         ## Output shape reminder
 

@@ -37,6 +37,7 @@ DEFAULT_ALLOWED_ACTIONS = (
     "browser_extract_text",
     "browser_snapshot",
 )
+ALLOWED_CONFIDENCE_VALUES = ("low", "medium", "high")
 ALLOWED_DONE_REASONS = (
     "task_completed",
     "insufficient_evidence",
@@ -431,6 +432,7 @@ def _evaluate_output_record(
     packet_output_dir: str,
 ) -> dict[str, Any]:
     source_output_path = _safe_relative_path(record.get("output_path"), "output_path")
+    response_output_path = _safe_relative_path(record.get("response_path"), "response_path")
     model_alias = _safe_text(record.get("model_alias"))
     workflow_id = _safe_text(record.get("workflow_id"))
     trial_label = _safe_text(record.get("trial_id"))
@@ -467,6 +469,58 @@ def _evaluate_output_record(
         }
 
     raw_path = repo_root / source_output_path
+    response_path = repo_root / response_output_path if response_output_path is not None else None
+    if response_path is not None and response_path.exists():
+        try:
+            response_payload = json.loads(response_path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError):
+            response_payload = None
+        finish_reason = None
+        if isinstance(response_payload, Mapping):
+            choices = response_payload.get("choices")
+            if isinstance(choices, list) and choices:
+                first_choice = choices[0]
+                if isinstance(first_choice, Mapping):
+                    finish_reason = first_choice.get("finish_reason")
+        if finish_reason == "length":
+            return {
+                "packet_id": packet_id,
+                "model_alias": model_alias,
+                "scenario_id": scenario.scenario_id,
+                "workflow_id": workflow_id,
+                "trial_id": trial_label,
+                "source_output_path": source_output_path,
+                "status": "rejected",
+                "error_code": "truncated_model_output",
+                "failure_class": "model_failed_task",
+                "captured_output_present": raw_path.exists(),
+                "validation_status": "rejected",
+                "dry_run_status": "rejected",
+                "fixture_execution_status": "skipped",
+                "no_runtime_execution": True,
+                "model_execution": False,
+                "real_browser_execution": False,
+                "playwright_execution": False,
+                "browser_opened": False,
+                "actions_total": 0,
+                "actions_attempted": 0,
+                "actions_succeeded": 0,
+                "actions_failed": 0,
+                "expected_results_total": 0,
+                "expected_results_passed": 0,
+                "expected_results_failed": 0,
+                "matched_url": None,
+                "final_url": None,
+                "diagnostics": {
+                    "source_output": {
+                        "finding_type": "truncated_model_output",
+                        "finish_reason": "length",
+                        "response_path": response_output_path,
+                        "raw_output_path": source_output_path,
+                        "hint": "increase max_tokens or reduce prompt/output length",
+                    }
+                },
+            }
     if not raw_path.exists():
         return {
             "packet_id": packet_id,
@@ -1105,12 +1159,21 @@ def _validate_stateful_output(
             return _validation_failure("invalid_evidence_reference", diagnostics, len(normalized_actions))
         cited_evidence_ids.append(identifier)
     confidence = final_answer_payload.get("confidence")
-    if confidence is not None and (not isinstance(confidence, (int, float)) or isinstance(confidence, bool)):
-        diagnostics.append({"finding_type": "invalid_confidence", "path": "final_answer.confidence"})
-        return _validation_failure("invalid_confidence", diagnostics, len(normalized_actions))
-    if isinstance(confidence, (int, float)) and not (0.0 <= float(confidence) <= 1.0):
-        diagnostics.append({"finding_type": "invalid_confidence", "path": "final_answer.confidence"})
-        return _validation_failure("invalid_confidence", diagnostics, len(normalized_actions))
+    if confidence is not None:
+        confidence_text = _optional_safe_text(confidence, "final_answer.confidence")
+        if confidence_text is False or confidence_text not in ALLOWED_CONFIDENCE_VALUES:
+            diagnostics.append(
+                {
+                    "finding_type": "invalid_confidence",
+                    "path": "final_answer.confidence",
+                    "field_path": "final_answer.confidence",
+                    "present_value": confidence,
+                    "allowed_values": list(ALLOWED_CONFIDENCE_VALUES),
+                }
+            )
+            return _validation_failure("invalid_confidence", diagnostics, len(normalized_actions))
+    else:
+        confidence_text = None
 
     required_keys = set(scenario_hints["required_fact_keys"])
     output_fact_map = {str(item["key"]): item["value"] for item in normalized_facts}
@@ -1135,7 +1198,7 @@ def _validate_stateful_output(
             "answer_text": answer_text,
             "cited_fact_ids": cited_fact_ids,
             "cited_evidence_item_ids": cited_evidence_ids,
-            **({"confidence": float(confidence)} if confidence is not None else {}),
+            **({"confidence": confidence_text} if confidence_text is not None else {}),
         },
         "done_reason": done_reason,
     }
