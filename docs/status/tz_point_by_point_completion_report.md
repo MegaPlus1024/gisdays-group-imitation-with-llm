@@ -90,6 +90,7 @@
 - Phase 13B16: scopes completion policy strictly by `scenario_id` so `hard_ticket_priority_crosscheck` and `hard_approval_policy_match` do not inherit policy completion from the policy scenario; it remains fixture-backed and does not add production browser execution.
 - Phase 13B17: adds scenario-scoped ticket and approval completion criteria plus compact prompt guidance for the hard live-loop scenarios; the ticket scenario keys off `tickets/1` and the approval scenario keys off the approval flow plus `portal/approval-match`, with no browser/Playwright execution from Codex.
 - Phase 13B18: adds scenario-relevant click-target guards and repair guidance for the approval live-loop path; visible-but-irrelevant clicks are rejected before fixture execution, and the guidance remains fixture-backed only.
+- Phase 13B19: tightens ticket destination-anchor guidance and repair so `hard_ticket_priority_crosscheck` uses `Ticket 1 - Quarterly Access Review` instead of the board listing sentence; it remains fixture-backed only.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

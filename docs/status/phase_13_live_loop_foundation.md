@@ -135,3 +135,9 @@
 - B17 got the policy and ticket scenarios to `goal_satisfied` / valid scoped criteria, while approval still needed a stronger guard because the model followed visible but irrelevant links
 - B18 adds scenario-relevant click-target constraints and repair guidance so `hard_approval_policy_match` can reject `Workspace policy` and steer toward `Approvals queue` / `Policy match review` as appropriate
 - the guard stays scenario-scoped, fixture-backed, and does not add browser/Playwright execution from Codex
+
+## Phase 13B19 note
+
+- B18 solved the approval drift, and the remaining hard-ticket failure came from using the Ticket Board listing sentence as `expected_text` for the `Ticket 1` click
+- B19 tightens ticket board guidance and repair so `expected_text` must come from the destination page anchor, with `Ticket 1 - Quarterly Access Review` as the preferred anchor
+- this stays fixture-backed, scenario-scoped, and does not add browser/Playwright execution from Codex

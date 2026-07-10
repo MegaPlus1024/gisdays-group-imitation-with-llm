@@ -1492,6 +1492,8 @@ def _page_state_guidance(
                 "You are on the relevant ticket board page.",
                 'The next goal-relevant click is "Ticket 1".',
                 "Do not click Workspace policy from here.",
+                'When clicking "Ticket 1", expected_text must be one exact destination-page anchor; prefer "Ticket 1 - Quarterly Access Review".',
+                'Do not use the board listing sentence "Quarterly Access Review requires an office-worker status note."',
                 "Prefer done if the ticket page already proves Quarterly Access Review, high priority, and office worker assignment.",
             ]
         )
@@ -1699,6 +1701,32 @@ def _repair_constraints_lines(
     elif error_code == "model_output_expected_text_not_visible":
         lines.append("expected_text must be one exact visible substring from the destination page.")
         lines.append("Do not copy text from the current page when the click navigates elsewhere.")
+        parameters = invalid_action.get("parameters") if isinstance(invalid_action.get("parameters"), Mapping) else {}
+        target_text = _prompt_text(parameters.get("target_text")) if isinstance(parameters, Mapping) else None
+        diagnostics_target_url = _prompt_text(error_diagnostics.get("target_url")) if isinstance(error_diagnostics, Mapping) else None
+        diagnostics_metadata = error_diagnostics.get("metadata") if isinstance(error_diagnostics, Mapping) else None
+        if diagnostics_target_url is None and isinstance(diagnostics_metadata, Mapping):
+            diagnostics_target_url = _prompt_text(diagnostics_metadata.get("target_url"))
+        visible_anchors: tuple[str, ...] = tuple(
+            str(item).strip()
+            for item in (
+                (error_diagnostics.get("visible_anchors") if isinstance(error_diagnostics, Mapping) else ())
+                or (diagnostics_metadata.get("visible_anchors") if isinstance(diagnostics_metadata, Mapping) else ())
+                or ()
+            )
+            if isinstance(item, str) and item.strip()
+        )
+        if target_text == "Ticket 1" and (
+            diagnostics_target_url == "https://local.intranet/tickets/1"
+            or "Ticket 1 - Quarterly Access Review" in visible_anchors
+        ):
+            lines.extend(
+                [
+                    'For hard_ticket_priority_crosscheck from Ticket board, click "Ticket 1".',
+                    'Use browser_click with expected_text "Ticket 1 - Quarterly Access Review" if you need the ticket detail page.',
+                    'Do not use the board listing sentence "Quarterly Access Review requires an office-worker status note."',
+                ]
+            )
     elif error_code == "model_output_irrelevant_click_target":
         lines.append("The previous target was visible but irrelevant to this scenario.")
         current_targets = set(current_page_targets or ())

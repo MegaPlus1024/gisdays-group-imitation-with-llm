@@ -1144,6 +1144,61 @@ def test_local_model_backend_stops_when_ticket_completion_policy_goal_is_satisfi
     assert len(client.requests) == 3
 
 
+def test_local_model_backend_repairs_ticket_board_expected_text_to_destination_anchor_and_succeeds() -> None:
+    config = _load_local_model_config(scenario_id="hard_ticket_priority_crosscheck")
+    config["planner_backend"]["allow_model_calls"] = True
+    config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet Home","expected_url":"https://local.intranet/"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"click_ticket_board","action_name":"browser_click","parameters":{"target_text":"Ticket board"},"expected_text":"Ticket Board"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"click_ticket_1","action_name":"browser_click","parameters":{"target_text":"Ticket 1"},"expected_text":"Quarterly Access Review requires an office-worker status note.","expected_url":"https://local.intranet/tickets/1"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"step_001_repair","action_name":"browser_click","parameters":{"target_text":"Ticket 1"},"expected_text":"Ticket 1 - Quarterly Access Review"}',
+                finish_reason="stop",
+            ),
+        ]
+    )
+
+    summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
+
+    assert summary["status"] == "succeeded"
+    assert summary["stop_reason"] == "goal_satisfied"
+    assert summary["error_code"] is None
+    assert summary["model_execution"] is True
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["actions_attempted"] == 3
+    assert summary["actions_succeeded"] == 3
+    assert summary["actions_failed"] == 0
+    assert summary["expected_results_passed"] == 3
+    assert summary["expected_results_failed"] == 0
+    assert summary["runtime_trace"][-1]["metadata"]["goal_satisfied"] is True
+    assert summary["runtime_trace"][-1]["metadata"]["matched_completion_criteria"]["scenario_id"] == summary["scenario_id"]
+    assert summary["runtime_trace"][-1]["metadata"]["matched_completion_criteria"]["matched_url"] == "https://local.intranet/tickets/1"
+    assert summary["runtime_trace"][-1]["metadata"]["matched_completion_criteria"]["matched_text_anchors"] == [
+        "Ticket 1 - Quarterly Access Review",
+        "Priority: high",
+        "Assigned role: office worker",
+        "Quarterly Access Review",
+    ]
+    assert len(client.requests) == 4
+    repair_user = client.requests[3].messages[1]["content"]
+    assert 'For hard_ticket_priority_crosscheck from Ticket board, click "Ticket 1".' in repair_user
+    assert 'Use browser_click with expected_text "Ticket 1 - Quarterly Access Review" if you need the ticket detail page.' in repair_user
+    assert 'Do not use the board listing sentence "Quarterly Access Review requires an office-worker status note."' in repair_user
+
+
 def test_local_model_backend_stops_when_approval_completion_policy_goal_is_satisfied() -> None:
     config = _load_local_model_config(scenario_id="hard_approval_policy_match")
     config["planner_backend"]["allow_model_calls"] = True

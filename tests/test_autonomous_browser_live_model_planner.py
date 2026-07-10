@@ -246,6 +246,8 @@ def test_prompt_for_hard_ticket_priority_crosscheck_scopes_home_board_and_ticket
     assert "Avoid for this goal: Workspace policy; Team status; Approvals queue." in home_user
     assert "Start-page visible anchors: Office Intranet Home; Ticket board; Workspace policy" in home_user
     assert 'For hard_ticket_priority_crosscheck from Ticket board, click "Ticket 1".' in board_user
+    assert 'When clicking "Ticket 1", expected_text must be one exact destination-page anchor; prefer "Ticket 1 - Quarterly Access Review".' in board_user
+    assert 'Do not use the board listing sentence "Quarterly Access Review requires an office-worker status note."' in board_user
     assert "Visible click targets: Home; Ticket 1; Team status." in board_user
     assert "Visible page anchors: Ticket 1 - Quarterly Access Review; Quarterly Access Review; Priority: high; Assigned role: office worker" in ticket_user
     assert "You are on the relevant ticket page." in ticket_user
@@ -647,6 +649,53 @@ def test_repair_prompt_for_hard_ticket_priority_crosscheck_is_page_state_aware()
     assert "Runtime destination URL for Ticket 1: https://local.intranet/tickets/1." in user
     assert "Current page visible click targets: Ticket board; Workspace policy; Team status; Approvals queue." in user
     assert '{"step_id": "step_001_repair", "action_name": "browser_click", "parameters": {"target_text": "Ticket board"}, "expected_text": "Ticket Board"}' in user
+
+
+def test_repair_prompt_for_ticket_expected_text_not_visible_uses_destination_anchor() -> None:
+    planner = _planner(model_alias="third_model", allow_model_calls=True)
+    observation = {
+        "observation_id": "observation_ticket_repair_text",
+        "current_url": "https://local.intranet/tickets",
+        "title": "Ticket Board",
+        "text_preview": "Ticket Board Home Ticket 1 Open tickets Ticket 1: Quarterly Access Review requires an office-worker status note.",
+        "metadata": {
+            "fixture_source": True,
+            "page_opened": True,
+            "scenario_id": "hard_ticket_priority_crosscheck",
+            "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+        },
+    }
+    invalid_action = {
+        "step_id": "click_ticket_1",
+        "action_name": "browser_click",
+        "parameters": {"target_text": "Ticket 1"},
+        "expected_text": "Quarterly Access Review requires an office-worker status note.",
+        "expected_url": "https://local.intranet/tickets/1",
+    }
+
+    messages = planner._build_repair_messages(
+        observation_payload=observation,
+        invalid_action=invalid_action,
+        error_code="model_output_expected_text_not_visible",
+        error_message="Model response expected_text must be visible on the destination page.",
+        error_diagnostics={
+            "target_text": "Ticket 1",
+            "target_url": "https://local.intranet/tickets/1",
+            "visible_anchors": [
+                "Ticket 1 - Quarterly Access Review",
+                "Quarterly Access Review",
+                "Priority: high",
+                "Assigned role: office worker",
+            ],
+        },
+    )
+
+    user = messages[1]["content"]
+
+    assert 'For hard_ticket_priority_crosscheck from Ticket board, click "Ticket 1".' in user
+    assert 'Use browser_click with expected_text "Ticket 1 - Quarterly Access Review" if you need the ticket detail page.' in user
+    assert 'Do not use the board listing sentence "Quarterly Access Review requires an office-worker status note."' in user
+    assert "No prose, no markdown, no code fences." in user
 
 
 def test_repair_prompt_for_hard_approval_policy_match_is_page_state_aware() -> None:

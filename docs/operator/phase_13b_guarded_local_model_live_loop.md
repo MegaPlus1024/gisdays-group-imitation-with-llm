@@ -98,6 +98,12 @@ This path should refuse with `allow_model_calls_required` unless the operator ex
 - for `hard_approval_policy_match` from home, the expected next click is `Approvals queue`; from the approvals page, the expected next click is `Policy match review`
 - the relevance guard rejects irrelevant visible clicks before fixture execution and repairs them toward the scenario-specific target instead of letting the run drift through `Workspace policy`
 
+## Phase 13B19 note
+
+- `model_output_expected_text_not_visible` on `hard_ticket_priority_crosscheck` now means the model used the Ticket Board listing sentence instead of a destination-page anchor for the `Ticket 1` click
+- for that ticket repair, the expected destination anchor should be `Ticket 1 - Quarterly Access Review` rather than the board listing sentence
+- the repair stays one JSON object, no prose, and remains fixture-backed only
+
 ## Guarded operator run
 
 ```powershell
