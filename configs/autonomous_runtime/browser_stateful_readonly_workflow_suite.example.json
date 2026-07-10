@@ -1,0 +1,46 @@
+{
+  "schema_version": "autonomous_browser_stateful_readonly_workflow_suite_config_v1",
+  "suite_id": "phase_13e_readonly_stateful_workflows",
+  "planner_backend": "scripted",
+  "fixture_only": true,
+  "real_browser_execution": false,
+  "playwright_execution": false,
+  "browser_opened": false,
+  "external_network_allowed": false,
+  "writes_allowed": false,
+  "output_dir": "artifacts/autonomous_runtime_summaries/stateful_readonly_workflows",
+  "max_steps_per_scenario": 12,
+  "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+  "scenario_ids": [
+    "stateful_policy_ticket_crosscheck",
+    "stateful_approval_policy_crosscheck",
+    "stateful_intranet_overview_digest",
+    "stateful_ticket_priority_digest",
+    "stateful_policy_search_marker_review"
+  ],
+  "read_only_policy": {
+    "allowed_actions": [
+      "browser_open_url",
+      "browser_click",
+      "browser_extract_text",
+      "browser_snapshot"
+    ],
+    "disallowed_actions": [
+      "browser_type_text",
+      "browser_submit_form",
+      "browser_upload_file",
+      "browser_download_file",
+      "external_url",
+      "file_write"
+    ],
+    "external_network_allowed": false,
+    "writes_allowed": false
+  },
+  "limitations": [
+    "read-only fixture-backed workflow",
+    "no model calls",
+    "no real browser execution",
+    "no Playwright import",
+    "not production browser automation"
+  ]
+}

@@ -198,3 +198,9 @@
 - the final replay remained fixture-only and local, and Codex did not need to launch a model, browser, or Playwright to document the milestone
 - D4 had reached real Playwright/Chromium, but `/docs/policy`, `/tickets`, and `/portal/approvals` still returned 404 from the fixture server because the browser followed the raw logical routes
 - Codex still did not launch browser, Playwright, Chromium, or a model for this documentation step
+
+## Phase 13E note
+
+- Phase 13E adds the read-only stateful workflow foundation in `docs/status/phase_13e_readonly_stateful_workflows.md` and `docs/operator/phase_13e_readonly_stateful_workflows.md`
+- the new layer stays fixture-only, scripted, and read-only while it records state, facts, evidence, and final answers for local intranet workflows
+- no model, browser, or Playwright launch is needed from Codex to document or run the scripted E1 path
