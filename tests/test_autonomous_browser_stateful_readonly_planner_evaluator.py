@@ -1,0 +1,725 @@
+from __future__ import annotations
+
+import builtins
+import importlib.util
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from src.agent.autonomous_browser_stateful_readonly_planner_evaluator import (
+    SUMMARY_SCHEMA_VERSION,
+    run_autonomous_browser_stateful_readonly_planner_evaluator,
+)
+from src.agent.autonomous_browser_stateful_readonly_planner_packet import (
+    build_autonomous_browser_stateful_readonly_planner_packet,
+)
+from src.agent.autonomous_browser_stateful_readonly_workflow import build_default_stateful_readonly_workflow_scenarios
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+CONFIG_PATH = PROJECT_ROOT / "configs" / "autonomous_runtime" / "browser_stateful_readonly_planner_packet.example.json"
+CLI_PATH = PROJECT_ROOT / "scripts" / "run_autonomous_browser_stateful_readonly_planner_evaluator.py"
+PACKET_OUTPUT_DIR = "artifacts/autonomous_runtime_planner_packets/stateful_readonly_planner"
+EVALUATOR_OUTPUT_DIR = "artifacts/autonomous_runtime_planner_summaries/stateful_readonly_planner_evaluator"
+
+
+def _packet_config() -> dict[str, Any]:
+    return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+
+
+def _load_cli_module(path: Path):
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _build_packet(tmp_path: Path) -> tuple[dict[str, Any], Path]:
+    summary = build_autonomous_browser_stateful_readonly_planner_packet(_packet_config(), repo_root=tmp_path)
+    return summary, tmp_path / PACKET_OUTPUT_DIR
+
+
+def _workflow_steps(scenario) -> list[dict[str, Any]]:
+    steps: list[dict[str, Any]] = []
+    for step in scenario.steps:
+        item: dict[str, Any] = {
+            "step_id": step.step_id,
+            "action_name": step.action_name,
+            "parameters": dict(step.parameters),
+        }
+        if step.expected_text:
+            item["expected_text"] = step.expected_text
+        if step.expected_url is not None:
+            item["expected_url"] = step.expected_url
+        if step.collect_fact_keys:
+            item["collect_fact_keys"] = list(step.collect_fact_keys)
+        steps.append(item)
+    return steps
+
+
+def _policy_ticket_output(scenario) -> dict[str, Any]:
+    actions = _workflow_steps(scenario)
+    facts = [
+        {
+            "fact_id": "policy_ticket_fact_1",
+            "key": "ticket_id",
+            "value": "Ticket 1",
+            "source_step_id": "inspect_ticket",
+            "source_url": "https://local.intranet/tickets/1",
+            "evidence_item_id": "stateful_policy_ticket_crosscheck-evidence-1",
+        },
+        {
+            "fact_id": "policy_ticket_fact_2",
+            "key": "ticket_topic",
+            "value": "Quarterly Access Review",
+            "source_step_id": "inspect_ticket",
+            "source_url": "https://local.intranet/tickets/1",
+            "evidence_item_id": "stateful_policy_ticket_crosscheck-evidence-1",
+        },
+        {
+            "fact_id": "policy_ticket_fact_3",
+            "key": "ticket_priority",
+            "value": "high",
+            "source_step_id": "inspect_ticket",
+            "source_url": "https://local.intranet/tickets/1",
+            "evidence_item_id": "stateful_policy_ticket_crosscheck-evidence-1",
+        },
+        {
+            "fact_id": "policy_ticket_fact_4",
+            "key": "ticket_role",
+            "value": "office worker",
+            "source_step_id": "inspect_ticket",
+            "source_url": "https://local.intranet/tickets/1",
+            "evidence_item_id": "stateful_policy_ticket_crosscheck-evidence-1",
+        },
+        {
+            "fact_id": "policy_ticket_fact_5",
+            "key": "ticket_status",
+            "value": "open",
+            "source_step_id": "inspect_ticket",
+            "source_url": "https://local.intranet/tickets/1",
+            "evidence_item_id": "stateful_policy_ticket_crosscheck-evidence-1",
+        },
+        {
+            "fact_id": "policy_ticket_fact_6",
+            "key": "policy_anchor",
+            "value": "Workspace Policy",
+            "source_step_id": "inspect_policy",
+            "source_url": "https://local.intranet/docs/policy",
+            "evidence_item_id": "stateful_policy_ticket_crosscheck-evidence-2",
+        },
+        {
+            "fact_id": "policy_ticket_fact_7",
+            "key": "policy_marker",
+            "value": "fixture-backed result for workspace policy review",
+            "source_step_id": "inspect_policy",
+            "source_url": "https://local.intranet/docs/policy",
+            "evidence_item_id": "stateful_policy_ticket_crosscheck-evidence-2",
+        },
+    ]
+    evidence_items = [
+        {
+            "evidence_item_id": "stateful_policy_ticket_crosscheck-evidence-1",
+            "source_step_id": "inspect_ticket",
+            "source_url": "https://local.intranet/tickets/1",
+            "text_preview": "Ticket 1 - Quarterly Access Review | Priority: high. | Assigned role: office worker.",
+            "fact_ids": [
+                "policy_ticket_fact_1",
+                "policy_ticket_fact_2",
+                "policy_ticket_fact_3",
+                "policy_ticket_fact_4",
+                "policy_ticket_fact_5",
+            ],
+        },
+        {
+            "evidence_item_id": "stateful_policy_ticket_crosscheck-evidence-2",
+            "source_step_id": "inspect_policy",
+            "source_url": "https://local.intranet/docs/policy",
+            "text_preview": "Workspace Policy | fixture-backed result for workspace policy review.",
+            "fact_ids": [
+                "policy_ticket_fact_6",
+                "policy_ticket_fact_7",
+            ],
+        },
+    ]
+    final_answer = {
+        "answer_text": "Ticket 1 is high priority for an office worker, and the workspace policy marker matches the fixture-backed review.",
+        "cited_fact_ids": ["policy_ticket_fact_1", "policy_ticket_fact_3", "policy_ticket_fact_6"],
+        "cited_evidence_item_ids": [
+            "stateful_policy_ticket_crosscheck-evidence-1",
+            "stateful_policy_ticket_crosscheck-evidence-2",
+        ],
+        "confidence": 1.0,
+    }
+    return {
+        "schema_version": "autonomous_browser_stateful_readonly_planner_output_v1",
+        "scenario_id": scenario.scenario_id,
+        "workflow_id": scenario.workflow_id,
+        "goal": scenario.objective,
+        "actions": actions,
+        "facts": facts,
+        "evidence_items": evidence_items,
+        "final_answer": final_answer,
+        "done_reason": "task_completed",
+    }
+
+
+def _approval_output(scenario) -> dict[str, Any]:
+    actions = _workflow_steps(scenario)
+    facts = [
+        {
+            "fact_id": "approval_fact_1",
+            "key": "approval_request",
+            "value": "APR-51",
+            "source_step_id": "inspect_approval_match",
+            "source_url": "https://local.intranet/portal/approval-match",
+            "evidence_item_id": "stateful_approval_policy_crosscheck-evidence-1",
+        },
+        {
+            "fact_id": "approval_fact_2",
+            "key": "approval_policy_anchor",
+            "value": "Approval Policy Match",
+            "source_step_id": "inspect_approval_match",
+            "source_url": "https://local.intranet/portal/approval-match",
+            "evidence_item_id": "stateful_approval_policy_crosscheck-evidence-1",
+        },
+        {
+            "fact_id": "approval_fact_3",
+            "key": "approval_policy_marker",
+            "value": "Policy match: confirmed.",
+            "source_step_id": "inspect_approval_match",
+            "source_url": "https://local.intranet/portal/approval-match",
+            "evidence_item_id": "stateful_approval_policy_crosscheck-evidence-1",
+        },
+        {
+            "fact_id": "approval_fact_4",
+            "key": "approval_decision_note",
+            "value": "local fixtures only",
+            "source_step_id": "inspect_approval_match",
+            "source_url": "https://local.intranet/portal/approval-match",
+            "evidence_item_id": "stateful_approval_policy_crosscheck-evidence-1",
+        },
+        {
+            "fact_id": "approval_fact_5",
+            "key": "policy_anchor",
+            "value": "Workspace Policy",
+            "source_step_id": "inspect_policy",
+            "source_url": "https://local.intranet/docs/policy",
+            "evidence_item_id": "stateful_approval_policy_crosscheck-evidence-2",
+        },
+        {
+            "fact_id": "approval_fact_6",
+            "key": "policy_marker",
+            "value": "fixture-backed result for workspace policy review",
+            "source_step_id": "inspect_policy",
+            "source_url": "https://local.intranet/docs/policy",
+            "evidence_item_id": "stateful_approval_policy_crosscheck-evidence-2",
+        },
+    ]
+    evidence_items = [
+        {
+            "evidence_item_id": "stateful_approval_policy_crosscheck-evidence-1",
+            "source_step_id": "inspect_approval_match",
+            "source_url": "https://local.intranet/portal/approval-match",
+            "text_preview": "Approval Policy Match | Request id: APR-51. | Policy match: confirmed. | Decision note: local fixtures only.",
+            "fact_ids": [
+                "approval_fact_1",
+                "approval_fact_2",
+                "approval_fact_3",
+                "approval_fact_4",
+            ],
+        },
+        {
+            "evidence_item_id": "stateful_approval_policy_crosscheck-evidence-2",
+            "source_step_id": "inspect_policy",
+            "source_url": "https://local.intranet/docs/policy",
+            "text_preview": "Workspace Policy | fixture-backed result for workspace policy review.",
+            "fact_ids": [
+                "approval_fact_5",
+                "approval_fact_6",
+            ],
+        },
+    ]
+    final_answer = {
+        "answer_text": "APR-51 matches the approval policy review, and the workspace policy marker confirms the fixture-backed local path.",
+        "cited_fact_ids": ["approval_fact_1", "approval_fact_2", "approval_fact_3"],
+        "cited_evidence_item_ids": [
+            "stateful_approval_policy_crosscheck-evidence-1",
+            "stateful_approval_policy_crosscheck-evidence-2",
+        ],
+        "confidence": 1.0,
+    }
+    return {
+        "schema_version": "autonomous_browser_stateful_readonly_planner_output_v1",
+        "scenario_id": scenario.scenario_id,
+        "workflow_id": scenario.workflow_id,
+        "goal": scenario.objective,
+        "actions": actions,
+        "facts": facts,
+        "evidence_items": evidence_items,
+        "final_answer": final_answer,
+        "done_reason": "task_completed",
+    }
+
+
+def _overview_output(scenario) -> dict[str, Any]:
+    actions = _workflow_steps(scenario)
+    facts = [
+        {
+            "fact_id": "overview_fact_1",
+            "key": "home_anchor",
+            "value": "Office Intranet",
+            "source_step_id": "open_home",
+            "source_url": "https://local.intranet/",
+            "evidence_item_id": "stateful_intranet_overview_digest-evidence-1",
+        },
+        {
+            "fact_id": "overview_fact_2",
+            "key": "ticket_board_anchor",
+            "value": "Ticket Board",
+            "source_step_id": "click_ticket_board",
+            "source_url": "https://local.intranet/tickets",
+            "evidence_item_id": "stateful_intranet_overview_digest-evidence-2",
+        },
+        {
+            "fact_id": "overview_fact_3",
+            "key": "policy_anchor",
+            "value": "Workspace Policy",
+            "source_step_id": "open_policy",
+            "source_url": "https://local.intranet/docs/policy",
+            "evidence_item_id": "stateful_intranet_overview_digest-evidence-3",
+        },
+        {
+            "fact_id": "overview_fact_4",
+            "key": "team_status_anchor",
+            "value": "Team Status",
+            "source_step_id": "open_team_status",
+            "source_url": "https://local.intranet/team/status",
+            "evidence_item_id": "stateful_intranet_overview_digest-evidence-4",
+        },
+    ]
+    evidence_items = [
+        {
+            "evidence_item_id": "stateful_intranet_overview_digest-evidence-1",
+            "source_step_id": "open_home",
+            "source_url": "https://local.intranet/",
+            "text_preview": "Office Intranet | Ticket board | Workspace policy | Team status | Approvals queue.",
+            "fact_ids": ["overview_fact_1"],
+        },
+        {
+            "evidence_item_id": "stateful_intranet_overview_digest-evidence-2",
+            "source_step_id": "click_ticket_board",
+            "source_url": "https://local.intranet/tickets",
+            "text_preview": "Ticket Board | Home | Ticket 1 | Team status | Open tickets.",
+            "fact_ids": ["overview_fact_2"],
+        },
+        {
+            "evidence_item_id": "stateful_intranet_overview_digest-evidence-3",
+            "source_step_id": "open_policy",
+            "source_url": "https://local.intranet/docs/policy",
+            "text_preview": "Workspace Policy | Search marker: fixture-backed result for workspace policy review.",
+            "fact_ids": ["overview_fact_3"],
+        },
+        {
+            "evidence_item_id": "stateful_intranet_overview_digest-evidence-4",
+            "source_step_id": "open_team_status",
+            "source_url": "https://local.intranet/team/status",
+            "text_preview": "Team Status | Office worker: reviewing ticket updates.",
+            "fact_ids": ["overview_fact_4"],
+        },
+    ]
+    final_answer = {
+        "answer_text": "The intranet home, ticket board, policy, and team status pages all present the local fixture paths and anchors.",
+        "cited_fact_ids": ["overview_fact_1", "overview_fact_2", "overview_fact_3", "overview_fact_4"],
+        "cited_evidence_item_ids": [
+            "stateful_intranet_overview_digest-evidence-1",
+            "stateful_intranet_overview_digest-evidence-2",
+            "stateful_intranet_overview_digest-evidence-3",
+            "stateful_intranet_overview_digest-evidence-4",
+        ],
+        "confidence": 1.0,
+    }
+    return {
+        "schema_version": "autonomous_browser_stateful_readonly_planner_output_v1",
+        "scenario_id": scenario.scenario_id,
+        "workflow_id": scenario.workflow_id,
+        "goal": scenario.objective,
+        "actions": actions,
+        "facts": facts,
+        "evidence_items": evidence_items,
+        "final_answer": final_answer,
+        "done_reason": "task_completed",
+    }
+
+
+def _ticket_priority_output(scenario) -> dict[str, Any]:
+    actions = _workflow_steps(scenario)
+    facts = [
+        {
+            "fact_id": "ticket_priority_fact_1",
+            "key": "ticket_7_id",
+            "value": "Ticket 7",
+            "source_step_id": "inspect_ticket_7",
+            "source_url": "https://local.intranet/tickets/7",
+            "evidence_item_id": "stateful_ticket_priority_digest-evidence-1",
+        },
+        {
+            "fact_id": "ticket_priority_fact_2",
+            "key": "ticket_7_topic",
+            "value": "Escalation Review",
+            "source_step_id": "inspect_ticket_7",
+            "source_url": "https://local.intranet/tickets/7",
+            "evidence_item_id": "stateful_ticket_priority_digest-evidence-1",
+        },
+        {
+            "fact_id": "ticket_priority_fact_3",
+            "key": "ticket_7_priority",
+            "value": "urgent",
+            "source_step_id": "inspect_ticket_7",
+            "source_url": "https://local.intranet/tickets/7",
+            "evidence_item_id": "stateful_ticket_priority_digest-evidence-1",
+        },
+        {
+            "fact_id": "ticket_priority_fact_4",
+            "key": "ticket_7_requester_tier",
+            "value": "facilities",
+            "source_step_id": "inspect_ticket_7",
+            "source_url": "https://local.intranet/tickets/7",
+            "evidence_item_id": "stateful_ticket_priority_digest-evidence-1",
+        },
+        {
+            "fact_id": "ticket_priority_fact_5",
+            "key": "ticket_7_marker",
+            "value": "the escalation ticket is the urgent one",
+            "source_step_id": "inspect_ticket_7",
+            "source_url": "https://local.intranet/tickets/7",
+            "evidence_item_id": "stateful_ticket_priority_digest-evidence-1",
+        },
+        {
+            "fact_id": "ticket_priority_fact_6",
+            "key": "ticket_8_id",
+            "value": "Ticket 8",
+            "source_step_id": "inspect_ticket_8",
+            "source_url": "https://local.intranet/tickets/8",
+            "evidence_item_id": "stateful_ticket_priority_digest-evidence-2",
+        },
+        {
+            "fact_id": "ticket_priority_fact_7",
+            "key": "ticket_8_topic",
+            "value": "Follow-up Note",
+            "source_step_id": "inspect_ticket_8",
+            "source_url": "https://local.intranet/tickets/8",
+            "evidence_item_id": "stateful_ticket_priority_digest-evidence-2",
+        },
+        {
+            "fact_id": "ticket_priority_fact_8",
+            "key": "ticket_8_priority",
+            "value": "low",
+            "source_step_id": "inspect_ticket_8",
+            "source_url": "https://local.intranet/tickets/8",
+            "evidence_item_id": "stateful_ticket_priority_digest-evidence-2",
+        },
+        {
+            "fact_id": "ticket_priority_fact_9",
+            "key": "ticket_8_requester_tier",
+            "value": "office worker",
+            "source_step_id": "inspect_ticket_8",
+            "source_url": "https://local.intranet/tickets/8",
+            "evidence_item_id": "stateful_ticket_priority_digest-evidence-2",
+        },
+        {
+            "fact_id": "ticket_priority_fact_10",
+            "key": "ticket_8_marker",
+            "value": "decoy for the priority cross-check",
+            "source_step_id": "inspect_ticket_8",
+            "source_url": "https://local.intranet/tickets/8",
+            "evidence_item_id": "stateful_ticket_priority_digest-evidence-2",
+        },
+    ]
+    evidence_items = [
+        {
+            "evidence_item_id": "stateful_ticket_priority_digest-evidence-1",
+            "source_step_id": "inspect_ticket_7",
+            "source_url": "https://local.intranet/tickets/7",
+            "text_preview": "Ticket 7 - Escalation Review | Priority: urgent. | Requester tier: facilities.",
+            "fact_ids": [
+                "ticket_priority_fact_1",
+                "ticket_priority_fact_2",
+                "ticket_priority_fact_3",
+                "ticket_priority_fact_4",
+                "ticket_priority_fact_5",
+            ],
+        },
+        {
+            "evidence_item_id": "stateful_ticket_priority_digest-evidence-2",
+            "source_step_id": "inspect_ticket_8",
+            "source_url": "https://local.intranet/tickets/8",
+            "text_preview": "Ticket 8 - Follow-up Note | Priority: low. | Search marker: this page is the decoy for the priority cross-check.",
+            "fact_ids": [
+                "ticket_priority_fact_6",
+                "ticket_priority_fact_7",
+                "ticket_priority_fact_8",
+                "ticket_priority_fact_9",
+                "ticket_priority_fact_10",
+            ],
+        },
+    ]
+    final_answer = {
+        "answer_text": "Ticket 7 is the urgent escalation review and Ticket 8 is the decoy.",
+        "cited_fact_ids": ["ticket_priority_fact_3", "ticket_priority_fact_4", "ticket_priority_fact_8"],
+        "cited_evidence_item_ids": [
+            "stateful_ticket_priority_digest-evidence-1",
+            "stateful_ticket_priority_digest-evidence-2",
+        ],
+        "confidence": 1.0,
+    }
+    return {
+        "schema_version": "autonomous_browser_stateful_readonly_planner_output_v1",
+        "scenario_id": scenario.scenario_id,
+        "workflow_id": scenario.workflow_id,
+        "goal": scenario.objective,
+        "actions": actions,
+        "facts": facts,
+        "evidence_items": evidence_items,
+        "final_answer": final_answer,
+        "done_reason": "task_completed",
+    }
+
+
+def _policy_marker_output(scenario) -> dict[str, Any]:
+    actions = _workflow_steps(scenario)
+    facts = [
+        {
+            "fact_id": "policy_marker_fact_1",
+            "key": "policy_anchor",
+            "value": "Workspace Policy",
+            "source_step_id": "inspect_policy",
+            "source_url": "https://local.intranet/docs/policy",
+            "evidence_item_id": "stateful_policy_search_marker_review-evidence-1",
+        },
+        {
+            "fact_id": "policy_marker_fact_2",
+            "key": "policy_marker",
+            "value": "fixture-backed result for workspace policy review",
+            "source_step_id": "inspect_policy",
+            "source_url": "https://local.intranet/docs/policy",
+            "evidence_item_id": "stateful_policy_search_marker_review-evidence-1",
+        },
+    ]
+    evidence_items = [
+        {
+            "evidence_item_id": "stateful_policy_search_marker_review-evidence-1",
+            "source_step_id": "inspect_policy",
+            "source_url": "https://local.intranet/docs/policy",
+            "text_preview": "Workspace Policy | fixture-backed result for workspace policy review.",
+            "fact_ids": ["policy_marker_fact_1", "policy_marker_fact_2"],
+        },
+    ]
+    final_answer = {
+        "answer_text": "The workspace policy marker is the fixture-backed review result.",
+        "cited_fact_ids": ["policy_marker_fact_1", "policy_marker_fact_2"],
+        "cited_evidence_item_ids": ["stateful_policy_search_marker_review-evidence-1"],
+        "confidence": 1.0,
+    }
+    return {
+        "schema_version": "autonomous_browser_stateful_readonly_planner_output_v1",
+        "scenario_id": scenario.scenario_id,
+        "workflow_id": scenario.workflow_id,
+        "goal": scenario.objective,
+        "actions": actions,
+        "facts": facts,
+        "evidence_items": evidence_items,
+        "final_answer": final_answer,
+        "done_reason": "task_completed",
+    }
+
+
+def _output_for_scenario(scenario) -> dict[str, Any]:
+    if scenario.scenario_id == "stateful_policy_ticket_crosscheck":
+        return _policy_ticket_output(scenario)
+    if scenario.scenario_id == "stateful_approval_policy_crosscheck":
+        return _approval_output(scenario)
+    if scenario.scenario_id == "stateful_intranet_overview_digest":
+        return _overview_output(scenario)
+    if scenario.scenario_id == "stateful_ticket_priority_digest":
+        return _ticket_priority_output(scenario)
+    if scenario.scenario_id == "stateful_policy_search_marker_review":
+        return _policy_marker_output(scenario)
+    raise AssertionError(f"unexpected scenario id: {scenario.scenario_id}")
+
+
+def _write_valid_outputs(packet_summary: dict[str, Any], repo_root: Path) -> None:
+    for record in packet_summary["request_records"]:
+        scenario_id = str(record["scenario_id"])
+        scenario = build_default_stateful_readonly_workflow_scenarios()[scenario_id]
+        payload = _output_for_scenario(scenario)
+        raw_output_path = repo_root / str(record["raw_output_path"])
+        raw_output_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def test_dry_run_accepts_valid_outputs_without_fixture_execution(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    _write_valid_outputs(packet_summary, tmp_path)
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path)
+    encoded = json.dumps(evaluation, ensure_ascii=False)
+
+    assert evaluation["schema_version"] == SUMMARY_SCHEMA_VERSION
+    assert evaluation["status"] == "succeeded"
+    assert evaluation["error_code"] is None
+    assert evaluation["packet_id"] == "phase_13e2_stateful_readonly_local_planner"
+    assert evaluation["outputs_total"] == 5
+    assert evaluation["outputs_present"] == 5
+    assert evaluation["outputs_missing"] == 0
+    assert evaluation["outputs_ingested"] == 5
+    assert evaluation["validation_accepted"] == 5
+    assert evaluation["dry_runs_succeeded"] == 5
+    assert evaluation["fixture_execution_requested"] is False
+    assert evaluation["fixture_runs_succeeded"] == 5
+    assert evaluation["actions_attempted_total"] == 0
+    assert evaluation["expected_results_passed_total"] == 0
+    assert evaluation["no_runtime_execution"] is True
+    assert evaluation["model_execution"] is False
+    assert evaluation["real_browser_execution"] is False
+    assert evaluation["playwright_execution"] is False
+    assert evaluation["browser_opened"] is False
+    assert "C:\\" not in encoded
+    assert str(tmp_path) not in encoded
+
+
+def test_fixture_execution_succeeds_for_valid_outputs(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    _write_valid_outputs(packet_summary, tmp_path)
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(
+        packet_dir,
+        repo_root=tmp_path,
+        execute_fixture=True,
+    )
+
+    assert evaluation["schema_version"] == SUMMARY_SCHEMA_VERSION
+    assert evaluation["status"] == "succeeded"
+    assert evaluation["error_code"] is None
+    assert evaluation["outputs_total"] == 5
+    assert evaluation["outputs_present"] == 5
+    assert evaluation["outputs_missing"] == 0
+    assert evaluation["outputs_ingested"] == 5
+    assert evaluation["validation_accepted"] == 5
+    assert evaluation["dry_runs_succeeded"] == 5
+    assert evaluation["fixture_execution_requested"] is True
+    assert evaluation["fixture_runs_succeeded"] == 5
+    assert evaluation["fixture_runs_failed"] == 0
+    assert evaluation["workflows_succeeded"] == 5
+    assert evaluation["workflows_failed"] == 0
+    assert evaluation["actions_attempted_total"] == 26
+    assert evaluation["actions_succeeded_total"] == 26
+    assert evaluation["actions_failed_total"] == 0
+    assert evaluation["expected_results_total"] == 26
+    assert evaluation["expected_results_passed_total"] == 26
+    assert evaluation["expected_results_failed_total"] == 0
+    assert evaluation["real_browser_execution"] is False
+    assert evaluation["playwright_execution"] is False
+    assert evaluation["browser_opened"] is False
+    assert evaluation["real_network_traffic"] is False
+    assert evaluation["fixture_only"] is True
+    assert evaluation["scenario_summaries"][0]["scenario_id"] == "stateful_policy_ticket_crosscheck"
+    assert evaluation["scenario_summaries"][0]["route_stable"] is True
+    assert evaluation["scenario_summaries"][0]["unique_matched_urls"] == ["https://local.intranet/docs/policy"]
+    assert evaluation["scenario_summaries"][1]["scenario_id"] == "stateful_approval_policy_crosscheck"
+    assert evaluation["scenario_summaries"][1]["route_stable"] is True
+    assert evaluation["scenario_summaries"][1]["unique_matched_urls"] == ["https://local.intranet/docs/policy"]
+
+
+def test_missing_captured_output_returns_safe_failure(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    request_records = packet_summary["request_records"]
+    for record in request_records[:-1]:
+        scenario = build_default_stateful_readonly_workflow_scenarios()[str(record["scenario_id"])]
+        payload = _output_for_scenario(scenario)
+        raw_output_path = tmp_path / str(record["raw_output_path"])
+        raw_output_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(
+        packet_dir,
+        repo_root=tmp_path,
+        execute_fixture=True,
+    )
+    encoded = json.dumps(evaluation, ensure_ascii=False)
+
+    assert evaluation["status"] == "completed_with_missing_outputs"
+    assert evaluation["error_code"] == "missing_captured_outputs"
+    assert evaluation["outputs_total"] == 5
+    assert evaluation["outputs_present"] == 4
+    assert evaluation["outputs_missing"] == 1
+    assert evaluation["outputs_ingested"] == 4
+    assert evaluation["outputs_rejected"] == 0
+    assert evaluation["fixture_runs_succeeded"] == 4
+    assert evaluation["fixture_runs_failed"] == 0
+    assert evaluation["no_runtime_execution"] is True
+    assert evaluation["model_execution"] is False
+    assert evaluation["real_browser_execution"] is False
+    assert evaluation["playwright_execution"] is False
+    assert evaluation["browser_opened"] is False
+    assert "C:\\" not in encoded
+    assert str(tmp_path) not in encoded
+
+
+def test_cli_fixture_execution_succeeds_and_missing_outputs_fail(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    _write_valid_outputs(packet_summary, tmp_path)
+    output_dir_rel = "cli-output"
+    output_dir = tmp_path / output_dir_rel
+
+    module = _load_cli_module(CLI_PATH)
+    original_project_root = module.PROJECT_ROOT
+    module.PROJECT_ROOT = tmp_path
+    try:
+        exit_code = module.main(["--packet-dir", str(packet_dir), "--output-dir", output_dir_rel, "--execute-fixture"])
+    finally:
+        module.PROJECT_ROOT = original_project_root
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["schema_version"] == SUMMARY_SCHEMA_VERSION
+    assert payload["status"] == "succeeded"
+    assert payload["fixture_execution_requested"] is True
+    assert payload["fixture_runs_succeeded"] == 5
+    assert (output_dir / "autonomous_browser_stateful_readonly_planner_evaluator_summary.json").exists()
+
+    missing_output_path = tmp_path / str(packet_summary["request_records"][-1]["raw_output_path"])
+    missing_output_path.unlink()
+    module = _load_cli_module(CLI_PATH)
+    original_project_root = module.PROJECT_ROOT
+    module.PROJECT_ROOT = tmp_path
+    try:
+        exit_code = module.main(["--packet-dir", str(packet_dir), "--output-dir", output_dir_rel, "--execute-fixture"])
+    finally:
+        module.PROJECT_ROOT = original_project_root
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["status"] == "completed_with_missing_outputs"
+    assert payload["error_code"] == "missing_captured_outputs"
+
+
+def test_no_playwright_import_or_browser_server_model_use(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    original_import = builtins.__import__
+    forbidden = ("playwright", "llama_cpp", "openai", "http.server", "socketserver")
+
+    def guarded_import(name: str, *args: Any, **kwargs: Any) -> Any:
+        if name.startswith(forbidden):
+            raise AssertionError(f"forbidden runtime import: {name}")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    _write_valid_outputs(packet_summary, tmp_path)
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path)
+
+    assert evaluation["status"] == "succeeded"
