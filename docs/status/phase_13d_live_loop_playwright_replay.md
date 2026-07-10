@@ -6,6 +6,7 @@ Phase 13D prepares a guarded Playwright replay suite that consumes successful Ph
 
 Phase 13D1 fixes the artifact handoff so the variance suite persists per-trial trace files at the paths recorded in its summary, and the replay loader tolerates common PowerShell JSON encodings.
 Phase 13D2 fixes the live-loop replay trace-to-backend handoff so selected action names stay canonical, replay plans validate as `autonomous_browser_plan_v1`, and pre-browser guarded failures carry sanitized validation diagnostics.
+Phase 13D3 fixes the generated guarded Playwright operator config shape so the existing operator receives the exact schema it expects, and backend config paths appear in replay diagnostics.
 
 ## Input and output
 
@@ -29,6 +30,7 @@ The replay summary is intended to track:
 - only local/fixture/loopback hosts are allowed
 - `browser_search` and external web browsing are not part of this replay preparation path
 - Phase 13D2 keeps the real guarded replay path bounded; it improves config/action handoff and diagnostics without launching Playwright from Codex
+- Phase 13D3 fixes the remaining pre-browser config validation barrier without changing the refusal boundary
 
 ## Refusal and dry-run behavior
 
@@ -54,3 +56,4 @@ The replay summary is intended to track:
 - generated replay artifacts are evidence-only and should not be committed
 - this is not a security evaluation or a production recommendation
 - D2 confirms the dry-run path already succeeded and the earlier real guarded failure was a pre-browser config/action handoff issue
+- D3 confirms the remaining real guarded failure was a generated operator-config shape issue, not a browser launch

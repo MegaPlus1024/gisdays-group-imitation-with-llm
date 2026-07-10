@@ -8,8 +8,12 @@ from pathlib import Path
 from typing import Any
 
 from .autonomous_browser_plan_playwright_replay_operator import (
+    CONFIG_SCHEMA_VERSION as PLAYWRIGHT_OPERATOR_CONFIG_SCHEMA_VERSION,
+    AutonomousBrowserPlanPlaywrightReplayOperatorConfigError,
     REQUIRED_CONFIRM_VALUE,
+    load_autonomous_browser_plan_playwright_replay_operator_config,
     run_autonomous_browser_plan_playwright_replay_operator,
+    ALLOWED_BROWSER_HOSTS as PLAYWRIGHT_ALLOWED_BROWSER_HOSTS,
 )
 from .autonomous_browser_plan_validation import validate_autonomous_browser_plan
 
@@ -110,6 +114,8 @@ class AutonomousBrowserLiveLoopPlaywrightReplayTraceSummary:
     limitations: tuple[str, ...] = ()
     selected_action_names: tuple[str, ...] = ()
     replay_plan_path: str | None = None
+    backend_config_path: str | None = None
+    backend_config_schema_version: str | None = None
     diagnostics: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -136,6 +142,8 @@ class AutonomousBrowserLiveLoopPlaywrightReplayTraceSummary:
             "limitations": list(self.limitations),
             "selected_action_names": list(self.selected_action_names),
             "replay_plan_path": self.replay_plan_path,
+            "backend_config_path": self.backend_config_path,
+            "backend_config_schema_version": self.backend_config_schema_version,
             "diagnostics": _jsonable(self.diagnostics),
         }
 
@@ -446,6 +454,7 @@ def run_autonomous_browser_live_loop_playwright_replay(
                 limitations=config.limitations,
                 plan_validation=plan_validation,
                 replay_plan_path=None,
+                selected_action_names=_selected_action_names_from_actions(plan_payload.get("actions") if isinstance(plan_payload, Mapping) else None),
             )
             trace_summaries.append(trace_summary)
             traces_failed += 1
@@ -454,9 +463,37 @@ def run_autonomous_browser_live_loop_playwright_replay(
             continue
 
         replay_plan_path = _write_replay_plan(repo, config.output_dir, selection, plan_payload)
-        operator_config = _operator_config_from_selection(config, selection, replay_plan_path)
+        operator_config_path, operator_config_payload = _write_operator_config_from_selection(
+            repo,
+            config.output_dir,
+            selection,
+            config,
+            replay_plan_path,
+        )
+        try:
+            backend_config = load_autonomous_browser_plan_playwright_replay_operator_config(repo / operator_config_path)
+        except AutonomousBrowserPlanPlaywrightReplayOperatorConfigError as exc:
+            trace_summary = _trace_failure_summary(
+                selection,
+                "config_validation_failed",
+                limitations=config.limitations,
+                replay_plan_path=replay_plan_path,
+                selected_action_names=_selected_action_names_from_actions(plan_payload.get("actions") if isinstance(plan_payload, Mapping) else None),
+                diagnostics={
+                    "backend_config_path": operator_config_path,
+                    "backend_config_schema_version": PLAYWRIGHT_OPERATOR_CONFIG_SCHEMA_VERSION,
+                    "validation_error_code": "config_validation_failed",
+                    "validation_error_message": str(exc),
+                },
+            )
+            trace_summaries.append(trace_summary)
+            traces_failed += 1
+            if first_issue_code is None:
+                first_issue_code = "config_validation_failed"
+            continue
+
         operator_summary = run_autonomous_browser_plan_playwright_replay_operator(
-            operator_config,
+            operator_config_path,
             repo_root=repo,
             allow_real_browser=allow_real_browser,
             confirm_real_browser=REQUIRED_CONFIRM_VALUE if allow_real_browser else None,
@@ -469,6 +506,8 @@ def run_autonomous_browser_live_loop_playwright_replay(
             operator_summary,
             limitations=config.limitations,
             replay_plan_path=replay_plan_path,
+            backend_config_path=operator_config_path,
+            backend_config_payload=backend_config.to_dict() if hasattr(backend_config, "to_dict") else _jsonable(backend_config),
             replay_plan_payload=plan_payload,
         )
         trace_summaries.append(trace_summary)
@@ -603,6 +642,7 @@ def _summaries_for_dry_run(
                 limitations=config.limitations,
                 plan_validation=plan_validation,
                 replay_plan_path=None,
+                selected_action_names=_selected_action_names_from_actions(plan_payload.get("actions") if isinstance(plan_payload, Mapping) else None),
             )
             trace_summaries.append(trace_summary)
             traces_failed += 1
@@ -713,6 +753,8 @@ def _trace_summary_from_operator(
     *,
     limitations: tuple[str, ...],
     replay_plan_path: str,
+    backend_config_path: str | None = None,
+    backend_config_payload: Mapping[str, Any] | None = None,
     replay_plan_payload: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     replay_final_url = _operator_replay_final_url(operator_summary)
@@ -733,6 +775,12 @@ def _trace_summary_from_operator(
         "replay_plan_path": replay_plan_path,
         "selected_action_names": list(selected_action_names),
     }
+    if backend_config_path is not None:
+        diagnostics["backend_config_path"] = backend_config_path
+    if isinstance(backend_config_payload, Mapping):
+        schema_version = _optional_text(backend_config_payload.get("schema_version"))
+        if schema_version:
+            diagnostics["backend_config_schema_version"] = schema_version
     operator_diagnostics = operator_summary.get("diagnostics")
     if isinstance(operator_diagnostics, Mapping):
         validation_result = operator_diagnostics.get("validation")
@@ -744,9 +792,15 @@ def _trace_summary_from_operator(
             diagnostics["validation_error_message"] = str(operator_diagnostics["config_error"])
         if isinstance(operator_diagnostics.get("replay_plan_error"), str):
             diagnostics["validation_error_message"] = str(operator_diagnostics["replay_plan_error"])
-        backend_config_path = operator_diagnostics.get("backend_config_path")
-        if backend_config_path is not None:
-            diagnostics["backend_config_path"] = _safe_relative_path(backend_config_path, "backend_config_path")
+        nested_backend_config_path = operator_diagnostics.get("backend_config_path")
+        if nested_backend_config_path is not None:
+            diagnostics["backend_config_path"] = _safe_relative_path(nested_backend_config_path, "backend_config_path")
+        missing_required_fields = operator_diagnostics.get("missing_required_fields")
+        if isinstance(missing_required_fields, list):
+            diagnostics["missing_required_fields"] = [str(item) for item in missing_required_fields if isinstance(item, str) and item.strip()]
+        invalid_field_paths = operator_diagnostics.get("invalid_field_paths")
+        if isinstance(invalid_field_paths, list):
+            diagnostics["invalid_field_paths"] = [str(item) for item in invalid_field_paths if isinstance(item, str) and item.strip()]
     if "validation_error_code" not in diagnostics and status != "succeeded" and error_code:
         diagnostics["validation_error_code"] = error_code
     return AutonomousBrowserLiveLoopPlaywrightReplayTraceSummary(
@@ -772,6 +826,8 @@ def _trace_summary_from_operator(
         limitations=limitations,
         selected_action_names=selected_action_names,
         replay_plan_path=replay_plan_path,
+        backend_config_path=backend_config_path,
+        backend_config_schema_version=_optional_text(backend_config_payload.get("schema_version")) if isinstance(backend_config_payload, Mapping) else None,
         diagnostics=diagnostics,
     ).to_dict()
 
@@ -794,6 +850,7 @@ def _trace_failure_summary(
     limitations: tuple[str, ...],
     plan_validation: Mapping[str, Any] | None = None,
     replay_plan_path: str | None = None,
+    selected_action_names: tuple[str, ...] = (),
     diagnostics: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     trace_diagnostics: dict[str, Any] = dict(_jsonable(diagnostics or {}))
@@ -820,6 +877,7 @@ def _trace_failure_summary(
         playwright_execution=False,
         no_runtime_execution=True,
         limitations=limitations,
+        selected_action_names=selected_action_names,
         replay_plan_path=replay_plan_path,
         diagnostics=trace_diagnostics,
     ).to_dict()
@@ -1194,16 +1252,47 @@ def _operator_config_from_selection(
     replay_plan_path: str,
 ) -> dict[str, Any]:
     return {
-        "schema_version": "autonomous_browser_plan_playwright_replay_operator_config_v1",
+        "schema_version": PLAYWRIGHT_OPERATOR_CONFIG_SCHEMA_VERSION,
         "replay_backend": config.replay_backend,
         "replay_plan_path": replay_plan_path,
         "output_dir": f"{config.output_dir}/selected_traces/{selection.scenario_id or 'unknown'}/{selection.trial_label or 'trace'}",
-        "allowed_hosts": list(config.allowed_hosts),
+        "allowed_hosts": [host for host in config.allowed_hosts if host in PLAYWRIGHT_ALLOWED_BROWSER_HOSTS],
         "fixture_scope": "local_only",
         "headless": config.headless,
         "timeout_ms": config.timeout_ms,
         "limitations": list(config.limitations),
     }
+
+
+def _write_operator_config(
+    repo_root: Path,
+    output_dir: str,
+    selection: _ReplayTraceSelection,
+    config_payload: Mapping[str, Any],
+) -> str:
+    relative_path = (
+        Path(output_dir)
+        / "selected_traces"
+        / (selection.scenario_id or "unknown")
+        / (selection.trial_label or "trace")
+        / "playwright_replay_operator_config.json"
+    )
+    path = repo_root / relative_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(config_payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    return relative_path.as_posix()
+
+
+def _write_operator_config_from_selection(
+    repo_root: Path,
+    output_dir: str,
+    selection: _ReplayTraceSelection,
+    config: AutonomousBrowserLiveLoopPlaywrightReplayConfig,
+    replay_plan_path: str,
+) -> tuple[str, dict[str, Any]]:
+    config_payload = _operator_config_from_selection(config, selection, replay_plan_path)
+    relative_path = _write_operator_config(repo_root, output_dir, selection, config_payload)
+    return relative_path, config_payload
 
 
 def _trace_is_successful(trace_payload: Mapping[str, Any]) -> bool:

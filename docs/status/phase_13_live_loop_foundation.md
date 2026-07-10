@@ -175,3 +175,8 @@
 
 - Phase 13D2 fixes the live-loop replay trace/action handoff so canonical `action_name` values survive into the guarded backend, replay plans validate as `autonomous_browser_plan_v1`, and pre-browser failures keep sanitized validation diagnostics
 - dry-run already succeeded; the earlier real guarded failure was a pre-browser config/action handoff issue, not a browser launch
+
+## Phase 13D3 note
+
+- Phase 13D3 fixes the generated guarded Playwright operator config shape and records the generated backend config path in replay diagnostics
+- the remaining guarded replay failure was a config-shape mismatch before browser launch, not a real Playwright run

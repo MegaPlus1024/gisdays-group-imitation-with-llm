@@ -17,6 +17,11 @@ from src.agent.autonomous_browser_live_loop_playwright_replay import (
     load_autonomous_browser_live_loop_playwright_replay_config,
     run_autonomous_browser_live_loop_playwright_replay,
 )
+from src.agent.autonomous_browser_plan_playwright_replay_operator import (
+    CONFIG_SCHEMA_VERSION as PLAYWRIGHT_OPERATOR_CONFIG_SCHEMA_VERSION,
+    AutonomousBrowserPlanPlaywrightReplayOperatorConfigError,
+    load_autonomous_browser_plan_playwright_replay_operator_config,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -1274,12 +1279,22 @@ def test_guarded_playwright_handoff_uses_canonical_plan_shape_without_launching_
     ) -> dict[str, Any]:
         del allow_real_browser, confirm_real_browser, dry_run, replay_backend
         assert repo_root == tmp_path
-        assert isinstance(config_artifact, Mapping)
-        config = dict(config_artifact)
+        assert isinstance(config_artifact, (str, Path))
+        config_path = Path(config_artifact)
+        assert (repo_root / config_path).exists()
+        config = json.loads((repo_root / config_path).read_text(encoding="utf-8"))
+        assert config["schema_version"] == PLAYWRIGHT_OPERATOR_CONFIG_SCHEMA_VERSION
+        assert config["replay_plan_path"].endswith("playwright_replay_plan.json")
+        assert "/selected_traces/" in config["output_dir"].replace("\\", "/")
+        assert config["output_dir"].endswith("trial_01")
+        assert config["fixture_scope"] == "local_only"
+        assert config["headless"] is True
+        assert config["timeout_ms"] == 30000
+        assert config["allowed_hosts"] == ["local.intranet", "local-intranet.test", "docs.local", "portal.local"]
         plan_path = repo_root / config["replay_plan_path"]
         plan = json.loads(plan_path.read_text(encoding="utf-8"))
         action_names = [str(action["action_name"]) for action in plan["actions"]]
-        calls.append({"config": config, "plan": plan, "action_names": action_names})
+        calls.append({"config": config, "plan": plan, "action_names": action_names, "config_path": config_path.as_posix()})
         assert plan["schema_version"] == "autonomous_browser_plan_v1"
         assert action_names in (
             ["browser_open_url", "browser_click"],
@@ -1301,7 +1316,12 @@ def test_guarded_playwright_handoff_uses_canonical_plan_shape_without_launching_
             "expected_results_passed": len(action_names),
             "expected_results_failed": 0,
             "expected_results_total": len(action_names),
-            "diagnostics": {"fake_backend": True, "selected_action_names": action_names},
+            "diagnostics": {
+                "fake_backend": True,
+                "selected_action_names": action_names,
+                "backend_config_path": config_path.as_posix(),
+                "backend_config_schema_version": config["schema_version"],
+            },
         }
 
     monkeypatch.setattr(live_loop_replay, "run_autonomous_browser_plan_playwright_replay_operator", fake_operator)
@@ -1335,6 +1355,14 @@ def test_guarded_playwright_handoff_uses_canonical_plan_shape_without_launching_
         ["browser_open_url", "browser_click", "browser_click"],
     ]
     assert all(item["replay_plan_path"] for item in summary["replay_trace_summaries"])
+    assert all(item["backend_config_path"] for item in summary["replay_trace_summaries"])
+    assert all(item["backend_config_schema_version"] == PLAYWRIGHT_OPERATOR_CONFIG_SCHEMA_VERSION for item in summary["replay_trace_summaries"])
+    assert all(item["diagnostics"]["backend_config_path"] == item["backend_config_path"] for item in summary["replay_trace_summaries"])
+    assert all(
+        load_autonomous_browser_plan_playwright_replay_operator_config(tmp_path / item["backend_config_path"]).schema_version
+        == PLAYWRIGHT_OPERATOR_CONFIG_SCHEMA_VERSION
+        for item in summary["replay_trace_summaries"]
+    )
 
 
 def test_guarded_playwright_backend_failure_surfaces_sanitized_validation_diagnostics(
@@ -1364,47 +1392,10 @@ def test_guarded_playwright_backend_failure_surfaces_sanitized_validation_diagno
 
     config = _config_for_temp_inputs(trace_paths=["trace/trial_01/autonomous_browser_live_loop_trace.json"])
 
-    def fake_operator(
-        config_artifact: Mapping[str, Any] | str | Path,
-        *,
-        repo_root: Path | None = None,
-        allow_real_browser: bool = False,
-        confirm_real_browser: str | None = None,
-        dry_run: bool = False,
-        replay_backend: str | None = None,
-    ) -> dict[str, Any]:
-        del config_artifact, repo_root, allow_real_browser, confirm_real_browser, dry_run, replay_backend
-        return {
-            "status": "failed",
-            "error_code": "config_validation_failed",
-            "no_runtime_execution": True,
-            "replay_backend": "playwright",
-            "fixture_replay_execution": False,
-            "playwright_execution": False,
-            "browser_opened": False,
-            "real_network_traffic": False,
-            "real_browser_execution": False,
-            "actions_attempted": 0,
-            "actions_succeeded": 0,
-            "actions_failed": 0,
-            "expected_results_passed": 0,
-            "expected_results_failed": 0,
-            "expected_results_total": 0,
-            "diagnostics": {
-                "config_error": "fixture_scope must be local_only.",
-                "validation": {
-                    "status": "rejected",
-                    "error_code": "config_validation_failed",
-                    "message": "fixture_scope must be local_only.",
-                    "finding_type": "validation_error",
-                    "path": "replay_plan_path",
-                    "actions_total": 1,
-                },
-                "backend_config_path": "artifacts/live_loop_playwright_replay_tests/selected_traces/hard_policy_disambiguation/trial_01/backend_config.json",
-            },
-        }
+    def fake_load(config_artifact: Mapping[str, Any] | str | Path) -> Any:
+        raise AutonomousBrowserPlanPlaywrightReplayOperatorConfigError("fixture_scope must be local_only.")
 
-    monkeypatch.setattr(live_loop_replay, "run_autonomous_browser_plan_playwright_replay_operator", fake_operator)
+    monkeypatch.setattr(live_loop_replay, "load_autonomous_browser_plan_playwright_replay_operator_config", fake_load)
 
     summary = run_autonomous_browser_live_loop_playwright_replay(
         config,
@@ -1419,8 +1410,8 @@ def test_guarded_playwright_backend_failure_surfaces_sanitized_validation_diagno
     assert summary["error_code"] == "config_validation_failed"
     assert trace_summary["diagnostics"]["validation_error_code"] == "config_validation_failed"
     assert trace_summary["diagnostics"]["validation_error_message"] == "fixture_scope must be local_only."
-    assert trace_summary["diagnostics"]["validation_errors"]["path"] == "replay_plan_path"
-    assert trace_summary["diagnostics"]["backend_config_path"] == "artifacts/live_loop_playwright_replay_tests/selected_traces/hard_policy_disambiguation/trial_01/backend_config.json"
+    assert trace_summary["diagnostics"]["backend_config_path"] == "artifacts/live_loop_playwright_replay_tests/selected_traces/hard_policy_disambiguation/trial_01/playwright_replay_operator_config.json"
+    assert trace_summary["diagnostics"]["backend_config_schema_version"] == PLAYWRIGHT_OPERATOR_CONFIG_SCHEMA_VERSION
     assert trace_summary["selected_action_names"] == ["browser_open_url"]
 
 
