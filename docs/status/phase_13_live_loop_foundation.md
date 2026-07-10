@@ -129,3 +129,9 @@
 - B17 adds scenario-scoped completion criteria and compact guidance for `hard_ticket_priority_crosscheck` and `hard_approval_policy_match`
 - the ticket scenario now keys off `tickets/1`, while the approval scenario keys off the approval flow and the `portal/approval-match` evidence page
 - this remains fixture-backed only and does not add browser launch capability or Codex-launched model execution
+
+## Phase 13B18 note
+
+- B17 got the policy and ticket scenarios to `goal_satisfied` / valid scoped criteria, while approval still needed a stronger guard because the model followed visible but irrelevant links
+- B18 adds scenario-relevant click-target constraints and repair guidance so `hard_approval_policy_match` can reject `Workspace policy` and steer toward `Approvals queue` / `Policy match review` as appropriate
+- the guard stays scenario-scoped, fixture-backed, and does not add browser/Playwright execution from Codex

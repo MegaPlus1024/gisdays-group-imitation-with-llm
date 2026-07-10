@@ -48,6 +48,7 @@ REPAIRABLE_MODEL_OUTPUT_ERROR_CODES = {
     "model_output_expected_text_not_visible",
     "model_output_unsupported_click_target",
     "model_output_click_target_not_visible",
+    "model_output_irrelevant_click_target",
 }
 
 
@@ -305,8 +306,10 @@ class LocalModelLivePlanner:
                 goal_id = _prompt_text(metadata.get("scenario_id"))
                 if goal_id == "hard_ticket_priority_crosscheck":
                     user_parts.append('For hard_ticket_priority_crosscheck from the home page, click "Ticket board", not "Workspace policy".')
+                    user_parts.append("Avoid for this goal: Workspace policy; Team status; Approvals queue.")
                 elif goal_id == "hard_approval_policy_match":
                     user_parts.append('For hard_approval_policy_match from the home page, click "Approvals queue", not "Workspace policy".')
+                    user_parts.append("Avoid for this goal: Workspace policy; Ticket board; Team status.")
             anchor_hints = _start_page_anchor_hints(payload, metadata)
             if anchor_hints:
                 user_parts.append(f"Start-page visible anchors: {'; '.join(anchor_hints)}")
@@ -1508,6 +1511,7 @@ def _page_state_guidance(
                 "You are on the relevant approvals queue page.",
                 'The next goal-relevant click is "Policy match review".',
                 "Do not click Workspace policy unless the approval evidence page explicitly requires it.",
+                "Do not click Ticket board or Team status from here.",
             ]
         )
     elif goal_id == "hard_approval_policy_match" and current_url == "https://local.intranet/portal/approval-match":
@@ -1666,9 +1670,16 @@ def _repair_constraints_lines(
     repo_root: Path,
 ) -> list[str]:
     metadata = observation_payload.get("metadata") if isinstance(observation_payload.get("metadata"), Mapping) else {}
+    diagnostics_metadata = error_diagnostics.get("metadata") if isinstance(error_diagnostics, Mapping) else None
     scenario_id = _prompt_text(metadata.get("scenario_id")) if isinstance(metadata, Mapping) else None
+    if scenario_id is None and isinstance(error_diagnostics, Mapping):
+        scenario_id = _prompt_text(error_diagnostics.get("scenario_id"))
+    if scenario_id is None and isinstance(diagnostics_metadata, Mapping):
+        scenario_id = _prompt_text(diagnostics_metadata.get("scenario_id"))
     current_url = _prompt_text(observation_payload.get("current_url"))
+    current_url_key = current_url.rstrip("/") if current_url else None
     action_name = _prompt_text(invalid_action.get("action_name")) or ""
+    current_page_targets = _current_page_click_targets(observation_payload, metadata, repo_root=repo_root)
     lines: list[str] = [
         "Return exactly one JSON object.",
         "Keep the repaired action minimal and valid for the current observation.",
@@ -1688,6 +1699,61 @@ def _repair_constraints_lines(
     elif error_code == "model_output_expected_text_not_visible":
         lines.append("expected_text must be one exact visible substring from the destination page.")
         lines.append("Do not copy text from the current page when the click navigates elsewhere.")
+    elif error_code == "model_output_irrelevant_click_target":
+        lines.append("The previous target was visible but irrelevant to this scenario.")
+        current_targets = set(current_page_targets or ())
+        allowed_click_targets_source: Any = ()
+        if isinstance(error_diagnostics, Mapping):
+            allowed_click_targets_source = error_diagnostics.get("allowed_relevant_click_targets", ())
+        if (not allowed_click_targets_source) and isinstance(diagnostics_metadata, Mapping):
+            allowed_click_targets_source = diagnostics_metadata.get("allowed_relevant_click_targets", ())
+        allowed_relevant_click_targets = tuple(
+            str(item).strip()
+            for item in allowed_click_targets_source
+            if isinstance(item, str) and item.strip()
+        ) if isinstance(allowed_click_targets_source, Sequence) else ()
+        allowed_targets = set(allowed_relevant_click_targets)
+        if scenario_id == "hard_policy_disambiguation" and "Workspace policy" in current_targets:
+            lines.extend(
+                [
+                    'For hard_policy_disambiguation from the home page, click "Workspace policy".',
+                    'Use browser_click with expected_text "Workspace Policy" if you need to open the policy page.',
+                    "Avoid for this goal: Ticket board; Team status; Approvals queue.",
+                ]
+            )
+        elif scenario_id == "hard_ticket_priority_crosscheck" and "Ticket board" in current_targets and "Ticket 1" not in current_targets:
+            lines.extend(
+                [
+                    'For hard_ticket_priority_crosscheck from the home page, click "Ticket board".',
+                    'Use browser_click with expected_text "Ticket Board" if you need to open the ticket board page.',
+                    "Avoid for this goal: Workspace policy; Team status; Approvals queue.",
+                ]
+            )
+        elif scenario_id == "hard_ticket_priority_crosscheck" and "Ticket 1" in current_targets:
+            lines.extend(
+                [
+                    'For hard_ticket_priority_crosscheck from Ticket board, click "Ticket 1".',
+                    'Use browser_click with expected_text "Ticket 1 - Quarterly Access Review" if you need the ticket detail page.',
+                    "Avoid for this goal: Workspace policy.",
+                ]
+            )
+        elif scenario_id == "hard_approval_policy_match" and "Approvals queue" in allowed_targets:
+            lines.extend(
+                [
+                    'For hard_approval_policy_match from the home page, click "Approvals queue".',
+                    'Use browser_click with expected_text "Approvals Queue" if you need to open the approvals queue page.',
+                    "Avoid for this goal: Workspace policy; Ticket board; Team status.",
+                ]
+            )
+        elif scenario_id == "hard_approval_policy_match" and "Policy match review" in allowed_targets:
+            lines.extend(
+                [
+                    'For hard_approval_policy_match from Approvals queue, click "Policy match review".',
+                    'Use browser_click with expected_text "Approval Policy Match" if you need the approval evidence page.',
+                    "Avoid for this goal: Workspace policy; Ticket board; Team status.",
+                ]
+            )
+        lines.append("No prose, one JSON object.")
     elif error_code == "model_output_unsupported_click_target":
         lines.append('Use parameters {"target_text": "<visible link/button text>"} for browser_click.')
         lines.append("Do not use selector, href, link_text, or button_text.")
@@ -1696,7 +1762,6 @@ def _repair_constraints_lines(
         lines.append("Do not click page titles or headings unless they are listed as click targets.")
     else:
         lines.append("Use only allowed local fixture actions and safe local fixture URLs.")
-    current_page_targets = _current_page_click_targets(observation_payload, metadata, repo_root=repo_root)
     if current_page_targets:
         lines.append(f"Current page visible click targets: {'; '.join(current_page_targets[:8])}.")
     current_page_anchors = _page_visible_anchor_hints(

@@ -123,6 +123,29 @@ def _load_local_model_config(scenario_id: str = "browser_live_loop_local_model_p
                 }
             },
         },
+        "click_target_relevance": {
+            "hard_policy_disambiguation": {
+                "https://local.intranet/": [
+                    "Workspace policy",
+                ],
+            },
+            "hard_ticket_priority_crosscheck": {
+                "https://local.intranet/": [
+                    "Ticket board",
+                ],
+                "https://local.intranet/tickets": [
+                    "Ticket 1",
+                ],
+            },
+            "hard_approval_policy_match": {
+                "https://local.intranet/": [
+                    "Approvals queue",
+                ],
+                "https://local.intranet/portal/approvals": [
+                    "Policy match review",
+                ],
+            },
+        },
     }
 
 
@@ -194,6 +217,11 @@ def test_local_model_example_config_loads_with_relative_paths() -> None:
         "Policy match: confirmed.",
         "Search marker: approval-policy match is the fixture-backed answer.",
     )
+    assert config.click_target_relevance["hard_policy_disambiguation"]["https://local.intranet/"] == ("Workspace policy",)
+    assert config.click_target_relevance["hard_ticket_priority_crosscheck"]["https://local.intranet/"] == ("Ticket board",)
+    assert config.click_target_relevance["hard_ticket_priority_crosscheck"]["https://local.intranet/tickets"] == ("Ticket 1",)
+    assert config.click_target_relevance["hard_approval_policy_match"]["https://local.intranet/"] == ("Approvals queue",)
+    assert config.click_target_relevance["hard_approval_policy_match"]["https://local.intranet/portal/approvals"] == ("Policy match review",)
 
 
 def test_offline_live_loop_succeeds_with_scripted_backend() -> None:
@@ -1069,6 +1097,8 @@ def test_local_model_backend_stops_when_ticket_completion_policy_goal_is_satisfi
     config = _load_local_model_config(scenario_id="hard_ticket_priority_crosscheck")
     config["planner_backend"]["allow_model_calls"] = True
     config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    config["planner_backend"]["repair_enabled"] = False
+    config["planner_backend"]["max_repair_attempts"] = 0
     client = FakeChatCompletionClient(
         [
             ChatCompletionResponse(
@@ -1164,10 +1194,12 @@ def test_local_model_backend_stops_when_approval_completion_policy_goal_is_satis
     assert len(client.requests) == 3
 
 
-def test_local_model_backend_does_not_stop_for_ticket_workspace_policy_alone() -> None:
-    config = _load_local_model_config(scenario_id="hard_ticket_priority_crosscheck")
+def test_local_model_backend_rejects_irrelevant_approval_home_click_before_fixture_execution() -> None:
+    config = _load_local_model_config(scenario_id="hard_approval_policy_match")
     config["planner_backend"]["allow_model_calls"] = True
     config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    config["planner_backend"]["repair_enabled"] = False
+    config["planner_backend"]["max_repair_attempts"] = 0
     client = FakeChatCompletionClient(
         [
             ChatCompletionResponse(
@@ -1177,28 +1209,35 @@ def test_local_model_backend_does_not_stop_for_ticket_workspace_policy_alone() -
             ChatCompletionResponse(
                 content='{"step_id":"click_policy","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy","expected_url":"https://local.intranet/docs/policy"}',
                 finish_reason="stop",
-            ),
-            ChatCompletionResponse(
-                content='{"step_id":"done","action_name":"done","parameters":{},"expected_text":"","done":true}',
-                finish_reason="stop",
-            ),
+            )
         ]
     )
 
     summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
 
-    assert summary["status"] == "succeeded"
-    assert summary["stop_reason"] == "planner_signaled_done"
-    assert summary["error_code"] is None
-    assert summary["steps_attempted"] == 3
-    assert summary["actions_attempted"] == 2
-    assert summary["expected_results_passed"] == 2
-    assert "goal_satisfied" not in summary["runtime_trace"][0].get("metadata", {})
-    assert "matched_completion_criteria" not in summary["runtime_trace"][-1].get("metadata", {})
-    assert len(client.requests) == 3
+    assert summary["status"] == "rejected"
+    assert summary["error_code"] == "model_output_irrelevant_click_target"
+    assert summary["stop_reason"] == "planner_action_rejected"
+    assert summary["model_execution"] is True
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["steps_attempted"] == 2
+    assert summary["actions_attempted"] == 1
+    assert summary["actions_succeeded"] == 1
+    assert summary["actions_failed"] == 0
+    assert summary["runtime_trace"][1]["fixture_execution_status"] == "skipped"
+    assert summary["runtime_trace"][1]["validation_status"] == "accepted"
+    assert summary["runtime_trace"][1]["error_code"] == "model_output_irrelevant_click_target"
+    assert summary["runtime_trace"][1]["metadata"]["scenario_id"] == "hard_approval_policy_match"
+    assert summary["runtime_trace"][1]["metadata"]["current_url"] == "https://local.intranet/"
+    assert summary["runtime_trace"][1]["metadata"]["target_text"] == "Workspace policy"
+    assert summary["runtime_trace"][1]["metadata"]["rejected_reason"] == "irrelevant_to_scenario_goal"
+    assert "Approvals queue" in summary["runtime_trace"][1]["metadata"]["allowed_relevant_click_targets"]
+    assert len(client.requests) == 2
 
 
-def test_local_model_backend_does_not_stop_for_approval_workspace_policy_alone() -> None:
+def test_local_model_backend_repairs_irrelevant_approval_home_click_to_approvals_queue() -> None:
     config = _load_local_model_config(scenario_id="hard_approval_policy_match")
     config["planner_backend"]["allow_model_calls"] = True
     config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
@@ -1213,6 +1252,10 @@ def test_local_model_backend_does_not_stop_for_approval_workspace_policy_alone()
                 finish_reason="stop",
             ),
             ChatCompletionResponse(
+                content='{"step_id":"step_001_repair","action_name":"browser_click","parameters":{"target_text":"Approvals queue"},"expected_text":"Approvals Queue"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
                 content='{"step_id":"done","action_name":"done","parameters":{},"expected_text":"","done":true}',
                 finish_reason="stop",
             ),
@@ -1227,9 +1270,86 @@ def test_local_model_backend_does_not_stop_for_approval_workspace_policy_alone()
     assert summary["steps_attempted"] == 3
     assert summary["actions_attempted"] == 2
     assert summary["expected_results_passed"] == 2
+    assert summary["runtime_trace"][1]["action_result"]["observation"]["current_url"] == "https://local.intranet/portal/approvals"
+    assert len(client.requests) == 4
+    repair_user = client.requests[2].messages[1]["content"]
+    assert "The previous target was visible but irrelevant to this scenario." in repair_user
+    assert 'For hard_approval_policy_match from the home page, click "Approvals queue".' in repair_user
+    assert 'Use browser_click with expected_text "Approvals Queue" if you need to open the approvals queue page.' in repair_user
+
+
+def test_local_model_backend_does_not_stop_for_ticket_workspace_policy_alone() -> None:
+    config = _load_local_model_config(scenario_id="hard_ticket_priority_crosscheck")
+    config["planner_backend"]["allow_model_calls"] = True
+    config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    config["planner_backend"]["repair_enabled"] = False
+    config["planner_backend"]["max_repair_attempts"] = 0
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet Home","expected_url":"https://local.intranet/"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"click_policy","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy","expected_url":"https://local.intranet/docs/policy"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"done","action_name":"done","parameters":{},"expected_text":"","done":true}',
+                finish_reason="stop",
+            ),
+        ]
+    )
+
+    summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
+
+    assert summary["status"] == "rejected"
+    assert summary["stop_reason"] == "planner_action_rejected"
+    assert summary["error_code"] == "model_output_irrelevant_click_target"
+    assert summary["steps_attempted"] == 2
+    assert summary["actions_attempted"] == 1
+    assert summary["expected_results_passed"] == 1
+    assert summary["runtime_trace"][1]["metadata"]["scenario_id"] == "hard_ticket_priority_crosscheck"
     assert "goal_satisfied" not in summary["runtime_trace"][0].get("metadata", {})
-    assert "matched_completion_criteria" not in summary["runtime_trace"][-1].get("metadata", {})
-    assert len(client.requests) == 3
+    assert "matched_completion_criteria" not in summary["runtime_trace"][1].get("metadata", {})
+    assert len(client.requests) == 2
+
+
+def test_local_model_backend_does_not_stop_for_approval_workspace_policy_alone() -> None:
+    config = _load_local_model_config(scenario_id="hard_approval_policy_match")
+    config["planner_backend"]["allow_model_calls"] = True
+    config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    config["planner_backend"]["repair_enabled"] = False
+    config["planner_backend"]["max_repair_attempts"] = 0
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet Home","expected_url":"https://local.intranet/"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"click_policy","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy","expected_url":"https://local.intranet/docs/policy"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"done","action_name":"done","parameters":{},"expected_text":"","done":true}',
+                finish_reason="stop",
+            ),
+        ]
+    )
+
+    summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
+
+    assert summary["status"] == "rejected"
+    assert summary["stop_reason"] == "planner_action_rejected"
+    assert summary["error_code"] == "model_output_irrelevant_click_target"
+    assert summary["steps_attempted"] == 2
+    assert summary["actions_attempted"] == 1
+    assert summary["expected_results_passed"] == 1
+    assert summary["runtime_trace"][1]["metadata"]["scenario_id"] == "hard_approval_policy_match"
+    assert "goal_satisfied" not in summary["runtime_trace"][0].get("metadata", {})
+    assert "matched_completion_criteria" not in summary["runtime_trace"][1].get("metadata", {})
+    assert len(client.requests) == 2
 
 
 def test_local_model_backend_does_not_stop_for_hard_ticket_priority_crosscheck_when_completion_policy_is_enabled() -> None:
@@ -1266,6 +1386,8 @@ def test_local_model_backend_does_not_stop_for_hard_approval_policy_match_when_c
     config = _load_local_model_config(scenario_id="hard_approval_policy_match")
     config["planner_backend"]["allow_model_calls"] = True
     config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    config["planner_backend"]["repair_enabled"] = False
+    config["planner_backend"]["max_repair_attempts"] = 0
     client = FakeChatCompletionClient(
         [
             ChatCompletionResponse(
@@ -1285,14 +1407,14 @@ def test_local_model_backend_does_not_stop_for_hard_approval_policy_match_when_c
 
     summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
 
-    assert summary["status"] == "succeeded"
-    assert summary["stop_reason"] == "planner_signaled_done"
-    assert summary["error_code"] is None
-    assert summary["steps_attempted"] == 3
-    assert summary["actions_attempted"] == 2
-    assert summary["expected_results_passed"] == 2
+    assert summary["status"] == "rejected"
+    assert summary["stop_reason"] == "planner_action_rejected"
+    assert summary["error_code"] == "model_output_irrelevant_click_target"
+    assert summary["steps_attempted"] == 2
+    assert summary["actions_attempted"] == 1
+    assert summary["expected_results_passed"] == 1
     assert "goal_satisfied" not in summary["runtime_trace"][1].get("metadata", {})
-    assert len(client.requests) == 3
+    assert len(client.requests) == 2
 
 
 def test_completion_policy_does_not_match_other_scenarios_with_different_ids() -> None:

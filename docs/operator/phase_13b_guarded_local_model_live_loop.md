@@ -92,6 +92,12 @@ This path should refuse with `allow_model_calls_required` unless the operator ex
 - the ticket scenario should start from `Ticket board`, then `Ticket 1`; the approval scenario should start from `Approvals queue`, then `Policy match review`
 - `Workspace policy` alone should not satisfy either ticket or approval completion unless the scenario explicitly configures that, which it does not here
 
+## Phase 13B18 note
+
+- `model_output_irrelevant_click_target` means the click target was visible but not relevant to the current scenario goal
+- for `hard_approval_policy_match` from home, the expected next click is `Approvals queue`; from the approvals page, the expected next click is `Policy match review`
+- the relevance guard rejects irrelevant visible clicks before fixture execution and repairs them toward the scenario-specific target instead of letting the run drift through `Workspace policy`
+
 ## Guarded operator run
 
 ```powershell

@@ -73,6 +73,29 @@
       }
     }
   },
+  "click_target_relevance": {
+    "hard_policy_disambiguation": {
+      "https://local.intranet/": [
+        "Workspace policy"
+      ]
+    },
+    "hard_ticket_priority_crosscheck": {
+      "https://local.intranet/": [
+        "Ticket board"
+      ],
+      "https://local.intranet/tickets": [
+        "Ticket 1"
+      ]
+    },
+    "hard_approval_policy_match": {
+      "https://local.intranet/": [
+        "Approvals queue"
+      ],
+      "https://local.intranet/portal/approvals": [
+        "Policy match review"
+      ]
+    }
+  },
   "limitations": [
     "guarded local-model live loop only",
     "no model calls unless allow_model_calls is explicitly enabled",

@@ -300,6 +300,7 @@ class AutonomousBrowserLiveLoopConfig:
     browser_session: AutonomousBrowserLiveLoopBrowserSessionConfig
     planner_backend: AutonomousBrowserLiveLoopPlannerConfig
     completion_policy: AutonomousBrowserLiveLoopCompletionPolicyConfig = field(default_factory=AutonomousBrowserLiveLoopCompletionPolicyConfig)
+    click_target_relevance: dict[str, dict[str, tuple[str, ...]]] = field(default_factory=dict)
     limitations: tuple[str, ...] = ()
 
     @classmethod
@@ -335,6 +336,7 @@ class AutonomousBrowserLiveLoopConfig:
             browser_session=AutonomousBrowserLiveLoopBrowserSessionConfig.from_dict(browser_session_payload),
             planner_backend=AutonomousBrowserLiveLoopPlannerConfig.from_dict(planner_backend_payload),
             completion_policy=AutonomousBrowserLiveLoopCompletionPolicyConfig.from_dict(payload.get("completion_policy")),
+            click_target_relevance=_click_target_relevance_from_dict(payload.get("click_target_relevance")),
             limitations=limitations,
         )
         return config.validate()
@@ -387,6 +389,13 @@ class AutonomousBrowserLiveLoopConfig:
             "browser_session": self.browser_session.to_dict(),
             "planner_backend": self.planner_backend.to_dict(),
             "completion_policy": self.completion_policy.to_dict(),
+            "click_target_relevance": {
+                scenario_id: {
+                    url: list(targets)
+                    for url, targets in scenario_constraints.items()
+                }
+                for scenario_id, scenario_constraints in self.click_target_relevance.items()
+            },
             "limitations": list(self.limitations),
         }
 
@@ -907,6 +916,7 @@ def run_autonomous_browser_live_loop(
                             },
                             "next_observation_id": current_observation["observation_id"],
                             "error_code": error_code,
+                            "metadata": relevance_issue["metadata"],
                         }
                     )
                     break
@@ -1177,6 +1187,150 @@ def run_autonomous_browser_live_loop(
                             }
                         )
                         break
+            relevance_issue = _browser_click_target_irrelevant_to_scenario_goal(
+                planned_step.parameters,
+                config=config,
+                current_observation=current_observation,
+                session=session,
+                fixture_manifest_path=config.browser_session.fixture_manifest_path,
+                repo_root=repo,
+            )
+            if relevance_issue is not None:
+                if isinstance(planner_backend, LocalModelLivePlanner):
+                    repair_original_error_code = repair_original_error_code or relevance_issue["error_code"]
+                    planner_original_error_code = planner_original_error_code or repair_original_error_code
+                    try:
+                        repaired_step = _attempt_local_model_action_repair(
+                            planner_backend,
+                            observation=current_observation,
+                            invalid_action=planned_step,
+                            error_code=relevance_issue["error_code"],
+                            error_message="Model response click target is visible but irrelevant to the current scenario goal.",
+                            error_diagnostics=relevance_issue,
+                        )
+                    except LocalModelLivePlannerError as repair_exc:
+                        repair_attempts_for_step += 1
+                        repair_original_error_code = repair_original_error_code or relevance_issue["error_code"]
+                        steps_attempted += 1
+                        error_code = repair_exc.error_code
+                        status = "rejected"
+                        stop_reason = "planner_action_rejected"
+                        trace_entries.append(
+                            {
+                                "step_index": steps_attempted,
+                                "observation_id": current_observation["observation_id"],
+                                "planner_action": planner_action,
+                                "validation_status": "rejected",
+                                "fixture_execution_status": "skipped",
+                                "action_result": None,
+                                "expected_result": {
+                                    "passed": False,
+                                    "reason": error_code,
+                                    "metadata": relevance_issue["metadata"],
+                                },
+                                "next_observation_id": current_observation["observation_id"],
+                                "error_code": error_code,
+                                "metadata": {
+                                    **relevance_issue["metadata"],
+                                    "repair_applied": True,
+                                    "original_error_code": repair_original_error_code or relevance_issue["error_code"],
+                                    "repair_error_code": error_code,
+                                },
+                            }
+                        )
+                        break
+                    if repaired_step is not None:
+                        repair_attempts_for_step += 1
+                        repair_original_error_code = repair_original_error_code or relevance_issue["error_code"]
+                        planner_original_error_code = planner_original_error_code or repair_original_error_code
+                        planned_step = repaired_step
+                        planner_action = planned_step.to_dict()
+                        repair_applied = True
+                        relevance_issue = _browser_click_target_irrelevant_to_scenario_goal(
+                            planned_step.parameters,
+                            config=config,
+                            current_observation=current_observation,
+                            session=session,
+                            fixture_manifest_path=config.browser_session.fixture_manifest_path,
+                            repo_root=repo,
+                        )
+                        if relevance_issue is not None:
+                            steps_attempted += 1
+                            error_code = relevance_issue["error_code"]
+                            status = "rejected"
+                            stop_reason = "planner_action_rejected"
+                            _count_repair_as_failed(planner_backend, repair_applied)
+                            trace_entries.append(
+                                {
+                                    "step_index": steps_attempted,
+                                    "observation_id": current_observation["observation_id"],
+                                    "planner_action": planner_action,
+                                    "validation_status": "accepted",
+                                    "fixture_execution_status": "skipped",
+                                    "action_result": None,
+                                    "expected_result": {
+                                        "passed": False,
+                                        "reason": error_code,
+                                        "metadata": relevance_issue["metadata"],
+                                    },
+                                    "next_observation_id": current_observation["observation_id"],
+                                    "error_code": error_code,
+                                }
+                            )
+                            break
+                    else:
+                        steps_attempted += 1
+                        error_code = relevance_issue["error_code"]
+                        status = "rejected"
+                        stop_reason = "planner_action_rejected"
+                        trace_entries.append(
+                            {
+                                "step_index": steps_attempted,
+                                "observation_id": current_observation["observation_id"],
+                                "planner_action": planner_action,
+                                "validation_status": "accepted",
+                                "fixture_execution_status": "skipped",
+                                "action_result": None,
+                                "expected_result": {
+                                    "passed": False,
+                                    "reason": error_code,
+                                    "metadata": relevance_issue["metadata"],
+                                },
+                                "next_observation_id": current_observation["observation_id"],
+                                "error_code": error_code,
+                                "metadata": {
+                                    **relevance_issue["metadata"],
+                                    "repair_applied": repair_applied,
+                                    "original_error_code": repair_original_error_code or relevance_issue["error_code"],
+                                    "repair_error_code": error_code,
+                                },
+                            }
+                        )
+                        break
+                else:
+                    steps_attempted += 1
+                    error_code = relevance_issue["error_code"]
+                    status = "rejected"
+                    stop_reason = "planner_action_rejected"
+                    trace_entries.append(
+                        {
+                            "step_index": steps_attempted,
+                            "observation_id": current_observation["observation_id"],
+                            "planner_action": planner_action,
+                            "validation_status": "accepted",
+                            "fixture_execution_status": "skipped",
+                            "action_result": None,
+                            "expected_result": {
+                                "passed": False,
+                                "reason": error_code,
+                                "metadata": relevance_issue["metadata"],
+                            },
+                            "next_observation_id": current_observation["observation_id"],
+                            "error_code": error_code,
+                            "metadata": relevance_issue["metadata"],
+                        }
+                    )
+                    break
             expected_url_issue = _browser_click_expected_url_not_valid(
                 planned_step.expected_url,
                 expected_text=planned_step.expected_text,
@@ -2099,6 +2253,29 @@ def _dict(value: Any, label: str) -> dict[str, Any]:
     return dict(value)
 
 
+def _click_target_relevance_from_dict(
+    payload: Mapping[str, Any] | None,
+) -> dict[str, dict[str, tuple[str, ...]]]:
+    if payload is None:
+        return {}
+    if not isinstance(payload, Mapping):
+        raise AutonomousBrowserLiveLoopConfigError("click_target_relevance must be an object.")
+    scenario_map: dict[str, dict[str, tuple[str, ...]]] = {}
+    for scenario_id, scenario_payload in payload.items():
+        scenario_key = _required_identifier(scenario_id, "click_target_relevance key")
+        if not isinstance(scenario_payload, Mapping):
+            raise AutonomousBrowserLiveLoopConfigError("click_target_relevance scenario entries must be objects.")
+        url_map: dict[str, tuple[str, ...]] = {}
+        for page_url, targets_payload in scenario_payload.items():
+            page_url_value = _optional_text(page_url)
+            if not page_url_value:
+                raise AutonomousBrowserLiveLoopConfigError("click_target_relevance page URLs must be non-empty strings.")
+            targets = tuple(_string_list(targets_payload, "click_target_relevance targets"))
+            url_map[page_url_value] = targets
+        scenario_map[scenario_key] = url_map
+    return scenario_map
+
+
 def _float(value: Any, label: str) -> float | None:
     if isinstance(value, bool):
         return None
@@ -2206,6 +2383,65 @@ def _browser_click_target_not_visible(
             "current_url": current_resolution.url,
             "visible_click_targets": visible_click_targets,
             "page_title": current_observation.get("title"),
+        },
+    }
+
+
+def _browser_click_target_irrelevant_to_scenario_goal(
+    parameters: Mapping[str, Any],
+    *,
+    config: AutonomousBrowserLiveLoopConfig,
+    current_observation: Mapping[str, Any],
+    session: BrowserRuntimeSession,
+    fixture_manifest_path: str,
+    repo_root: Path,
+) -> dict[str, Any] | None:
+    target_text = str(parameters.get("target_text") or parameters.get("text") or "").strip()
+    if not target_text:
+        return None
+    current_url = session.current_url if isinstance(session.current_url, str) else None
+    if not current_url:
+        return None
+    scenario_constraints = config.click_target_relevance.get(config.scenario_id)
+    if not scenario_constraints:
+        return None
+    allowed_relevant_click_targets = scenario_constraints.get(current_url)
+    if not allowed_relevant_click_targets:
+        return None
+    destination_resolution = _resolve_browser_click_destination(
+        parameters,
+        session=session,
+        fixture_manifest_path=fixture_manifest_path,
+        repo_root=repo_root,
+    )
+    if destination_resolution is None:
+        return None
+    if target_text in allowed_relevant_click_targets:
+        return None
+    try:
+        current_resolution = resolve_browser_fixture_url(
+            current_url,
+            fixture_manifest_path,
+            project_root=repo_root,
+            allowed_url_prefixes=_prefixes_for_domains(session.allowed_domains),
+            preview_chars=2_000,
+        )
+    except Exception:
+        return None
+    visible_click_targets = [
+        str(link.get("text")).strip()
+        for link in _extract_links(current_resolution.fixture_path.read_text(encoding="utf-8"))[:8]
+        if isinstance(link, Mapping) and isinstance(link.get("text"), str) and str(link.get("text")).strip()
+    ]
+    return {
+        "error_code": "model_output_irrelevant_click_target",
+        "metadata": {
+            "scenario_id": config.scenario_id,
+            "current_url": current_resolution.url,
+            "target_text": target_text,
+            "allowed_relevant_click_targets": list(allowed_relevant_click_targets),
+            "rejected_reason": "irrelevant_to_scenario_goal",
+            "visible_click_targets": visible_click_targets,
         },
     }
 

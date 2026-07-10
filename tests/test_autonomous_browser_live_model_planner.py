@@ -243,6 +243,7 @@ def test_prompt_for_hard_ticket_priority_crosscheck_scopes_home_board_and_ticket
     ticket_user = planner.build_messages(ticket_observation)[1]["content"]
 
     assert 'For hard_ticket_priority_crosscheck from the home page, click "Ticket board", not "Workspace policy".' in home_user
+    assert "Avoid for this goal: Workspace policy; Team status; Approvals queue." in home_user
     assert "Start-page visible anchors: Office Intranet Home; Ticket board; Workspace policy" in home_user
     assert 'For hard_ticket_priority_crosscheck from Ticket board, click "Ticket 1".' in board_user
     assert "Visible click targets: Home; Ticket 1; Team status." in board_user
@@ -300,8 +301,10 @@ def test_prompt_for_hard_approval_policy_match_scopes_home_queue_and_match_page(
     match_user = planner.build_messages(match_observation)[1]["content"]
 
     assert 'For hard_approval_policy_match from the home page, click "Approvals queue", not "Workspace policy".' in home_user
+    assert "Avoid for this goal: Workspace policy; Ticket board; Team status." in home_user
     assert "Start-page visible anchors: Portal Home; Approvals queue; Approval status" in home_user
     assert 'For hard_approval_policy_match from Approvals queue, click "Policy match review".' in queue_user
+    assert "Do not click Ticket board or Team status from here." in queue_user
     assert "Visible click targets: Portal home; Approval status; Policy match review." in queue_user
     assert "Visible page anchors: Approval Policy Match; Local-only approval review; Request id: APR-51.; Policy match: confirmed." in match_user
     assert "You are on the relevant approval policy match page." in match_user
@@ -687,6 +690,96 @@ def test_repair_prompt_for_hard_approval_policy_match_is_page_state_aware() -> N
     assert 'Use browser_click with expected_text "Approval Policy Match" if you need to open the approval evidence page.' in user
     assert 'Use browser_extract_text with expected_text "Approval item APR-42 is waiting for local policy verification." or "Owner: office worker." to collect queue evidence.' in user
     assert 'Use browser_snapshot with expected_text "Approvals Queue" if you need a compact page capture.' in user
+
+
+def test_repair_prompt_for_irrelevant_approval_click_routes_toward_goal_relevant_target() -> None:
+    planner = _planner(model_alias="third_model", allow_model_calls=True)
+    observation = {
+        "observation_id": "observation_approval_repair",
+        "current_url": "https://local.intranet/",
+        "title": "Office Intranet Home",
+        "text_preview": "Office Intranet Home Ticket board Workspace policy Team status Approvals queue Search marker: fixture-backed result for local policy review.",
+        "metadata": {
+            "fixture_source": True,
+            "page_opened": True,
+            "scenario_id": "hard_approval_policy_match",
+            "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+        },
+    }
+    invalid_action = {
+        "step_id": "click_policy",
+        "action_name": "browser_click",
+        "parameters": {"target_text": "Workspace policy"},
+        "expected_text": "Workspace Policy",
+        "expected_url": "https://local.intranet/docs/policy",
+    }
+
+    messages = planner._build_repair_messages(
+        observation_payload=observation,
+        invalid_action=invalid_action,
+        error_code="model_output_irrelevant_click_target",
+        error_message="Model response click target is visible but irrelevant to the current scenario goal.",
+        error_diagnostics={
+            "scenario_id": "hard_approval_policy_match",
+            "current_url": "https://local.intranet/",
+            "target_text": "Workspace policy",
+            "allowed_relevant_click_targets": ["Approvals queue"],
+            "rejected_reason": "irrelevant_to_scenario_goal",
+        },
+    )
+
+    user = messages[1]["content"]
+
+    assert "The previous target was visible but irrelevant to this scenario." in user
+    assert 'For hard_approval_policy_match from the home page, click "Approvals queue".' in user
+    assert 'Use browser_click with expected_text "Approvals Queue" if you need to open the approvals queue page.' in user
+    assert "Avoid for this goal: Workspace policy; Ticket board; Team status." in user
+    assert "No prose, one JSON object." in user
+
+
+def test_repair_prompt_for_irrelevant_approval_click_on_queue_page_routes_to_policy_match_review() -> None:
+    planner = _planner(model_alias="third_model", allow_model_calls=True)
+    observation = {
+        "observation_id": "observation_approval_queue_repair",
+        "current_url": "https://local.intranet/portal/approvals",
+        "title": "Approvals Queue",
+        "text_preview": "Approvals Queue Portal home Approval status Pending approval check Approval item APR-42 is waiting for local policy verification. Owner: office worker.",
+        "metadata": {
+            "fixture_source": True,
+            "page_opened": True,
+            "scenario_id": "hard_approval_policy_match",
+            "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+        },
+    }
+    invalid_action = {
+        "step_id": "click_policy",
+        "action_name": "browser_click",
+        "parameters": {"target_text": "Workspace policy"},
+        "expected_text": "Workspace Policy",
+        "expected_url": "https://local.intranet/docs/policy",
+    }
+
+    messages = planner._build_repair_messages(
+        observation_payload=observation,
+        invalid_action=invalid_action,
+        error_code="model_output_irrelevant_click_target",
+        error_message="Model response click target is visible but irrelevant to the current scenario goal.",
+        error_diagnostics={
+            "scenario_id": "hard_approval_policy_match",
+            "current_url": "https://local.intranet/portal/approvals",
+            "target_text": "Workspace policy",
+            "allowed_relevant_click_targets": ["Policy match review"],
+            "rejected_reason": "irrelevant_to_scenario_goal",
+        },
+    )
+
+    user = messages[1]["content"]
+
+    assert "The previous target was visible but irrelevant to this scenario." in user
+    assert 'For hard_approval_policy_match from Approvals queue, click "Policy match review".' in user
+    assert 'Use browser_click with expected_text "Approval Policy Match" if you need the approval evidence page.' in user
+    assert "Avoid for this goal: Workspace policy; Ticket board; Team status." in user
+    assert "No prose, one JSON object." in user
 
 
 def test_repair_success_returns_repaired_step_and_tracks_attempts() -> None:
