@@ -154,12 +154,44 @@ def test_prompt_includes_click_destination_anchor_guidance() -> None:
     assert "Do not choose a link just because it is visible." in user
     assert "Click destination guidance:" in user
     assert "Exact click destinations: Ticket board -> https://local.intranet/tickets; Workspace policy -> https://local.intranet/docs/policy; Team status -> https://local.intranet/team/status; Approvals queue -> https://local.intranet/portal/approvals" in user
-    assert "Workspace policy anchors: Workspace Policy; Allowed activity; Search marker: fixture-backed result for workspace policy review." in user
+    assert "Visible page anchors: Office Intranet Home; Workspace policy; Search marker: fixture-backed result for local policy review." in user
+    assert "Visible click targets: Ticket board; Workspace policy; Team status; Approvals queue." in user
+    assert "Workspace policy anchors: Workspace Policy; Allowed activity; Disallowed activity" in user
     assert "For browser_click, omit expected_url; runtime verifies the destination URL from target_text." in user
     assert "If you include expected_url for a click anyway, it must exactly match the listed destination URL." in user
     assert "Do not invent URL paths such as /ticket_board." in user
     assert "Workspace Policy" in user
     assert "Allowed activity" in user
+
+
+def test_prompt_on_workspace_policy_page_includes_completion_and_visible_targets() -> None:
+    planner = _planner(model_alias="third_model", allow_model_calls=False)
+    observation = {
+        "observation_id": "observation_0003_policy",
+        "current_url": "https://local.intranet/docs/policy",
+        "title": "Workspace Policy",
+        "text_preview": "Workspace Policy Home Ticket 1 Allowed activity Disallowed activity Search marker: fixture-backed result for workspace policy review.",
+        "metadata": {
+            "fixture_source": True,
+            "page_opened": True,
+            "scenario_id": "hard_policy_disambiguation",
+            "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+        },
+    }
+
+    messages = planner.build_messages(observation)
+    user = messages[1]["content"]
+
+    assert "Visible page anchors: Workspace Policy; Allowed activity; Disallowed activity; Search marker: fixture-backed result for workspace policy review." in user
+    assert "Visible click targets: Home; Ticket 1." in user
+    assert "Only click listed visible click targets." in user
+    assert "Do not click page titles or headings unless they are listed as click targets." in user
+    assert "You are on the relevant policy page." in user
+    assert "The scenario goal is satisfied when you have evidence of the live policy source." in user
+    assert "Do not click Office Intranet Home." in user
+    assert "Do not click Home unless the goal explicitly requires navigation back." in user
+    assert "Prefer done if the goal is already satisfied and no more action is required." in user
+    assert 'Next valid choices: done; browser_extract_text with expected_text "Allowed activity" or "Search marker: fixture-backed result for workspace policy review."; browser_snapshot with expected_text "Workspace Policy".' in user
 
 
 def test_valid_next_action_returns_step() -> None:
@@ -408,7 +440,54 @@ def test_repair_prompt_for_hard_policy_disambiguation_contains_exact_constraints
     assert "No prose, no markdown." in user
     assert "Rejection diagnostics:" in user
     assert "model_output_expected_url_not_matching_destination" in user
-    assert "Search marker: fixture-backed result for local policy review." not in user
+    assert "Current page anchors: Office Intranet Home; Workspace policy; Search marker: fixture-backed result for local policy review." in user
+    assert "Current page visible click targets: Ticket board; Workspace policy; Team status; Approvals queue." in user
+
+
+def test_repair_prompt_for_invisible_click_targets_is_page_state_aware() -> None:
+    planner = _planner(model_alias="third_model", allow_model_calls=True)
+    observation = {
+        "observation_id": "observation_0005",
+        "current_url": "https://local.intranet/docs/policy",
+        "title": "Workspace Policy",
+        "text_preview": "Workspace Policy Home Ticket 1 Allowed activity Disallowed activity Search marker: fixture-backed result for workspace policy review.",
+        "metadata": {
+            "fixture_source": True,
+            "page_opened": True,
+            "scenario_id": "hard_policy_disambiguation",
+            "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+        },
+    }
+    invalid_action = {
+        "step_id": "click_home",
+        "action_name": "browser_click",
+        "parameters": {"target_text": "Office Intranet Home"},
+        "expected_text": "Welcome to the Office Site",
+    }
+
+    messages = planner._build_repair_messages(
+        observation_payload=observation,
+        invalid_action=invalid_action,
+        error_code="model_output_click_target_not_visible",
+        error_message="Model response click target is not visible on the current page.",
+        error_diagnostics={
+            "target_text": "Office Intranet Home",
+            "current_url": "https://local.intranet/docs/policy",
+            "visible_click_targets": ["Home", "Ticket 1"],
+        },
+    )
+
+    user = messages[1]["content"]
+
+    assert "The previous target_text was not visible or clickable on the current page." in user
+    assert "Current page visible click targets: Home; Ticket 1." in user
+    assert "Current page anchors: Workspace Policy; Allowed activity; Disallowed activity; Search marker: fixture-backed result for workspace policy review." in user
+    assert "You are on the relevant policy page." in user
+    assert "Do not click Office Intranet Home." in user
+    assert "Do not click Home unless the goal explicitly requires navigation back." in user
+    assert "Prefer done if the goal is already satisfied and no more action is required." in user
+    assert 'Use browser_extract_text with expected_text "Allowed activity" or "Search marker: fixture-backed result for workspace policy review." to collect evidence.' in user
+    assert 'Use browser_snapshot with expected_text "Workspace Policy" if you need a compact page capture.' in user
 
 
 def test_repair_success_returns_repaired_step_and_tracks_attempts() -> None:

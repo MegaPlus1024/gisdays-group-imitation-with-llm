@@ -31,6 +31,7 @@ This repository now has both the original single-agent evidence base and a conso
 - Phase 13B9 adds goal-relevant click guidance and an exact click `expected_url` preflight so invented destinations like `/ticket_board` are rejected before fixture execution; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B10 enforces atomic `expected_text` values and precise malformed `expected_url` diagnostics for the guarded local-model live loop; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B11 preserves explicit repair provenance in the live-loop summary so successful repaired steps are counted from the repaired trace, while invalid repair outputs still fail safely before fixture execution; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
+- Phase 13B14 adds page-state completion guidance and a visible click-target preflight for the guarded local-model live loop; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B3 tightens the guarded local-model diagnostics with safe structured error codes for non-local endpoints and local HTTP failures; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Preliminary quality-focused pair: `second_model -> second_model`.
 - Resource-balanced/simple-scenario pair: `second_model -> first_model`.

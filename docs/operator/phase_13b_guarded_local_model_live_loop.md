@@ -66,6 +66,12 @@ This path should refuse with `allow_model_calls_required` unless the operator ex
 - successful repair attempts are counted from the actual repaired execution trace, while invalid repair outputs still stop safely before fixture execution
 - these diagnostics stay structured for operator troubleshooting and do not change the guarded default behavior
 
+## Phase 13B14 note
+
+- once the Workspace Policy page is reached, the prompt now says the policy-source goal is satisfied and should prefer `done`, `browser_extract_text`, or `browser_snapshot` over another click
+- the visible click-target preflight now rejects invisible clicks before fixture execution with `model_output_click_target_not_visible`, which keeps `browser_click_target_not_found` out of the normal known-page flow
+- summary repair counters are cumulative, and the new `*_total` aliases make that cumulative meaning explicit for troubleshooting
+
 ## Guarded operator run
 
 ```powershell

@@ -508,6 +508,63 @@ def test_local_model_backend_accepts_click_with_destination_anchor_text() -> Non
     assert summary["runtime_trace"][1]["expected_result"]["passed"] is True
 
 
+def test_local_model_backend_rejects_invisible_click_before_fixture_execution() -> None:
+    config = _load_local_model_config()
+    config["planner_backend"]["allow_model_calls"] = True
+    config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    config["planner_backend"]["repair_enabled"] = True
+    config["planner_backend"]["max_repair_attempts"] = 1
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet Home","expected_url":"https://local.intranet/"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"click_policy","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"click_home","action_name":"browser_click","parameters":{"target_text":"Office Intranet Home"},"expected_text":"Welcome to the Office Site"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"click_home_repair","action_name":"browser_click","parameters":{"target_text":"Office Intranet Home"},"expected_text":"Welcome to the Office Site"}',
+                finish_reason="stop",
+            ),
+        ]
+    )
+
+    summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
+
+    assert summary["status"] == "rejected"
+    assert summary["error_code"] == "model_output_click_target_not_visible"
+    assert summary["stop_reason"] == "planner_action_rejected"
+    assert summary["model_execution"] is True
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["steps_attempted"] == 3
+    assert summary["actions_attempted"] == 2
+    assert summary["actions_succeeded"] == 2
+    assert summary["actions_failed"] == 0
+    assert summary["expected_results_passed"] == 2
+    assert summary["expected_results_failed"] == 0
+    assert summary["planner_backend"]["repair_attempts"] == 1
+    assert summary["planner_backend"]["repair_attempts_total"] == 1
+    assert summary["planner_backend"]["repair_attempts_succeeded"] == 0
+    assert summary["planner_backend"]["repair_attempts_succeeded_total"] == 0
+    assert summary["planner_backend"]["repair_attempts_failed"] == 1
+    assert summary["planner_backend"]["repair_attempts_failed_total"] == 1
+    assert summary["runtime_trace"][2]["validation_status"] == "rejected"
+    assert summary["runtime_trace"][2]["fixture_execution_status"] == "skipped"
+    assert summary["runtime_trace"][2]["error_code"] == "model_output_click_target_not_visible"
+    assert summary["runtime_trace"][2]["expected_result"]["reason"] == "model_output_click_target_not_visible"
+    assert summary["runtime_trace"][2]["expected_result"]["metadata"]["target_text"] == "Office Intranet Home"
+    assert summary["runtime_trace"][2]["expected_result"]["metadata"]["current_url"] == "https://local.intranet/docs/policy"
+    assert summary["runtime_trace"][2]["expected_result"]["metadata"]["visible_click_targets"] == ["Home", "Ticket 1"]
+
+
 def test_local_model_backend_rejects_click_with_wrong_expected_url_before_fixture_execution() -> None:
     config = _load_local_model_config()
     config["planner_backend"]["allow_model_calls"] = True
@@ -589,8 +646,11 @@ def test_local_model_backend_repairs_click_expected_url_mismatch_before_fixture_
     assert summary["actions_failed"] == 0
     assert summary["expected_results_passed"] == 2
     assert summary["planner_backend"]["repair_attempts"] == 1
+    assert summary["planner_backend"]["repair_attempts_total"] == 1
     assert summary["planner_backend"]["repair_attempts_succeeded"] == 1
+    assert summary["planner_backend"]["repair_attempts_succeeded_total"] == 1
     assert summary["planner_backend"]["repair_attempts_failed"] == 0
+    assert summary["planner_backend"]["repair_attempts_failed_total"] == 0
     assert summary["planner_backend"]["original_error_code"] == "model_output_expected_url_not_matching_destination"
     assert summary["planner_backend"]["last_repair_error_code"] is None
     assert summary["runtime_trace"][1]["validation_status"] == "accepted"
@@ -680,8 +740,11 @@ def test_local_model_backend_repair_failure_rejects_step_before_fixture_executio
     assert summary["actions_succeeded"] == 1
     assert summary["actions_failed"] == 0
     assert summary["planner_backend"]["repair_attempts"] == 1
+    assert summary["planner_backend"]["repair_attempts_total"] == 1
     assert summary["planner_backend"]["repair_attempts_succeeded"] == 0
+    assert summary["planner_backend"]["repair_attempts_succeeded_total"] == 0
     assert summary["planner_backend"]["repair_attempts_failed"] == 1
+    assert summary["planner_backend"]["repair_attempts_failed_total"] == 1
     assert summary["planner_backend"]["original_error_code"] == "model_output_expected_url_not_matching_destination"
     assert summary["planner_backend"]["last_repair_error_code"] == "model_output_invalid_expected_url"
     assert summary["runtime_trace"][0]["validation_status"] == "accepted"

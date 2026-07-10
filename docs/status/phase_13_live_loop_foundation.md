@@ -103,3 +103,9 @@
 - repaired local-model live-loop runs now carry explicit repair provenance in the summary trace, including `repair_applied`, `original_error_code`, and `repair_error_code`
 - successful repaired steps are counted as successful repairs from the final trace, while invalid repair outputs still fail safely before any browser execution
 - this keeps the diagnostics structured without changing the guarded, fixture-backed default behavior
+
+## Phase 13B14 note
+
+- the hard policy disambiguation flow now names the policy-page anchors and visible click targets, then steers the model toward `done`, `browser_extract_text`, or `browser_snapshot` once the live policy source page is reached
+- current-page click targets are preflighted before fixture execution, so invisible clicks now stop as `model_output_click_target_not_visible` instead of falling through to `browser_click_target_not_found`
+- repair counters remain cumulative at the summary level, and the summary now exposes explicit total aliases to make that cumulative meaning unambiguous

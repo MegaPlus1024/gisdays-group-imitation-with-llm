@@ -47,6 +47,7 @@ REPAIRABLE_MODEL_OUTPUT_ERROR_CODES = {
     "model_output_expected_url_not_matching_destination",
     "model_output_expected_text_not_visible",
     "model_output_unsupported_click_target",
+    "model_output_click_target_not_visible",
 }
 
 
@@ -293,6 +294,9 @@ class LocalModelLivePlanner:
         click_guidance = _click_destination_guidance(payload, metadata, repo_root=self.repo_root)
         if click_guidance:
             user_parts.extend(click_guidance)
+        page_state_guidance = _page_state_guidance(payload, metadata, repo_root=self.repo_root)
+        if page_state_guidance:
+            user_parts.extend(page_state_guidance)
         if payload.get("current_url") is None:
             start_url = _prompt_text(metadata.get("scenario_start_url") or metadata.get("start_url"))
             if start_url:
@@ -527,8 +531,11 @@ class LocalModelLivePlanner:
             "repair_enabled": self.config.repair_enabled,
             "max_repair_attempts": self.config.max_repair_attempts,
             "repair_attempts": self.repair_attempts,
+            "repair_attempts_total": self.repair_attempts,
             "repair_attempts_succeeded": self.repair_attempts_succeeded,
+            "repair_attempts_succeeded_total": self.repair_attempts_succeeded,
             "repair_attempts_failed": self.repair_attempts_failed,
+            "repair_attempts_failed_total": self.repair_attempts_failed,
             "last_repair_error_code": self.last_repair_error_code,
             "last_repair_response_text_preview_sanitized": self.last_repair_response_text_preview_sanitized,
             "last_finish_reason": self.last_finish_reason,
@@ -894,6 +901,7 @@ class LocalModelLivePlanner:
                 observation_payload=observation_payload,
                 invalid_action=invalid_action,
                 error_diagnostics=error_diagnostics,
+                repo_root=self.repo_root,
             ),
             "Return exactly one JSON object with keys step_id, action_name, parameters, expected_text, optional expected_url (omit it for browser_click), optional done, optional metadata.",
             "No prose, no markdown, no code fences.",
@@ -1382,6 +1390,77 @@ def _click_destination_guidance(
     return lines or None
 
 
+def _current_page_click_targets(
+    payload: Mapping[str, Any],
+    metadata: Mapping[str, Any],
+    *,
+    repo_root: Path,
+) -> tuple[str, ...] | None:
+    current_url = _prompt_text(payload.get("current_url"))
+    fixture_manifest_path = _prompt_text(metadata.get("fixture_manifest_path"))
+    if not current_url or not fixture_manifest_path:
+        return None
+    try:
+        current_resolution = resolve_browser_fixture_url(
+            current_url,
+            fixture_manifest_path,
+            project_root=repo_root,
+            allowed_url_prefixes=_fixture_url_prefixes(),
+            preview_chars=2_000,
+        )
+    except Exception:
+        return None
+
+    targets: list[str] = []
+    for link in _extract_anchor_links(current_resolution.fixture_path.read_text(encoding="utf-8"))[:8]:
+        target_text = _prompt_text(link.get("text"))
+        if target_text and target_text not in targets:
+            targets.append(target_text)
+    return tuple(targets) or None
+
+
+def _page_state_guidance(
+    payload: Mapping[str, Any],
+    metadata: Mapping[str, Any],
+    *,
+    repo_root: Path,
+) -> list[str] | None:
+    current_url = _prompt_text(payload.get("current_url"))
+    if not current_url:
+        return None
+    fixture_manifest_path = _prompt_text(metadata.get("fixture_manifest_path"))
+    if not fixture_manifest_path:
+        return None
+
+    lines: list[str] = []
+    anchors = _page_visible_anchor_hints(
+        current_url,
+        _prompt_text(payload.get("title")),
+        _prompt_text(payload.get("text_preview")) or "",
+    )
+    if anchors:
+        lines.append(f"Visible page anchors: {'; '.join(anchors[:4])}")
+    click_targets = _current_page_click_targets(payload, metadata, repo_root=repo_root)
+    if click_targets:
+        lines.append(f"Visible click targets: {'; '.join(click_targets[:8])}.")
+    lines.append("Only click listed visible click targets.")
+    lines.append("Do not click page titles or headings unless they are listed as click targets.")
+
+    goal_id = _prompt_text(metadata.get("scenario_id"))
+    if goal_id == "hard_policy_disambiguation" and current_url == "https://local.intranet/docs/policy":
+        lines.extend(
+            [
+                "You are on the relevant policy page.",
+                "The scenario goal is satisfied when you have evidence of the live policy source.",
+                "Do not click Office Intranet Home.",
+                "Do not click Home unless the goal explicitly requires navigation back.",
+                "Prefer done if the goal is already satisfied and no more action is required.",
+                'Next valid choices: done; browser_extract_text with expected_text "Allowed activity" or "Search marker: fixture-backed result for workspace policy review."; browser_snapshot with expected_text "Workspace Policy".',
+            ]
+        )
+    return lines or None
+
+
 def _page_visible_anchor_hints(page_url: str | None, title: str | None, text_preview: str) -> tuple[str, ...]:
     if not page_url:
         return tuple()
@@ -1395,6 +1474,7 @@ def _page_visible_anchor_hints(page_url: str | None, title: str | None, text_pre
         "https://local.intranet/docs/policy": (
             "Workspace Policy",
             "Allowed activity",
+            "Disallowed activity",
             "Search marker: fixture-backed result for workspace policy review.",
         ),
         "https://docs.local/docs/policy-disambiguation": (
@@ -1486,6 +1566,7 @@ def _repair_constraints_lines(
     observation_payload: Mapping[str, Any],
     invalid_action: Mapping[str, Any],
     error_diagnostics: Mapping[str, Any] | None,
+    repo_root: Path,
 ) -> list[str]:
     metadata = observation_payload.get("metadata") if isinstance(observation_payload.get("metadata"), Mapping) else {}
     scenario_id = _prompt_text(metadata.get("scenario_id")) if isinstance(metadata, Mapping) else None
@@ -1513,8 +1594,21 @@ def _repair_constraints_lines(
     elif error_code == "model_output_unsupported_click_target":
         lines.append('Use parameters {"target_text": "<visible link/button text>"} for browser_click.')
         lines.append("Do not use selector, href, link_text, or button_text.")
+    elif error_code == "model_output_click_target_not_visible":
+        lines.append("The previous target_text was not visible or clickable on the current page.")
+        lines.append("Do not click page titles or headings unless they are listed as click targets.")
     else:
         lines.append("Use only allowed local fixture actions and safe local fixture URLs.")
+    current_page_targets = _current_page_click_targets(observation_payload, metadata, repo_root=repo_root)
+    if current_page_targets:
+        lines.append(f"Current page visible click targets: {'; '.join(current_page_targets[:8])}.")
+    current_page_anchors = _page_visible_anchor_hints(
+        current_url,
+        _prompt_text(observation_payload.get("title")),
+        _prompt_text(observation_payload.get("text_preview")) or "",
+    )
+    if current_page_anchors:
+        lines.append(f"Current page anchors: {'; '.join(current_page_anchors[:4])}")
     if scenario_id == "hard_policy_disambiguation" and current_url == "https://local.intranet/":
         lines.extend(
             [
@@ -1533,6 +1627,18 @@ def _repair_constraints_lines(
                 "Do not output expected_url.",
                 "Do not output http<absolute_path>.",
                 "No prose, no markdown.",
+            ]
+        )
+    if scenario_id == "hard_policy_disambiguation" and current_url == "https://local.intranet/docs/policy":
+        lines.extend(
+            [
+                "You are on the relevant policy page.",
+                "The scenario goal is satisfied when you have evidence of the live policy source.",
+                "Do not click Office Intranet Home.",
+                "Do not click Home unless the goal explicitly requires navigation back.",
+                "Prefer done if the goal is already satisfied and no more action is required.",
+                'Use browser_extract_text with expected_text "Allowed activity" or "Search marker: fixture-backed result for workspace policy review." to collect evidence.',
+                'Use browser_snapshot with expected_text "Workspace Policy" if you need a compact page capture.',
             ]
         )
     if error_diagnostics:

@@ -85,6 +85,7 @@
 - Phase 13B9: adds goal-relevant click guidance plus an exact click `expected_url` preflight so invented destinations like `/ticket_board` are rejected before fixture execution.
 - Phase 13B10: enforces atomic `expected_text` values and precise malformed `expected_url` diagnostics for the guarded local-model live loop; it remains fixture-backed and does not add production browser execution.
 - Phase 13B11: preserves explicit repair provenance in live-loop summaries so successful repaired steps are counted from the repaired trace, while invalid repair outputs still fail safely before fixture execution.
+- Phase 13B14: adds page-state completion guidance, visible click-target preflight, and explicit cumulative repair-counter aliases for the guarded local-model live loop; it remains fixture-backed and does not add production browser execution.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения
