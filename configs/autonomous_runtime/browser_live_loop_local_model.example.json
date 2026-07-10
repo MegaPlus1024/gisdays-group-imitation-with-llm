@@ -40,6 +40,20 @@
     "max_tokens": 256,
     "timeout_seconds": 120
   },
+  "completion_policy": {
+    "enabled": true,
+    "policy_id": "fixture_goal_completion_v1",
+    "scenario_criteria": {
+      "hard_policy_disambiguation": {
+        "url": "https://local.intranet/docs/policy",
+        "any_text": [
+          "Workspace Policy",
+          "Allowed activity",
+          "Search marker: fixture-backed result for workspace policy review."
+        ]
+      }
+    }
+  },
   "limitations": [
     "guarded local-model live loop only",
     "no model calls unless allow_model_calls is explicitly enabled",

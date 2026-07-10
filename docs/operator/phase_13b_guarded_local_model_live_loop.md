@@ -72,6 +72,12 @@ This path should refuse with `allow_model_calls_required` unless the operator ex
 - the visible click-target preflight now rejects invisible clicks before fixture execution with `model_output_click_target_not_visible`, which keeps `browser_click_target_not_found` out of the normal known-page flow
 - summary repair counters are cumulative, and the new `*_total` aliases make that cumulative meaning explicit for troubleshooting
 
+## Phase 13B15 note
+
+- if the configured completion policy is enabled, `hard_policy_disambiguation` now stops as `succeeded` with `stop_reason: goal_satisfied` as soon as the Workspace Policy page is reached with the required anchors
+- `goal_satisfied` is recorded in the trace metadata together with `completion_policy_id`, `matched_completion_criteria`, `matched_url`, and `matched_text_anchors`
+- if the live loop still ends with `max_steps_reached` while every expected check passed, the completion policy is missing or disabled; this remains fixture-backed operator guidance only
+
 ## Guarded operator run
 
 ```powershell

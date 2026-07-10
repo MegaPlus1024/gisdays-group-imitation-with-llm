@@ -109,3 +109,9 @@
 - the hard policy disambiguation flow now names the policy-page anchors and visible click targets, then steers the model toward `done`, `browser_extract_text`, or `browser_snapshot` once the live policy source page is reached
 - current-page click targets are preflighted before fixture execution, so invisible clicks now stop as `model_output_click_target_not_visible` instead of falling through to `browser_click_target_not_found`
 - repair counters remain cumulative at the summary level, and the summary now exposes explicit total aliases to make that cumulative meaning unambiguous
+
+## Phase 13B15 note
+
+- the live loop now has an explicit fixture-backed completion policy, so `hard_policy_disambiguation` stops with `status: succeeded` and `stop_reason: goal_satisfied` once the Workspace Policy page is reached with the required anchors
+- the completion decision is auditable in trace metadata via `goal_satisfied`, `completion_policy_id`, `matched_completion_criteria`, `matched_url`, and `matched_text_anchors`
+- the policy is fixture-local only; it does not add browser launch capability, real Playwright execution, or Codex-launched model execution

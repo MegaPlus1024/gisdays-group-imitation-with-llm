@@ -217,6 +217,78 @@ class AutonomousBrowserLiveLoopPlannerConfig:
 
 
 @dataclass(frozen=True)
+class AutonomousBrowserLiveLoopCompletionCriteria:
+    url: str | None = None
+    any_text: tuple[str, ...] = ()
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any] | None) -> AutonomousBrowserLiveLoopCompletionCriteria:
+        if payload is None:
+            return cls()
+        if not isinstance(payload, Mapping):
+            raise AutonomousBrowserLiveLoopConfigError("completion_policy scenario criteria must be objects.")
+        any_text = tuple(_string_list(payload.get("any_text", []), "completion_policy.scenario_criteria.any_text"))
+        return cls(
+            url=_optional_text(payload.get("url")),
+            any_text=any_text,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = {
+            "any_text": list(self.any_text),
+        }
+        if self.url is not None:
+            payload["url"] = self.url
+        return payload
+
+
+@dataclass(frozen=True)
+class AutonomousBrowserLiveLoopCompletionPolicyConfig:
+    enabled: bool = False
+    policy_id: str = "fixture_goal_completion_v1"
+    scenario_criteria: dict[str, AutonomousBrowserLiveLoopCompletionCriteria] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(
+        cls,
+        payload: Mapping[str, Any] | None,
+    ) -> AutonomousBrowserLiveLoopCompletionPolicyConfig:
+        if payload is None:
+            return cls()
+        if not isinstance(payload, Mapping):
+            raise AutonomousBrowserLiveLoopConfigError("completion_policy must be an object.")
+        enabled = payload.get("enabled", False)
+        if not isinstance(enabled, bool):
+            raise AutonomousBrowserLiveLoopConfigError("completion_policy.enabled must be a boolean.")
+        policy_id = str(payload.get("policy_id", "fixture_goal_completion_v1")).strip() or "fixture_goal_completion_v1"
+        if any(ch in policy_id for ch in ("\\", "/", ":", "\0")):
+            raise AutonomousBrowserLiveLoopConfigError("completion_policy.policy_id must be a safe identifier.")
+        scenario_criteria_payload = payload.get("scenario_criteria", {})
+        if not isinstance(scenario_criteria_payload, Mapping):
+            raise AutonomousBrowserLiveLoopConfigError("completion_policy.scenario_criteria must be an object.")
+        scenario_criteria: dict[str, AutonomousBrowserLiveLoopCompletionCriteria] = {}
+        for scenario_id, criteria_payload in scenario_criteria_payload.items():
+            scenario_key = _required_identifier(scenario_id, "completion_policy.scenario_criteria key")
+            scenario_criteria[scenario_key] = AutonomousBrowserLiveLoopCompletionCriteria.from_dict(criteria_payload)
+        metadata = _dict(payload.get("metadata", {}), "completion_policy.metadata")
+        return cls(
+            enabled=enabled,
+            policy_id=policy_id,
+            scenario_criteria=scenario_criteria,
+            metadata=metadata,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "enabled": self.enabled,
+            "policy_id": self.policy_id,
+            "scenario_criteria": {key: value.to_dict() for key, value in self.scenario_criteria.items()},
+            "metadata": dict(self.metadata),
+        }
+
+
+@dataclass(frozen=True)
 class AutonomousBrowserLiveLoopConfig:
     schema_version: str
     scenario_id: str
@@ -227,6 +299,7 @@ class AutonomousBrowserLiveLoopConfig:
     max_repeated_action_count: int
     browser_session: AutonomousBrowserLiveLoopBrowserSessionConfig
     planner_backend: AutonomousBrowserLiveLoopPlannerConfig
+    completion_policy: AutonomousBrowserLiveLoopCompletionPolicyConfig = field(default_factory=AutonomousBrowserLiveLoopCompletionPolicyConfig)
     limitations: tuple[str, ...] = ()
 
     @classmethod
@@ -261,6 +334,7 @@ class AutonomousBrowserLiveLoopConfig:
             max_repeated_action_count=max_repeated_action_count,
             browser_session=AutonomousBrowserLiveLoopBrowserSessionConfig.from_dict(browser_session_payload),
             planner_backend=AutonomousBrowserLiveLoopPlannerConfig.from_dict(planner_backend_payload),
+            completion_policy=AutonomousBrowserLiveLoopCompletionPolicyConfig.from_dict(payload.get("completion_policy")),
             limitations=limitations,
         )
         return config.validate()
@@ -287,6 +361,18 @@ class AutonomousBrowserLiveLoopConfig:
                 raise AutonomousBrowserLiveLoopConfigError("planner_backend.model_alias must be provided.")
             if self.planner_backend.model_endpoint is None:
                 raise AutonomousBrowserLiveLoopConfigError("planner_backend.model_endpoint must be provided.")
+        if self.completion_policy.enabled:
+            if not self.completion_policy.scenario_criteria:
+                raise AutonomousBrowserLiveLoopConfigError("completion_policy.scenario_criteria must be non-empty when enabled.")
+            for scenario_id, criteria in self.completion_policy.scenario_criteria.items():
+                if not criteria.url:
+                    raise AutonomousBrowserLiveLoopConfigError(
+                        f"completion_policy.scenario_criteria[{scenario_id}].url must be provided when enabled."
+                    )
+                if not criteria.any_text:
+                    raise AutonomousBrowserLiveLoopConfigError(
+                        f"completion_policy.scenario_criteria[{scenario_id}].any_text must be non-empty when enabled."
+                    )
         return self
 
     def to_dict(self) -> dict[str, Any]:
@@ -300,6 +386,7 @@ class AutonomousBrowserLiveLoopConfig:
             "max_repeated_action_count": self.max_repeated_action_count,
             "browser_session": self.browser_session.to_dict(),
             "planner_backend": self.planner_backend.to_dict(),
+            "completion_policy": self.completion_policy.to_dict(),
             "limitations": list(self.limitations),
         }
 
@@ -1641,6 +1728,17 @@ def run_autonomous_browser_live_loop(
             break
 
         current_observation = next_observation_dict
+        completion_match = _completion_policy_goal_satisfied(config, current_observation)
+        if completion_match is not None:
+            stop_reason = "goal_satisfied"
+            status = "succeeded"
+            error_code = None
+            if trace_entries:
+                last_trace = trace_entries[-1]
+                metadata = dict(last_trace.get("metadata", {})) if isinstance(last_trace.get("metadata"), Mapping) else {}
+                metadata.update(completion_match)
+                last_trace["metadata"] = metadata
+            break
         if steps_attempted >= config.max_steps:
             stop_reason = "max_steps_reached"
             status = "failed"
@@ -2087,6 +2185,45 @@ def _browser_click_target_not_visible(
             "visible_click_targets": visible_click_targets,
             "page_title": current_observation.get("title"),
         },
+    }
+
+
+def _completion_policy_goal_satisfied(
+    config: AutonomousBrowserLiveLoopConfig,
+    observation: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    policy = config.completion_policy
+    if not policy.enabled:
+        return None
+    criteria_key = config.scenario_id
+    criteria = policy.scenario_criteria.get(criteria_key)
+    if criteria is None and len(policy.scenario_criteria) == 1:
+        criteria_key, criteria = next(iter(policy.scenario_criteria.items()))
+    if criteria is None:
+        return None
+    current_url = _optional_text(observation.get("current_url"))
+    if criteria.url is not None and current_url != criteria.url:
+        return None
+    page_title = _optional_text(observation.get("title")) or ""
+    page_text = _optional_text(observation.get("text_preview")) or ""
+    page_text_blob = " ".join(item for item in (page_title, page_text) if item).strip()
+    matched_text_anchors = tuple(anchor for anchor in criteria.any_text if anchor and anchor in page_text_blob)
+    if not matched_text_anchors:
+        return None
+    matched_completion_criteria = {
+        "scenario_id": criteria_key,
+        "url": criteria.url,
+        "any_text": list(criteria.any_text),
+        "matched_url": current_url,
+        "matched_text_anchors": list(matched_text_anchors),
+        "page_title": page_title or None,
+    }
+    return {
+        "goal_satisfied": True,
+        "completion_policy_id": policy.policy_id,
+        "matched_completion_criteria": matched_completion_criteria,
+        "matched_url": current_url,
+        "matched_text_anchors": list(matched_text_anchors),
     }
 
 
