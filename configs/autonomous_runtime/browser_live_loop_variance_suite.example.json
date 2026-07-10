@@ -1,0 +1,26 @@
+{
+  "schema_version": "autonomous_browser_live_loop_variance_suite_config_v1",
+  "suite_id": "phase_13c_guarded_local_model_live_loop_variance",
+  "base_live_loop_config": "configs/autonomous_runtime/browser_live_loop_local_model.example.json",
+  "planner_backend": "local_model",
+  "model_alias": "third_model",
+  "model_endpoint": "http://127.0.0.1:8082/v1/chat/completions",
+  "trial_count_per_scenario": 3,
+  "scenario_ids": [
+    "hard_policy_disambiguation",
+    "hard_ticket_priority_crosscheck",
+    "hard_approval_policy_match"
+  ],
+  "output_dir": "artifacts/autonomous_runtime_summaries/live_loop_variance_suite",
+  "allow_model_calls": false,
+  "require_explicit_allow_model_calls": true,
+  "no_real_browser": true,
+  "no_playwright": true,
+  "trial_label_prefix": "trial",
+  "limitations": [
+    "fixture-only local browser model variance suite",
+    "no real browser execution",
+    "no Playwright import",
+    "operator must explicitly pass allow_model_calls for local model trials"
+  ]
+}

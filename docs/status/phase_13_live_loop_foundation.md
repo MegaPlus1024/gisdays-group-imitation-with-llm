@@ -148,3 +148,9 @@
 - the operator rerun after `90d9491` used `third_model`, with the policy scenario already stable from `163afed`, the ticket scenario repaired to the destination anchor, and the approval scenario reaching `Approvals queue` and `Policy match review` before goal satisfaction
 - the final evidence is documented in `docs/status/phase_13b_guarded_local_model_live_loop_final_evidence.md`
 - this remains fixture-backed only and does not add browser/Playwright execution from Codex
+
+## Phase 13C note
+
+- Phase 13C adds `docs/status/phase_13c_live_loop_variance_suite.md` and `docs/operator/phase_13c_live_loop_variance_suite.md` for repeated guarded local-model fixture live-loop trials
+- the variance suite reuses the guarded live loop, repeats the three hard scenarios, and keeps `third_model` behind explicit `--allow-model-calls`
+- route stability and matched-URL stability are tracked across repeated trials, but Codex still does not launch a model, browser, or Playwright here

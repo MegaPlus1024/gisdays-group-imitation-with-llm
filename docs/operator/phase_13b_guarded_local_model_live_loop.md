@@ -111,6 +111,12 @@ This path should refuse with `allow_model_calls_required` unless the operator ex
 - the full outcome summary is documented in `docs/status/phase_13b_guarded_local_model_live_loop_final_evidence.md`
 - this remains fixture-backed only and does not add browser/Playwright execution from Codex
 
+## Phase 13C note
+
+- Phase 13C continues from this guarded live-loop path with a repeated variance suite in `docs/status/phase_13c_live_loop_variance_suite.md`
+- the suite repeats the three hard scenarios with `third_model`, but the operator must still pass `--allow-model-calls` explicitly for any local model trials
+- Codex still does not launch model, browser, or Playwright execution here
+
 ## Guarded operator run
 
 ```powershell
