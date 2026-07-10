@@ -665,6 +665,37 @@ def run_autonomous_browser_live_loop(
                 break
 
         if planned_step.action_name == "browser_click":
+            expected_url_issue = _browser_click_expected_url_not_matching_destination(
+                planned_step.expected_url,
+                planned_step.parameters,
+                session=session,
+                fixture_manifest_path=config.browser_session.fixture_manifest_path,
+                repo_root=repo,
+            )
+            if expected_url_issue is not None:
+                steps_attempted += 1
+                error_code = expected_url_issue["error_code"]
+                status = "rejected"
+                stop_reason = "planner_action_rejected"
+                trace_entries.append(
+                    {
+                        "step_index": steps_attempted,
+                        "observation_id": current_observation["observation_id"],
+                        "planner_action": planner_action,
+                        "validation_status": "accepted",
+                        "fixture_execution_status": "skipped",
+                        "action_result": None,
+                        "expected_result": {
+                            "passed": False,
+                            "reason": error_code,
+                            "metadata": expected_url_issue["metadata"],
+                        },
+                        "next_observation_id": current_observation["observation_id"],
+                        "error_code": error_code,
+                    }
+                )
+                break
+
             expected_text_issue = _browser_click_expected_text_not_visible(
                 planned_step.expected_text,
                 planned_step.parameters,
@@ -1207,17 +1238,50 @@ def _browser_open_url_expected_text_not_visible(
     }
 
 
-def _browser_click_expected_text_not_visible(
-    expected_text: str,
+def _browser_click_expected_url_not_matching_destination(
+    expected_url: str,
     parameters: Mapping[str, Any],
     *,
     session: BrowserRuntimeSession,
     fixture_manifest_path: str,
     repo_root: Path,
 ) -> dict[str, Any] | None:
+    destination_resolution = _resolve_browser_click_destination(
+        parameters,
+        session=session,
+        fixture_manifest_path=fixture_manifest_path,
+        repo_root=repo_root,
+    )
+    if destination_resolution is None or not isinstance(expected_url, str) or not expected_url.strip():
+        return None
+    expected_url_value = expected_url.strip()
+    if expected_url_value == destination_resolution.url:
+        return None
+    return {
+        "error_code": "model_output_expected_url_not_matching_destination",
+        "metadata": {
+            "expected_url": expected_url_value,
+            "resolved_destination_url": destination_resolution.url,
+            "target_text": str(parameters.get("target_text") or parameters.get("text") or ""),
+            "destination_anchors": _start_page_visible_anchors(
+                destination_resolution.url,
+                destination_resolution.title,
+                destination_resolution.extracted_text_preview,
+            ),
+        },
+    }
+
+
+def _resolve_browser_click_destination(
+    parameters: Mapping[str, Any],
+    *,
+    session: BrowserRuntimeSession,
+    fixture_manifest_path: str,
+    repo_root: Path,
+) -> Any | None:
     target_text = parameters.get("target_text") or parameters.get("text")
     current_url = session.current_url
-    if not isinstance(target_text, str) or not target_text.strip() or not isinstance(expected_text, str) or not expected_text.strip():
+    if not isinstance(target_text, str) or not target_text.strip():
         return None
     if not isinstance(current_url, str) or not current_url.strip():
         return None
@@ -1240,7 +1304,7 @@ def _browser_click_expected_text_not_visible(
     if target_url is None:
         return None
     try:
-        destination_resolution = resolve_browser_fixture_url(
+        return resolve_browser_fixture_url(
             target_url,
             fixture_manifest_path,
             project_root=repo_root,
@@ -1249,14 +1313,33 @@ def _browser_click_expected_text_not_visible(
         )
     except Exception:
         return None
+
+
+def _browser_click_expected_text_not_visible(
+    expected_text: str,
+    parameters: Mapping[str, Any],
+    *,
+    session: BrowserRuntimeSession,
+    fixture_manifest_path: str,
+    repo_root: Path,
+) -> dict[str, Any] | None:
+    destination_resolution = _resolve_browser_click_destination(
+        parameters,
+        session=session,
+        fixture_manifest_path=fixture_manifest_path,
+        repo_root=repo_root,
+    )
+    if destination_resolution is None:
+        return None
+    expected_text_value = expected_text.strip()
     visible_text = f"{destination_resolution.title or ''} {destination_resolution.extracted_text_preview}".strip()
-    if expected_text in visible_text:
+    if expected_text_value in visible_text:
         return None
     return {
         "error_code": "model_output_expected_text_not_visible",
         "metadata": {
-            "expected_text": expected_text,
-            "target_text": target_text,
+            "expected_text": expected_text_value,
+            "target_text": str(parameters.get("target_text") or parameters.get("text") or ""),
             "target_url": destination_resolution.url,
             "visible_anchors": _start_page_visible_anchors(
                 destination_resolution.url,

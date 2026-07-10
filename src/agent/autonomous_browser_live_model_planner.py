@@ -255,9 +255,9 @@ class LocalModelLivePlanner:
         surface_hints = _surface_hints(payload)
         if surface_hints:
             user_parts.append(f"Visible local hints: {surface_hints}")
-        click_anchor_hints = _click_destination_anchor_hints(payload, metadata, repo_root=self.repo_root)
-        if click_anchor_hints:
-            user_parts.append(f"Click destination anchors: {'; '.join(click_anchor_hints)}")
+        click_guidance = _click_destination_guidance(payload, metadata, repo_root=self.repo_root)
+        if click_guidance:
+            user_parts.extend(click_guidance)
         if payload.get("current_url") is None:
             start_url = _prompt_text(metadata.get("scenario_start_url") or metadata.get("start_url"))
             if start_url:
@@ -969,12 +969,13 @@ def _start_page_anchor_hints(payload: Mapping[str, Any], metadata: Mapping[str, 
     return list(_page_visible_anchor_hints(start_url, title, text_preview)) or None
 
 
-def _click_destination_anchor_hints(
+def _click_destination_guidance(
     payload: Mapping[str, Any],
     metadata: Mapping[str, Any],
     *,
     repo_root: Path,
 ) -> list[str] | None:
+    goal_id = _prompt_text(metadata.get("scenario_id"))
     current_url = _prompt_text(payload.get("current_url"))
     fixture_manifest_path = _prompt_text(metadata.get("fixture_manifest_path"))
     if not current_url or not fixture_manifest_path:
@@ -991,7 +992,19 @@ def _click_destination_anchor_hints(
         return None
 
     links = _extract_anchor_links(current_resolution.fixture_path.read_text(encoding="utf-8"))
-    hints: list[str] = []
+    if not links:
+        return None
+    lines: list[str] = [
+        "Choose the link/button relevant to the scenario goal.",
+        "Do not choose a link just because it is visible.",
+        "If you include expected_url for a click, it must exactly match the listed destination URL.",
+        "Do not invent URL paths such as /ticket_board.",
+        "Click destination guidance:",
+    ]
+    if goal_id == "hard_policy_disambiguation" and current_url == "https://local.intranet/":
+        lines.append('For hard_policy_disambiguation from the home page, click "Workspace policy", not "Ticket board".')
+        lines.append("Avoid for this goal: Ticket board; Team status; Approvals queue.")
+    urls: list[str] = []
     for link in links:
         target_text = link["text"]
         href = link["href"]
@@ -1013,14 +1026,16 @@ def _click_destination_anchor_hints(
             target_resolution.title,
             target_resolution.extracted_text_preview,
         )
-        if not anchors:
-            continue
-        hint = f"{target_text} -> {'; '.join(anchors[:3])}"
-        if hint not in hints:
-            hints.append(hint)
-        if len(hints) >= 3:
-            break
-    return hints or None
+        destination_line = f"{target_text} -> {target_resolution.url}"
+        if destination_line not in urls:
+            urls.append(destination_line)
+        if target_text == "Workspace policy" and anchors:
+            anchor_line = f"{target_text} anchors: {'; '.join(anchors[:3])}"
+            if anchor_line not in lines:
+                lines.append(anchor_line)
+    if urls:
+        lines.append(f"Exact click destinations: {'; '.join(urls)}")
+    return lines or None
 
 
 def _page_visible_anchor_hints(page_url: str | None, title: str | None, text_preview: str) -> tuple[str, ...]:

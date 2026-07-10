@@ -85,3 +85,9 @@
 - the live-model prompt now also carries destination-page anchors for visible local `browser_click` targets, so `expected_text` can be grounded in the page reached by the click rather than the current page text
 - the guarded live loop can now preflight click actions against the resolved destination fixture page and reject invented destination anchors before fixture execution
 - this remains fixture-backed guidance only; it does not add production browser automation or Codex-launched model execution
+
+## Phase 13B9 note
+
+- the local-model live loop now adds goal-relevant link guidance for the hard policy disambiguation scenario, so the home page should favor `Workspace policy` instead of `Ticket board`
+- click actions now preflight `expected_url` against the resolved destination fixture URL and reject invented paths like `/ticket_board` before fixture execution
+- the run still remains offline and fixture-backed; no browser, Playwright, or Codex-launched model execution is added

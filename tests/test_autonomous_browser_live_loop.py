@@ -493,7 +493,47 @@ def test_local_model_backend_accepts_click_with_destination_anchor_text() -> Non
     assert summary["actions_failed"] == 0
     assert summary["expected_results_passed"] == 2
     assert [entry["validation_status"] for entry in summary["runtime_trace"]] == ["accepted", "accepted", "skipped"]
+    assert summary["runtime_trace"][1]["planner_action"]["expected_url"] == "https://local.intranet/docs/policy"
     assert summary["runtime_trace"][1]["expected_result"]["passed"] is True
+
+
+def test_local_model_backend_rejects_click_with_wrong_expected_url_before_fixture_execution() -> None:
+    config = _load_local_model_config()
+    config["planner_backend"]["allow_model_calls"] = True
+    config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet Home","expected_url":"https://local.intranet/"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"click_policy","action_name":"browser_click","parameters":{"target_text":"Ticket board"},"expected_text":"Ticket Board","expected_url":"https://local.intranet/ticket_board"}',
+                finish_reason="stop",
+            ),
+        ]
+    )
+
+    summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
+
+    assert summary["status"] == "rejected"
+    assert summary["error_code"] == "model_output_expected_url_not_matching_destination"
+    assert summary["stop_reason"] == "planner_action_rejected"
+    assert summary["model_execution"] is True
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["steps_attempted"] == 2
+    assert summary["actions_attempted"] == 1
+    assert summary["actions_succeeded"] == 1
+    assert summary["actions_failed"] == 0
+    assert summary["runtime_trace"][0]["validation_status"] == "accepted"
+    assert summary["runtime_trace"][1]["validation_status"] == "accepted"
+    assert summary["runtime_trace"][1]["fixture_execution_status"] == "skipped"
+    assert summary["runtime_trace"][1]["error_code"] == "model_output_expected_url_not_matching_destination"
+    assert summary["runtime_trace"][1]["expected_result"]["reason"] == "model_output_expected_url_not_matching_destination"
+    assert summary["runtime_trace"][1]["expected_result"]["metadata"]["expected_url"] == "https://local.intranet/ticket_board"
+    assert summary["runtime_trace"][1]["expected_result"]["metadata"]["resolved_destination_url"] == "https://local.intranet/tickets"
 
 
 def test_local_model_backend_rejects_click_with_current_page_expected_text() -> None:

@@ -82,6 +82,7 @@
 - Phase 13B5: adds a state-aware no-page guard so the local-model live loop requires `browser_open_url` before click/extract/snapshot actions; it remains fixture-backed and does not add production browser execution.
 - Phase 13B7: adds exact start-page anchor guidance plus a safe `browser_open_url` expected-text preflight so invented welcome text can be rejected before fixture execution.
 - Phase 13B8: adds click destination anchor guidance plus a safe click preflight so `expected_text` can be grounded in the destination page reached by `browser_click` rather than the current page text.
+- Phase 13B9: adds goal-relevant click guidance plus an exact click `expected_url` preflight so invented destinations like `/ticket_board` are rejected before fixture execution.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

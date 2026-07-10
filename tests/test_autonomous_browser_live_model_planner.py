@@ -129,6 +129,7 @@ def test_prompt_includes_click_destination_anchor_guidance() -> None:
         "metadata": {
             "fixture_source": True,
             "page_opened": True,
+            "scenario_id": "hard_policy_disambiguation",
             "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
         },
     }
@@ -138,8 +139,15 @@ def test_prompt_includes_click_destination_anchor_guidance() -> None:
     user = messages[1]["content"]
 
     assert "For browser_click, expected_text must come from the destination page reached by target_text, not the page you are currently reading." in system
-    assert "Click destination anchors:" in user
-    assert "Workspace policy -> Workspace Policy; Allowed activity; Search marker: fixture-backed result for workspace policy review." in user
+    assert "Choose the link/button relevant to the scenario goal." in user
+    assert 'For hard_policy_disambiguation from the home page, click "Workspace policy", not "Ticket board".' in user
+    assert "Avoid for this goal: Ticket board; Team status; Approvals queue." in user
+    assert "Do not choose a link just because it is visible." in user
+    assert "Click destination guidance:" in user
+    assert "Exact click destinations: Ticket board -> https://local.intranet/tickets; Workspace policy -> https://local.intranet/docs/policy; Team status -> https://local.intranet/team/status; Approvals queue -> https://local.intranet/portal/approvals" in user
+    assert "Workspace policy anchors: Workspace Policy; Allowed activity; Search marker: fixture-backed result for workspace policy review." in user
+    assert "If you include expected_url for a click, it must exactly match the listed destination URL." in user
+    assert "Do not invent URL paths such as /ticket_board." in user
     assert "Workspace Policy" in user
     assert "Allowed activity" in user
 

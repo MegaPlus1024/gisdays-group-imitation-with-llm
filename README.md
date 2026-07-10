@@ -28,6 +28,7 @@ This repository now has both the original single-agent evidence base and a conso
 - Phase 13B5 adds a state-aware no-page guard that requires `browser_open_url` before click/extract/snapshot actions in the local-model live loop; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B7 adds exact start-page anchor guidance and a safe `browser_open_url` expected-text preflight so invented welcome text can be rejected before fixture execution; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B8 adds click destination anchor guidance and a safe click preflight so `expected_text` can be grounded in the destination page reached by `browser_click`; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
+- Phase 13B9 adds goal-relevant click guidance and an exact click `expected_url` preflight so invented destinations like `/ticket_board` are rejected before fixture execution; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B3 tightens the guarded local-model diagnostics with safe structured error codes for non-local endpoints and local HTTP failures; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Preliminary quality-focused pair: `second_model -> second_model`.
 - Resource-balanced/simple-scenario pair: `second_model -> first_model`.

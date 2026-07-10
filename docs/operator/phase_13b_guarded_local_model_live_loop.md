@@ -48,6 +48,12 @@ This path should refuse with `allow_model_calls_required` unless the operator ex
 - for the current policy scenario, a click on `Workspace policy` should ground `expected_text` in destination-page anchors such as `Workspace Policy`, `Allowed activity`, and `Search marker: fixture-backed result for workspace policy review.`
 - the guarded live loop can now reject invented click-destination anchors before fixture execution, while still staying fixture-backed and non-production
 
+## Phase 13B9 note
+
+- if a click stops with `model_output_expected_url_not_matching_destination`, the model invented or misread the destination URL and should use the exact resolved fixture URL instead
+- for `hard_policy_disambiguation`, the relevant home-page link is `Workspace policy -> https://local.intranet/docs/policy`
+- `Ticket board` remains visible, but it is not the policy-source link for this goal
+
 ## Guarded operator run
 
 ```powershell
