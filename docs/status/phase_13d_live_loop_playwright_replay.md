@@ -4,6 +4,8 @@
 
 Phase 13D prepares a guarded Playwright replay suite that consumes successful Phase 13C live-loop traces and replays their executed browser actions against local/fixture/loopback content only.
 
+Phase 13D1 fixes the artifact handoff so the variance suite persists per-trial trace files at the paths recorded in its summary, and the replay loader tolerates common PowerShell JSON encodings.
+
 ## Input and output
 
 - input: `artifacts/autonomous_runtime_summaries/live_loop_variance_suite.summary.json`

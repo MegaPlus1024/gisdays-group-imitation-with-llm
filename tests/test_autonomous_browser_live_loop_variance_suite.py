@@ -250,6 +250,26 @@ def test_successful_suite_aggregates_trials_and_route_stability() -> None:
     _cleanup_outputs()
 
 
+def test_successful_suite_persists_per_trial_trace_files() -> None:
+    payload = _configure_suite(_config(), allow_model_calls=True, trial_count=1)
+    summary = run_autonomous_browser_live_loop_variance_suite(
+        payload,
+        repo_root=PROJECT_ROOT,
+        model_client_factory=_trial_client_factory(repaired_ticket_trial=True),
+    )
+
+    try:
+        assert summary["status"] == "succeeded"
+        assert len(summary["trial_summaries"]) == 3
+        for trial_summary in summary["trial_summaries"]:
+            trace_path = trial_summary["trace_path"]
+            assert trace_path is not None
+            assert not Path(trace_path).is_absolute()
+            assert (PROJECT_ROOT / trace_path).exists()
+    finally:
+        _cleanup_outputs()
+
+
 def test_partial_failure_suite_reports_completed_with_failures_and_error_codes() -> None:
     payload = _configure_suite(_config(), allow_model_calls=True, trial_count=2)
     summary = run_autonomous_browser_live_loop_variance_suite(

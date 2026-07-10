@@ -6,6 +6,7 @@
 - the replay inputs are local fixture-backed traces only
 - explicit `--allow-real-browser` and `--allow-playwright` guards are required for the non-dry-run path
 - Codex should use the dry-run or refusal path only
+- Phase 13D1 fixed the variance-suite handoff so replay sees the per-trial trace files at the summary-recorded relative paths
 
 ## Dry-run command
 

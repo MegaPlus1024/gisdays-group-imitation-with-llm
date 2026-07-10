@@ -166,3 +166,7 @@
 - Phase 13D prepares a guarded Playwright replay suite for the successful Phase 13C live-loop traces; Codex verified the refusal and dry-run paths only
 - the new replay preparation keeps replay inputs local, fixture-backed, and scenario-scoped, and it does not launch Playwright or Chromium from Codex
 - the operator later remains responsible for any real guarded Playwright replay run against local fixtures only
+
+## Phase 13D1 note
+
+- Phase 13D1 fixes the variance-suite handoff so per-trial trace files are persisted at the summary-recorded relative paths, and the replay loader tolerates common PowerShell JSON encodings

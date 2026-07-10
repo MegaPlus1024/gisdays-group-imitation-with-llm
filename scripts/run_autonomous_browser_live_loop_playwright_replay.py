@@ -12,8 +12,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.agent.autonomous_browser_live_loop_playwright_replay import (  # noqa: E402 - repo-local import after sys.path setup.
-    CONFIG_SCHEMA_VERSION,
     SUMMARY_SCHEMA_VERSION,
+    load_autonomous_browser_live_loop_playwright_replay_config,
     run_autonomous_browser_live_loop_playwright_replay,
 )
 
@@ -65,12 +65,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _load_config(path: Path) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8-sig"))
-    if not isinstance(payload, dict):
-        raise ValueError("playwright replay config root must be a JSON object.")
-    if str(payload.get("schema_version", "")) != CONFIG_SCHEMA_VERSION:
-        raise ValueError("playwright replay config schema_version must match autonomous_browser_live_loop_playwright_replay_config_v1.")
-    return dict(payload)
+    return load_autonomous_browser_live_loop_playwright_replay_config(path).to_dict()
 
 
 def _resolve_repo_path(value: str) -> Path:

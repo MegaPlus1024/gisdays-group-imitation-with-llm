@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import builtins
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -25,6 +26,11 @@ SCRIPT_PATH = PROJECT_ROOT / "scripts" / "run_autonomous_browser_live_loop_playw
 def _write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _write_json_encoded(path: Path, payload: Any, *, encoding: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding=encoding)
 
 
 def _base_config() -> dict[str, Any]:
@@ -471,9 +477,9 @@ def test_dry_run_discovers_traces_and_ignores_skipped_preflight_attempts(tmp_pat
         "hard_ticket_priority_crosscheck": trace_root / "hard_ticket_priority_crosscheck" / "trial_01" / "autonomous_browser_live_loop_trace.json",
         "hard_approval_policy_match": trace_root / "hard_approval_policy_match" / "trial_01" / "autonomous_browser_live_loop_trace.json",
     }
-    _write_json(trace_paths["hard_policy_disambiguation"], _policy_trace("hard_policy_disambiguation", "trial_01"))
-    _write_json(trace_paths["hard_ticket_priority_crosscheck"], _ticket_trace("hard_ticket_priority_crosscheck", "trial_01"))
-    _write_json(trace_paths["hard_approval_policy_match"], _approval_trace("hard_approval_policy_match", "trial_01"))
+    _write_json_encoded(trace_paths["hard_policy_disambiguation"], _policy_trace("hard_policy_disambiguation", "trial_01"), encoding="utf-8-sig")
+    _write_json_encoded(trace_paths["hard_ticket_priority_crosscheck"], _ticket_trace("hard_ticket_priority_crosscheck", "trial_01"), encoding="utf-8-sig")
+    _write_json_encoded(trace_paths["hard_approval_policy_match"], _approval_trace("hard_approval_policy_match", "trial_01"), encoding="utf-8-sig")
 
     variance_summary = _variance_summary(
         [
@@ -501,7 +507,7 @@ def test_dry_run_discovers_traces_and_ignores_skipped_preflight_attempts(tmp_pat
         ]
     )
     summary_path = tmp_path / "live_loop_variance_suite.summary.json"
-    _write_json(summary_path, variance_summary)
+    _write_json_encoded(summary_path, variance_summary, encoding="utf-8-sig")
 
     config = _base_config()
     config["input_variance_suite_summary"] = "live_loop_variance_suite.summary.json"
@@ -642,9 +648,62 @@ def test_first_success_per_scenario_selects_first_successful_trial(tmp_path: Pat
     assert summary["replay_trace_summaries"][0]["source_trace_path"] == "live_loop_variance_suite/hard_policy_disambiguation/trial_02/autonomous_browser_live_loop_trace.json"
 
 
+def test_dry_run_accepts_utf16_summary_and_trace_files(tmp_path: Path) -> None:
+    trace_root = tmp_path / "live_loop_variance_suite_utf16"
+    trace_paths = {
+        "hard_policy_disambiguation": trace_root / "hard_policy_disambiguation" / "trial_01" / "autonomous_browser_live_loop_trace.json",
+        "hard_ticket_priority_crosscheck": trace_root / "hard_ticket_priority_crosscheck" / "trial_01" / "autonomous_browser_live_loop_trace.json",
+        "hard_approval_policy_match": trace_root / "hard_approval_policy_match" / "trial_01" / "autonomous_browser_live_loop_trace.json",
+    }
+    _write_json_encoded(trace_paths["hard_policy_disambiguation"], _policy_trace("hard_policy_disambiguation", "trial_01"), encoding="utf-16")
+    _write_json_encoded(trace_paths["hard_ticket_priority_crosscheck"], _ticket_trace("hard_ticket_priority_crosscheck", "trial_01"), encoding="utf-16")
+    _write_json_encoded(trace_paths["hard_approval_policy_match"], _approval_trace("hard_approval_policy_match", "trial_01"), encoding="utf-16")
+
+    variance_summary = _variance_summary(
+        [
+            _trial_row(
+                "hard_policy_disambiguation",
+                1,
+                "trial_01",
+                "live_loop_variance_suite_utf16/hard_policy_disambiguation/trial_01/autonomous_browser_live_loop_trace.json",
+                matched_url="https://local.intranet/docs/policy",
+            ),
+            _trial_row(
+                "hard_ticket_priority_crosscheck",
+                1,
+                "trial_01",
+                "live_loop_variance_suite_utf16/hard_ticket_priority_crosscheck/trial_01/autonomous_browser_live_loop_trace.json",
+                matched_url="https://local.intranet/tickets/1",
+            ),
+            _trial_row(
+                "hard_approval_policy_match",
+                1,
+                "trial_01",
+                "live_loop_variance_suite_utf16/hard_approval_policy_match/trial_01/autonomous_browser_live_loop_trace.json",
+                matched_url="https://local.intranet/portal/approval-match",
+            ),
+        ]
+    )
+    summary_path = tmp_path / "live_loop_variance_suite_utf16.summary.json"
+    _write_json_encoded(summary_path, variance_summary, encoding="utf-16")
+
+    config = _base_config()
+    config["input_variance_suite_summary"] = "live_loop_variance_suite_utf16.summary.json"
+    config["input_trace_root"] = "live_loop_variance_suite_utf16"
+
+    summary = run_autonomous_browser_live_loop_playwright_replay(config, repo_root=tmp_path, dry_run=True)
+
+    assert summary["status"] == "succeeded"
+    assert summary["selected_trace_count"] == 3
+    assert summary["traces_succeeded"] == 3
+    assert summary["traces_failed"] == 0
+    assert summary["no_runtime_execution"] is True
+    assert all(not Path(item["source_trace_path"]).is_absolute() for item in summary["replay_trace_summaries"])
+
+
 def test_explicit_trace_paths_are_supported_and_output_stays_relative(tmp_path: Path) -> None:
     trace_path = tmp_path / "explicit" / "trial_01" / "autonomous_browser_live_loop_trace.json"
-    _write_json(trace_path, _ticket_trace("hard_ticket_priority_crosscheck", "trial_01"))
+    _write_json_encoded(trace_path, _ticket_trace("hard_ticket_priority_crosscheck", "trial_01"), encoding="utf-16")
 
     config = _config_for_temp_inputs(
         trace_paths=["explicit/trial_01/autonomous_browser_live_loop_trace.json"],
@@ -733,6 +792,109 @@ def test_cli_refuses_without_guards() -> None:
     assert completed.returncode != 0
     assert payload["status"] == "refused"
     assert payload["error_code"] == "allow_real_browser_required"
+
+
+def test_replay_dry_run_can_consume_written_variance_summary_and_trace_files(tmp_path: Path) -> None:
+    from src.agent.autonomous_browser_live_model_planner import ChatCompletionResponse
+    from src.agent.autonomous_browser_live_loop_variance_suite import run_autonomous_browser_live_loop_variance_suite
+
+    class FakeChatCompletionClient:
+        def __init__(self, responses: list[ChatCompletionResponse]) -> None:
+            self.responses = list(responses)
+
+        def complete(self, request):  # type: ignore[no-untyped-def]
+            del request
+            if not self.responses:
+                raise AssertionError("unexpected model request")
+            return self.responses.pop(0)
+
+    def _responses_for_scenario(scenario_id: str) -> list[ChatCompletionResponse]:
+        if scenario_id == "hard_policy_disambiguation":
+            return [
+                ChatCompletionResponse(
+                    content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet Home","expected_url":"https://local.intranet/"}',
+                    finish_reason="stop",
+                ),
+                ChatCompletionResponse(
+                    content='{"step_id":"click_policy","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy","expected_url":"https://local.intranet/docs/policy"}',
+                    finish_reason="stop",
+                ),
+            ]
+        if scenario_id == "hard_ticket_priority_crosscheck":
+            return [
+                ChatCompletionResponse(
+                    content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet Home","expected_url":"https://local.intranet/"}',
+                    finish_reason="stop",
+                ),
+                ChatCompletionResponse(
+                    content='{"step_id":"click_ticket_board","action_name":"browser_click","parameters":{"target_text":"Ticket board"},"expected_text":"Ticket Board","expected_url":"https://local.intranet/tickets"}',
+                    finish_reason="stop",
+                ),
+                ChatCompletionResponse(
+                    content='{"step_id":"click_ticket_1","action_name":"browser_click","parameters":{"target_text":"Ticket 1"},"expected_text":"Ticket 1 - Quarterly Access Review","expected_url":"https://local.intranet/tickets/1"}',
+                    finish_reason="stop",
+                ),
+            ]
+        if scenario_id == "hard_approval_policy_match":
+            return [
+                ChatCompletionResponse(
+                    content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet Home","expected_url":"https://local.intranet/"}',
+                    finish_reason="stop",
+                ),
+                ChatCompletionResponse(
+                    content='{"step_id":"click_approvals_queue","action_name":"browser_click","parameters":{"target_text":"Approvals queue"},"expected_text":"Approvals Queue","expected_url":"https://local.intranet/portal/approvals"}',
+                    finish_reason="stop",
+                ),
+                ChatCompletionResponse(
+                    content='{"step_id":"click_policy_match_review","action_name":"browser_click","parameters":{"target_text":"Policy match review"},"expected_text":"Approval Policy Match","expected_url":"https://local.intranet/portal/approval-match"}',
+                    finish_reason="stop",
+                ),
+            ]
+        raise AssertionError(f"unexpected scenario_id: {scenario_id}")
+
+    def _factory(scenario_id: str, trial_index: int, trial_config: Mapping[str, Any]) -> FakeChatCompletionClient:
+        del trial_index, trial_config
+        return FakeChatCompletionClient(_responses_for_scenario(scenario_id))
+
+    suite_output_dir = "artifacts/autonomous_runtime_summaries/live_loop_variance_suite_replay_handoff_tests"
+    replay_output_dir = "artifacts/autonomous_runtime_summaries/live_loop_playwright_replay_handoff_tests"
+    try:
+        suite_config = json.loads((PROJECT_ROOT / "configs" / "autonomous_runtime" / "browser_live_loop_variance_suite.example.json").read_text(encoding="utf-8"))
+        suite_config["allow_model_calls"] = True
+        suite_config["trial_count_per_scenario"] = 1
+        suite_config["output_dir"] = suite_output_dir
+
+        suite_summary = run_autonomous_browser_live_loop_variance_suite(
+            suite_config,
+            repo_root=PROJECT_ROOT,
+            model_client_factory=_factory,
+        )
+        assert suite_summary["status"] == "succeeded"
+        assert suite_summary["trials_total"] == 3
+        for trial_summary in suite_summary["trial_summaries"]:
+            trace_path = trial_summary["trace_path"]
+            assert trace_path is not None
+            assert not Path(trace_path).is_absolute()
+            assert (PROJECT_ROOT / trace_path).exists()
+
+        replay_config = _base_config()
+        replay_config["input_variance_suite_summary"] = f"{suite_output_dir}/autonomous_browser_live_loop_variance_suite_summary.json"
+        replay_config["input_trace_root"] = suite_output_dir
+        replay_config["output_dir"] = replay_output_dir
+
+        replay_summary = run_autonomous_browser_live_loop_playwright_replay(replay_config, repo_root=PROJECT_ROOT, dry_run=True)
+
+        assert replay_summary["status"] == "succeeded"
+        assert replay_summary["selected_trace_count"] == 3
+        assert replay_summary["traces_succeeded"] == 3
+        assert replay_summary["traces_failed"] == 0
+        assert replay_summary["real_browser_execution"] is False
+        assert replay_summary["playwright_execution"] is False
+        assert replay_summary["browser_opened"] is False
+        assert replay_summary["no_runtime_execution"] is True
+    finally:
+        shutil.rmtree(PROJECT_ROOT / suite_output_dir, ignore_errors=True)
+        shutil.rmtree(PROJECT_ROOT / replay_output_dir, ignore_errors=True)
 
 
 def test_cli_dry_run_succeeds_and_prints_compact_json(tmp_path: Path) -> None:

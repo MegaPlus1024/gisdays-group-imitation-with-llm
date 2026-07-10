@@ -16,6 +16,7 @@ from .autonomous_browser_live_loop import (
     _string_list,
     load_autonomous_browser_live_loop_config,
     run_autonomous_browser_live_loop,
+    write_autonomous_browser_live_loop_trace,
 )
 
 
@@ -408,6 +409,7 @@ def run_autonomous_browser_live_loop_variance_suite(
                 model_client=model_client,
             )
             any_trial_executed = True
+            write_autonomous_browser_live_loop_trace(trial_result, repo / trial_output_dir)
             trial_summary = _normalize_trial_summary(
                 trial_result,
                 scenario_id=scenario_id,

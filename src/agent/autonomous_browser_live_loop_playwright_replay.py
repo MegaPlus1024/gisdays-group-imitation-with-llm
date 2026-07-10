@@ -1232,7 +1232,31 @@ def _load_trace_payload(path: Path, *, display_path: str | None = None) -> tuple
 def _load_json_payload(config_artifact: str | Path | Mapping[str, Any]) -> Any:
     if isinstance(config_artifact, Mapping):
         return dict(config_artifact)
-    return json.loads(Path(config_artifact).read_text(encoding="utf-8-sig"))
+    path = Path(config_artifact)
+    return _json_loads_with_common_encodings(path.read_bytes(), source=path.as_posix())
+
+
+_COMMON_JSON_ENCODINGS = ("utf-8-sig", "utf-8", "utf-16", "utf-16-le", "utf-16-be")
+
+
+def _json_loads_with_common_encodings(data: bytes, *, source: str) -> Any:
+    last_error: Exception | None = None
+    for encoding in _COMMON_JSON_ENCODINGS:
+        try:
+            text = data.decode(encoding)
+        except UnicodeDecodeError as exc:
+            last_error = exc
+            continue
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as exc:
+            last_error = exc
+            continue
+    if isinstance(last_error, json.JSONDecodeError):
+        raise last_error
+    if isinstance(last_error, UnicodeDecodeError):
+        raise json.JSONDecodeError(f"{source} JSON is not encoded as a supported UTF-8/UTF-16 text file.", "", 0)
+    raise json.JSONDecodeError(f"{source} JSON could not be parsed.", "", 0)
 
 
 def _config_from_mapping(payload: Mapping[str, Any]) -> AutonomousBrowserLiveLoopPlaywrightReplayConfig:
