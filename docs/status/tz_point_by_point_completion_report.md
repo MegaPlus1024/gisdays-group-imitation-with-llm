@@ -104,6 +104,7 @@
 - Phase 13E1: adds the scripted read-only stateful workflow foundation in `docs/status/phase_13e_readonly_stateful_workflows.md`; it records workflow state, facts, evidence, and final answers while staying fixture-only and read-only.
 - Phase 13E2a: hardens the stateful local-planner packet prompt/schema and evaluator diagnostics after the first `third_model` run exposed strict output-contract mismatches; it keeps validation strict and does not normalize aliases.
 - Phase 13E2b: aligns the confidence enum and truncated-output diagnostics after the follow-up `third_model` run narrowed the remaining failures to `invalid_confidence` and one truncated response; it keeps validation strict and does not normalize aliases.
+- Phase 13E2c: tightens the approval required-fact prompt and missing-key diagnostics after the follow-up `third_model` run reached 4/5 accepted workflows and failed only on the approval required-fact omission; it keeps validation strict and does not normalize aliases.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

@@ -576,6 +576,16 @@ def _output_copy(scenario_id: str) -> dict[str, Any]:
     return json.loads(json.dumps(_output_for_scenario(scenario)))
 
 
+def _approval_output_missing_required_fact() -> dict[str, Any]:
+    payload = _output_copy("stateful_approval_policy_crosscheck")
+    facts = [fact for fact in payload["facts"] if fact["key"] != "approval_decision_note"]
+    payload["facts"] = facts
+    payload["final_answer"]["cited_fact_ids"] = [fact["fact_id"] for fact in facts]
+    for evidence_item in payload["evidence_items"]:
+        evidence_item["fact_ids"] = [fact_id for fact_id in evidence_item["fact_ids"] if fact_id != "approval_fact_4"]
+    return payload
+
+
 def _write_response_metadata(packet_summary: dict[str, Any], repo_root: Path, *, scenario_id: str, finish_reason: str) -> None:
     record = next(item for item in packet_summary["request_records"] if str(item["scenario_id"]) == scenario_id)
     response_path = repo_root / str(record["response_path"])
@@ -667,6 +677,53 @@ def test_invalid_confidence_rejected_with_allowed_values_and_field_path(
     assert diagnostics[0]["path"] == "final_answer.confidence"
     assert diagnostics[0]["allowed_values"] == ["low", "medium", "high"]
     assert diagnostics[0]["present_value"] == confidence_value
+
+
+def test_missing_required_fact_keys_diagnostics_include_required_present_missing_and_hint(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    payload = _approval_output_missing_required_fact()
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_approval_policy_crosscheck": payload})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_approval_policy_crosscheck")
+    diagnostics = summary["diagnostics"]
+
+    assert evaluation["status"] == "completed_with_failures"
+    assert evaluation["error_code"] == "missing_required_fact_keys"
+    assert summary["status"] == "rejected"
+    assert summary["failure_class"] == "model_failed_task"
+    assert diagnostics[0]["finding_type"] == "missing_required_fact_keys"
+    assert diagnostics[0]["path"] == "facts"
+    assert diagnostics[0]["scenario_id"] == "stateful_approval_policy_crosscheck"
+    assert diagnostics[0]["required_keys"] == [
+        "approval_decision_note",
+        "approval_policy_anchor",
+        "approval_policy_marker",
+        "approval_request",
+    ]
+    assert diagnostics[0]["present_keys"] == [
+        "approval_policy_anchor",
+        "approval_policy_marker",
+        "approval_request",
+        "policy_anchor",
+        "policy_marker",
+    ]
+    assert diagnostics[0]["missing_keys"] == ["approval_decision_note"]
+    assert diagnostics[0]["hint"] == "include every required fact key as a separate facts[] item"
+
+
+def test_valid_approval_output_with_all_required_fact_keys_passes(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_approval_policy_crosscheck": _output_copy("stateful_approval_policy_crosscheck")})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_approval_policy_crosscheck")
+
+    assert evaluation["status"] == "succeeded"
+    assert summary["status"] == "succeeded"
+    assert summary["validation_status"] == "accepted"
+    assert summary["dry_run_status"] == "accepted"
+    assert summary["fixture_execution_status"] == "succeeded"
 
 
 def test_fixture_execution_succeeds_for_valid_outputs(tmp_path: Path) -> None:

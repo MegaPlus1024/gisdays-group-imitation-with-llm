@@ -6,6 +6,8 @@ Phase 13E2a hardens the stateful read-only planner packet after the first `third
 
 Phase 13E2b aligns the confidence schema and truncated-output diagnostics after the second `third_model` run improved action-shape adherence but still left two issues: one `invalid_confidence` rejection and one `truncated_model_output` case.
 
+Phase 13E2c tightens the approval scenario prompt and missing-required-fact diagnostics after the next operator pass reached 4/5 accepted workflows and failed only on the approval required-fact omission.
+
 ## What happened
 
 - operator-run `third_model` planner output capture for the five E2 scenarios
@@ -27,6 +29,13 @@ Phase 13E2b aligns the confidence schema and truncated-output diagnostics after 
 - the evaluator now reports `invalid_confidence` with safe diagnostics when the field is present but invalid
 - the evaluator now checks `response.json` for `finish_reason: length` and reports `truncated_model_output` before raw-output parsing
 - the packet config raises `max_tokens` to `1800` for a more comfortable capture budget
+
+## What E2c changes
+
+- the approval scenario prompt now includes a small required-facts skeleton for `approval_request`, `approval_policy_anchor`, `approval_policy_marker`, and `approval_decision_note`
+- the approval prompt says not to omit `approval_decision_note`
+- the evaluator now reports `missing_required_fact_keys` with explicit required/present/missing key diagnostics and a clear hint
+- strict validation still stays strict and does not repair missing facts or malformed JSON
 
 ## Why it failed
 

@@ -37,3 +37,9 @@ If you want to recheck the offline evaluator shape, use:
 - `final_answer.confidence` is optional; if present, use exactly `low`, `medium`, or `high`
 - the evaluator will now report `truncated_model_output` if `response.json` says `finish_reason: length`
 - the packet config raises `max_tokens` to `1800` for the next capture pass
+
+## Phase 13E2c follow-up
+
+- the approval prompt now includes an explicit required-facts skeleton and says not to omit `approval_decision_note`
+- `missing_required_fact_keys` diagnostics now include required, present, and missing key lists plus a hint
+- strict validation still stays strict and does not repair missing facts

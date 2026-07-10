@@ -206,3 +206,4 @@
 - no model, browser, or Playwright launch is needed from Codex to document or run the scripted E1 path
 - Phase 13E2a hardens the companion local-planner packet prompt/schema and evaluator diagnostics after the first `third_model` E2 run exposed strict output-contract mismatches
 - Phase 13E2b aligns the confidence enum and truncated-output diagnostics after the follow-up `third_model` E2 run narrowed the remaining failures to `invalid_confidence` and one truncated response
+- Phase 13E2c tightens the approval required-fact prompt and missing-key diagnostics after the follow-up `third_model` E2 run reached 4/5 accepted workflows and failed only on the approval required-fact omission

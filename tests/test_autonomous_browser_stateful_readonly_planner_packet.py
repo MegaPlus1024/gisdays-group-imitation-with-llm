@@ -60,6 +60,7 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     commands_md_path = output_dir / "commands.md"
     schema_doc_path = output_dir / "expected_output_schema.md"
     prompt_path = output_dir / "prompts" / "stateful_policy_ticket_crosscheck" / "planner_prompt.compact.txt"
+    approval_prompt_path = output_dir / "prompts" / "stateful_approval_policy_crosscheck" / "planner_prompt.compact.txt"
 
     assert packet_path.exists()
     assert summary_path.exists()
@@ -67,11 +68,13 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert commands_md_path.exists()
     assert schema_doc_path.exists()
     assert prompt_path.exists()
+    assert approval_prompt_path.exists()
 
     packet = json.loads(packet_path.read_text(encoding="utf-8"))
     commands = json.loads(commands_path.read_text(encoding="utf-8"))
     commands_md = commands_md_path.read_text(encoding="utf-8")
     prompt_text = prompt_path.read_text(encoding="utf-8")
+    approval_prompt_text = approval_prompt_path.read_text(encoding="utf-8")
 
     assert packet["schema_version"] == PACKET_SCHEMA_VERSION
     assert packet["packet_id"] == "phase_13e2_stateful_readonly_local_planner"
@@ -114,6 +117,17 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert "fixture-backed" in prompt_text
     assert "a[href" not in prompt_text
     assert "queryselector" not in prompt_text.lower()
+
+    assert "Approval required facts" in approval_prompt_text
+    assert "Do not omit approval_decision_note." in approval_prompt_text
+    assert '"key": "approval_request"' in approval_prompt_text
+    assert '"key": "approval_policy_anchor"' in approval_prompt_text
+    assert '"key": "approval_policy_marker"' in approval_prompt_text
+    assert '"key": "approval_decision_note"' in approval_prompt_text
+    assert "portal/approval-match" in approval_prompt_text
+    assert "Approvals queue" in approval_prompt_text
+    assert "Approval Policy Match" in approval_prompt_text
+    assert "Workspace Policy" not in approval_prompt_text
 
     schema_text = schema_doc_path.read_text(encoding="utf-8")
     assert "Forbidden aliases" in schema_text

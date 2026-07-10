@@ -289,7 +289,12 @@ def build_default_stateful_readonly_workflow_scenarios(
                     action_name="browser_extract_text",
                     parameters={},
                     expected_text="Policy match: confirmed.",
-                    collect_fact_keys=("approval_request", "approval_policy_anchor", "approval_policy_marker"),
+                    collect_fact_keys=(
+                        "approval_request",
+                        "approval_policy_anchor",
+                        "approval_policy_marker",
+                        "approval_decision_note",
+                    ),
                 ),
                 StatefulReadonlyWorkflowStep(
                     step_id="click_policy",

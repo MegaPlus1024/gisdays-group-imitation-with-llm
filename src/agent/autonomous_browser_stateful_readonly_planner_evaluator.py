@@ -1179,7 +1179,17 @@ def _validate_stateful_output(
     output_fact_map = {str(item["key"]): item["value"] for item in normalized_facts}
     missing_required_keys = sorted(key for key in required_keys if key not in output_fact_map)
     if missing_required_keys:
-        diagnostics.append({"finding_type": "missing_required_fact_keys", "path": "facts"})
+        diagnostics.append(
+            {
+                "finding_type": "missing_required_fact_keys",
+                "path": "facts",
+                "scenario_id": scenario.scenario_id,
+                "required_keys": sorted(required_keys),
+                "present_keys": sorted(output_fact_map),
+                "missing_keys": missing_required_keys,
+                "hint": "include every required fact key as a separate facts[] item",
+            }
+        )
         return _validation_failure("missing_required_fact_keys", diagnostics, len(normalized_actions))
 
     if not normalized_evidence:

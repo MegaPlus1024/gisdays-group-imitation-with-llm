@@ -811,6 +811,55 @@ def _build_scenario_prompt_text(*, scenario_id: str, scenario) -> str:
     required_fact_keys = "\n".join(f"- `{item}`" for item in hints["required_fact_keys"])
     expected_evidence_anchors = "\n".join(f"- {item}" for item in hints["expected_evidence_anchors"])
     final_answer_requirements = "\n".join(f"- {item}" for item in hints["final_answer_requirements"])
+    approval_fact_skeleton = ""
+    if scenario_id == "stateful_approval_policy_crosscheck":
+        approval_fact_skeleton = dedent(
+            """
+            ## Approval required facts
+
+            Your facts array MUST include exactly these required keys at minimum:
+
+            ```json
+            [
+              {
+                "fact_id": "fact_1",
+                "key": "approval_request",
+                "value": "Request id: APR-51.",
+                "source_step_id": "inspect_approval_match",
+                "source_url": "https://local.intranet/portal/approval-match",
+                "evidence_item_id": "evidence_1"
+              },
+              {
+                "fact_id": "fact_2",
+                "key": "approval_policy_anchor",
+                "value": "Approval Policy Match",
+                "source_step_id": "inspect_approval_match",
+                "source_url": "https://local.intranet/portal/approval-match",
+                "evidence_item_id": "evidence_2"
+              },
+              {
+                "fact_id": "fact_3",
+                "key": "approval_policy_marker",
+                "value": "Policy match: confirmed.",
+                "source_step_id": "inspect_approval_match",
+                "source_url": "https://local.intranet/portal/approval-match",
+                "evidence_item_id": "evidence_3"
+              },
+              {
+                "fact_id": "fact_4",
+                "key": "approval_decision_note",
+                "value": "local fixtures only",
+                "source_step_id": "inspect_approval_match",
+                "source_url": "https://local.intranet/portal/approval-match",
+                "evidence_item_id": "evidence_4"
+              }
+            ]
+            ```
+
+            - Do not omit approval_decision_note.
+            - The final_answer must cite all four fact ids.
+            """
+        ).strip()
 
     return dedent(
         f"""
@@ -865,6 +914,8 @@ def _build_scenario_prompt_text(*, scenario_id: str, scenario) -> str:
         ## Required fact keys
 
         {required_fact_keys}
+
+        {approval_fact_skeleton if approval_fact_skeleton else ""}
 
         ## Expected evidence anchors
 
@@ -928,12 +979,11 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
             "route_hints": (
                 "Home -> Approvals queue.",
                 "Approvals queue -> Policy match review.",
-                "Policy match review -> Workspace policy only if the fixture workflow needs it.",
+                "Once Approval Policy Match is reached, prefer extract/snapshot and stop.",
             ),
             "click_targets": (
                 "Approvals queue",
                 "Policy match review",
-                "Workspace Policy",
             ),
             "required_fact_keys": (
                 "approval_request",
@@ -951,6 +1001,8 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
             ),
             "final_answer_requirements": (
                 "Mention the approval request and the policy match evidence.",
+                "Do not omit approval_decision_note.",
+                "Cite all four fact ids: approval_request, approval_policy_anchor, approval_policy_marker, and approval_decision_note.",
                 "State the local decision in one short sentence.",
             ),
         },
