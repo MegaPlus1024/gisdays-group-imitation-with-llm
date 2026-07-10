@@ -574,6 +574,76 @@ def test_local_model_backend_rejects_click_with_current_page_expected_text() -> 
     assert summary["runtime_trace"][1]["expected_result"]["metadata"]["target_text"] == "Workspace policy"
 
 
+def test_local_model_backend_rejects_click_with_non_atomic_expected_text() -> None:
+    config = _load_local_model_config()
+    config["planner_backend"]["allow_model_calls"] = True
+    config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet Home","expected_url":"https://local.intranet/"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"click_policy","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy; Allowed activity; Search marker: fixture-backed result for workspace policy review.","expected_url":"https://local.intranet/docs/policy"}',
+                finish_reason="stop",
+            ),
+        ]
+    )
+
+    summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
+
+    assert summary["status"] == "rejected"
+    assert summary["error_code"] == "model_output_expected_text_not_atomic"
+    assert summary["stop_reason"] == "planner_action_rejected"
+    assert summary["model_execution"] is True
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["steps_attempted"] == 1
+    assert summary["actions_attempted"] == 1
+    assert summary["actions_succeeded"] == 1
+    assert summary["actions_failed"] == 0
+    assert summary["runtime_trace"][0]["validation_status"] == "skipped"
+    assert summary["runtime_trace"][0]["fixture_execution_status"] == "skipped"
+    assert summary["runtime_trace"][0]["error_code"] == "model_output_expected_text_not_atomic"
+
+
+def test_local_model_backend_rejects_click_with_invalid_expected_url_before_destination_check() -> None:
+    config = _load_local_model_config()
+    config["planner_backend"]["allow_model_calls"] = True
+    config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet Home","expected_url":"https://local.intranet/"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"click_policy","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy","expected_url":"http<absolute_path>"}',
+                finish_reason="stop",
+            ),
+        ]
+    )
+
+    summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
+
+    assert summary["status"] == "rejected"
+    assert summary["error_code"] == "model_output_invalid_expected_url"
+    assert summary["stop_reason"] == "planner_action_rejected"
+    assert summary["model_execution"] is True
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["steps_attempted"] == 1
+    assert summary["actions_attempted"] == 1
+    assert summary["actions_succeeded"] == 1
+    assert summary["actions_failed"] == 0
+    assert summary["runtime_trace"][0]["validation_status"] == "skipped"
+    assert summary["runtime_trace"][0]["fixture_execution_status"] == "skipped"
+    assert summary["runtime_trace"][0]["error_code"] == "model_output_invalid_expected_url"
+
+
 def test_local_model_backend_rejects_invented_open_url_expected_text() -> None:
     config = _load_local_model_config()
     config["planner_backend"]["allow_model_calls"] = True

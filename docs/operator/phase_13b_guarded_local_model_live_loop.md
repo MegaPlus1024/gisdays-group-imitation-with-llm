@@ -54,6 +54,12 @@ This path should refuse with `allow_model_calls_required` unless the operator ex
 - for `hard_policy_disambiguation`, the relevant home-page link is `Workspace policy -> https://local.intranet/docs/policy`
 - `Ticket board` remains visible, but it is not the policy-source link for this goal
 
+## Phase 13B10 note
+
+- `model_output_expected_text_not_atomic` means the model joined multiple anchors into one `expected_text`; use one exact visible substring instead
+- `model_output_invalid_expected_url` means the model emitted a malformed, non-local, or placeholder `expected_url`; the `Workspace policy` click must use `https://local.intranet/docs/policy`
+- this is still fixture-backed operator guidance only; it does not add browser launch capability or production readiness
+
 ## Guarded operator run
 
 ```powershell

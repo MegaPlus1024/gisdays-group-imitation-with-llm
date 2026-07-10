@@ -244,6 +244,8 @@ class LocalModelLivePlanner:
             "For browser_click, use parameters {\"target_text\": \"<visible link/button text>\"}.",
             "Do not use link_text, button_text, selector, href, XPath, or CSS selectors for browser_click.",
             "For browser_click, expected_text must come from the destination page reached by target_text, not the page you are currently reading.",
+            "For browser_click, expected_text must be exactly one visible substring, not multiple anchors joined together.",
+            "For browser_click, expected_url must be a valid local fixture URL if present, and for click actions it must match the destination exactly.",
             "Never request secrets, credentials, tokens, passwords, file URLs, external URLs, or real browser access.",
         ]
         if self._effective_no_think():
@@ -499,7 +501,11 @@ class LocalModelLivePlanner:
             )
             self._record_error(error)
             raise error
-        expected_text = _safe_text(payload.get("expected_text"), "expected_text") or ""
+        expected_text = _validated_expected_text(
+            payload.get("expected_text"),
+            "expected_text",
+            request_payload_metadata=dict(self.last_request_payload_metadata),
+        )
         expected_url = _safe_expected_url(
             payload.get("expected_url"),
             "expected_url",
@@ -518,7 +524,7 @@ class LocalModelLivePlanner:
                 metadata=metadata,
             )
 
-        if not expected_text:
+        if expected_text is None:
             error = LocalModelLivePlannerError(
                 "Model response is missing expected_text.",
                 "model_output_invalid_action",
@@ -763,7 +769,7 @@ def _safe_expected_url(
         return None
     if not isinstance(value, str) or not value.strip():
         raise LocalModelLivePlannerError(
-            "Model response expected_url must be a safe local URL.",
+            "Model response expected_url is not a valid local fixture URL.",
             "model_output_invalid_expected_url",
             {
                 "request_payload_metadata": dict(request_payload_metadata or {}),
@@ -774,7 +780,7 @@ def _safe_expected_url(
     parsed = urllib.parse.urlparse(stripped)
     if parsed.scheme not in {"http", "https"} or parsed.username or parsed.password:
         raise LocalModelLivePlannerError(
-            "Model response expected_url must be a safe local URL.",
+            "Model response expected_url is not a valid local fixture URL.",
             "model_output_invalid_expected_url",
             {
                 "request_payload_metadata": dict(request_payload_metadata or {}),
@@ -784,7 +790,7 @@ def _safe_expected_url(
     hostname = (parsed.hostname or "").lower()
     if hostname not in ALLOWED_LOCAL_EXPECTED_URL_HOSTS:
         raise LocalModelLivePlannerError(
-            "Model response expected_url must be a safe local URL.",
+            "Model response expected_url is not a valid local fixture URL.",
             "model_output_invalid_expected_url",
             {
                 "request_payload_metadata": dict(request_payload_metadata or {}),
@@ -792,6 +798,35 @@ def _safe_expected_url(
             },
         )
     return stripped
+
+
+def _validated_expected_text(
+    value: Any,
+    label: str,
+    *,
+    request_payload_metadata: Mapping[str, Any] | None = None,
+) -> str | None:
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    if not stripped:
+        return None
+    if _expected_text_is_composite(stripped):
+        raise LocalModelLivePlannerError(
+            "Model response expected_text must be one exact visible substring, not a list.",
+            "model_output_expected_text_not_atomic",
+            {
+                "request_payload_metadata": dict(request_payload_metadata or {}),
+                "expected_text_path": label,
+            },
+        )
+    return stripped
+
+
+def _expected_text_is_composite(value: str) -> bool:
+    if "\n" in value or ";" in value or "|" in value or " / " in value:
+        return True
+    return bool(re.search(r"(^|\n)\s*[-*•]\s+", value))
 
 
 def _safe_endpoint_base_url(value: Any) -> str | None:
@@ -1004,6 +1039,8 @@ def _click_destination_guidance(
     if goal_id == "hard_policy_disambiguation" and current_url == "https://local.intranet/":
         lines.append('For hard_policy_disambiguation from the home page, click "Workspace policy", not "Ticket board".')
         lines.append("Avoid for this goal: Ticket board; Team status; Approvals queue.")
+        lines.append('For hard_policy_disambiguation, expected_text must be one exact visible substring; choose one of "Workspace Policy", "Allowed activity", or "Search marker: fixture-backed result for workspace policy review.".')
+        lines.append("For hard_policy_disambiguation, expected_url for Workspace policy must be exactly https://local.intranet/docs/policy.")
     urls: list[str] = []
     for link in links:
         target_text = link["text"]

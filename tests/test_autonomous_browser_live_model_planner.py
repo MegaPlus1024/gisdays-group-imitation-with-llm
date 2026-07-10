@@ -139,9 +139,13 @@ def test_prompt_includes_click_destination_anchor_guidance() -> None:
     user = messages[1]["content"]
 
     assert "For browser_click, expected_text must come from the destination page reached by target_text, not the page you are currently reading." in system
+    assert "For browser_click, expected_text must be exactly one visible substring, not multiple anchors joined together." in system
+    assert "For browser_click, expected_url must be a valid local fixture URL if present, and for click actions it must match the destination exactly." in system
     assert "Choose the link/button relevant to the scenario goal." in user
     assert 'For hard_policy_disambiguation from the home page, click "Workspace policy", not "Ticket board".' in user
     assert "Avoid for this goal: Ticket board; Team status; Approvals queue." in user
+    assert 'For hard_policy_disambiguation, expected_text must be one exact visible substring; choose one of "Workspace Policy", "Allowed activity", or "Search marker: fixture-backed result for workspace policy review."' in user
+    assert "For hard_policy_disambiguation, expected_url for Workspace policy must be exactly https://local.intranet/docs/policy." in user
     assert "Do not choose a link just because it is visible." in user
     assert "Click destination guidance:" in user
     assert "Exact click destinations: Ticket board -> https://local.intranet/tickets; Workspace policy -> https://local.intranet/docs/policy; Team status -> https://local.intranet/team/status; Approvals queue -> https://local.intranet/portal/approvals" in user
@@ -278,6 +282,46 @@ def test_non_local_expected_url_is_rejected(expected_url: str) -> None:
 
     assert excinfo.value.error_code == "model_output_invalid_expected_url"
     assert diagnostics["expected_url_path"] == "expected_url"
+    assert "Traceback" not in diagnostics_text
+
+
+@pytest.mark.parametrize(
+    "expected_text",
+    [
+        "Workspace Policy; Allowed activity; Search marker: fixture-backed result for workspace policy review.",
+        "Workspace Policy\nAllowed activity\nSearch marker: fixture-backed result for workspace policy review.",
+    ],
+)
+def test_non_atomic_expected_text_is_rejected(expected_text: str) -> None:
+    content = json.dumps(
+        {
+            "step_id": "click_policy",
+            "action_name": "browser_click",
+            "parameters": {"target_text": "Workspace policy"},
+            "expected_text": expected_text,
+            "expected_url": "https://local.intranet/docs/policy",
+        },
+        ensure_ascii=False,
+    )
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content=content,
+                finish_reason="stop",
+            )
+        ]
+    )
+    planner = _planner(client=client)
+
+    with pytest.raises(LocalModelLivePlannerError) as excinfo:
+        planner.next_step(OBSERVATION)
+
+    diagnostics = excinfo.value.diagnostics
+    diagnostics_text = json.dumps(diagnostics, ensure_ascii=False)
+
+    assert excinfo.value.error_code == "model_output_expected_text_not_atomic"
+    assert diagnostics["expected_text_path"] == "expected_text"
+    assert "missing expected_text" not in str(excinfo.value).lower()
     assert "Traceback" not in diagnostics_text
 
 

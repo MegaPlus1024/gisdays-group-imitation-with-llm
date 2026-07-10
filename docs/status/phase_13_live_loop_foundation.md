@@ -91,3 +91,9 @@
 - the local-model live loop now adds goal-relevant link guidance for the hard policy disambiguation scenario, so the home page should favor `Workspace policy` instead of `Ticket board`
 - click actions now preflight `expected_url` against the resolved destination fixture URL and reject invented paths like `/ticket_board` before fixture execution
 - the run still remains offline and fixture-backed; no browser, Playwright, or Codex-launched model execution is added
+
+## Phase 13B10 note
+
+- `expected_text` is now enforced as one exact visible substring, so semicolon-joined or newline-joined anchor lists are rejected with `model_output_expected_text_not_atomic`
+- malformed `expected_url` values such as placeholder `http<absolute_path>` inputs are rejected with `model_output_invalid_expected_url` before any destination-mismatch check
+- the hard policy disambiguation prompt now calls out the exact `Workspace policy` destination and the exact `https://local.intranet/docs/policy` expected URL, but Codex still does not launch browser or Playwright here

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -18,6 +19,7 @@ from .autonomous_browser_live_planner import (
 from .autonomous_browser_live_model_planner import (
     DEFAULT_LOCAL_MODEL_ALIAS,
     DEFAULT_LOCAL_MODEL_ENDPOINT,
+    ALLOWED_LOCAL_EXPECTED_URL_HOSTS,
     ALLOWED_LOCAL_MODEL_ACTION_NAMES,
     ChatCompletionClient,
     LocalModelLivePlanner,
@@ -548,6 +550,31 @@ def run_autonomous_browser_live_loop(
             )
             break
 
+        expected_text_issue = _planner_expected_text_not_atomic(planned_step.expected_text)
+        if expected_text_issue is not None:
+            steps_attempted += 1
+            error_code = expected_text_issue["error_code"]
+            status = "rejected"
+            stop_reason = "planner_action_rejected"
+            trace_entries.append(
+                {
+                    "step_index": steps_attempted,
+                    "observation_id": current_observation["observation_id"],
+                    "planner_action": planner_action,
+                    "validation_status": "rejected",
+                    "fixture_execution_status": "skipped",
+                    "action_result": None,
+                    "expected_result": {
+                        "passed": False,
+                        "reason": error_code,
+                        "metadata": expected_text_issue["metadata"],
+                    },
+                    "next_observation_id": current_observation["observation_id"],
+                    "error_code": error_code,
+                }
+            )
+            break
+
         if not planned_step.expected_text.strip():
             steps_attempted += 1
             error_code = "missing_expected_text"
@@ -665,6 +692,34 @@ def run_autonomous_browser_live_loop(
                 break
 
         if planned_step.action_name == "browser_click":
+            expected_url_issue = _browser_click_expected_url_not_valid(
+                planned_step.expected_url,
+                expected_text=planned_step.expected_text,
+            )
+            if expected_url_issue is not None:
+                steps_attempted += 1
+                error_code = expected_url_issue["error_code"]
+                status = "rejected"
+                stop_reason = "planner_action_rejected"
+                trace_entries.append(
+                    {
+                        "step_index": steps_attempted,
+                        "observation_id": current_observation["observation_id"],
+                        "planner_action": planner_action,
+                        "validation_status": "accepted",
+                        "fixture_execution_status": "skipped",
+                        "action_result": None,
+                        "expected_result": {
+                            "passed": False,
+                            "reason": error_code,
+                            "metadata": expected_url_issue["metadata"],
+                        },
+                        "next_observation_id": current_observation["observation_id"],
+                        "error_code": error_code,
+                    }
+                )
+                break
+
             expected_url_issue = _browser_click_expected_url_not_matching_destination(
                 planned_step.expected_url,
                 planned_step.parameters,
@@ -1270,6 +1325,47 @@ def _browser_click_expected_url_not_matching_destination(
             ),
         },
     }
+
+
+def _browser_click_expected_url_not_valid(
+    expected_url: str | None,
+    *,
+    expected_text: str,
+) -> dict[str, Any] | None:
+    if not isinstance(expected_url, str) or not expected_url.strip():
+        return None
+    expected_url_value = expected_url.strip()
+    parsed = urllib.parse.urlparse(expected_url_value)
+    hostname = (parsed.hostname or "").lower()
+    if parsed.scheme not in {"http", "https"} or parsed.username or parsed.password or hostname not in ALLOWED_LOCAL_EXPECTED_URL_HOSTS:
+        return {
+            "error_code": "model_output_invalid_expected_url",
+            "metadata": {
+                "expected_url": expected_url_value,
+                "expected_text": expected_text,
+            },
+        }
+    return None
+
+
+def _planner_expected_text_not_atomic(expected_text: str) -> dict[str, Any] | None:
+    expected_text_value = expected_text.strip() if isinstance(expected_text, str) else ""
+    if not expected_text_value:
+        return None
+    if _expected_text_is_composite(expected_text_value):
+        return {
+            "error_code": "model_output_expected_text_not_atomic",
+            "metadata": {
+                "expected_text": expected_text_value,
+            },
+        }
+    return None
+
+
+def _expected_text_is_composite(value: str) -> bool:
+    if "\n" in value or ";" in value or "|" in value or " / " in value:
+        return True
+    return bool(re.search(r"(^|\n)\s*[-*•]\s+", value))
 
 
 def _resolve_browser_click_destination(
