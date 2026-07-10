@@ -94,6 +94,7 @@
 - Phase 13B20: records the final guarded local-model live-loop evidence in `docs/status/phase_13b_guarded_local_model_live_loop_final_evidence.md`; all three hard scenarios succeeded under the offline fixture loop with `third_model`, and no real browser or Playwright was launched from Codex.
 - Phase 13C: adds a repeated guarded local-model live-loop variance suite in `docs/status/phase_13c_live_loop_variance_suite.md`; it repeats the three hard scenarios with `third_model`, requires explicit operator `--allow-model-calls`, and keeps route/goal stability tracking fixture-backed only.
 - Phase 13C final evidence: all three hard scenarios succeeded in 9/9 repeated trials with stable routes and stable matched URLs; ticket and approval used bounded repair successfully and no real browser or Playwright was launched from Codex.
+- Phase 13D: prepares a guarded Playwright replay suite for the successful Phase 13C live-loop traces in `docs/status/phase_13d_live_loop_playwright_replay.md`; Codex only verified refusal and dry-run paths, and no real Playwright was launched.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

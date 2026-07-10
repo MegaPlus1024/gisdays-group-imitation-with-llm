@@ -160,3 +160,9 @@
 - the final Phase 13C operator evidence shows 9/9 successful repeated trials across the three hard scenarios, with stable routes and stable matched URLs
 - policy finished without repair, while ticket and approval each used bounded repair successfully on every trial
 - the evidence remains fixture-backed only and does not add browser launch capability or Codex-launched model execution
+
+## Phase 13D note
+
+- Phase 13D prepares a guarded Playwright replay suite for the successful Phase 13C live-loop traces; Codex verified the refusal and dry-run paths only
+- the new replay preparation keeps replay inputs local, fixture-backed, and scenario-scoped, and it does not launch Playwright or Chromium from Codex
+- the operator later remains responsible for any real guarded Playwright replay run against local fixtures only

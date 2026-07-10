@@ -1,0 +1,37 @@
+{
+  "schema_version": "autonomous_browser_live_loop_playwright_replay_config_v1",
+  "suite_id": "phase_13d_guarded_playwright_replay_live_loop_traces",
+  "input_variance_suite_summary": "artifacts/autonomous_runtime_summaries/live_loop_variance_suite.summary.json",
+  "input_trace_root": "artifacts/autonomous_runtime_summaries/live_loop_variance_suite",
+  "scenario_ids": [
+    "hard_policy_disambiguation",
+    "hard_ticket_priority_crosscheck",
+    "hard_approval_policy_match"
+  ],
+  "trial_selection": "first_success_per_scenario",
+  "replay_backend": "playwright",
+  "allow_real_browser": false,
+  "allow_playwright": false,
+  "require_explicit_allow_real_browser": true,
+  "require_explicit_allow_playwright": true,
+  "fixture_only": true,
+  "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+  "allowed_hosts": [
+    "local.intranet",
+    "local-intranet.test",
+    "docs.local",
+    "portal.local",
+    "127.0.0.1",
+    "localhost"
+  ],
+  "real_network_traffic_allowed": false,
+  "headless": true,
+  "timeout_ms": 30000,
+  "output_dir": "artifacts/autonomous_runtime_summaries/live_loop_playwright_replay",
+  "limitations": [
+    "guarded live-loop trace replay preparation only",
+    "operator must explicitly allow real browser and Playwright for non-dry-run replay",
+    "fixture-backed traces only",
+    "not production browser automation"
+  ]
+}
