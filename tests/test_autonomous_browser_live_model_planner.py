@@ -119,6 +119,31 @@ def test_prompt_reinforces_allowed_actions_and_start_url_guidance() -> None:
     assert "Workspace policy" in user
 
 
+def test_prompt_includes_click_destination_anchor_guidance() -> None:
+    planner = _planner(model_alias="third_model", allow_model_calls=False)
+    observation = {
+        "observation_id": "observation_0003",
+        "current_url": "https://local.intranet/",
+        "title": "Office Intranet Home",
+        "text_preview": "Office Intranet Home Ticket board Workspace policy Team status Approvals queue Search marker: fixture-backed result for local policy review.",
+        "metadata": {
+            "fixture_source": True,
+            "page_opened": True,
+            "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+        },
+    }
+
+    messages = planner.build_messages(observation)
+    system = messages[0]["content"]
+    user = messages[1]["content"]
+
+    assert "For browser_click, expected_text must come from the destination page reached by target_text, not the page you are currently reading." in system
+    assert "Click destination anchors:" in user
+    assert "Workspace policy -> Workspace Policy; Allowed activity; Search marker: fixture-backed result for workspace policy review." in user
+    assert "Workspace Policy" in user
+    assert "Allowed activity" in user
+
+
 def test_valid_next_action_returns_step() -> None:
     client = FakeChatCompletionClient(
         [

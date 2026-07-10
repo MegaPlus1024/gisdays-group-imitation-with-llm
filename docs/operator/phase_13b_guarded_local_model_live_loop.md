@@ -42,6 +42,12 @@ This path should refuse with `allow_model_calls_required` unless the operator ex
 - for the current policy scenario, valid first-page anchors include `Office Intranet Home`, `Workspace policy`, and `Search marker: fixture-backed result for local policy review.`
 - retry with an exact visible substring from the start page, not a welcome phrase, and keep the run fixture-backed only
 
+## Phase 13B8 note
+
+- for `browser_click`, `expected_text` should come from the destination page reached by the clicked target, not from the page the model is currently reading
+- for the current policy scenario, a click on `Workspace policy` should ground `expected_text` in destination-page anchors such as `Workspace Policy`, `Allowed activity`, and `Search marker: fixture-backed result for workspace policy review.`
+- the guarded live loop can now reject invented click-destination anchors before fixture execution, while still staying fixture-backed and non-production
+
 ## Guarded operator run
 
 ```powershell

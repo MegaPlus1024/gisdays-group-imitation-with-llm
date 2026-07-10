@@ -32,6 +32,7 @@ from .autonomous_browser_runtime import (
     BrowserRuntimeSession,
     BrowserRuntimeVerifier,
     FixtureBackedBrowserRuntimeExecutor,
+    _extract_links,
 )
 from .browser_fixture_resolver import resolve_browser_fixture_url
 
@@ -663,6 +664,38 @@ def run_autonomous_browser_live_loop(
                 )
                 break
 
+        if planned_step.action_name == "browser_click":
+            expected_text_issue = _browser_click_expected_text_not_visible(
+                planned_step.expected_text,
+                planned_step.parameters,
+                session=session,
+                fixture_manifest_path=config.browser_session.fixture_manifest_path,
+                repo_root=repo,
+            )
+            if expected_text_issue is not None:
+                steps_attempted += 1
+                error_code = expected_text_issue["error_code"]
+                status = "rejected"
+                stop_reason = "planner_action_rejected"
+                trace_entries.append(
+                    {
+                        "step_index": steps_attempted,
+                        "observation_id": current_observation["observation_id"],
+                        "planner_action": planner_action,
+                        "validation_status": "accepted",
+                        "fixture_execution_status": "skipped",
+                        "action_result": None,
+                        "expected_result": {
+                            "passed": False,
+                            "reason": error_code,
+                            "metadata": expected_text_issue["metadata"],
+                        },
+                        "next_observation_id": current_observation["observation_id"],
+                        "error_code": error_code,
+                    }
+                )
+                break
+
         steps_attempted += 1
         normalized_plan = validation_result.get("normalized_plan")
         assert isinstance(normalized_plan, Mapping)
@@ -702,6 +735,7 @@ def run_autonomous_browser_live_loop(
         metadata = next_observation_dict.get("metadata")
         if isinstance(metadata, dict):
             metadata["page_opened"] = True
+            metadata["fixture_manifest_path"] = config.browser_session.fixture_manifest_path
         trace_entries.append(
             {
                 "step_index": steps_attempted,
@@ -820,6 +854,7 @@ def _initial_observation(
         "browser_opened": False,
         "network_used": False,
         "page_opened": False,
+        "fixture_manifest_path": fixture_manifest_path,
         "scenario_id": scenario_id,
     }
     if not session.start_url:
@@ -1168,6 +1203,66 @@ def _browser_open_url_expected_text_not_visible(
             "expected_text": expected_text,
             "target_url": resolution.url,
             "visible_anchors": _start_page_visible_anchors(resolution.url, resolution.title, resolution.extracted_text_preview),
+        },
+    }
+
+
+def _browser_click_expected_text_not_visible(
+    expected_text: str,
+    parameters: Mapping[str, Any],
+    *,
+    session: BrowserRuntimeSession,
+    fixture_manifest_path: str,
+    repo_root: Path,
+) -> dict[str, Any] | None:
+    target_text = parameters.get("target_text") or parameters.get("text")
+    current_url = session.current_url
+    if not isinstance(target_text, str) or not target_text.strip() or not isinstance(expected_text, str) or not expected_text.strip():
+        return None
+    if not isinstance(current_url, str) or not current_url.strip():
+        return None
+    try:
+        current_resolution = resolve_browser_fixture_url(
+            current_url,
+            fixture_manifest_path,
+            project_root=repo_root,
+            allowed_url_prefixes=_prefixes_for_domains(session.allowed_domains),
+            preview_chars=2_000,
+        )
+    except Exception:
+        return None
+    links = _extract_links(current_resolution.fixture_path.read_text(encoding="utf-8"))
+    target_url = None
+    for link in links:
+        if target_text.strip().lower() in link["text"].lower():
+            target_url = urllib.parse.urljoin(current_url, link["href"])
+            break
+    if target_url is None:
+        return None
+    try:
+        destination_resolution = resolve_browser_fixture_url(
+            target_url,
+            fixture_manifest_path,
+            project_root=repo_root,
+            allowed_url_prefixes=_prefixes_for_domains(session.allowed_domains),
+            preview_chars=2_000,
+        )
+    except Exception:
+        return None
+    visible_text = f"{destination_resolution.title or ''} {destination_resolution.extracted_text_preview}".strip()
+    if expected_text in visible_text:
+        return None
+    return {
+        "error_code": "model_output_expected_text_not_visible",
+        "metadata": {
+            "expected_text": expected_text,
+            "target_text": target_text,
+            "target_url": destination_resolution.url,
+            "visible_anchors": _start_page_visible_anchors(
+                destination_resolution.url,
+                destination_resolution.title,
+                destination_resolution.extracted_text_preview,
+            ),
         },
     }
 

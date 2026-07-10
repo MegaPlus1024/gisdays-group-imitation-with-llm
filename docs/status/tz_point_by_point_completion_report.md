@@ -81,6 +81,7 @@
 - Phase 13B4: normalizes guarded local-model endpoints and rejects unsupported actions like `browser_search` before fixture execution; it does not add web/search support or browser launch capability.
 - Phase 13B5: adds a state-aware no-page guard so the local-model live loop requires `browser_open_url` before click/extract/snapshot actions; it remains fixture-backed and does not add production browser execution.
 - Phase 13B7: adds exact start-page anchor guidance plus a safe `browser_open_url` expected-text preflight so invented welcome text can be rejected before fixture execution.
+- Phase 13B8: adds click destination anchor guidance plus a safe click preflight so `expected_text` can be grounded in the destination page reached by `browser_click` rather than the current page text.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

@@ -12,6 +12,7 @@ import httpx
 
 from .autonomous_browser_live_planner import AutonomousBrowserLivePlannerStep
 from .autonomous_browser_plan_validation import PLAN_SCHEMA_VERSION, validate_autonomous_browser_plan
+from .browser_fixture_resolver import resolve_browser_fixture_url
 
 
 LOCAL_MODEL_LIVE_PLANNER_SCHEMA_VERSION = "autonomous_browser_live_model_planner_v1"
@@ -242,6 +243,7 @@ class LocalModelLivePlanner:
             "Choose only from visible local links/buttons and allowed local fixture actions.",
             "For browser_click, use parameters {\"target_text\": \"<visible link/button text>\"}.",
             "Do not use link_text, button_text, selector, href, XPath, or CSS selectors for browser_click.",
+            "For browser_click, expected_text must come from the destination page reached by target_text, not the page you are currently reading.",
             "Never request secrets, credentials, tokens, passwords, file URLs, external URLs, or real browser access.",
         ]
         if self._effective_no_think():
@@ -253,6 +255,9 @@ class LocalModelLivePlanner:
         surface_hints = _surface_hints(payload)
         if surface_hints:
             user_parts.append(f"Visible local hints: {surface_hints}")
+        click_anchor_hints = _click_destination_anchor_hints(payload, metadata, repo_root=self.repo_root)
+        if click_anchor_hints:
+            user_parts.append(f"Click destination anchors: {'; '.join(click_anchor_hints)}")
         if payload.get("current_url") is None:
             start_url = _prompt_text(metadata.get("scenario_start_url") or metadata.get("start_url"))
             if start_url:
@@ -961,11 +966,77 @@ def _start_page_anchor_hints(payload: Mapping[str, Any], metadata: Mapping[str, 
     start_url = _prompt_text(metadata.get("scenario_start_url") or metadata.get("start_url"))
     title = _prompt_text(payload.get("title"))
     text_preview = _prompt_text(payload.get("text_preview")) or ""
+    return list(_page_visible_anchor_hints(start_url, title, text_preview)) or None
+
+
+def _click_destination_anchor_hints(
+    payload: Mapping[str, Any],
+    metadata: Mapping[str, Any],
+    *,
+    repo_root: Path,
+) -> list[str] | None:
+    current_url = _prompt_text(payload.get("current_url"))
+    fixture_manifest_path = _prompt_text(metadata.get("fixture_manifest_path"))
+    if not current_url or not fixture_manifest_path:
+        return None
+    try:
+        current_resolution = resolve_browser_fixture_url(
+            current_url,
+            fixture_manifest_path,
+            project_root=repo_root,
+            allowed_url_prefixes=_fixture_url_prefixes(),
+            preview_chars=2_000,
+        )
+    except Exception:
+        return None
+
+    links = _extract_anchor_links(current_resolution.fixture_path.read_text(encoding="utf-8"))
+    hints: list[str] = []
+    for link in links:
+        target_text = link["text"]
+        href = link["href"]
+        if not target_text or not href:
+            continue
+        target_url = urllib.parse.urljoin(current_url, href)
+        try:
+            target_resolution = resolve_browser_fixture_url(
+                target_url,
+                fixture_manifest_path,
+                project_root=repo_root,
+                allowed_url_prefixes=_fixture_url_prefixes(),
+                preview_chars=2_000,
+            )
+        except Exception:
+            continue
+        anchors = _page_visible_anchor_hints(
+            target_resolution.url,
+            target_resolution.title,
+            target_resolution.extracted_text_preview,
+        )
+        if not anchors:
+            continue
+        hint = f"{target_text} -> {'; '.join(anchors[:3])}"
+        if hint not in hints:
+            hints.append(hint)
+        if len(hints) >= 3:
+            break
+    return hints or None
+
+
+def _page_visible_anchor_hints(page_url: str | None, title: str | None, text_preview: str) -> tuple[str, ...]:
+    if not page_url:
+        return tuple()
+    hints: list[str] = []
     known_hints: dict[str, tuple[str, ...]] = {
         "https://local.intranet/": (
             "Office Intranet Home",
             "Workspace policy",
             "Search marker: fixture-backed result for local policy review.",
+        ),
+        "https://local.intranet/docs/policy": (
+            "Workspace Policy",
+            "Allowed activity",
+            "Search marker: fixture-backed result for workspace policy review.",
         ),
         "https://docs.local/docs/policy-disambiguation": (
             "Policy Disambiguation",
@@ -973,15 +1044,31 @@ def _start_page_anchor_hints(payload: Mapping[str, Any], metadata: Mapping[str, 
             "Search marker: current policy source is the fixture-backed answer.",
         ),
     }
-    candidates: list[str] = []
-    if start_url in known_hints:
-        candidates.extend(known_hints[start_url])
-    elif title:
-        candidates.append(title)
-    for candidate in candidates:
-        if candidate and candidate not in anchors and (candidate == title or candidate in text_preview):
-            anchors.append(candidate)
-    return anchors or None
+    for hint in known_hints.get(page_url, ()):
+        if hint and (hint == title or hint in text_preview):
+            if hint not in hints:
+                hints.append(hint)
+    if title and title not in hints:
+        hints.insert(0, title)
+    return tuple(hints)
+
+
+def _extract_anchor_links(html: str) -> list[dict[str, str]]:
+    links: list[dict[str, str]] = []
+    for match in re.finditer(r'<a\b[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', html, flags=re.IGNORECASE | re.DOTALL):
+        href = _prompt_text(match.group(1))
+        text = _prompt_text(re.sub(r"<[^>]+>", " ", match.group(2)))
+        if href and text:
+            links.append({"href": href, "text": text})
+    return links
+
+
+def _fixture_url_prefixes() -> list[str]:
+    prefixes: list[str] = []
+    for host in sorted(ALLOWED_LOCAL_EXPECTED_URL_HOSTS):
+        prefixes.append(f"http://{host}")
+        prefixes.append(f"https://{host}")
+    return prefixes
 
 
 def _redact_secret_text(value: str) -> str:

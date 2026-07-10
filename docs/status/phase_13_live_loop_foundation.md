@@ -79,3 +79,9 @@
 - the live-model prompt now carries exact visible start-page anchors such as `Office Intranet Home`, `Workspace policy`, and the local policy review search marker so the model can choose a real substring for `expected_text`
 - a safe preflight can reject obviously invented start-page `expected_text` values before fixture execution when the target page is already known from local fixtures
 - Codex still does not launch browser, Playwright, Chromium, or a model here
+
+## Phase 13B8 note
+
+- the live-model prompt now also carries destination-page anchors for visible local `browser_click` targets, so `expected_text` can be grounded in the page reached by the click rather than the current page text
+- the guarded live loop can now preflight click actions against the resolved destination fixture page and reject invented destination anchors before fixture execution
+- this remains fixture-backed guidance only; it does not add production browser automation or Codex-launched model execution
