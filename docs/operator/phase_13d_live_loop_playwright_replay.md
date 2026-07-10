@@ -71,3 +71,46 @@ Expected refusal properties:
 - `file_url_not_allowed` means a replay input tried to escape the fixture-only boundary
 - `config_validation_failed` can still appear before browser launch, but the replay trace diagnostics now carry the sanitized validation cause
 - `backend_config_path` now points at the generated operator config next to the replay plan
+
+## Final success note
+
+- Phase 13C input evidence completed successfully before replay:
+  - `status: succeeded`
+  - `trials_total: 9`
+  - `trials_succeeded: 9`
+  - `pass_rate_overall: 1.0`
+- Phase 13D dry-run completed successfully before guarded execution:
+  - `status: succeeded`
+  - `input_trace_count: 3`
+  - `selected_trace_count: 3`
+  - `traces_succeeded: 3`
+  - `actions_attempted_total: 8`
+  - `expected_results_passed_total: 8`
+  - `real_browser_execution: false`
+  - `playwright_execution: false`
+  - `browser_opened: false`
+- final guarded replay completed successfully:
+  - `status: succeeded`
+  - `error_code: null`
+  - `traces_replayed: 3`
+  - `traces_succeeded: 3`
+  - `actions_attempted_total: 8`
+  - `actions_succeeded_total: 8`
+  - `expected_results_passed_total: 8`
+  - `real_browser_execution: true`
+  - `playwright_execution: true`
+  - `browser_opened: true`
+  - `real_network_traffic: false`
+  - `fixture_only: true`
+
+### How to read `replay_final_url`
+
+- `replay_final_url` is the local fixture-served URL reached by the guarded Playwright run
+- for these traces it should be a `127.0.0.1:8765` fixture URL, not an external site
+- the logical URL remains the policy/ticket/approval fixture URL from the trace, while the final replay URL reflects the local server mapping
+
+### Operational reminders
+
+- if the Phase 13C traces already exist, Phase 13D replay does not need a model or llama-server run
+- Phase 13C traces must exist before replay; Phase 13D consumes persisted traces only
+- the final replay evidence is a guarded local fixture result, not production automation

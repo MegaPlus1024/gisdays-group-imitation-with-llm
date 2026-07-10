@@ -190,5 +190,11 @@
 ## Phase 13D5 note
 
 - Phase 13D5 fixes manifest-backed route mapping for extensionless logical URLs and replaces title-only replay anchors with visible body anchors from the local fixtures
+
+## Phase 13D final note
+
+- Phase 13D final evidence succeeded for all three hard scenarios in the guarded Playwright replay path
+- Phase 13C provided the nine successful local-model fixture traces, Phase 13D dry-run validated three selected traces, and the final guarded Playwright replay succeeded with `real_browser_execution: true` and `real_network_traffic: false`
+- the final replay remained fixture-only and local, and Codex did not need to launch a model, browser, or Playwright to document the milestone
 - D4 had reached real Playwright/Chromium, but `/docs/policy`, `/tickets`, and `/portal/approvals` still returned 404 from the fixture server because the browser followed the raw logical routes
 - Codex still did not launch browser, Playwright, Chromium, or a model for this documentation step

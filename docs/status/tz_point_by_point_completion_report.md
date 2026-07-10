@@ -100,6 +100,7 @@
 - Phase 13D3: fixes the generated guarded Playwright operator config shape and records the backend config path in replay diagnostics.
 - Phase 13D4: fixes guarded Playwright replay click/navigation semantics, post-click expected-text checks, and top-level summary aggregation; the real guarded replay had reached the backend, but the remaining barrier was staying on the home page after clicks.
 - Phase 13D5: fixes manifest-backed fixture route mapping for extensionless logical URLs and replaces title-only replay anchors with visible body anchors from the local fixtures.
+- Phase 13D final: successful guarded Playwright replay of live-loop traces, 3/3 traces succeeded with 8/8 actions and 8/8 expected checks, `real_browser_execution: true`, and `real_network_traffic: false`.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения
