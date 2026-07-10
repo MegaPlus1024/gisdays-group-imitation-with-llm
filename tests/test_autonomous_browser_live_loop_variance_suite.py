@@ -320,9 +320,14 @@ def test_trial_summaries_include_relative_paths_and_matching_scenario_ids() -> N
     _cleanup_outputs()
 
 
-def test_cli_default_refusal_exits_nonzero_and_reports_allow_model_calls_required() -> None:
+def test_cli_default_refusal_exits_nonzero_and_reports_allow_model_calls_required(tmp_path: Path) -> None:
+    config_path = tmp_path / "browser_live_loop_variance_suite.example.json"
+    config_payload = _config()
+    config_payload["output_dir"] = "artifacts/autonomous_runtime_summaries/live_loop_variance_suite_temp_refusal"
+    _write_json(config_path, config_payload)
+
     completed = subprocess.run(
-        [sys.executable, str(SCRIPT_PATH), "--config", str(CONFIG_PATH)],
+        [sys.executable, str(SCRIPT_PATH), "--config", str(config_path)],
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
@@ -337,4 +342,4 @@ def test_cli_default_refusal_exits_nonzero_and_reports_allow_model_calls_require
     assert payload["model_execution_attempted"] is False
     assert payload["model_execution_completed"] is False
     assert payload["browser_opened"] is False
-    assert not (PROJECT_ROOT / "artifacts" / "autonomous_runtime_summaries" / "live_loop_variance_suite").exists()
+    assert not (PROJECT_ROOT / "artifacts" / "autonomous_runtime_summaries" / "live_loop_variance_suite_temp_refusal").exists()

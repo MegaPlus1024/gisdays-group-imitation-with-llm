@@ -15,6 +15,7 @@ from src.agent.autonomous_browser_playwright_execution import (
     PlaywrightExecutionError,
     RealPlaywrightBackend,
     _sanitize_diagnostics,
+    _resolve_fixture_request_target,
     run_guarded_playwright_smoke,
 )
 from src.agent.autonomous_browser_playwright_operator import load_playwright_operator_config
@@ -185,6 +186,20 @@ def test_url_mapper_maps_portal_status_to_domain_fixture() -> None:
     )
 
     assert mapper.map_logical_url("https://portal.local/status") == "http://127.0.0.1:8765/portal/status.html"
+
+
+def test_fixture_request_target_resolves_manifest_routes() -> None:
+    manifest = json.loads(
+        (PROJECT_ROOT / "tests" / "fixtures" / "local_intranet" / "office_site_v1" / "site_manifest.json").read_text(encoding="utf-8")
+    )
+    routes = manifest["routes"]
+    root = PROJECT_ROOT / "tests" / "fixtures" / "local_intranet" / "office_site_v1"
+
+    assert _resolve_fixture_request_target("/docs/policy", root=root, manifest_routes=routes).relative_to(root).as_posix() == "docs/policy.html"
+    assert _resolve_fixture_request_target("/tickets", root=root, manifest_routes=routes).relative_to(root).as_posix() == "tickets/index.html"
+    assert _resolve_fixture_request_target("/tickets/1", root=root, manifest_routes=routes).relative_to(root).as_posix() == "tickets/1.html"
+    assert _resolve_fixture_request_target("/portal/approvals", root=root, manifest_routes=routes).relative_to(root).as_posix() == "portal/approvals.html"
+    assert _resolve_fixture_request_target("/portal/approval-match", root=root, manifest_routes=routes).relative_to(root).as_posix() == "portal/approval-match.html"
 
 
 def test_url_mapper_rejects_unknown_domain() -> None:

@@ -13,6 +13,12 @@
 - post-click expected-text checks now use the rendered destination page, and nested operator summaries carry the real browser flags that top-level aggregation reads
 - Codex still does not launch browser, Playwright, Chromium, or a model for this path
 
+## Phase 13D5 note
+
+- Phase 13D5 fixes manifest-backed route mapping for extensionless logical URLs and grounds replay-plan `expected_text` in visible body anchors instead of title-only strings
+- the fixture server now serves `/docs/policy`, `/tickets`, `/tickets/1`, `/portal/approvals`, and `/portal/approval-match` through the manifest-backed route map
+- Codex still does not launch browser, Playwright, Chromium, or a model for this path
+
 ## Dry-run command
 
 ```powershell

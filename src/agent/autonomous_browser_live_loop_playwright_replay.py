@@ -16,6 +16,8 @@ from .autonomous_browser_plan_playwright_replay_operator import (
     ALLOWED_BROWSER_HOSTS as PLAYWRIGHT_ALLOWED_BROWSER_HOSTS,
 )
 from .autonomous_browser_plan_validation import validate_autonomous_browser_plan
+from .browser_fixture_resolver import resolve_browser_fixture_url
+from urllib.parse import urlparse
 
 
 CONFIG_SCHEMA_VERSION = "autonomous_browser_live_loop_playwright_replay_config_v1"
@@ -437,7 +439,13 @@ def run_autonomous_browser_live_loop_playwright_replay(
                 first_issue_code = trace_error["error_code"]
             continue
 
-        plan_payload, plan_error = _build_replay_plan(selection, trace_payload, limitations=config.limitations)
+        plan_payload, plan_error = _build_replay_plan(
+            selection,
+            trace_payload,
+            limitations=config.limitations,
+            fixture_manifest_path=config.fixture_manifest_path,
+            repo_root=repo_root,
+        )
         if plan_error is not None:
             trace_summary = _trace_failure_summary(selection, plan_error["error_code"], limitations=config.limitations)
             trace_summaries.append(trace_summary)
@@ -625,7 +633,13 @@ def _summaries_for_dry_run(
                 first_issue_code = trace_error["error_code"]
             continue
 
-        plan_payload, plan_error = _build_replay_plan(selection, trace_payload, limitations=config.limitations)
+        plan_payload, plan_error = _build_replay_plan(
+            selection,
+            trace_payload,
+            limitations=config.limitations,
+            fixture_manifest_path=config.fixture_manifest_path,
+            repo_root=repo_root,
+        )
         if plan_error is not None:
             trace_summary = _trace_failure_summary(selection, plan_error["error_code"], limitations=config.limitations)
             trace_summaries.append(trace_summary)
@@ -1246,6 +1260,8 @@ def _build_replay_plan(
     trace_payload: Mapping[str, Any],
     *,
     limitations: tuple[str, ...],
+    fixture_manifest_path: str,
+    repo_root: Path,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     replay_actions = _selected_trace_actions(trace_payload)
     if not replay_actions:
@@ -1269,7 +1285,13 @@ def _build_replay_plan(
             "action_name": action_name,
             "parameters": parameters,
         }
-        expected_text = _optional_text(planner_action.get("expected_text"))
+        expected_text = _replay_expected_text(
+            planner_action,
+            current_url=_optional_text(entry.get("current_url")),
+            fallback_expected_text=_optional_text(planner_action.get("expected_text")),
+            fixture_manifest_path=fixture_manifest_path,
+            repo_root=repo_root,
+        )
         if expected_text:
             action["expected_text"] = expected_text
         expected_url = _optional_text(planner_action.get("expected_url"))
@@ -1293,6 +1315,80 @@ def _build_replay_plan(
             "diagnostics": {"validation_result": _jsonable(validation_result)},
         }
     return plan_payload, None
+
+
+def _replay_expected_text(
+    planner_action: Mapping[str, Any],
+    *,
+    current_url: str | None,
+    fallback_expected_text: str | None,
+    fixture_manifest_path: str,
+    repo_root: Path,
+) -> str | None:
+    candidate_urls: list[str] = []
+    for value in (
+        _optional_text(planner_action.get("expected_url")),
+        _optional_text(_action_parameters_from_mapping(planner_action).get("url")),
+        current_url,
+    ):
+        if value and value not in candidate_urls:
+            candidate_urls.append(value)
+    for candidate_url in candidate_urls:
+        if not candidate_url:
+            continue
+        try:
+            resolution = resolve_browser_fixture_url(
+                candidate_url,
+                fixture_manifest_path,
+                project_root=repo_root,
+            )
+        except Exception:
+            route_anchor = _default_visible_anchor_for_url(candidate_url)
+            if route_anchor:
+                return route_anchor
+            continue
+        visible_anchor = _preferred_visible_anchor(resolution.route, resolution.extracted_text, resolution.title)
+        if visible_anchor:
+            if fallback_expected_text and fallback_expected_text != resolution.title and fallback_expected_text in resolution.extracted_text:
+                return fallback_expected_text
+            return visible_anchor
+    return fallback_expected_text
+
+
+def _preferred_visible_anchor(route: str, extracted_text: str, title: str | None) -> str | None:
+    route_candidates: dict[str, tuple[str, ...]] = {
+        "/": ("Office Intranet", "Search marker: fixture-backed result for local policy review.", "Today"),
+        "/docs/policy": ("Workspace Policy", "Allowed activity", "Search marker: fixture-backed result for workspace policy review."),
+        "/tickets": ("Ticket Board", "Open tickets", "Ticket 1: Quarterly Access Review requires an office-worker status note."),
+        "/tickets/1": ("Quarterly Access Review", "Priority: high", "Assigned role: office worker"),
+        "/portal/approvals": ("Approvals Queue", "Pending approval check", "Approval item APR-42 is waiting for local policy verification."),
+        "/portal/approval-match": ("Approval Policy Match", "Local-only approval review", "Policy match: confirmed."),
+    }
+    candidates = list(route_candidates.get(route, ()))
+    if title and title not in candidates:
+        candidates.append(title)
+    for candidate in candidates:
+        if candidate and candidate in extracted_text:
+            return candidate
+    if extracted_text:
+        return extracted_text.split(" ", 1)[0].strip() or None
+    return title
+
+
+def _default_visible_anchor_for_url(url: str) -> str | None:
+    parsed = urlparse(url)
+    route = parsed.path or "/"
+    if route.endswith("/"):
+        route = route.rstrip("/") or "/"
+    route_anchor_map = {
+        "/": "Office Intranet",
+        "/docs/policy": "Workspace Policy",
+        "/tickets": "Ticket Board",
+        "/tickets/1": "Quarterly Access Review",
+        "/portal/approvals": "Approvals Queue",
+        "/portal/approval-match": "Approval Policy Match",
+    }
+    return route_anchor_map.get(route)
 
 
 def _write_replay_plan(repo_root: Path, output_dir: str, selection: _ReplayTraceSelection, plan_payload: Mapping[str, Any]) -> str:

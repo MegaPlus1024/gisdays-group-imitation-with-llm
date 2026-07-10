@@ -1423,6 +1423,20 @@ def test_guarded_playwright_handoff_aggregates_nested_real_browser_flags_and_fin
         config = json.loads((repo_root / config_path).read_text(encoding="utf-8"))
         plan_path = repo_root / config["replay_plan_path"]
         plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        if plan["scenario_id"] == "hard_policy_disambiguation":
+            assert [action.get("expected_text") for action in plan["actions"]] == ["Office Intranet", "Workspace Policy"]
+        elif plan["scenario_id"] == "hard_ticket_priority_crosscheck":
+            assert [action.get("expected_text") for action in plan["actions"]] == [
+                "Office Intranet",
+                "Ticket Board",
+                "Quarterly Access Review",
+            ]
+        elif plan["scenario_id"] == "hard_approval_policy_match":
+            assert [action.get("expected_text") for action in plan["actions"]] == [
+                "Office Intranet",
+                "Approvals Queue",
+                "Approval Policy Match",
+            ]
         final_action = plan["actions"][-1]
         final_url = final_action.get("expected_url") or final_action["parameters"].get("url")
         replayed_actions = []

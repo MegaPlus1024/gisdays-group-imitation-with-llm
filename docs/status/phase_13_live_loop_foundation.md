@@ -186,3 +186,9 @@
 - Phase 13D4 fixes the first real guarded Playwright replay runtime barrier: click/navigation semantics, post-click expected-text checks, and top-level summary aggregation
 - D3 reached the guarded backend with `browser_opened: true`, but click navigation stayed on the home page and the nested operator summaries carried the real browser flags that the top-level summary initially missed
 - Codex still did not launch browser, Playwright, Chromium, or a model for this documentation step
+
+## Phase 13D5 note
+
+- Phase 13D5 fixes manifest-backed route mapping for extensionless logical URLs and replaces title-only replay anchors with visible body anchors from the local fixtures
+- D4 had reached real Playwright/Chromium, but `/docs/policy`, `/tickets`, and `/portal/approvals` still returned 404 from the fixture server because the browser followed the raw logical routes
+- Codex still did not launch browser, Playwright, Chromium, or a model for this documentation step

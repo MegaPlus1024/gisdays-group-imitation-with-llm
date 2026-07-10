@@ -485,7 +485,12 @@ class LocalFixtureHttpServer:
         import socketserver
         import threading
 
-        handler = functools.partial(_SafeFixtureRequestHandler, directory=str(self._resolved_root))
+        manifest_routes = _load_fixture_manifest_routes(self._resolved_root)
+        handler = functools.partial(
+            _SafeFixtureRequestHandler,
+            directory=str(self._resolved_root),
+            manifest_routes=manifest_routes,
+        )
         self._server = socketserver.ThreadingTCPServer((self.host, self.port), handler)
         self._server.daemon_threads = True
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
@@ -510,25 +515,18 @@ class LocalFixtureHttpServer:
 
 
 class _SafeFixtureRequestHandler:
-    def __new__(cls, *args: Any, directory: str, **kwargs: Any) -> Any:
+    def __new__(cls, *args: Any, directory: str, manifest_routes: Mapping[str, str] | None = None, **kwargs: Any) -> Any:
         import http.server
         from urllib.parse import unquote, urlparse
 
         root = Path(directory).resolve()
+        routes = dict(manifest_routes or {})
 
         class Handler(http.server.BaseHTTPRequestHandler):
             def do_GET(self) -> None:
                 parsed = urlparse(self.path)
-                path = unquote(parsed.path or "/").lstrip("/")
-                if not path or path.endswith("/"):
-                    path = f"{path}index.html".lstrip("/")
-                target = (root / path).resolve()
-                try:
-                    target.relative_to(root)
-                except ValueError:
-                    self.send_error(404)
-                    return
-                if not target.is_file():
+                target = _resolve_fixture_request_target(parsed.path or "/", root=root, manifest_routes=routes)
+                if target is None:
                     self.send_error(404)
                     return
                 content_type = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
@@ -553,6 +551,66 @@ class _SafeFixtureRequestHandler:
                 del format, args
 
         return Handler(*args, **kwargs)
+
+
+def _load_fixture_manifest_routes(root: Path) -> dict[str, str]:
+    manifest_path = root / "site_manifest.json"
+    if not manifest_path.is_file():
+        return {}
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    routes = payload.get("routes", {})
+    if not isinstance(routes, dict):
+        return {}
+    out: dict[str, str] = {}
+    for route, path in routes.items():
+        if isinstance(route, str) and isinstance(path, str) and route.startswith("/") and path.strip():
+            out[route] = path
+    return out
+
+
+def _resolve_fixture_request_target(path: str, *, root: Path, manifest_routes: Mapping[str, str] | None = None) -> Path | None:
+    normalized_route = _normalize_fixture_request_route(path)
+    routes = dict(manifest_routes or {})
+    for candidate_route in _request_route_candidates(normalized_route):
+        route_path = routes.get(candidate_route)
+        if isinstance(route_path, str) and route_path.strip():
+            try:
+                target = _safe_fixture_file(root, route_path)
+            except Exception:
+                target = None
+            if target is not None:
+                return target
+    for candidate_route in _request_route_candidates(normalized_route):
+        for relative_path in _candidate_fixture_paths(candidate_route):
+            if _safe_fixture_file_exists(root, relative_path):
+                return (root / _safe_fixture_relative_path(relative_path)).resolve()
+    return None
+
+
+def _normalize_fixture_request_route(path: str) -> str:
+    decoded = unquote(path or "/")
+    if not decoded.startswith("/"):
+        decoded = f"/{decoded}"
+    if "\\" in decoded:
+        raise PlaywrightExecutionError("fixture_mapping_path_unsafe")
+    parts = PurePosixPath(decoded).parts
+    if any(part == ".." for part in parts):
+        raise PlaywrightExecutionError("fixture_mapping_path_unsafe")
+    route = PurePosixPath(decoded).as_posix()
+    return "/" if route in {"", "."} else route
+
+
+def _request_route_candidates(route: str) -> tuple[str, ...]:
+    candidates: list[str] = [route]
+    stripped = route.rstrip("/")
+    if stripped and stripped not in candidates:
+        candidates.append(stripped)
+    return tuple(candidates)
 
 
 def run_guarded_playwright_smoke(
