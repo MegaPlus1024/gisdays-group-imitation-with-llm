@@ -33,6 +33,7 @@ This repository now has both the original single-agent evidence base and a conso
 - Phase 13B11 preserves explicit repair provenance in the live-loop summary so successful repaired steps are counted from the repaired trace, while invalid repair outputs still fail safely before fixture execution; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B14 adds page-state completion guidance and a visible click-target preflight for the guarded local-model live loop; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B15 adds an explicit fixture completion policy so `hard_policy_disambiguation` can stop with `goal_satisfied` once the Workspace Policy page is reached with the configured anchors; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
+- Phase 13B17 adds scenario-scoped ticket and approval completion policies plus compact guidance for the hard live-loop scenarios; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B3 tightens the guarded local-model diagnostics with safe structured error codes for non-local endpoints and local HTTP failures; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Preliminary quality-focused pair: `second_model -> second_model`.
 - Resource-balanced/simple-scenario pair: `second_model -> first_model`.
@@ -702,6 +703,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 - Phase 13B4 normalizes guarded local-model endpoints and rejects unsupported local-model actions like `browser_search` before fixture execution; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B10 enforces atomic `expected_text` values and precise malformed `expected_url` diagnostics for the guarded local-model live loop; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B15 adds an explicit fixture completion policy so `hard_policy_disambiguation` can stop with `goal_satisfied` once the Workspace Policy page is reached with the configured anchors; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
+- Phase 13B17 adds scenario-scoped ticket and approval completion policies plus compact guidance for the hard live-loop scenarios; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Windows PowerShell BOM-prefixed JSON configs are tolerated by the ingestion path.
 - Phase 10.6a adds guarded local planner runtime diagnostics for an already-running local endpoint. It helps explain planner prompt hangs, but does not launch models or claim production readiness.
 - Phase 9 milestone freeze report: `docs/status/phase_9_milestone_freeze.md`.

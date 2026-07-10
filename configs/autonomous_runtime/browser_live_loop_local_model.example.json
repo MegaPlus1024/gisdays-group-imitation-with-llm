@@ -51,6 +51,25 @@
           "Allowed activity",
           "Search marker: fixture-backed result for workspace policy review."
         ]
+      },
+      "hard_ticket_priority_crosscheck": {
+        "url": "https://local.intranet/tickets/1",
+        "any_text": [
+          "Ticket 1 - Quarterly Access Review",
+          "Priority: high",
+          "Assigned role: office worker",
+          "Quarterly Access Review"
+        ]
+      },
+      "hard_approval_policy_match": {
+        "url": "https://local.intranet/portal/approval-match",
+        "any_text": [
+          "Approval Policy Match",
+          "Local-only approval review",
+          "Request id: APR-51.",
+          "Policy match: confirmed.",
+          "Search marker: approval-policy match is the fixture-backed answer."
+        ]
       }
     }
   },

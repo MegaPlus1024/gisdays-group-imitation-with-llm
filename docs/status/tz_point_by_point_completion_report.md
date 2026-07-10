@@ -87,6 +87,8 @@
 - Phase 13B11: preserves explicit repair provenance in live-loop summaries so successful repaired steps are counted from the repaired trace, while invalid repair outputs still fail safely before fixture execution.
 - Phase 13B14: adds page-state completion guidance, visible click-target preflight, and explicit cumulative repair-counter aliases for the guarded local-model live loop; it remains fixture-backed and does not add production browser execution.
 - Phase 13B15: adds an explicit fixture completion policy so `hard_policy_disambiguation` can stop with `goal_satisfied` once the Workspace Policy page is reached with the configured anchors; it remains fixture-backed and does not add production browser execution.
+- Phase 13B16: scopes completion policy strictly by `scenario_id` so `hard_ticket_priority_crosscheck` and `hard_approval_policy_match` do not inherit policy completion from the policy scenario; it remains fixture-backed and does not add production browser execution.
+- Phase 13B17: adds scenario-scoped ticket and approval completion criteria plus compact prompt guidance for the hard live-loop scenarios; the ticket scenario keys off `tickets/1` and the approval scenario keys off the approval flow plus `portal/approval-match`, with no browser/Playwright execution from Codex.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

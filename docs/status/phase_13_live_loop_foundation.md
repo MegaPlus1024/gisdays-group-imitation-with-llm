@@ -122,3 +122,10 @@
 - `hard_ticket_priority_crosscheck` and `hard_approval_policy_match` no longer inherit policy completion from the policy scenario; they should continue normally until `done`, `max_steps`, or a real rejection/failure
 - `goal_satisfied` is only valid when the matched criteria scenario id matches the live loop `scenario_id`
 - this remains fixture-backed only and does not add browser launch capability or Codex-launched model execution
+
+## Phase 13B17 note
+
+- B16 fixed the false-positive leakage, and the final all-three hard-scenario run now has policy success plus ticket/approval runs that continue until `max_steps_reached` with their fixture checks passing
+- B17 adds scenario-scoped completion criteria and compact guidance for `hard_ticket_priority_crosscheck` and `hard_approval_policy_match`
+- the ticket scenario now keys off `tickets/1`, while the approval scenario keys off the approval flow and the `portal/approval-match` evidence page
+- this remains fixture-backed only and does not add browser launch capability or Codex-launched model execution

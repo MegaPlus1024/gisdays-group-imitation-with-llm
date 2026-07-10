@@ -85,6 +85,13 @@ This path should refuse with `allow_model_calls_required` unless the operator ex
 - `goal_satisfied` is valid only when `matched_completion_criteria.scenario_id` equals the live loop `scenario_id`; if a mismatch is detected, the run fails safely with `completion_policy_scenario_mismatch`
 - if other scenarios do not yet have completion criteria, `done`, `max_steps`, or ordinary failure/rejection is the expected outcome
 
+## Phase 13B17 note
+
+- B16 removed the false positive, and the final three hard-scenario run now has `hard_policy_disambiguation` succeeding while the ticket and approval scenarios stay scoped to their own criteria
+- ticket completion should cite `tickets/1` plus the quarterly access review / priority / role anchors, and approval completion should cite the approval flow plus `portal/approval-match` evidence anchors
+- the ticket scenario should start from `Ticket board`, then `Ticket 1`; the approval scenario should start from `Approvals queue`, then `Policy match review`
+- `Workspace policy` alone should not satisfy either ticket or approval completion unless the scenario explicitly configures that, which it does not here
+
 ## Guarded operator run
 
 ```powershell

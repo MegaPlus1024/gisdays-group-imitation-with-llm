@@ -302,6 +302,11 @@ class LocalModelLivePlanner:
             if start_url:
                 user_parts.append(f"Scenario start URL: {start_url}. First action must be browser_open_url with that URL.")
                 user_parts.append("Do not click before opening.")
+                goal_id = _prompt_text(metadata.get("scenario_id"))
+                if goal_id == "hard_ticket_priority_crosscheck":
+                    user_parts.append('For hard_ticket_priority_crosscheck from the home page, click "Ticket board", not "Workspace policy".')
+                elif goal_id == "hard_approval_policy_match":
+                    user_parts.append('For hard_approval_policy_match from the home page, click "Approvals queue", not "Workspace policy".')
             anchor_hints = _start_page_anchor_hints(payload, metadata)
             if anchor_hints:
                 user_parts.append(f"Start-page visible anchors: {'; '.join(anchor_hints)}")
@@ -1356,6 +1361,26 @@ def _click_destination_guidance(
         lines.append('For hard_policy_disambiguation, expected_text must be one exact visible substring; choose one of "Workspace Policy", "Allowed activity", or "Search marker: fixture-backed result for workspace policy review.".')
         lines.append("Runtime destination URL for Workspace policy: https://local.intranet/docs/policy.")
         lines.append("For browser_click, omit expected_url.")
+    elif goal_id == "hard_ticket_priority_crosscheck":
+        if current_url == "https://local.intranet/":
+            lines.append('For hard_ticket_priority_crosscheck from the home page, click "Ticket board", not "Workspace policy".')
+            lines.append("Avoid for this goal: Workspace policy; Approvals queue.")
+        elif current_url == "https://local.intranet/tickets":
+            lines.append('For hard_ticket_priority_crosscheck from Ticket board, click "Ticket 1".')
+            lines.append("Do not return to Workspace policy.")
+        elif current_url == "https://local.intranet/tickets/1":
+            lines.append("The ticket goal is already on the destination page.")
+            lines.append('Prefer done, browser_extract_text, or browser_snapshot once you can confirm "Quarterly Access Review", "Priority: high", and "Assigned role: office worker".')
+    elif goal_id == "hard_approval_policy_match":
+        if current_url == "https://local.intranet/":
+            lines.append('For hard_approval_policy_match from the home page, click "Approvals queue", not "Workspace policy".')
+            lines.append("Avoid for this goal: Ticket board; Workspace policy.")
+        elif current_url == "https://local.intranet/portal":
+            lines.append('For hard_approval_policy_match from Portal Home, click "Approvals queue".')
+            lines.append("Do not start with Workspace policy.")
+        elif current_url == "https://local.intranet/portal/approvals":
+            lines.append('For hard_approval_policy_match from Approvals queue, click "Policy match review".')
+            lines.append("Do not click Workspace policy unless the approval evidence page explicitly requires it.")
     urls: list[str] = []
     for link in links:
         target_text = link["text"]
@@ -1458,6 +1483,43 @@ def _page_state_guidance(
                 'Next valid choices: done; browser_extract_text with expected_text "Allowed activity" or "Search marker: fixture-backed result for workspace policy review."; browser_snapshot with expected_text "Workspace Policy".',
             ]
         )
+    elif goal_id == "hard_ticket_priority_crosscheck" and current_url == "https://local.intranet/tickets":
+        lines.extend(
+            [
+                "You are on the relevant ticket board page.",
+                'The next goal-relevant click is "Ticket 1".',
+                "Do not click Workspace policy from here.",
+                "Prefer done if the ticket page already proves Quarterly Access Review, high priority, and office worker assignment.",
+            ]
+        )
+    elif goal_id == "hard_ticket_priority_crosscheck" and current_url == "https://local.intranet/tickets/1":
+        lines.extend(
+            [
+                "You are on the relevant ticket page.",
+                "The scenario goal is satisfied when you have evidence of the quarterly access review ticket.",
+                "Do not click Workspace policy.",
+                "Prefer done if the goal is already satisfied and no more action is required.",
+                'Next valid choices: done; browser_extract_text with expected_text "Quarterly Access Review" or "Assigned role: office worker"; browser_snapshot with expected_text "Ticket 1 - Quarterly Access Review".',
+            ]
+        )
+    elif goal_id == "hard_approval_policy_match" and current_url == "https://local.intranet/portal/approvals":
+        lines.extend(
+            [
+                "You are on the relevant approvals queue page.",
+                'The next goal-relevant click is "Policy match review".',
+                "Do not click Workspace policy unless the approval evidence page explicitly requires it.",
+            ]
+        )
+    elif goal_id == "hard_approval_policy_match" and current_url == "https://local.intranet/portal/approval-match":
+        lines.extend(
+            [
+                "You are on the relevant approval policy match page.",
+                "The scenario goal is satisfied when you have evidence of the approval policy match fixture.",
+                "Do not click Workspace policy.",
+                "Prefer done if the goal is already satisfied and no more action is required.",
+                'Next valid choices: done; browser_extract_text with expected_text "Policy match: confirmed." or "Search marker: approval-policy match is the fixture-backed answer."; browser_snapshot with expected_text "Approval Policy Match".',
+            ]
+        )
     return lines or None
 
 
@@ -1470,6 +1532,41 @@ def _page_visible_anchor_hints(page_url: str | None, title: str | None, text_pre
             "Office Intranet Home",
             "Workspace policy",
             "Search marker: fixture-backed result for local policy review.",
+        ),
+        "https://local.intranet/tickets": (
+            "Ticket Board",
+            "Open tickets",
+            "Ticket 1: Quarterly Access Review requires an office-worker status note.",
+        ),
+        "https://local.intranet/tickets/1": (
+            "Ticket 1 - Quarterly Access Review",
+            "Quarterly Access Review",
+            "Priority: high",
+            "Assigned role: office worker",
+        ),
+        "https://local.intranet/portal": (
+            "Portal Home",
+            "Approvals queue",
+            "Approval status",
+            "New request",
+        ),
+        "https://local.intranet/portal/approvals": (
+            "Approvals Queue",
+            "Pending approval check",
+            "Approval item APR-42 is waiting for local policy verification.",
+            "Owner: office worker.",
+        ),
+        "https://local.intranet/portal/approval-match": (
+            "Approval Policy Match",
+            "Local-only approval review",
+            "Request id: APR-51.",
+            "Policy match: confirmed.",
+            "Search marker: approval-policy match is the fixture-backed answer.",
+        ),
+        "https://local.intranet/portal/status": (
+            "Approval Status",
+            "Approval status: ready for fixture-backed review.",
+            "Policy checkpoint: local access review evidence is present.",
         ),
         "https://local.intranet/docs/policy": (
             "Workspace Policy",
@@ -1639,6 +1736,91 @@ def _repair_constraints_lines(
                 "Prefer done if the goal is already satisfied and no more action is required.",
                 'Use browser_extract_text with expected_text "Allowed activity" or "Search marker: fixture-backed result for workspace policy review." to collect evidence.',
                 'Use browser_snapshot with expected_text "Workspace Policy" if you need a compact page capture.',
+            ]
+        )
+    elif scenario_id == "hard_ticket_priority_crosscheck" and current_url == "https://local.intranet/":
+        lines.extend(
+            [
+                'For hard_ticket_priority_crosscheck from the home page, click "Ticket board", not "Workspace policy".',
+                "Avoid for this goal: Workspace policy; Approvals queue.",
+                "Use destination-page anchors only.",
+                'For hard_ticket_priority_crosscheck, expected_text must be one exact visible substring; choose one of "Ticket 1 - Quarterly Access Review", "Quarterly Access Review", "Priority: high", or "Assigned role: office worker".',
+                "Runtime destination URL for Ticket 1: https://local.intranet/tickets/1.",
+                "For browser_click, omit expected_url.",
+                "Do not use http<absolute_path>, https<absolute_path>, or <absolute_path>.",
+                "Do not use semicolons.",
+                "Do not use multiple expected_text anchors.",
+                "Do not use start-page/home-page text.",
+                "Suggested repair JSON example:",
+                '{"step_id": "step_001_repair", "action_name": "browser_click", "parameters": {"target_text": "Ticket board"}, "expected_text": "Ticket Board"}',
+                "Do not output expected_url.",
+                "Do not output http<absolute_path>.",
+                "No prose, no markdown.",
+            ]
+        )
+    elif scenario_id == "hard_ticket_priority_crosscheck" and current_url == "https://local.intranet/tickets":
+        lines.extend(
+            [
+                "You are on the relevant ticket board page.",
+                'The next goal-relevant click is "Ticket 1".',
+                "Do not click Workspace policy from here.",
+                "Prefer done if the ticket page already proves Quarterly Access Review, high priority, and office worker assignment.",
+                'Use browser_click with expected_text "Ticket 1 - Quarterly Access Review" if you need to open the ticket record.',
+                'Use browser_extract_text with expected_text "Quarterly Access Review" or "Priority: high" to collect evidence.',
+                'Use browser_snapshot with expected_text "Ticket 1 - Quarterly Access Review" if you need a compact page capture.',
+            ]
+        )
+    elif scenario_id == "hard_ticket_priority_crosscheck" and current_url == "https://local.intranet/tickets/1":
+        lines.extend(
+            [
+                "You are on the relevant ticket page.",
+                "The scenario goal is satisfied when you have evidence of the quarterly access review ticket.",
+                "Do not click Workspace policy.",
+                "Prefer done if the goal is already satisfied and no more action is required.",
+                'Use browser_extract_text with expected_text "Quarterly Access Review" or "Assigned role: office worker" to collect evidence.',
+                'Use browser_snapshot with expected_text "Ticket 1 - Quarterly Access Review" if you need a compact page capture.',
+            ]
+        )
+    elif scenario_id == "hard_approval_policy_match" and current_url == "https://local.intranet/":
+        lines.extend(
+            [
+                'For hard_approval_policy_match from the home page, click "Approvals queue", not "Workspace policy".',
+                "Avoid for this goal: Ticket board; Workspace policy.",
+                "Use destination-page anchors only.",
+                'For hard_approval_policy_match, expected_text must be one exact visible substring; choose one of "Approvals Queue", "Pending approval check", "Approval item APR-42 is waiting for local policy verification.", or "Owner: office worker."',
+                "Runtime destination URL for Approvals queue: https://local.intranet/portal/approvals.",
+                "For browser_click, omit expected_url.",
+                "Do not use http<absolute_path>, https<absolute_path>, or <absolute_path>.",
+                "Do not use semicolons.",
+                "Do not use multiple expected_text anchors.",
+                "Do not use start-page/home-page text.",
+                "Suggested repair JSON example:",
+                '{"step_id": "step_001_repair", "action_name": "browser_click", "parameters": {"target_text": "Approvals queue"}, "expected_text": "Approvals Queue"}',
+                "Do not output expected_url.",
+                "Do not output http<absolute_path>.",
+                "No prose, no markdown.",
+            ]
+        )
+    elif scenario_id == "hard_approval_policy_match" and current_url == "https://local.intranet/portal/approvals":
+        lines.extend(
+            [
+                "You are on the relevant approvals queue page.",
+                'The next goal-relevant click is "Policy match review".',
+                "Do not click Workspace policy unless the approval evidence page explicitly requires it.",
+                'Use browser_click with expected_text "Approval Policy Match" if you need to open the approval evidence page.',
+                'Use browser_extract_text with expected_text "Approval item APR-42 is waiting for local policy verification." or "Owner: office worker." to collect queue evidence.',
+                'Use browser_snapshot with expected_text "Approvals Queue" if you need a compact page capture.',
+            ]
+        )
+    elif scenario_id == "hard_approval_policy_match" and current_url == "https://local.intranet/portal/approval-match":
+        lines.extend(
+            [
+                "You are on the relevant approval policy match page.",
+                "The scenario goal is satisfied when you have evidence of the approval policy match fixture.",
+                "Do not click Workspace policy.",
+                "Prefer done if the goal is already satisfied and no more action is required.",
+                'Use browser_extract_text with expected_text "Policy match: confirmed." or "Search marker: approval-policy match is the fixture-backed answer." to collect evidence.',
+                'Use browser_snapshot with expected_text "Approval Policy Match" if you need a compact page capture.',
             ]
         )
     if error_diagnostics:
