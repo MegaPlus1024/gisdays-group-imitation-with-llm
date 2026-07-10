@@ -104,6 +104,13 @@ This path should refuse with `allow_model_calls_required` unless the operator ex
 - for that ticket repair, the expected destination anchor should be `Ticket 1 - Quarterly Access Review` rather than the board listing sentence
 - the repair stays one JSON object, no prose, and remains fixture-backed only
 
+## Phase 13B20 note
+
+- final guarded local-model evidence shows `third_model` successfully driving all three hard scenarios to `goal_satisfied` under the offline fixture live loop
+- the policy scenario matched `docs/policy`, the ticket scenario matched `tickets/1`, and the approval scenario matched `portal/approval-match`
+- the full outcome summary is documented in `docs/status/phase_13b_guarded_local_model_live_loop_final_evidence.md`
+- this remains fixture-backed only and does not add browser/Playwright execution from Codex
+
 ## Guarded operator run
 
 ```powershell

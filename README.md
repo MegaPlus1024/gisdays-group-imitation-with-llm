@@ -36,6 +36,7 @@ This repository now has both the original single-agent evidence base and a conso
 - Phase 13B17 adds scenario-scoped ticket and approval completion policies plus compact guidance for the hard live-loop scenarios; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B18 adds a scenario-relevant click-target guard for the approval live-loop path, so visible-but-irrelevant clicks are rejected before fixture execution; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B19 tightens ticket destination-anchor guidance and repair so `hard_ticket_priority_crosscheck` uses `Ticket 1 - Quarterly Access Review` instead of the board listing sentence; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
+- Phase 13B20 records the final guarded local-model live-loop evidence for all three hard scenarios in `docs/status/phase_13b_guarded_local_model_live_loop_final_evidence.md`; the result stays fixture-backed and is not a production recommendation.
 - Phase 13B3 tightens the guarded local-model diagnostics with safe structured error codes for non-local endpoints and local HTTP failures; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Preliminary quality-focused pair: `second_model -> second_model`.
 - Resource-balanced/simple-scenario pair: `second_model -> first_model`.
@@ -708,6 +709,7 @@ git remote set-url origin https://github.com/<OWNER>/<REPO>.git
 - Phase 13B17 adds scenario-scoped ticket and approval completion policies plus compact guidance for the hard live-loop scenarios; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B18 adds a scenario-relevant click-target guard for the approval live-loop path, so visible-but-irrelevant clicks are rejected before fixture execution; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
 - Phase 13B19 tightens ticket destination-anchor guidance and repair so `hard_ticket_priority_crosscheck` uses `Ticket 1 - Quarterly Access Review` instead of the board listing sentence; see `docs/operator/phase_13b_guarded_local_model_live_loop.md`.
+- Phase 13B20 records the final guarded local-model live-loop evidence for all three hard scenarios in `docs/status/phase_13b_guarded_local_model_live_loop_final_evidence.md`; the result stays fixture-backed and is not a production recommendation.
 - Windows PowerShell BOM-prefixed JSON configs are tolerated by the ingestion path.
 - Phase 10.6a adds guarded local planner runtime diagnostics for an already-running local endpoint. It helps explain planner prompt hangs, but does not launch models or claim production readiness.
 - Phase 9 milestone freeze report: `docs/status/phase_9_milestone_freeze.md`.

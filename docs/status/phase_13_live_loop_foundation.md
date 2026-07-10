@@ -141,3 +141,10 @@
 - B18 solved the approval drift, and the remaining hard-ticket failure came from using the Ticket Board listing sentence as `expected_text` for the `Ticket 1` click
 - B19 tightens ticket board guidance and repair so `expected_text` must come from the destination page anchor, with `Ticket 1 - Quarterly Access Review` as the preferred anchor
 - this stays fixture-backed, scenario-scoped, and does not add browser/Playwright execution from Codex
+
+## Phase 13B20 note
+
+- final guarded local-model evidence now shows all three hard scenarios succeeding under the offline fixture live loop: policy on `docs/policy`, ticket on `tickets/1`, and approval on `portal/approval-match`
+- the operator rerun after `90d9491` used `third_model`, with the policy scenario already stable from `163afed`, the ticket scenario repaired to the destination anchor, and the approval scenario reaching `Approvals queue` and `Policy match review` before goal satisfaction
+- the final evidence is documented in `docs/status/phase_13b_guarded_local_model_live_loop_final_evidence.md`
+- this remains fixture-backed only and does not add browser/Playwright execution from Codex
