@@ -96,6 +96,7 @@
 - Phase 13C final evidence: all three hard scenarios succeeded in 9/9 repeated trials with stable routes and stable matched URLs; ticket and approval used bounded repair successfully and no real browser or Playwright was launched from Codex.
 - Phase 13D: prepares a guarded Playwright replay suite for the successful Phase 13C live-loop traces in `docs/status/phase_13d_live_loop_playwright_replay.md`; Codex only verified refusal and dry-run paths, and no real Playwright was launched.
 - Phase 13D1: fixes the variance-suite handoff so per-trial trace files persist at the summary-recorded relative paths, and the replay loader tolerates common PowerShell JSON encodings.
+- Phase 13D2: fixes the live-loop replay trace/action handoff so canonical `action_name` values reach the guarded backend, and pre-browser validation failures keep sanitized diagnostics.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

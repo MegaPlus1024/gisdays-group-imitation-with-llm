@@ -7,6 +7,7 @@
 - explicit `--allow-real-browser` and `--allow-playwright` guards are required for the non-dry-run path
 - Codex should use the dry-run or refusal path only
 - Phase 13D1 fixed the variance-suite handoff so replay sees the per-trial trace files at the summary-recorded relative paths
+- Phase 13D2 fixes the replay trace/action handoff so canonical `action_name` values reach the guarded backend and pre-browser validation failures surface sanitized diagnostics
 
 ## Dry-run command
 
@@ -58,3 +59,4 @@ Expected refusal properties:
 - `trace_not_found` and `trace_json_malformed` point to input trace problems
 - `unsafe_trace_path` means a non-relative or otherwise unsafe path was rejected
 - `file_url_not_allowed` means a replay input tried to escape the fixture-only boundary
+- `config_validation_failed` can still appear before browser launch, but the replay trace diagnostics now carry the sanitized validation cause

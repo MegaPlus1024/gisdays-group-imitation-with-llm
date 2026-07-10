@@ -170,3 +170,8 @@
 ## Phase 13D1 note
 
 - Phase 13D1 fixes the variance-suite handoff so per-trial trace files are persisted at the summary-recorded relative paths, and the replay loader tolerates common PowerShell JSON encodings
+
+## Phase 13D2 note
+
+- Phase 13D2 fixes the live-loop replay trace/action handoff so canonical `action_name` values survive into the guarded backend, replay plans validate as `autonomous_browser_plan_v1`, and pre-browser failures keep sanitized validation diagnostics
+- dry-run already succeeded; the earlier real guarded failure was a pre-browser config/action handoff issue, not a browser launch

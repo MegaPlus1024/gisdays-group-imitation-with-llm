@@ -110,6 +110,7 @@ class AutonomousBrowserLiveLoopPlaywrightReplayTraceSummary:
     limitations: tuple[str, ...] = ()
     selected_action_names: tuple[str, ...] = ()
     replay_plan_path: str | None = None
+    diagnostics: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -135,6 +136,7 @@ class AutonomousBrowserLiveLoopPlaywrightReplayTraceSummary:
             "limitations": list(self.limitations),
             "selected_action_names": list(self.selected_action_names),
             "replay_plan_path": self.replay_plan_path,
+            "diagnostics": _jsonable(self.diagnostics),
         }
 
 
@@ -467,6 +469,7 @@ def run_autonomous_browser_live_loop_playwright_replay(
             operator_summary,
             limitations=config.limitations,
             replay_plan_path=replay_plan_path,
+            replay_plan_payload=plan_payload,
         )
         trace_summaries.append(trace_summary)
         status = str(trace_summary["status"])
@@ -659,7 +662,7 @@ def _trace_summary_from_plan(
     actions = plan_payload.get("actions") if isinstance(plan_payload, Mapping) else []
     replay_final_url = _final_trace_url(selection.trace_payload)
     matched_url = selection.matched_url or replay_final_url
-    selected_action_names = tuple(str(item.get("action_name") or "") for item in actions if isinstance(item, Mapping))
+    selected_action_names = _selected_action_names_from_actions(actions)
     actions_attempted = len([item for item in actions if isinstance(item, Mapping)])
     expected_results_passed = _expected_results_passed_from_trace(selection.trace_payload)
     expected_results_failed = _expected_results_failed_from_trace(selection.trace_payload)
@@ -684,7 +687,24 @@ def _trace_summary_from_plan(
         no_runtime_execution=True,
         limitations=limitations,
         selected_action_names=selected_action_names,
+        diagnostics={
+            "replay_plan_path": None,
+            "selected_action_names": list(selected_action_names),
+        },
     ).to_dict()
+
+
+def _selected_action_names_from_actions(actions: Any) -> tuple[str, ...]:
+    if not isinstance(actions, list):
+        return tuple()
+    names: list[str] = []
+    for item in actions:
+        if not isinstance(item, Mapping):
+            continue
+        action_name = _action_name_from_mapping(item)
+        if action_name:
+            names.append(action_name)
+    return tuple(names)
 
 
 def _trace_summary_from_operator(
@@ -693,6 +713,7 @@ def _trace_summary_from_operator(
     *,
     limitations: tuple[str, ...],
     replay_plan_path: str,
+    replay_plan_payload: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     replay_final_url = _operator_replay_final_url(operator_summary)
     matched_url = selection.matched_url or replay_final_url
@@ -705,11 +726,29 @@ def _trace_summary_from_operator(
     actions_failed = _int(operator_summary.get("actions_failed"))
     expected_passed = _int(operator_summary.get("expected_results_passed"))
     expected_failed = _int(operator_summary.get("expected_results_failed"))
-    selected_action_names = tuple(
-        str(item.get("action_name") or "")
-        for item in _selected_trace_actions(selection.trace_payload)
-        if isinstance(item, Mapping)
+    selected_action_names = _selected_action_names_from_actions(
+        replay_plan_payload.get("actions") if isinstance(replay_plan_payload, Mapping) else None
     )
+    diagnostics: dict[str, Any] = {
+        "replay_plan_path": replay_plan_path,
+        "selected_action_names": list(selected_action_names),
+    }
+    operator_diagnostics = operator_summary.get("diagnostics")
+    if isinstance(operator_diagnostics, Mapping):
+        validation_result = operator_diagnostics.get("validation")
+        if isinstance(validation_result, Mapping):
+            diagnostics["validation_error_code"] = _optional_text(validation_result.get("error_code"))
+            diagnostics["validation_error_message"] = _optional_text(validation_result.get("message"))
+            diagnostics["validation_errors"] = _safe_validation_diagnostics(validation_result)
+        if isinstance(operator_diagnostics.get("config_error"), str):
+            diagnostics["validation_error_message"] = str(operator_diagnostics["config_error"])
+        if isinstance(operator_diagnostics.get("replay_plan_error"), str):
+            diagnostics["validation_error_message"] = str(operator_diagnostics["replay_plan_error"])
+        backend_config_path = operator_diagnostics.get("backend_config_path")
+        if backend_config_path is not None:
+            diagnostics["backend_config_path"] = _safe_relative_path(backend_config_path, "backend_config_path")
+    if "validation_error_code" not in diagnostics and status != "succeeded" and error_code:
+        diagnostics["validation_error_code"] = error_code
     return AutonomousBrowserLiveLoopPlaywrightReplayTraceSummary(
         scenario_id=selection.scenario_id,
         trial_label=selection.trial_label,
@@ -733,6 +772,7 @@ def _trace_summary_from_operator(
         limitations=limitations,
         selected_action_names=selected_action_names,
         replay_plan_path=replay_plan_path,
+        diagnostics=diagnostics,
     ).to_dict()
 
 
@@ -754,7 +794,12 @@ def _trace_failure_summary(
     limitations: tuple[str, ...],
     plan_validation: Mapping[str, Any] | None = None,
     replay_plan_path: str | None = None,
+    diagnostics: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    trace_diagnostics: dict[str, Any] = dict(_jsonable(diagnostics or {}))
+    if plan_validation is not None:
+        trace_diagnostics.setdefault("validation_error_code", _optional_text(plan_validation.get("error_code")))
+        trace_diagnostics.setdefault("validation_errors", _safe_validation_diagnostics(plan_validation))
     return AutonomousBrowserLiveLoopPlaywrightReplayTraceSummary(
         scenario_id=selection.scenario_id,
         trial_label=selection.trial_label,
@@ -776,7 +821,47 @@ def _trace_failure_summary(
         no_runtime_execution=True,
         limitations=limitations,
         replay_plan_path=replay_plan_path,
+        diagnostics=trace_diagnostics,
     ).to_dict()
+
+
+def _action_name_from_mapping(action: Mapping[str, Any]) -> str | None:
+    value = action.get("action_name")
+    if isinstance(value, str):
+        text = value.strip()
+        if text:
+            return text
+    value = action.get("name")
+    if isinstance(value, str):
+        text = value.strip()
+        if text:
+            return text
+    return None
+
+
+def _action_parameters_from_mapping(action: Mapping[str, Any]) -> dict[str, Any]:
+    parameters = action.get("parameters")
+    if isinstance(parameters, Mapping):
+        return dict(parameters)
+    return {}
+
+
+def _trace_action_record(entry: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    planner_action = entry.get("planner_action")
+    if isinstance(planner_action, Mapping):
+        return planner_action
+    if _action_name_from_mapping(entry) is not None:
+        return entry
+    return None
+
+
+def _safe_validation_diagnostics(validation_result: Mapping[str, Any]) -> dict[str, Any]:
+    safe_keys = ("finding_type", "path", "json_path", "key", "parameter_key", "error_code", "status", "type", "actions_total")
+    diagnostics: dict[str, Any] = {}
+    for key in safe_keys:
+        if key in validation_result and validation_result[key] is not None:
+            diagnostics[key] = _jsonable(validation_result[key])
+    return diagnostics
 
 
 def _scenario_accumulator(scenario_id: str, limitations: tuple[str, ...]) -> "_ScenarioAccumulator":
@@ -1047,19 +1132,21 @@ def _build_replay_plan(
 
     actions: list[dict[str, Any]] = []
     for index, entry in enumerate(replay_actions):
-        planner_action = entry.get("planner_action") if isinstance(entry, Mapping) else None
+        if not isinstance(entry, Mapping):
+            return None, {"error_code": "replay_action_missing", "diagnostics": {"path": f"trace[{index}]"}}
+        planner_action = _trace_action_record(entry)
         if not isinstance(planner_action, Mapping):
             return None, {"error_code": "replay_action_missing", "diagnostics": {"path": f"trace[{index}].planner_action"}}
-        action_name = _optional_text(planner_action.get("action_name"))
+        action_name = _action_name_from_mapping(planner_action)
         if action_name not in SUPPORTED_REPLAY_ACTIONS:
             return None, {"error_code": "unsupported_replay_action", "diagnostics": {"action_name": action_name}}
-        parameters = planner_action.get("parameters")
-        if not isinstance(parameters, Mapping):
+        parameters = _action_parameters_from_mapping(planner_action)
+        if not parameters:
             return None, {"error_code": "replay_action_invalid_parameters", "diagnostics": {"path": f"trace[{index}].planner_action.parameters"}}
         action: dict[str, Any] = {
             "step_id": _optional_text(planner_action.get("step_id")) or f"replay_step_{index + 1:02d}",
             "action_name": action_name,
-            "parameters": dict(parameters),
+            "parameters": parameters,
         }
         expected_text = _optional_text(planner_action.get("expected_text"))
         if expected_text:
@@ -1152,10 +1239,10 @@ def _selected_trace_actions(trace_payload: Mapping[str, Any]) -> list[dict[str, 
             continue
         if str(entry.get("validation_status")) not in {"accepted", "skipped"}:
             continue
-        planner_action = entry.get("planner_action")
+        planner_action = _trace_action_record(entry)
         if not isinstance(planner_action, Mapping):
             continue
-        action_name = _optional_text(planner_action.get("action_name"))
+        action_name = _action_name_from_mapping(planner_action)
         if action_name not in SUPPORTED_REPLAY_ACTIONS:
             continue
         action_result = entry.get("action_result")
@@ -1174,9 +1261,11 @@ def _selected_trace_actions(trace_payload: Mapping[str, Any]) -> list[dict[str, 
             current_url = None
             output_url = None
         if current_url is None and output_url is None and action_name == "browser_open_url":
-            current_url = _optional_text(planner_action.get("parameters", {}).get("url")) if isinstance(planner_action.get("parameters"), Mapping) else None
+            current_url = _optional_text(_action_parameters_from_mapping(planner_action).get("url"))
         actions.append(
             {
+                "action_name": action_name,
+                "parameters": _action_parameters_from_mapping(planner_action),
                 "planner_action": dict(planner_action),
                 "action_result": dict(action_result) if isinstance(action_result, Mapping) else {},
                 "current_url": current_url or output_url,

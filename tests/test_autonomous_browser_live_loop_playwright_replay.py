@@ -5,6 +5,7 @@ import json
 import shutil
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -401,6 +402,48 @@ def _approval_trace(scenario_id: str, trial_label: str, *, include_skipped: bool
     }
 
 
+def _top_level_action_trace(
+    scenario_id: str,
+    actions: list[dict[str, Any]],
+) -> dict[str, Any]:
+    trace_entries: list[dict[str, Any]] = []
+    for index, action in enumerate(actions, start=1):
+        trace_entries.append(
+            {
+                "step_index": index,
+                "observation_id": f"observation_{index:04d}",
+                "action_name": action["action_name"],
+                "parameters": dict(action["parameters"]),
+                "expected_text": action["expected_text"],
+                "expected_url": action.get("expected_url"),
+                "validation_status": "accepted",
+                "fixture_execution_status": "succeeded",
+                "action_result": {
+                    "success": True,
+                    "output": {
+                        "current_url": action["current_url"],
+                        "title": action["title"],
+                        "text_preview": action["text_preview"],
+                    },
+                    "observation": {
+                        "current_url": action["current_url"],
+                        "title": action["title"],
+                        "text_preview": action["text_preview"],
+                    },
+                },
+                "expected_result": {"passed": True, "reason": "browser_expectations_met", "metadata": {}},
+                "metadata": action.get("metadata", {}),
+                "next_observation_id": f"observation_{index + 1:04d}",
+            }
+        )
+    return {
+        "schema_version": "autonomous_browser_live_loop_trace_v1",
+        "scenario_id": scenario_id,
+        "observations_total": len(trace_entries) + 1,
+        "trace": trace_entries,
+    }
+
+
 def _variance_summary(trial_rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "schema_version": "autonomous_browser_live_loop_variance_suite_summary_v1",
@@ -545,6 +588,210 @@ def test_dry_run_discovers_traces_and_ignores_skipped_preflight_attempts(tmp_pat
     assert all(item["source_trace_path"].startswith("live_loop_variance_suite/") for item in summary["replay_trace_summaries"])
     assert str(tmp_path) not in encoded
     assert "C:\\" not in encoded
+
+
+def test_dry_run_supports_top_level_action_name_traces_and_keeps_selected_actions(tmp_path: Path) -> None:
+    trace_root = tmp_path / "live_loop_variance_suite"
+    trace_paths = {
+        "hard_policy_disambiguation": trace_root / "hard_policy_disambiguation" / "trial_01" / "autonomous_browser_live_loop_trace.json",
+        "hard_ticket_priority_crosscheck": trace_root / "hard_ticket_priority_crosscheck" / "trial_01" / "autonomous_browser_live_loop_trace.json",
+        "hard_approval_policy_match": trace_root / "hard_approval_policy_match" / "trial_01" / "autonomous_browser_live_loop_trace.json",
+    }
+
+    _write_json_encoded(
+        trace_paths["hard_policy_disambiguation"],
+        _top_level_action_trace(
+            "hard_policy_disambiguation",
+            [
+                {
+                    "action_name": "browser_open_url",
+                    "parameters": {"url": "https://local.intranet/"},
+                    "expected_text": "Office Intranet Home",
+                    "current_url": "https://local.intranet/",
+                    "title": "Office Intranet Home",
+                    "text_preview": "Office Intranet Home Workspace policy Ticket board Approvals queue",
+                },
+                {
+                    "action_name": "browser_click",
+                    "parameters": {"target_text": "Workspace policy"},
+                    "expected_text": "Workspace Policy",
+                    "expected_url": "https://local.intranet/docs/policy",
+                    "current_url": "https://local.intranet/docs/policy",
+                    "title": "Workspace Policy",
+                    "text_preview": "Workspace Policy Allowed activity Search marker: fixture-backed result for workspace policy review.",
+                    "metadata": {
+                        "goal_satisfied": True,
+                        "matched_completion_criteria": {
+                            "scenario_id": "hard_policy_disambiguation",
+                            "matched_url": "https://local.intranet/docs/policy",
+                            "any_text": ["Workspace Policy"],
+                            "matched_text_anchors": ["Workspace Policy"],
+                            "url": "https://local.intranet/docs/policy",
+                        },
+                    },
+                },
+            ],
+        ),
+        encoding="utf-8-sig",
+    )
+    _write_json_encoded(
+        trace_paths["hard_ticket_priority_crosscheck"],
+        _top_level_action_trace(
+            "hard_ticket_priority_crosscheck",
+            [
+                {
+                    "action_name": "browser_open_url",
+                    "parameters": {"url": "https://local.intranet/"},
+                    "expected_text": "Office Intranet Home",
+                    "current_url": "https://local.intranet/",
+                    "title": "Office Intranet Home",
+                    "text_preview": "Office Intranet Home Ticket board Workspace policy Team status",
+                },
+                {
+                    "action_name": "browser_click",
+                    "parameters": {"target_text": "Ticket board"},
+                    "expected_text": "Ticket Board",
+                    "expected_url": "https://local.intranet/tickets",
+                    "current_url": "https://local.intranet/tickets",
+                    "title": "Ticket Board",
+                    "text_preview": "Ticket Board Home Ticket 1 Team status Open tickets",
+                },
+                {
+                    "action_name": "browser_click",
+                    "parameters": {"target_text": "Ticket 1"},
+                    "expected_text": "Ticket 1 - Quarterly Access Review",
+                    "expected_url": "https://local.intranet/tickets/1",
+                    "current_url": "https://local.intranet/tickets/1",
+                    "title": "Ticket 1 - Quarterly Access Review",
+                    "text_preview": "Ticket 1 - Quarterly Access Review Priority: high Assigned role: office worker Quarterly Access Review",
+                    "metadata": {
+                        "goal_satisfied": True,
+                        "matched_completion_criteria": {
+                            "scenario_id": "hard_ticket_priority_crosscheck",
+                            "matched_url": "https://local.intranet/tickets/1",
+                            "any_text": [
+                                "Ticket 1 - Quarterly Access Review",
+                                "Priority: high",
+                                "Assigned role: office worker",
+                                "Quarterly Access Review",
+                            ],
+                            "matched_text_anchors": [
+                                "Ticket 1 - Quarterly Access Review",
+                                "Priority: high",
+                                "Assigned role: office worker",
+                                "Quarterly Access Review",
+                            ],
+                            "url": "https://local.intranet/tickets/1",
+                        },
+                    },
+                },
+            ],
+        ),
+        encoding="utf-8-sig",
+    )
+    _write_json_encoded(
+        trace_paths["hard_approval_policy_match"],
+        _top_level_action_trace(
+            "hard_approval_policy_match",
+            [
+                {
+                    "action_name": "browser_open_url",
+                    "parameters": {"url": "https://local.intranet/"},
+                    "expected_text": "Office Intranet Home",
+                    "current_url": "https://local.intranet/",
+                    "title": "Office Intranet Home",
+                    "text_preview": "Office Intranet Home Approvals queue Workspace policy Team status",
+                },
+                {
+                    "action_name": "browser_click",
+                    "parameters": {"target_text": "Approvals queue"},
+                    "expected_text": "Approvals Queue",
+                    "expected_url": "https://local.intranet/portal/approvals",
+                    "current_url": "https://local.intranet/portal/approvals",
+                    "title": "Approvals Queue",
+                    "text_preview": "Approvals Queue Portal home Approval status Pending approval check",
+                },
+                {
+                    "action_name": "browser_click",
+                    "parameters": {"target_text": "Policy match review"},
+                    "expected_text": "Approval Policy Match",
+                    "expected_url": "https://local.intranet/portal/approval-match",
+                    "current_url": "https://local.intranet/portal/approval-match",
+                    "title": "Approval Policy Match",
+                    "text_preview": "Approval Policy Match Local-only approval review Policy match: confirmed.",
+                    "metadata": {
+                        "goal_satisfied": True,
+                        "matched_completion_criteria": {
+                            "scenario_id": "hard_approval_policy_match",
+                            "matched_url": "https://local.intranet/portal/approval-match",
+                            "any_text": [
+                                "Approval Policy Match",
+                                "Local-only approval review",
+                                "Policy match: confirmed.",
+                            ],
+                            "matched_text_anchors": [
+                                "Approval Policy Match",
+                                "Local-only approval review",
+                                "Policy match: confirmed.",
+                            ],
+                            "url": "https://local.intranet/portal/approval-match",
+                        },
+                    },
+                },
+            ],
+        ),
+        encoding="utf-8-sig",
+    )
+
+    variance_summary = _variance_summary(
+        [
+            _trial_row(
+                "hard_policy_disambiguation",
+                1,
+                "trial_01",
+                "live_loop_variance_suite/hard_policy_disambiguation/trial_01/autonomous_browser_live_loop_trace.json",
+                matched_url="https://local.intranet/docs/policy",
+            ),
+            _trial_row(
+                "hard_ticket_priority_crosscheck",
+                1,
+                "trial_01",
+                "live_loop_variance_suite/hard_ticket_priority_crosscheck/trial_01/autonomous_browser_live_loop_trace.json",
+                matched_url="https://local.intranet/tickets/1",
+            ),
+            _trial_row(
+                "hard_approval_policy_match",
+                1,
+                "trial_01",
+                "live_loop_variance_suite/hard_approval_policy_match/trial_01/autonomous_browser_live_loop_trace.json",
+                matched_url="https://local.intranet/portal/approval-match",
+            ),
+        ]
+    )
+    summary_path = tmp_path / "live_loop_variance_suite.summary.json"
+    _write_json_encoded(summary_path, variance_summary, encoding="utf-8-sig")
+
+    config = _base_config()
+    config["input_variance_suite_summary"] = "live_loop_variance_suite.summary.json"
+    config["input_trace_root"] = "live_loop_variance_suite"
+    config["output_dir"] = "artifacts/live_loop_playwright_replay_tests"
+    config["allow_real_browser"] = False
+    config["allow_playwright"] = False
+
+    summary = run_autonomous_browser_live_loop_playwright_replay(config, repo_root=tmp_path, dry_run=True)
+
+    assert summary["status"] == "succeeded"
+    assert summary["selected_trace_count"] == 3
+    assert [item["selected_action_names"] for item in summary["replay_trace_summaries"]] == [
+        ["browser_open_url", "browser_click"],
+        ["browser_open_url", "browser_click", "browser_click"],
+        ["browser_open_url", "browser_click", "browser_click"],
+    ]
+    assert [item["diagnostics"]["selected_action_names"] for item in summary["replay_trace_summaries"]] == [
+        ["browser_open_url", "browser_click"],
+        ["browser_open_url", "browser_click", "browser_click"],
+        ["browser_open_url", "browser_click", "browser_click"],
+    ]
 
 
 def test_first_success_per_scenario_selects_first_successful_trial(tmp_path: Path) -> None:
@@ -895,6 +1142,286 @@ def test_replay_dry_run_can_consume_written_variance_summary_and_trace_files(tmp
     finally:
         shutil.rmtree(PROJECT_ROOT / suite_output_dir, ignore_errors=True)
         shutil.rmtree(PROJECT_ROOT / replay_output_dir, ignore_errors=True)
+
+
+def test_guarded_playwright_handoff_uses_canonical_plan_shape_without_launching_browser(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import src.agent.autonomous_browser_live_loop_playwright_replay as live_loop_replay
+
+    trace_root = tmp_path / "live_loop_variance_suite"
+    trace_paths = {
+        "hard_policy_disambiguation": trace_root / "hard_policy_disambiguation" / "trial_01" / "autonomous_browser_live_loop_trace.json",
+        "hard_ticket_priority_crosscheck": trace_root / "hard_ticket_priority_crosscheck" / "trial_01" / "autonomous_browser_live_loop_trace.json",
+        "hard_approval_policy_match": trace_root / "hard_approval_policy_match" / "trial_01" / "autonomous_browser_live_loop_trace.json",
+    }
+    _write_json_encoded(
+        trace_paths["hard_policy_disambiguation"],
+        _top_level_action_trace(
+            "hard_policy_disambiguation",
+            [
+                {
+                    "action_name": "browser_open_url",
+                    "parameters": {"url": "https://local.intranet/"},
+                    "expected_text": "Office Intranet Home",
+                    "current_url": "https://local.intranet/",
+                    "title": "Office Intranet Home",
+                    "text_preview": "Office Intranet Home Workspace policy Ticket board Approvals queue",
+                },
+                {
+                    "action_name": "browser_click",
+                    "parameters": {"target_text": "Workspace policy"},
+                    "expected_text": "Workspace Policy",
+                    "expected_url": "https://local.intranet/docs/policy",
+                    "current_url": "https://local.intranet/docs/policy",
+                    "title": "Workspace Policy",
+                    "text_preview": "Workspace Policy Allowed activity Search marker: fixture-backed result for workspace policy review.",
+                },
+            ],
+        ),
+        encoding="utf-8-sig",
+    )
+    _write_json_encoded(
+        trace_paths["hard_ticket_priority_crosscheck"],
+        _top_level_action_trace(
+            "hard_ticket_priority_crosscheck",
+            [
+                {
+                    "action_name": "browser_open_url",
+                    "parameters": {"url": "https://local.intranet/"},
+                    "expected_text": "Office Intranet Home",
+                    "current_url": "https://local.intranet/",
+                    "title": "Office Intranet Home",
+                    "text_preview": "Office Intranet Home Ticket board Workspace policy Team status",
+                },
+                {
+                    "action_name": "browser_click",
+                    "parameters": {"target_text": "Ticket board"},
+                    "expected_text": "Ticket Board",
+                    "expected_url": "https://local.intranet/tickets",
+                    "current_url": "https://local.intranet/tickets",
+                    "title": "Ticket Board",
+                    "text_preview": "Ticket Board Home Ticket 1 Team status Open tickets",
+                },
+                {
+                    "action_name": "browser_click",
+                    "parameters": {"target_text": "Ticket 1"},
+                    "expected_text": "Ticket 1 - Quarterly Access Review",
+                    "expected_url": "https://local.intranet/tickets/1",
+                    "current_url": "https://local.intranet/tickets/1",
+                    "title": "Ticket 1 - Quarterly Access Review",
+                    "text_preview": "Ticket 1 - Quarterly Access Review Priority: high Assigned role: office worker Quarterly Access Review",
+                },
+            ],
+        ),
+        encoding="utf-8-sig",
+    )
+    _write_json_encoded(
+        trace_paths["hard_approval_policy_match"],
+        _top_level_action_trace(
+            "hard_approval_policy_match",
+            [
+                {
+                    "action_name": "browser_open_url",
+                    "parameters": {"url": "https://local.intranet/"},
+                    "expected_text": "Office Intranet Home",
+                    "current_url": "https://local.intranet/",
+                    "title": "Office Intranet Home",
+                    "text_preview": "Office Intranet Home Approvals queue Workspace policy Team status",
+                },
+                {
+                    "action_name": "browser_click",
+                    "parameters": {"target_text": "Approvals queue"},
+                    "expected_text": "Approvals Queue",
+                    "expected_url": "https://local.intranet/portal/approvals",
+                    "current_url": "https://local.intranet/portal/approvals",
+                    "title": "Approvals Queue",
+                    "text_preview": "Approvals Queue Portal home Approval status Pending approval check",
+                },
+                {
+                    "action_name": "browser_click",
+                    "parameters": {"target_text": "Policy match review"},
+                    "expected_text": "Approval Policy Match",
+                    "expected_url": "https://local.intranet/portal/approval-match",
+                    "current_url": "https://local.intranet/portal/approval-match",
+                    "title": "Approval Policy Match",
+                    "text_preview": "Approval Policy Match Local-only approval review Policy match: confirmed.",
+                },
+            ],
+        ),
+        encoding="utf-8-sig",
+    )
+    variance_summary = _variance_summary(
+        [
+            _trial_row("hard_policy_disambiguation", 1, "trial_01", "live_loop_variance_suite/hard_policy_disambiguation/trial_01/autonomous_browser_live_loop_trace.json", matched_url="https://local.intranet/docs/policy"),
+            _trial_row("hard_ticket_priority_crosscheck", 1, "trial_01", "live_loop_variance_suite/hard_ticket_priority_crosscheck/trial_01/autonomous_browser_live_loop_trace.json", matched_url="https://local.intranet/tickets/1"),
+            _trial_row("hard_approval_policy_match", 1, "trial_01", "live_loop_variance_suite/hard_approval_policy_match/trial_01/autonomous_browser_live_loop_trace.json", matched_url="https://local.intranet/portal/approval-match"),
+        ]
+    )
+    _write_json_encoded(tmp_path / "live_loop_variance_suite.summary.json", variance_summary, encoding="utf-8-sig")
+
+    calls: list[dict[str, Any]] = []
+
+    def fake_operator(
+        config_artifact: Mapping[str, Any] | str | Path,
+        *,
+        repo_root: Path | None = None,
+        allow_real_browser: bool = False,
+        confirm_real_browser: str | None = None,
+        dry_run: bool = False,
+        replay_backend: str | None = None,
+    ) -> dict[str, Any]:
+        del allow_real_browser, confirm_real_browser, dry_run, replay_backend
+        assert repo_root == tmp_path
+        assert isinstance(config_artifact, Mapping)
+        config = dict(config_artifact)
+        plan_path = repo_root / config["replay_plan_path"]
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        action_names = [str(action["action_name"]) for action in plan["actions"]]
+        calls.append({"config": config, "plan": plan, "action_names": action_names})
+        assert plan["schema_version"] == "autonomous_browser_plan_v1"
+        assert action_names in (
+            ["browser_open_url", "browser_click"],
+            ["browser_open_url", "browser_click", "browser_click"],
+        )
+        return {
+            "status": "succeeded",
+            "error_code": None,
+            "no_runtime_execution": True,
+            "replay_backend": "playwright",
+            "fixture_replay_execution": False,
+            "playwright_execution": False,
+            "browser_opened": False,
+            "real_network_traffic": False,
+            "real_browser_execution": False,
+            "actions_attempted": len(action_names),
+            "actions_succeeded": len(action_names),
+            "actions_failed": 0,
+            "expected_results_passed": len(action_names),
+            "expected_results_failed": 0,
+            "expected_results_total": len(action_names),
+            "diagnostics": {"fake_backend": True, "selected_action_names": action_names},
+        }
+
+    monkeypatch.setattr(live_loop_replay, "run_autonomous_browser_plan_playwright_replay_operator", fake_operator)
+
+    config = _base_config()
+    config["input_variance_suite_summary"] = "live_loop_variance_suite.summary.json"
+    config["input_trace_root"] = "live_loop_variance_suite"
+    config["output_dir"] = "artifacts/live_loop_playwright_replay_tests"
+    summary = run_autonomous_browser_live_loop_playwright_replay(
+        config,
+        repo_root=tmp_path,
+        dry_run=False,
+        allow_real_browser=True,
+        allow_playwright=True,
+    )
+
+    assert summary["status"] == "succeeded"
+    assert summary["traces_succeeded"] == 3
+    assert summary["traces_failed"] == 0
+    assert summary["actions_attempted_total"] == 8
+    assert summary["actions_succeeded_total"] == 8
+    assert summary["expected_results_failed_total"] == 0
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["no_runtime_execution"] is True
+    assert len(calls) == 3
+    assert [item["selected_action_names"] for item in summary["replay_trace_summaries"]] == [
+        ["browser_open_url", "browser_click"],
+        ["browser_open_url", "browser_click", "browser_click"],
+        ["browser_open_url", "browser_click", "browser_click"],
+    ]
+    assert all(item["replay_plan_path"] for item in summary["replay_trace_summaries"])
+
+
+def test_guarded_playwright_backend_failure_surfaces_sanitized_validation_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import src.agent.autonomous_browser_live_loop_playwright_replay as live_loop_replay
+
+    trace_path = tmp_path / "trace" / "trial_01" / "autonomous_browser_live_loop_trace.json"
+    _write_json_encoded(
+        trace_path,
+        _top_level_action_trace(
+            "hard_policy_disambiguation",
+            [
+                {
+                    "action_name": "browser_open_url",
+                    "parameters": {"url": "https://local.intranet/"},
+                    "expected_text": "Office Intranet Home",
+                    "current_url": "https://local.intranet/",
+                    "title": "Office Intranet Home",
+                    "text_preview": "Office Intranet Home Workspace policy Ticket board Approvals queue",
+                }
+            ],
+        ),
+        encoding="utf-8-sig",
+    )
+
+    config = _config_for_temp_inputs(trace_paths=["trace/trial_01/autonomous_browser_live_loop_trace.json"])
+
+    def fake_operator(
+        config_artifact: Mapping[str, Any] | str | Path,
+        *,
+        repo_root: Path | None = None,
+        allow_real_browser: bool = False,
+        confirm_real_browser: str | None = None,
+        dry_run: bool = False,
+        replay_backend: str | None = None,
+    ) -> dict[str, Any]:
+        del config_artifact, repo_root, allow_real_browser, confirm_real_browser, dry_run, replay_backend
+        return {
+            "status": "failed",
+            "error_code": "config_validation_failed",
+            "no_runtime_execution": True,
+            "replay_backend": "playwright",
+            "fixture_replay_execution": False,
+            "playwright_execution": False,
+            "browser_opened": False,
+            "real_network_traffic": False,
+            "real_browser_execution": False,
+            "actions_attempted": 0,
+            "actions_succeeded": 0,
+            "actions_failed": 0,
+            "expected_results_passed": 0,
+            "expected_results_failed": 0,
+            "expected_results_total": 0,
+            "diagnostics": {
+                "config_error": "fixture_scope must be local_only.",
+                "validation": {
+                    "status": "rejected",
+                    "error_code": "config_validation_failed",
+                    "message": "fixture_scope must be local_only.",
+                    "finding_type": "validation_error",
+                    "path": "replay_plan_path",
+                    "actions_total": 1,
+                },
+                "backend_config_path": "artifacts/live_loop_playwright_replay_tests/selected_traces/hard_policy_disambiguation/trial_01/backend_config.json",
+            },
+        }
+
+    monkeypatch.setattr(live_loop_replay, "run_autonomous_browser_plan_playwright_replay_operator", fake_operator)
+
+    summary = run_autonomous_browser_live_loop_playwright_replay(
+        config,
+        repo_root=tmp_path,
+        dry_run=False,
+        allow_real_browser=True,
+        allow_playwright=True,
+    )
+
+    trace_summary = summary["replay_trace_summaries"][0]
+    assert summary["status"] == "failed"
+    assert summary["error_code"] == "config_validation_failed"
+    assert trace_summary["diagnostics"]["validation_error_code"] == "config_validation_failed"
+    assert trace_summary["diagnostics"]["validation_error_message"] == "fixture_scope must be local_only."
+    assert trace_summary["diagnostics"]["validation_errors"]["path"] == "replay_plan_path"
+    assert trace_summary["diagnostics"]["backend_config_path"] == "artifacts/live_loop_playwright_replay_tests/selected_traces/hard_policy_disambiguation/trial_01/backend_config.json"
+    assert trace_summary["selected_action_names"] == ["browser_open_url"]
 
 
 def test_cli_dry_run_succeeds_and_prints_compact_json(tmp_path: Path) -> None:
