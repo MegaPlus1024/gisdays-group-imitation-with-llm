@@ -70,3 +70,70 @@ Per-trial summaries are expected to retain scenario identifiers, trial labels, a
 ```
 
 The default config refuses safely without `--allow-model-calls`.
+
+## Final evidence
+
+Top-level suite summary:
+
+- `suite_id`: `phase_13c_guarded_local_model_live_loop_variance`
+- `status`: `succeeded`
+- `model_alias`: `third_model`
+- `planner_backend`: `local_model`
+- `trial_count_per_scenario`: `3`
+- `scenarios_total`: `3`
+- `trials_total`: `9`
+- `trials_succeeded`: `9`
+- `trials_failed`: `0`
+- `trials_rejected`: `0`
+- `pass_rate_overall`: `1.0`
+- `model_execution_attempted`: `true`
+- `model_execution_completed`: `true`
+- `real_browser_execution`: `false`
+- `playwright_execution`: `false`
+- `browser_opened`: `false`
+- `no_runtime_execution`: `true`
+
+Scenario outcomes:
+
+| scenario_id | status | trials | pass_rate | actions | expected checks | matched_url | route_stable | matched_url_stable |
+|---|---|---:|---:|---:|---:|---|---|---|
+| `hard_policy_disambiguation` | `succeeded` | 3 | 1.0 | 6/6 | 6/0 | `https://local.intranet/docs/policy` | true | true |
+| `hard_ticket_priority_crosscheck` | `succeeded` | 3 | 1.0 | 9/9 | 9/0 | `https://local.intranet/tickets/1` | true | true |
+| `hard_approval_policy_match` | `succeeded` | 3 | 1.0 | 9/9 | 9/0 | `https://local.intranet/portal/approval-match` | true | true |
+
+Repair summary:
+
+- policy scenario: no repairs required
+- ticket scenario: repairs were required and succeeded on every trial; the observed original error code was `model_output_irrelevant_click_target`
+- approval scenario: repairs were required and succeeded on every trial; the observed original error code was `model_output_irrelevant_click_target`
+- total repair attempts: `12`
+- total repair attempts succeeded: `12`
+- total repair attempts failed: `0`
+
+Route stability summary:
+
+- `hard_policy_disambiguation`: stable matched URL and stable route fingerprint
+- `hard_ticket_priority_crosscheck`: stable matched URL and stable route fingerprint
+- `hard_approval_policy_match`: stable matched URL and stable route fingerprint
+- the final repeated-trial evidence shows no cross-trial drift in the successful routes
+
+Safety boundaries:
+
+- fixture-only local browser model
+- no real browser or Playwright execution from Codex
+- no external network activity
+- local model calls require explicit operator opt-in
+- generated runtime summaries are evidence artifacts and should not be committed
+
+Limitations:
+
+- only three hard scenarios are covered
+- only three trials per scenario were run for this evidence set
+- this is not production browser automation
+- this is not a production recommendation
+- completion policies are configured fixture criteria, not universal task success
+
+Next recommended phase:
+
+- broaden the variance suite only if additional fixture-backed scenarios or more trials are needed for research coverage
+- keep the guarded operator flow and refusal-by-default behavior intact

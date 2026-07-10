@@ -33,3 +33,11 @@ This should refuse with `allow_model_calls_required` unless the operator explici
 - trace paths, if present, should stay relative
 - generated summaries are evidence only and should not be committed
 - this is not a production browser automation path
+
+## Interpreting the evidence
+
+- `9/9 succeeded` means all three scenarios passed all three repeated trials
+- `repair_attempts_total` tells you how much bounded repair was needed; ticket and approval needed repair, policy did not
+- `route_stable: true` means the successful path shape was the same across repeated trials
+- `matched_url_stable: true` means the same final fixture URL was reached on every successful trial
+- `real_browser_execution: false` and `playwright_execution: false` mean the evidence remains fixture-backed, not real browser automation

@@ -154,3 +154,9 @@
 - Phase 13C adds `docs/status/phase_13c_live_loop_variance_suite.md` and `docs/operator/phase_13c_live_loop_variance_suite.md` for repeated guarded local-model fixture live-loop trials
 - the variance suite reuses the guarded live loop, repeats the three hard scenarios, and keeps `third_model` behind explicit `--allow-model-calls`
 - route stability and matched-URL stability are tracked across repeated trials, but Codex still does not launch a model, browser, or Playwright here
+
+## Phase 13C final note
+
+- the final Phase 13C operator evidence shows 9/9 successful repeated trials across the three hard scenarios, with stable routes and stable matched URLs
+- policy finished without repair, while ticket and approval each used bounded repair successfully on every trial
+- the evidence remains fixture-backed only and does not add browser launch capability or Codex-launched model execution
