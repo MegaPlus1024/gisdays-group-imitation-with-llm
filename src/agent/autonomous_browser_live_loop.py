@@ -19,12 +19,15 @@ from .autonomous_browser_live_planner import (
 from .autonomous_browser_live_model_planner import (
     DEFAULT_LOCAL_MODEL_ALIAS,
     DEFAULT_LOCAL_MODEL_ENDPOINT,
+    DEFAULT_LOCAL_MODEL_MAX_REPAIR_ATTEMPTS,
+    DEFAULT_LOCAL_MODEL_REPAIR_ENABLED,
     ALLOWED_LOCAL_EXPECTED_URL_HOSTS,
     ALLOWED_LOCAL_MODEL_ACTION_NAMES,
     ChatCompletionClient,
     LocalModelLivePlanner,
     LocalModelLivePlannerError,
     LocalModelPlannerConfig,
+    REPAIRABLE_MODEL_OUTPUT_ERROR_CODES,
 )
 from .autonomous_browser_plan_validation import validate_autonomous_browser_plan
 from .autonomous_browser_runtime import (
@@ -105,6 +108,8 @@ class AutonomousBrowserLiveLoopPlannerConfig:
     model_alias: str | None = None
     model_endpoint: str | None = None
     allow_model_calls: bool = False
+    repair_enabled: bool = DEFAULT_LOCAL_MODEL_REPAIR_ENABLED
+    max_repair_attempts: int = DEFAULT_LOCAL_MODEL_MAX_REPAIR_ATTEMPTS
     planner_id: str = "browser_live_loop_planner"
     allowed_model_aliases: tuple[str, ...] = ()
     no_think: bool | None = None
@@ -144,6 +149,12 @@ class AutonomousBrowserLiveLoopPlannerConfig:
             allow_model_calls = payload.get("allow_model_calls", False)
             if not isinstance(allow_model_calls, bool):
                 raise AutonomousBrowserLiveLoopConfigError("planner_backend.allow_model_calls must be a boolean.")
+            repair_enabled = payload.get("repair_enabled", DEFAULT_LOCAL_MODEL_REPAIR_ENABLED)
+            if not isinstance(repair_enabled, bool):
+                raise AutonomousBrowserLiveLoopConfigError("planner_backend.repair_enabled must be a boolean.")
+            max_repair_attempts = _int(payload.get("max_repair_attempts", DEFAULT_LOCAL_MODEL_MAX_REPAIR_ATTEMPTS), "planner_backend.max_repair_attempts")
+            if max_repair_attempts < 0:
+                raise AutonomousBrowserLiveLoopConfigError("planner_backend.max_repair_attempts must be a non-negative integer.")
             allowed_model_aliases = tuple(
                 str(item).strip()
                 for item in payload.get("allowed_model_aliases", [])
@@ -162,6 +173,8 @@ class AutonomousBrowserLiveLoopPlannerConfig:
                 model_alias=model_alias,
                 model_endpoint=model_endpoint,
                 allow_model_calls=allow_model_calls,
+                repair_enabled=repair_enabled,
+                max_repair_attempts=max_repair_attempts,
                 planner_id=planner_id,
                 allowed_model_aliases=allowed_model_aliases,
                 no_think=no_think,
@@ -190,6 +203,10 @@ class AutonomousBrowserLiveLoopPlannerConfig:
             payload["allowed_model_aliases"] = list(self.allowed_model_aliases)
         if self.kind == LOCAL_MODEL_PLANNER_KIND or self.allow_model_calls:
             payload["allow_model_calls"] = self.allow_model_calls
+        if self.kind == LOCAL_MODEL_PLANNER_KIND or self.repair_enabled:
+            payload["repair_enabled"] = self.repair_enabled
+        if self.kind == LOCAL_MODEL_PLANNER_KIND or self.max_repair_attempts != DEFAULT_LOCAL_MODEL_MAX_REPAIR_ATTEMPTS:
+            payload["max_repair_attempts"] = self.max_repair_attempts
         if self.no_think is not None:
             payload["no_think"] = self.no_think
         if self.kind == LOCAL_MODEL_PLANNER_KIND:
@@ -454,11 +471,15 @@ def run_autonomous_browser_live_loop(
     model_execution = False
     repeated_signature: tuple[str, str, str, str, bool] | None = None
     repeated_count = 0
+    planner_original_error_code: str | None = None
 
     while steps_attempted < config.max_steps:
         planner_input = _planner_observation_dict(current_observation, observation_count)
         if isinstance(planner_backend, LocalModelLivePlanner):
             model_execution = True
+        current_url = current_observation.get("current_url")
+        if isinstance(current_url, str) and current_url.strip():
+            session.current_url = current_url.strip()
         try:
             planned_step = planner_backend.next_step(planner_input)
         except LocalModelLivePlannerError as exc:
@@ -488,6 +509,9 @@ def run_autonomous_browser_live_loop(
             break
 
         planner_action = planned_step.to_dict()
+        repair_attempts_for_step = 0
+        repair_original_error_code: str | None = None
+        repair_applied = False
 
         if planned_step.done:
             steps_attempted += 1
@@ -668,57 +692,347 @@ def run_autonomous_browser_live_loop(
                 repo_root=repo,
             )
             if expected_text_issue is not None:
-                steps_attempted += 1
-                error_code = expected_text_issue["error_code"]
-                status = "rejected"
-                stop_reason = "planner_action_rejected"
-                trace_entries.append(
-                    {
-                        "step_index": steps_attempted,
-                        "observation_id": current_observation["observation_id"],
-                        "planner_action": planner_action,
-                        "validation_status": "accepted",
-                        "fixture_execution_status": "skipped",
-                        "action_result": None,
-                        "expected_result": {
-                            "passed": False,
-                            "reason": error_code,
-                            "metadata": expected_text_issue["metadata"],
-                        },
-                        "next_observation_id": current_observation["observation_id"],
-                        "error_code": error_code,
-                    }
-                )
-                break
+                if isinstance(planner_backend, LocalModelLivePlanner):
+                    try:
+                        repaired_step = _attempt_local_model_action_repair(
+                            planner_backend,
+                            observation=current_observation,
+                            invalid_action=planned_step,
+                            error_code=expected_text_issue["error_code"],
+                            error_message="Model response expected_text must match the destination page for browser_open_url.",
+                            error_diagnostics=expected_text_issue,
+                        )
+                    except LocalModelLivePlannerError as repair_exc:
+                        repair_attempts_for_step += 1
+                        repair_original_error_code = repair_original_error_code or expected_text_issue["error_code"]
+                        steps_attempted += 1
+                        error_code = repair_exc.error_code
+                        status = "rejected"
+                        stop_reason = "planner_action_rejected"
+                        trace_entries.append(
+                            {
+                                "step_index": steps_attempted,
+                                "observation_id": current_observation["observation_id"],
+                                "planner_action": planner_action,
+                                "validation_status": "accepted",
+                                "fixture_execution_status": "skipped",
+                                "action_result": None,
+                                "expected_result": {
+                                    "passed": False,
+                                    "reason": error_code,
+                                    "metadata": expected_text_issue["metadata"],
+                                },
+                                "next_observation_id": current_observation["observation_id"],
+                                "error_code": error_code,
+                            }
+                        )
+                        break
+                    if repaired_step is not None:
+                        repair_attempts_for_step += 1
+                        repair_original_error_code = repair_original_error_code or expected_text_issue["error_code"]
+                        planner_original_error_code = planner_original_error_code or repair_original_error_code
+                        planned_step = repaired_step
+                        planner_action = planned_step.to_dict()
+                        repair_applied = True
+                        expected_text_issue = _browser_open_url_expected_text_not_visible(
+                            planned_step.expected_text,
+                            planned_step.parameters,
+                            session=session,
+                            fixture_manifest_path=config.browser_session.fixture_manifest_path,
+                            repo_root=repo,
+                        )
+                        if expected_text_issue is not None:
+                            steps_attempted += 1
+                            error_code = expected_text_issue["error_code"]
+                            status = "rejected"
+                            stop_reason = "planner_action_rejected"
+                            trace_entries.append(
+                                {
+                                    "step_index": steps_attempted,
+                                    "observation_id": current_observation["observation_id"],
+                                    "planner_action": planner_action,
+                                    "validation_status": "accepted",
+                                    "fixture_execution_status": "skipped",
+                                    "action_result": None,
+                                    "expected_result": {
+                                        "passed": False,
+                                        "reason": error_code,
+                                        "metadata": expected_text_issue["metadata"],
+                                    },
+                                    "next_observation_id": current_observation["observation_id"],
+                                    "error_code": error_code,
+                                }
+                            )
+                            break
+                    else:
+                        steps_attempted += 1
+                        error_code = expected_text_issue["error_code"]
+                        status = "rejected"
+                        stop_reason = "planner_action_rejected"
+                        trace_entries.append(
+                            {
+                                "step_index": steps_attempted,
+                                "observation_id": current_observation["observation_id"],
+                                "planner_action": planner_action,
+                                "validation_status": "accepted",
+                                "fixture_execution_status": "skipped",
+                                "action_result": None,
+                                "expected_result": {
+                                    "passed": False,
+                                    "reason": error_code,
+                                    "metadata": expected_text_issue["metadata"],
+                                },
+                                "next_observation_id": current_observation["observation_id"],
+                                "error_code": error_code,
+                            }
+                        )
+                        break
+                else:
+                    steps_attempted += 1
+                    error_code = expected_text_issue["error_code"]
+                    status = "rejected"
+                    stop_reason = "planner_action_rejected"
+                    trace_entries.append(
+                        {
+                            "step_index": steps_attempted,
+                            "observation_id": current_observation["observation_id"],
+                            "planner_action": planner_action,
+                            "validation_status": "accepted",
+                            "fixture_execution_status": "skipped",
+                            "action_result": None,
+                            "expected_result": {
+                                "passed": False,
+                                "reason": error_code,
+                                "metadata": expected_text_issue["metadata"],
+                            },
+                            "next_observation_id": current_observation["observation_id"],
+                            "error_code": error_code,
+                        }
+                    )
+                    break
 
         if planned_step.action_name == "browser_click":
+            unsupported_click_issue = _browser_click_target_not_supported(
+                planned_step.parameters,
+                session=session,
+                fixture_manifest_path=config.browser_session.fixture_manifest_path,
+                repo_root=repo,
+            )
+            if unsupported_click_issue is not None:
+                if isinstance(planner_backend, LocalModelLivePlanner):
+                    try:
+                        repaired_step = _attempt_local_model_action_repair(
+                            planner_backend,
+                            observation=current_observation,
+                            invalid_action=planned_step,
+                            error_code=unsupported_click_issue["error_code"],
+                            error_message="Model response click target does not match a visible local link/button.",
+                            error_diagnostics=unsupported_click_issue,
+                        )
+                    except LocalModelLivePlannerError as repair_exc:
+                        repair_attempts_for_step += 1
+                        repair_original_error_code = repair_original_error_code or unsupported_click_issue["error_code"]
+                        steps_attempted += 1
+                        error_code = repair_exc.error_code
+                        status = "rejected"
+                        stop_reason = "planner_action_rejected"
+                        trace_entries.append(
+                            {
+                                "step_index": steps_attempted,
+                                "observation_id": current_observation["observation_id"],
+                                "planner_action": planner_action,
+                                "validation_status": "accepted",
+                                "fixture_execution_status": "skipped",
+                                "action_result": None,
+                                "expected_result": {
+                                    "passed": False,
+                                    "reason": error_code,
+                                    "metadata": unsupported_click_issue["metadata"],
+                                },
+                                "next_observation_id": current_observation["observation_id"],
+                                "error_code": error_code,
+                            }
+                        )
+                        break
+                    if repaired_step is not None:
+                        repair_attempts_for_step += 1
+                        repair_original_error_code = repair_original_error_code or unsupported_click_issue["error_code"]
+                        planner_original_error_code = planner_original_error_code or repair_original_error_code
+                        planned_step = repaired_step
+                        planner_action = planned_step.to_dict()
+                        repair_applied = True
+                        unsupported_click_issue = _browser_click_target_not_supported(
+                            planned_step.parameters,
+                            session=session,
+                            fixture_manifest_path=config.browser_session.fixture_manifest_path,
+                            repo_root=repo,
+                        )
+                        if unsupported_click_issue is not None:
+                            steps_attempted += 1
+                            error_code = unsupported_click_issue["error_code"]
+                            status = "rejected"
+                            stop_reason = "planner_action_rejected"
+                            trace_entries.append(
+                                {
+                                    "step_index": steps_attempted,
+                                    "observation_id": current_observation["observation_id"],
+                                    "planner_action": planner_action,
+                                    "validation_status": "accepted",
+                                    "fixture_execution_status": "skipped",
+                                    "action_result": None,
+                                    "expected_result": {
+                                        "passed": False,
+                                        "reason": error_code,
+                                        "metadata": unsupported_click_issue["metadata"],
+                                    },
+                                    "next_observation_id": current_observation["observation_id"],
+                                    "error_code": error_code,
+                                }
+                            )
+                            break
+                    else:
+                        steps_attempted += 1
+                        error_code = unsupported_click_issue["error_code"]
+                        status = "rejected"
+                        stop_reason = "planner_action_rejected"
+                        trace_entries.append(
+                            {
+                                "step_index": steps_attempted,
+                                "observation_id": current_observation["observation_id"],
+                                "planner_action": planner_action,
+                                "validation_status": "accepted",
+                                "fixture_execution_status": "skipped",
+                                "action_result": None,
+                                "expected_result": {
+                                    "passed": False,
+                                    "reason": error_code,
+                                    "metadata": unsupported_click_issue["metadata"],
+                                },
+                                "next_observation_id": current_observation["observation_id"],
+                                "error_code": error_code,
+                            }
+                        )
+                        break
             expected_url_issue = _browser_click_expected_url_not_valid(
                 planned_step.expected_url,
                 expected_text=planned_step.expected_text,
             )
             if expected_url_issue is not None:
-                steps_attempted += 1
-                error_code = expected_url_issue["error_code"]
-                status = "rejected"
-                stop_reason = "planner_action_rejected"
-                trace_entries.append(
-                    {
-                        "step_index": steps_attempted,
-                        "observation_id": current_observation["observation_id"],
-                        "planner_action": planner_action,
-                        "validation_status": "accepted",
-                        "fixture_execution_status": "skipped",
-                        "action_result": None,
-                        "expected_result": {
-                            "passed": False,
-                            "reason": error_code,
-                            "metadata": expected_url_issue["metadata"],
-                        },
-                        "next_observation_id": current_observation["observation_id"],
-                        "error_code": error_code,
-                    }
-                )
-                break
+                if isinstance(planner_backend, LocalModelLivePlanner):
+                    try:
+                        repaired_step = _attempt_local_model_action_repair(
+                            planner_backend,
+                            observation=current_observation,
+                            invalid_action=planned_step,
+                            error_code=expected_url_issue["error_code"],
+                            error_message="Model response expected_url is not valid for the current click target.",
+                            error_diagnostics=expected_url_issue,
+                        )
+                    except LocalModelLivePlannerError as repair_exc:
+                        repair_attempts_for_step += 1
+                        repair_original_error_code = repair_original_error_code or expected_url_issue["error_code"]
+                        steps_attempted += 1
+                        error_code = repair_exc.error_code
+                        status = "rejected"
+                        stop_reason = "planner_action_rejected"
+                        trace_entries.append(
+                            {
+                                "step_index": steps_attempted,
+                                "observation_id": current_observation["observation_id"],
+                                "planner_action": planner_action,
+                                "validation_status": "accepted",
+                                "fixture_execution_status": "skipped",
+                                "action_result": None,
+                                "expected_result": {
+                                    "passed": False,
+                                    "reason": error_code,
+                                    "metadata": expected_url_issue["metadata"],
+                                },
+                                "next_observation_id": current_observation["observation_id"],
+                                "error_code": error_code,
+                            }
+                        )
+                        break
+                    if repaired_step is not None:
+                        repair_attempts_for_step += 1
+                        repair_original_error_code = repair_original_error_code or expected_url_issue["error_code"]
+                        planner_original_error_code = planner_original_error_code or repair_original_error_code
+                        planned_step = repaired_step
+                        planner_action = planned_step.to_dict()
+                        repair_applied = True
+                        expected_url_issue = _browser_click_expected_url_not_valid(
+                            planned_step.expected_url,
+                            expected_text=planned_step.expected_text,
+                        )
+                        if expected_url_issue is not None:
+                            steps_attempted += 1
+                            error_code = expected_url_issue["error_code"]
+                            status = "rejected"
+                            stop_reason = "planner_action_rejected"
+                            trace_entries.append(
+                                {
+                                    "step_index": steps_attempted,
+                                    "observation_id": current_observation["observation_id"],
+                                    "planner_action": planner_action,
+                                    "validation_status": "accepted",
+                                    "fixture_execution_status": "skipped",
+                                    "action_result": None,
+                                    "expected_result": {
+                                        "passed": False,
+                                        "reason": error_code,
+                                        "metadata": expected_url_issue["metadata"],
+                                    },
+                                    "next_observation_id": current_observation["observation_id"],
+                                    "error_code": error_code,
+                                }
+                            )
+                            break
+                    else:
+                        steps_attempted += 1
+                        error_code = expected_url_issue["error_code"]
+                        status = "rejected"
+                        stop_reason = "planner_action_rejected"
+                        trace_entries.append(
+                            {
+                                "step_index": steps_attempted,
+                                "observation_id": current_observation["observation_id"],
+                                "planner_action": planner_action,
+                                "validation_status": "accepted",
+                                "fixture_execution_status": "skipped",
+                                "action_result": None,
+                                "expected_result": {
+                                    "passed": False,
+                                    "reason": error_code,
+                                    "metadata": expected_url_issue["metadata"],
+                                },
+                                "next_observation_id": current_observation["observation_id"],
+                                "error_code": error_code,
+                            }
+                        )
+                        break
+                else:
+                    steps_attempted += 1
+                    error_code = expected_url_issue["error_code"]
+                    status = "rejected"
+                    stop_reason = "planner_action_rejected"
+                    trace_entries.append(
+                        {
+                            "step_index": steps_attempted,
+                            "observation_id": current_observation["observation_id"],
+                            "planner_action": planner_action,
+                            "validation_status": "accepted",
+                            "fixture_execution_status": "skipped",
+                            "action_result": None,
+                            "expected_result": {
+                                "passed": False,
+                                "reason": error_code,
+                                "metadata": expected_url_issue["metadata"],
+                            },
+                            "next_observation_id": current_observation["observation_id"],
+                            "error_code": error_code,
+                        }
+                    )
+                    break
 
             expected_url_issue = _browser_click_expected_url_not_matching_destination(
                 planned_step.expected_url,
@@ -728,28 +1042,124 @@ def run_autonomous_browser_live_loop(
                 repo_root=repo,
             )
             if expected_url_issue is not None:
-                steps_attempted += 1
-                error_code = expected_url_issue["error_code"]
-                status = "rejected"
-                stop_reason = "planner_action_rejected"
-                trace_entries.append(
-                    {
-                        "step_index": steps_attempted,
-                        "observation_id": current_observation["observation_id"],
-                        "planner_action": planner_action,
-                        "validation_status": "accepted",
-                        "fixture_execution_status": "skipped",
-                        "action_result": None,
-                        "expected_result": {
-                            "passed": False,
-                            "reason": error_code,
-                            "metadata": expected_url_issue["metadata"],
-                        },
-                        "next_observation_id": current_observation["observation_id"],
-                        "error_code": error_code,
-                    }
-                )
-                break
+                if isinstance(planner_backend, LocalModelLivePlanner):
+                    try:
+                        repaired_step = _attempt_local_model_action_repair(
+                            planner_backend,
+                            observation=current_observation,
+                            invalid_action=planned_step,
+                            error_code=expected_url_issue["error_code"],
+                            error_message="Model response expected_url must match the click destination exactly.",
+                            error_diagnostics=expected_url_issue,
+                        )
+                    except LocalModelLivePlannerError as repair_exc:
+                        repair_attempts_for_step += 1
+                        repair_original_error_code = repair_original_error_code or expected_url_issue["error_code"]
+                        steps_attempted += 1
+                        error_code = repair_exc.error_code
+                        status = "rejected"
+                        stop_reason = "planner_action_rejected"
+                        trace_entries.append(
+                            {
+                                "step_index": steps_attempted,
+                                "observation_id": current_observation["observation_id"],
+                                "planner_action": planner_action,
+                                "validation_status": "accepted",
+                                "fixture_execution_status": "skipped",
+                                "action_result": None,
+                                "expected_result": {
+                                    "passed": False,
+                                    "reason": error_code,
+                                    "metadata": expected_url_issue["metadata"],
+                                },
+                                "next_observation_id": current_observation["observation_id"],
+                                "error_code": error_code,
+                            }
+                        )
+                        break
+                    if repaired_step is not None:
+                        repair_attempts_for_step += 1
+                        repair_original_error_code = repair_original_error_code or expected_url_issue["error_code"]
+                        planner_original_error_code = planner_original_error_code or repair_original_error_code
+                        planned_step = repaired_step
+                        planner_action = planned_step.to_dict()
+                        repair_applied = True
+                        expected_url_issue = _browser_click_expected_url_not_matching_destination(
+                            planned_step.expected_url,
+                            planned_step.parameters,
+                            session=session,
+                            fixture_manifest_path=config.browser_session.fixture_manifest_path,
+                            repo_root=repo,
+                        )
+                        if expected_url_issue is not None:
+                            steps_attempted += 1
+                            error_code = expected_url_issue["error_code"]
+                            status = "rejected"
+                            stop_reason = "planner_action_rejected"
+                            trace_entries.append(
+                                {
+                                    "step_index": steps_attempted,
+                                    "observation_id": current_observation["observation_id"],
+                                    "planner_action": planner_action,
+                                    "validation_status": "accepted",
+                                    "fixture_execution_status": "skipped",
+                                    "action_result": None,
+                                    "expected_result": {
+                                        "passed": False,
+                                        "reason": error_code,
+                                        "metadata": expected_url_issue["metadata"],
+                                    },
+                                    "next_observation_id": current_observation["observation_id"],
+                                    "error_code": error_code,
+                                }
+                            )
+                            break
+                    else:
+                        steps_attempted += 1
+                        error_code = expected_url_issue["error_code"]
+                        status = "rejected"
+                        stop_reason = "planner_action_rejected"
+                        trace_entries.append(
+                            {
+                                "step_index": steps_attempted,
+                                "observation_id": current_observation["observation_id"],
+                                "planner_action": planner_action,
+                                "validation_status": "accepted",
+                                "fixture_execution_status": "skipped",
+                                "action_result": None,
+                                "expected_result": {
+                                    "passed": False,
+                                    "reason": error_code,
+                                    "metadata": expected_url_issue["metadata"],
+                                },
+                                "next_observation_id": current_observation["observation_id"],
+                                "error_code": error_code,
+                            }
+                        )
+                        break
+                else:
+                    steps_attempted += 1
+                    error_code = expected_url_issue["error_code"]
+                    status = "rejected"
+                    stop_reason = "planner_action_rejected"
+                    trace_entries.append(
+                        {
+                            "step_index": steps_attempted,
+                            "observation_id": current_observation["observation_id"],
+                            "planner_action": planner_action,
+                            "validation_status": "accepted",
+                            "fixture_execution_status": "skipped",
+                            "action_result": None,
+                            "expected_result": {
+                                "passed": False,
+                                "reason": error_code,
+                                "metadata": expected_url_issue["metadata"],
+                            },
+                            "next_observation_id": current_observation["observation_id"],
+                            "error_code": error_code,
+                        }
+                    )
+                    break
 
             expected_text_issue = _browser_click_expected_text_not_visible(
                 planned_step.expected_text,
@@ -759,23 +1169,159 @@ def run_autonomous_browser_live_loop(
                 repo_root=repo,
             )
             if expected_text_issue is not None:
-                steps_attempted += 1
-                error_code = expected_text_issue["error_code"]
+                if isinstance(planner_backend, LocalModelLivePlanner):
+                    try:
+                        repaired_step = _attempt_local_model_action_repair(
+                            planner_backend,
+                            observation=current_observation,
+                            invalid_action=planned_step,
+                            error_code=expected_text_issue["error_code"],
+                            error_message="Model response expected_text must describe the destination page, not the current page.",
+                            error_diagnostics=expected_text_issue,
+                        )
+                    except LocalModelLivePlannerError as repair_exc:
+                        repair_attempts_for_step += 1
+                        repair_original_error_code = repair_original_error_code or expected_text_issue["error_code"]
+                        steps_attempted += 1
+                        error_code = repair_exc.error_code
+                        status = "rejected"
+                        stop_reason = "planner_action_rejected"
+                        trace_entries.append(
+                            {
+                                "step_index": steps_attempted,
+                                "observation_id": current_observation["observation_id"],
+                                "planner_action": planner_action,
+                                "validation_status": "accepted",
+                                "fixture_execution_status": "skipped",
+                                "action_result": None,
+                                "expected_result": {
+                                    "passed": False,
+                                    "reason": error_code,
+                                    "metadata": expected_text_issue["metadata"],
+                                },
+                                "next_observation_id": current_observation["observation_id"],
+                                "error_code": error_code,
+                            }
+                        )
+                        break
+                    if repaired_step is not None:
+                        repair_attempts_for_step += 1
+                        repair_original_error_code = repair_original_error_code or expected_text_issue["error_code"]
+                        planner_original_error_code = planner_original_error_code or repair_original_error_code
+                        planned_step = repaired_step
+                        planner_action = planned_step.to_dict()
+                        repair_applied = True
+                        expected_text_issue = _browser_click_expected_text_not_visible(
+                            planned_step.expected_text,
+                            planned_step.parameters,
+                            session=session,
+                            fixture_manifest_path=config.browser_session.fixture_manifest_path,
+                            repo_root=repo,
+                        )
+                        if expected_text_issue is not None:
+                            steps_attempted += 1
+                            error_code = expected_text_issue["error_code"]
+                            status = "rejected"
+                            stop_reason = "planner_action_rejected"
+                            trace_entries.append(
+                                {
+                                    "step_index": steps_attempted,
+                                    "observation_id": current_observation["observation_id"],
+                                    "planner_action": planner_action,
+                                    "validation_status": "accepted",
+                                    "fixture_execution_status": "skipped",
+                                    "action_result": None,
+                                    "expected_result": {
+                                        "passed": False,
+                                        "reason": error_code,
+                                        "metadata": expected_text_issue["metadata"],
+                                    },
+                                    "next_observation_id": current_observation["observation_id"],
+                                    "error_code": error_code,
+                                }
+                            )
+                            break
+                    else:
+                        steps_attempted += 1
+                        error_code = expected_text_issue["error_code"]
+                        status = "rejected"
+                        stop_reason = "planner_action_rejected"
+                        trace_entries.append(
+                            {
+                                "step_index": steps_attempted,
+                                "observation_id": current_observation["observation_id"],
+                                "planner_action": planner_action,
+                                "validation_status": "accepted",
+                                "fixture_execution_status": "skipped",
+                                "action_result": None,
+                                "expected_result": {
+                                    "passed": False,
+                                    "reason": error_code,
+                                    "metadata": expected_text_issue["metadata"],
+                                },
+                                "next_observation_id": current_observation["observation_id"],
+                                "error_code": error_code,
+                            }
+                        )
+                        break
+                else:
+                    steps_attempted += 1
+                    error_code = expected_text_issue["error_code"]
+                    status = "rejected"
+                    stop_reason = "planner_action_rejected"
+                    trace_entries.append(
+                        {
+                            "step_index": steps_attempted,
+                            "observation_id": current_observation["observation_id"],
+                            "planner_action": planner_action,
+                            "validation_status": "accepted",
+                            "fixture_execution_status": "skipped",
+                            "action_result": None,
+                            "expected_result": {
+                                "passed": False,
+                                "reason": error_code,
+                                "metadata": expected_text_issue["metadata"],
+                            },
+                            "next_observation_id": current_observation["observation_id"],
+                            "error_code": error_code,
+                        }
+                    )
+                    break
+
+        if repair_applied:
+            validation_result = validate_autonomous_browser_plan(
+                {
+                    "schema_version": "autonomous_browser_plan_v1",
+                    "plan_id": f"{config.scenario_id}_{planned_step.step_id}_{steps_attempted + 1}",
+                    "goal": f"Live loop step {planned_step.step_id}",
+                    "scenario_id": config.scenario_id,
+                    "max_actions": 1,
+                    "actions": [
+                        {
+                            "step_id": planned_step.step_id,
+                            "action_name": planned_step.action_name,
+                            "parameters": dict(planned_step.parameters),
+                            "expected_text": planned_step.expected_text,
+                            **({"expected_url": planned_step.expected_url} if planned_step.expected_url is not None else {}),
+                        }
+                    ],
+                }
+            )
+            validation_status = str(validation_result.get("status", "rejected"))
+            if validation_status != "accepted":
+                error_code = str(validation_result.get("error_code") or "browser_plan_validation_failed")
                 status = "rejected"
                 stop_reason = "planner_action_rejected"
+                steps_attempted += 1
                 trace_entries.append(
                     {
                         "step_index": steps_attempted,
                         "observation_id": current_observation["observation_id"],
                         "planner_action": planner_action,
-                        "validation_status": "accepted",
+                        "validation_status": validation_status,
                         "fixture_execution_status": "skipped",
                         "action_result": None,
-                        "expected_result": {
-                            "passed": False,
-                            "reason": error_code,
-                            "metadata": expected_text_issue["metadata"],
-                        },
+                        "expected_result": None,
                         "next_observation_id": current_observation["observation_id"],
                         "error_code": error_code,
                     }
@@ -861,6 +1407,9 @@ def run_autonomous_browser_live_loop(
         if status == "succeeded":
             status = "failed"
             error_code = error_code or "planner_exhausted"
+
+    if planner_original_error_code is not None and isinstance(planner_backend, LocalModelLivePlanner):
+        planner_backend.original_error_code = planner_original_error_code
 
     summary = AutonomousBrowserLiveLoopSummary(
         schema_version=SUMMARY_SCHEMA_VERSION,
@@ -1444,6 +1993,70 @@ def _browser_click_expected_text_not_visible(
             ),
         },
     }
+
+
+def _browser_click_target_not_supported(
+    parameters: Mapping[str, Any],
+    *,
+    session: BrowserRuntimeSession,
+    fixture_manifest_path: str,
+    repo_root: Path,
+) -> dict[str, Any] | None:
+    destination_resolution = _resolve_browser_click_destination(
+        parameters,
+        session=session,
+        fixture_manifest_path=fixture_manifest_path,
+        repo_root=repo_root,
+    )
+    if destination_resolution is not None:
+        return None
+    target_text = str(parameters.get("target_text") or parameters.get("text") or "").strip()
+    if not target_text:
+        return None
+    current_url = session.current_url
+    if not isinstance(current_url, str) or not current_url.strip():
+        return None
+    try:
+        current_resolution = resolve_browser_fixture_url(
+            current_url,
+            fixture_manifest_path,
+            project_root=repo_root,
+            allowed_url_prefixes=_prefixes_for_domains(session.allowed_domains),
+            preview_chars=2_000,
+        )
+    except Exception:
+        return None
+    links = _extract_links(current_resolution.fixture_path.read_text(encoding="utf-8"))
+    return {
+        "error_code": "model_output_unsupported_click_target",
+        "metadata": {
+            "target_text": target_text,
+            "current_url": current_resolution.url,
+            "visible_links": [str(link.get("text")) for link in links[:8] if isinstance(link, Mapping)],
+        },
+    }
+
+
+def _attempt_local_model_action_repair(
+    planner_backend: LocalModelLivePlanner,
+    *,
+    observation: Mapping[str, Any] | None,
+    invalid_action: Mapping[str, Any] | AutonomousBrowserLivePlannerStep,
+    error_code: str,
+    error_message: str,
+    error_diagnostics: Mapping[str, Any] | None,
+) -> AutonomousBrowserLivePlannerStep | None:
+    if not planner_backend.config.repair_enabled or planner_backend.config.max_repair_attempts <= 0:
+        return None
+    if error_code not in REPAIRABLE_MODEL_OUTPUT_ERROR_CODES:
+        return None
+    return planner_backend.repair_step(
+        observation=observation,
+        invalid_action=invalid_action,
+        error_code=error_code,
+        error_message=error_message,
+        error_diagnostics=error_diagnostics,
+    )
 
 
 class AutonomousBrowserLiveLoopConfigError(ValueError):

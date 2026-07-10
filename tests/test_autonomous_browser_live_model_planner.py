@@ -42,6 +42,8 @@ def _planner(
     model_alias: str = "third_model",
     allow_model_calls: bool = True,
     model_endpoint: str = "http://127.0.0.1:8082/v1",
+    repair_enabled: bool = True,
+    max_repair_attempts: int = 1,
     no_think: bool | None = None,
     client: FakeChatCompletionClient | None = None,
 ) -> LocalModelLivePlanner:
@@ -50,6 +52,8 @@ def _planner(
         model_alias=model_alias,
         model_endpoint=model_endpoint,
         allow_model_calls=allow_model_calls,
+        repair_enabled=repair_enabled,
+        max_repair_attempts=max_repair_attempts,
         planner_id="browser_live_loop_local_model_planner_test",
         allowed_model_aliases=ALLOWED_ALIASES,
         no_think=no_think,
@@ -165,7 +169,7 @@ def test_valid_next_action_returns_step() -> None:
             )
         ]
     )
-    planner = _planner(client=client)
+    planner = _planner(client=client, repair_enabled=False, max_repair_attempts=0)
 
     step = planner.next_step(OBSERVATION)
 
@@ -216,7 +220,7 @@ def test_browser_click_aliases_normalize_to_target_text(click_key: str) -> None:
             )
         ]
     )
-    planner = _planner(client=client)
+    planner = _planner(client=client, repair_enabled=False, max_repair_attempts=0)
 
     step = planner.next_step(OBSERVATION)
 
@@ -272,7 +276,7 @@ def test_non_local_expected_url_is_rejected(expected_url: str) -> None:
             )
         ]
     )
-    planner = _planner(client=client)
+    planner = _planner(client=client, repair_enabled=False, max_repair_attempts=0)
 
     with pytest.raises(LocalModelLivePlannerError) as excinfo:
         planner.next_step(OBSERVATION)
@@ -311,7 +315,7 @@ def test_non_atomic_expected_text_is_rejected(expected_text: str) -> None:
             )
         ]
     )
-    planner = _planner(client=client)
+    planner = _planner(client=client, repair_enabled=False, max_repair_attempts=0)
 
     with pytest.raises(LocalModelLivePlannerError) as excinfo:
         planner.next_step(OBSERVATION)
@@ -323,6 +327,126 @@ def test_non_atomic_expected_text_is_rejected(expected_text: str) -> None:
     assert diagnostics["expected_text_path"] == "expected_text"
     assert "missing expected_text" not in str(excinfo.value).lower()
     assert "Traceback" not in diagnostics_text
+
+
+def test_repair_prompt_for_hard_policy_disambiguation_contains_exact_constraints() -> None:
+    planner = _planner(model_alias="third_model", allow_model_calls=True)
+    observation = {
+        "observation_id": "observation_0004",
+        "current_url": "https://local.intranet/",
+        "title": "Office Intranet Home",
+        "text_preview": "Office Intranet Home Ticket board Workspace policy Team status Approvals queue Search marker: fixture-backed result for local policy review.",
+        "metadata": {
+            "fixture_source": True,
+            "page_opened": True,
+            "scenario_id": "hard_policy_disambiguation",
+            "fixture_manifest_path": "tests/fixtures/local_intranet/office_site_v1/site_manifest.json",
+        },
+    }
+    invalid_action = {
+        "step_id": "click_policy",
+        "action_name": "browser_click",
+        "parameters": {"target_text": "Ticket board"},
+        "expected_text": "Ticket Board",
+        "expected_url": "https://local.intranet/ticket_board",
+    }
+
+    messages = planner._build_repair_messages(
+        observation_payload=observation,
+        invalid_action=invalid_action,
+        error_code="model_output_expected_url_not_matching_destination",
+        error_message="Model response expected_url must match the click destination exactly.",
+        error_diagnostics={
+            "expected_url": "https://local.intranet/ticket_board",
+            "resolved_destination_url": "https://local.intranet/tickets",
+        },
+    )
+
+    system = messages[0]["content"]
+    user = messages[1]["content"]
+
+    assert system.startswith("/no_think")
+    assert "Return exactly one JSON object only." in system or "Return exactly one JSON object." in user
+    assert "Keep action_name browser_click." in user
+    assert 'Use parameters {"target_text": "<visible link/button text>"}. ' not in user
+    assert 'Use parameters {"target_text": "<visible link/button text>"}.' in user
+    assert 'For hard_policy_disambiguation from the home page, click "Workspace policy", not "Ticket board".' in user
+    assert "Avoid for this goal: Ticket board; Team status; Approvals queue." in user
+    assert 'For hard_policy_disambiguation, expected_text must be one exact visible substring; choose one of "Workspace Policy", "Allowed activity", or "Search marker: fixture-backed result for workspace policy review."' in user
+    assert "For hard_policy_disambiguation, expected_url for Workspace policy must be exactly https://local.intranet/docs/policy." in user
+    assert "Do not output http<absolute_path>." in user
+    assert "No prose, no markdown." in user
+    assert "Rejection diagnostics:" in user
+    assert "model_output_expected_url_not_matching_destination" in user
+
+
+def test_repair_success_returns_repaired_step_and_tracks_attempts() -> None:
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"click_policy","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy; Allowed activity; Search marker: fixture-backed result for workspace policy review.","expected_url":"https://local.intranet/docs/policy"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"step_001_repair","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy","expected_url":"https://local.intranet/docs/policy"}',
+                finish_reason="stop",
+            ),
+        ]
+    )
+    planner = _planner(client=client)
+
+    step = planner.next_step(OBSERVATION)
+
+    assert step is not None
+    assert step.step_id == "step_001_repair"
+    assert step.action_name == "browser_click"
+    assert step.parameters == {"target_text": "Workspace policy"}
+    assert step.expected_text == "Workspace Policy"
+    assert step.expected_url == "https://local.intranet/docs/policy"
+    assert planner.repair_attempts == 1
+    assert planner.repair_attempts_succeeded == 1
+    assert planner.repair_attempts_failed == 0
+    assert planner.original_error_code == "model_output_expected_text_not_atomic"
+    assert planner.last_error_code is None
+    assert len(client.requests) == 2
+    assert "Exact error_code: model_output_expected_text_not_atomic" in client.requests[1].messages[1]["content"]
+
+
+def test_repair_can_be_disabled_with_zero_attempts() -> None:
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"click_policy","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy; Allowed activity; Search marker: fixture-backed result for workspace policy review.","expected_url":"https://local.intranet/docs/policy"}',
+                finish_reason="stop",
+            )
+        ]
+    )
+    planner = _planner(client=client, repair_enabled=False, max_repair_attempts=0)
+
+    with pytest.raises(LocalModelLivePlannerError) as excinfo:
+        planner.next_step(OBSERVATION)
+
+    assert excinfo.value.error_code == "model_output_expected_text_not_atomic"
+    assert planner.repair_attempts == 0
+    assert planner.repair_attempts_succeeded == 0
+    assert planner.repair_attempts_failed == 0
+    assert len(client.requests) == 1
+
+
+def test_non_repairable_http_error_does_not_attempt_repair() -> None:
+    class BrokenClient:
+        def complete(self, request):  # type: ignore[no-untyped-def]
+            raise httpx.ConnectError("boom", request=httpx.Request("POST", request.endpoint_base_url))
+
+    planner = _planner(client=BrokenClient())
+
+    with pytest.raises(LocalModelLivePlannerError) as excinfo:
+        planner.next_step(OBSERVATION)
+
+    assert excinfo.value.error_code == "planner_request_failed"
+    assert planner.repair_attempts == 0
+    assert planner.repair_attempts_succeeded == 0
+    assert planner.repair_attempts_failed == 0
 
 
 @pytest.mark.parametrize(
@@ -485,6 +609,7 @@ def test_allow_model_calls_required_refusal() -> None:
 
     assert excinfo.value.error_code == "allow_model_calls_required"
     assert client.requests == []
+    assert planner.repair_attempts == 0
 
 
 def test_non_local_endpoint_is_rejected_without_calling_client() -> None:

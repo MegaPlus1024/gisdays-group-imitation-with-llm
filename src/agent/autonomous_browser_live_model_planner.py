@@ -23,6 +23,8 @@ MIN_LOCAL_MODEL_MAX_TOKENS = 1200
 DEFAULT_LOCAL_MODEL_TEMPERATURE = 0.0
 DEFAULT_LOCAL_MODEL_MAX_TOKENS = 256
 DEFAULT_LOCAL_MODEL_TIMEOUT_SECONDS = 120.0
+DEFAULT_LOCAL_MODEL_REPAIR_ENABLED = True
+DEFAULT_LOCAL_MODEL_MAX_REPAIR_ATTEMPTS = 1
 ALLOWED_LOCAL_HOSTS = {"127.0.0.1", "localhost"}
 ALLOWED_LOCAL_EXPECTED_URL_HOSTS = {
     "127.0.0.1",
@@ -38,6 +40,13 @@ ALLOWED_LOCAL_MODEL_ACTION_NAMES = {
     "browser_extract_text",
     "browser_snapshot",
     "done",
+}
+REPAIRABLE_MODEL_OUTPUT_ERROR_CODES = {
+    "model_output_expected_text_not_atomic",
+    "model_output_invalid_expected_url",
+    "model_output_expected_url_not_matching_destination",
+    "model_output_expected_text_not_visible",
+    "model_output_unsupported_click_target",
 }
 
 
@@ -131,6 +140,8 @@ class LocalModelPlannerConfig:
     model_alias: str
     model_endpoint: str
     allow_model_calls: bool = False
+    repair_enabled: bool = DEFAULT_LOCAL_MODEL_REPAIR_ENABLED
+    max_repair_attempts: int = DEFAULT_LOCAL_MODEL_MAX_REPAIR_ATTEMPTS
     planner_id: str = DEFAULT_LOCAL_MODEL_PLANNER_ID
     allowed_model_aliases: tuple[str, ...] = ()
     no_think: bool | None = None
@@ -161,6 +172,18 @@ class LocalModelPlannerConfig:
         allow_model_calls = payload.get("allow_model_calls", False)
         if not isinstance(allow_model_calls, bool):
             raise LocalModelLivePlannerError("planner_backend.allow_model_calls must be a boolean.", "allow_model_calls_invalid")
+        repair_enabled = payload.get("repair_enabled", DEFAULT_LOCAL_MODEL_REPAIR_ENABLED)
+        if not isinstance(repair_enabled, bool):
+            raise LocalModelLivePlannerError("planner_backend.repair_enabled must be a boolean.", "repair_enabled_invalid")
+        max_repair_attempts = _int(
+            payload.get("max_repair_attempts", DEFAULT_LOCAL_MODEL_MAX_REPAIR_ATTEMPTS),
+            "max_repair_attempts",
+        )
+        if max_repair_attempts is None or max_repair_attempts < 0:
+            raise LocalModelLivePlannerError(
+                "planner_backend.max_repair_attempts must be a non-negative integer.",
+                "max_repair_attempts_invalid",
+            )
 
         allowed_model_aliases = tuple(
             str(item).strip()
@@ -183,6 +206,8 @@ class LocalModelPlannerConfig:
             model_alias=model_alias,
             model_endpoint=model_endpoint,
             allow_model_calls=allow_model_calls,
+            repair_enabled=repair_enabled,
+            max_repair_attempts=max_repair_attempts,
             planner_id=planner_id,
             allowed_model_aliases=allowed_model_aliases,
             no_think=no_think,
@@ -199,6 +224,8 @@ class LocalModelPlannerConfig:
             "model_alias": self.model_alias,
             "model_endpoint": self.model_endpoint,
             "allow_model_calls": self.allow_model_calls,
+            "repair_enabled": self.repair_enabled,
+            "max_repair_attempts": self.max_repair_attempts,
             "allowed_model_aliases": list(self.allowed_model_aliases),
             "no_think": self.no_think,
             "temperature": self.temperature,
@@ -221,6 +248,12 @@ class LocalModelLivePlanner:
     last_exception_type: str | None = field(default=None, init=False)
     last_http_status: int | None = field(default=None, init=False)
     last_error_diagnostics: dict[str, Any] = field(default_factory=dict, init=False)
+    original_error_code: str | None = field(default=None, init=False)
+    repair_attempts: int = field(default=0, init=False)
+    repair_attempts_succeeded: int = field(default=0, init=False)
+    repair_attempts_failed: int = field(default=0, init=False)
+    last_repair_error_code: str | None = field(default=None, init=False)
+    last_repair_response_text_preview_sanitized: str | None = field(default=None, init=False)
     last_finish_reason: str | None = field(default=None, init=False)
     last_response_text_preview_sanitized: str | None = field(default=None, init=False)
     last_request_payload_metadata: dict[str, Any] = field(default_factory=dict, init=False)
@@ -325,9 +358,22 @@ class LocalModelLivePlanner:
             return self.config.allowed_model_aliases
         return _load_model_aliases(self.repo_root)
 
+    def _clear_repair_state(self) -> None:
+        self.original_error_code = None
+        self.last_repair_error_code = None
+        self.last_repair_response_text_preview_sanitized = None
+
+    def _should_attempt_repair(self, error_code: str | None) -> bool:
+        return bool(
+            error_code
+            and self._repairing_is_enabled()
+            and error_code in REPAIRABLE_MODEL_OUTPUT_ERROR_CODES
+        )
+
     def next_step(self, observation: Mapping[str, Any] | None = None) -> AutonomousBrowserLivePlannerStep | None:
         self.validate_runtime_guard()
         self.step_index += 1
+        self._clear_repair_state()
         request = ChatCompletionRequest(
             endpoint_base_url=self.config.model_endpoint,
             model=self.config.model_alias,
@@ -440,7 +486,25 @@ class LocalModelLivePlanner:
             self._record_error(error)
             raise error
 
-        step = self._step_from_payload(parsed)
+        try:
+            step = self._step_from_payload(parsed)
+        except LocalModelLivePlannerError as exc:
+            if self._should_attempt_repair(exc.error_code):
+                repaired = self.repair_step(
+                    observation=observation,
+                    invalid_action=parsed,
+                    error_code=exc.error_code,
+                    error_message=str(exc),
+                    error_diagnostics=exc.diagnostics,
+                )
+                self.original_error_code = self.original_error_code or exc.error_code
+                self.last_error_code = None
+                self.last_error_message_sanitized = None
+                self.last_exception_type = None
+                self.last_http_status = None
+                self.last_error_diagnostics = {}
+                return repaired
+            raise
         return step
 
     def to_summary(self) -> dict[str, Any]:
@@ -459,6 +523,14 @@ class LocalModelLivePlanner:
             "last_exception_type": self.last_exception_type,
             "last_http_status": self.last_http_status,
             "last_error_diagnostics": dict(self.last_error_diagnostics) if self.last_error_diagnostics else {},
+            "original_error_code": self.original_error_code,
+            "repair_enabled": self.config.repair_enabled,
+            "max_repair_attempts": self.config.max_repair_attempts,
+            "repair_attempts": self.repair_attempts,
+            "repair_attempts_succeeded": self.repair_attempts_succeeded,
+            "repair_attempts_failed": self.repair_attempts_failed,
+            "last_repair_error_code": self.last_repair_error_code,
+            "last_repair_response_text_preview_sanitized": self.last_repair_response_text_preview_sanitized,
             "last_finish_reason": self.last_finish_reason,
             "last_response_text_preview_sanitized": self.last_response_text_preview_sanitized,
             "request_payload_metadata": dict(self.last_request_payload_metadata),
@@ -466,6 +538,171 @@ class LocalModelLivePlanner:
             "last_response_preview": _response_preview(self.last_response) if self.last_response is not None else None,
             "allowed_model_aliases": list(self.allowed_model_aliases()),
         }
+
+    def repair_step(
+        self,
+        *,
+        observation: Mapping[str, Any] | None,
+        invalid_action: Mapping[str, Any] | AutonomousBrowserLivePlannerStep,
+        error_code: str,
+        error_message: str,
+        error_diagnostics: Mapping[str, Any] | None = None,
+    ) -> AutonomousBrowserLivePlannerStep:
+        if not self._repairing_is_enabled():
+            raise LocalModelLivePlannerError(error_message, error_code, dict(error_diagnostics or {}))
+        repair_payload = self._build_repair_request_payload(
+            observation=observation,
+            invalid_action=invalid_action,
+            error_code=error_code,
+            error_message=error_message,
+            error_diagnostics=error_diagnostics,
+        )
+        self.repair_attempts += 1
+        self.original_error_code = self.original_error_code or error_code
+        request = ChatCompletionRequest(
+            endpoint_base_url=self.config.model_endpoint,
+            model=self.config.model_alias,
+            messages=tuple(repair_payload["messages"]),
+            temperature=self.config.temperature,
+            max_tokens=max(self.config.max_tokens, MIN_LOCAL_MODEL_MAX_TOKENS),
+            stream=False,
+            timeout_seconds=self.config.timeout_seconds,
+        )
+        self.last_request = request
+        self.last_request_payload_metadata = _request_payload_metadata(request)
+        self.last_error_diagnostics = {}
+        self.last_error_message_sanitized = None
+        self.last_exception_type = None
+        self.last_http_status = None
+        self.last_response_text_preview_sanitized = None
+        client = self.client or HttpxChatCompletionClient()
+        try:
+            response = client.complete(request)
+        except LocalModelLivePlannerError as exc:
+            self.repair_attempts_failed += 1
+            self.last_repair_error_code = exc.error_code
+            self.last_repair_response_text_preview_sanitized = None
+            self._record_error(exc)
+            raise
+        except (httpx.HTTPError, OSError, TimeoutError) as exc:
+            self.repair_attempts_failed += 1
+            wrapped = LocalModelLivePlannerError(
+                "Repair request failed.",
+                "planner_request_failed",
+                {
+                    "exception_type": exc.__class__.__name__,
+                    "request_payload_metadata": dict(self.last_request_payload_metadata),
+                    "response_text_preview_sanitized": _safe_response_excerpt(str(exc), limit=300),
+                },
+            )
+            self.last_repair_error_code = wrapped.error_code
+            self.last_repair_response_text_preview_sanitized = wrapped.diagnostics.get("response_text_preview_sanitized")
+            self._record_error(wrapped)
+            raise wrapped from exc
+        self.last_response = response
+        self.model_execution_completed = True
+        self.last_finish_reason = response.finish_reason
+        self.last_response_text_preview_sanitized = _safe_response_excerpt(response.content, limit=300)
+        self.last_repair_response_text_preview_sanitized = self.last_response_text_preview_sanitized
+        if (response.finish_reason or "").strip().lower() == "length":
+            self.repair_attempts_failed += 1
+            error = LocalModelLivePlannerError(
+                "Repair response finished due to length limit.",
+                "model_finish_reason_length",
+                {
+                    "exception_type": "LocalModelLivePlannerError",
+                    "finish_reason": response.finish_reason,
+                    "request_payload_metadata": dict(self.last_request_payload_metadata),
+                    "response_text_preview_sanitized": self.last_response_text_preview_sanitized,
+                },
+            )
+            self.last_repair_error_code = error.error_code
+            self._record_error(error)
+            raise error
+
+        content = response.content.strip()
+        if not content:
+            self.repair_attempts_failed += 1
+            error = LocalModelLivePlannerError(
+                "Repair response content was empty.",
+                "model_response_missing_content",
+                {
+                    "exception_type": "LocalModelLivePlannerError",
+                    "finish_reason": response.finish_reason,
+                    "request_payload_metadata": dict(self.last_request_payload_metadata),
+                    "response_text_preview_sanitized": self.last_response_text_preview_sanitized,
+                },
+            )
+            self.last_repair_error_code = error.error_code
+            self._record_error(error)
+            raise error
+
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError as exc:
+            self.repair_attempts_failed += 1
+            error = LocalModelLivePlannerError(
+                "Repair response was not valid JSON.",
+                "model_response_invalid_json",
+                {
+                    "exception_type": exc.__class__.__name__,
+                    "finish_reason": response.finish_reason,
+                    "request_payload_metadata": dict(self.last_request_payload_metadata),
+                    "response_text_preview_sanitized": self.last_response_text_preview_sanitized,
+                },
+            )
+            self.last_repair_error_code = error.error_code
+            self._record_error(error)
+            raise error from exc
+
+        if not isinstance(parsed, Mapping):
+            self.repair_attempts_failed += 1
+            error = LocalModelLivePlannerError(
+                "Repair response must be a JSON object.",
+                "model_output_no_json_object",
+                {
+                    "exception_type": "LocalModelLivePlannerError",
+                    "finish_reason": response.finish_reason,
+                    "request_payload_metadata": dict(self.last_request_payload_metadata),
+                    "response_text_preview_sanitized": self.last_response_text_preview_sanitized,
+                },
+            )
+            self.last_repair_error_code = error.error_code
+            self._record_error(error)
+            raise error
+
+        if "actions" in parsed:
+            self.repair_attempts_failed += 1
+            error = LocalModelLivePlannerError(
+                "Full plan objects are not allowed.",
+                "model_output_invalid_action",
+                {
+                    "exception_type": "LocalModelLivePlannerError",
+                    "finish_reason": response.finish_reason,
+                    "request_payload_metadata": dict(self.last_request_payload_metadata),
+                    "response_text_preview_sanitized": self.last_response_text_preview_sanitized,
+                },
+            )
+            self.last_repair_error_code = error.error_code
+            self._record_error(error)
+            raise error
+
+        try:
+            step = self._step_from_payload(parsed)
+        except LocalModelLivePlannerError as exc:
+            self.repair_attempts_failed += 1
+            self.last_repair_error_code = exc.error_code
+            self._record_error(exc)
+            raise
+
+        self.repair_attempts_succeeded += 1
+        self.last_repair_error_code = None
+        self.last_error_code = None
+        self.last_error_message_sanitized = None
+        self.last_exception_type = None
+        self.last_http_status = None
+        self.last_error_diagnostics = {}
+        return step
 
     def _step_from_payload(self, payload: Mapping[str, Any]) -> AutonomousBrowserLivePlannerStep:
         if "actions" in payload:
@@ -599,6 +836,72 @@ class LocalModelLivePlanner:
             done=False,
             metadata=metadata,
         )
+
+    def _repairing_is_enabled(self) -> bool:
+        return bool(self.config.repair_enabled and self.config.max_repair_attempts > 0)
+
+    def _build_repair_request_payload(
+        self,
+        *,
+        observation: Mapping[str, Any] | None,
+        invalid_action: Mapping[str, Any] | AutonomousBrowserLivePlannerStep,
+        error_code: str,
+        error_message: str,
+        error_diagnostics: Mapping[str, Any] | None,
+    ) -> dict[str, Any]:
+        payload = _observation_payload(observation)
+        invalid_payload = invalid_action.to_dict() if isinstance(invalid_action, AutonomousBrowserLivePlannerStep) else dict(invalid_action)
+        repair_messages = self._build_repair_messages(
+            observation_payload=payload,
+            invalid_action=invalid_payload,
+            error_code=error_code,
+            error_message=error_message,
+            error_diagnostics=error_diagnostics,
+        )
+        return {"messages": repair_messages}
+
+    def _build_repair_messages(
+        self,
+        *,
+        observation_payload: Mapping[str, Any],
+        invalid_action: Mapping[str, Any],
+        error_code: str,
+        error_message: str,
+        error_diagnostics: Mapping[str, Any] | None,
+    ) -> list[dict[str, str]]:
+        system_parts = [
+            "You are repairing one invalid browser planner action for a controlled local loop.",
+            "Return exactly one JSON object only.",
+            "Do not use markdown, code fences, arrays, or multiple JSON objects.",
+            "Do not invent extra actions.",
+            "Use only safe local fixture URLs and visible local fixture text.",
+            "Keep the repaired action minimal and valid for the current observation.",
+        ]
+        if self._effective_no_think():
+            system_parts.insert(0, "/no_think")
+
+        user_parts = [
+            "Previous response was rejected before fixture execution.",
+            f"Exact error_code: {error_code}",
+            f"Short error message: {error_message}",
+            "Current observation JSON:",
+            json.dumps(observation_payload, ensure_ascii=False, sort_keys=True),
+            "Sanitized previous invalid action:",
+            json.dumps(_sanitize_prompt_value(invalid_action), ensure_ascii=False, sort_keys=True),
+            "Repair constraints:",
+            *_repair_constraints_lines(
+                error_code=error_code,
+                observation_payload=observation_payload,
+                invalid_action=invalid_action,
+                error_diagnostics=error_diagnostics,
+            ),
+            "Return exactly one JSON object with keys step_id, action_name, parameters, expected_text, optional expected_url, optional done, optional metadata.",
+            "No prose, no markdown, no code fences.",
+        ]
+        return [
+            {"role": "system", "content": "\n".join(system_parts)},
+            {"role": "user", "content": "\n".join(user_parts)},
+        ]
 
     def _normalize_click_parameters(self, parameters: Mapping[str, Any]) -> dict[str, Any]:
         normalized = dict(parameters)
@@ -1134,3 +1437,96 @@ def _redact_secret_text(value: str) -> str:
         "<redacted_raw_text>",
         text,
     )
+
+
+def _sanitize_prompt_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        sanitized: dict[str, Any] = {}
+        for key, item in value.items():
+            sanitized[str(key)] = _sanitize_prompt_value(_sanitize_prompt_item(str(key), item))
+        return sanitized
+    if isinstance(value, list):
+        return [_sanitize_prompt_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [_sanitize_prompt_value(item) for item in value]
+    if isinstance(value, str):
+        return _sanitize_prompt_text(value)
+    if isinstance(value, (int, float, bool)) or value is None:
+        return value
+    return _sanitize_prompt_text(str(value))
+
+
+def _sanitize_prompt_item(key: str, value: Any) -> Any:
+    lowered = key.lower()
+    if any(marker in lowered for marker in ("api_key", "token", "secret", "password", "credential", "auth")):
+        return "<redacted_secret>"
+    if any(
+        marker in lowered
+        for marker in ("raw_prompt", "raw_response", "raw_output", "raw_model_output", "full_prompt", "full_response", "prompt_text", "response_text")
+    ):
+        return "<redacted_raw_text>"
+    return value
+
+
+def _sanitize_prompt_text(value: str) -> str:
+    text = _redact_secret_text(value)
+    text = re.sub(r"[A-Za-z]:[\\/][^\s\"']+", "<absolute_path>", text)
+    text = re.sub(r"(?<!\w)/(?:[^\s\"']+/)+[^\s\"']+", "<absolute_path>", text)
+    text = re.sub(r"\\\\[^\s\"']+", "<absolute_path>", text)
+    return text
+
+
+def _repair_constraints_lines(
+    *,
+    error_code: str,
+    observation_payload: Mapping[str, Any],
+    invalid_action: Mapping[str, Any],
+    error_diagnostics: Mapping[str, Any] | None,
+) -> list[str]:
+    metadata = observation_payload.get("metadata") if isinstance(observation_payload.get("metadata"), Mapping) else {}
+    scenario_id = _prompt_text(metadata.get("scenario_id")) if isinstance(metadata, Mapping) else None
+    current_url = _prompt_text(observation_payload.get("current_url"))
+    action_name = _prompt_text(invalid_action.get("action_name")) or ""
+    lines: list[str] = [
+        "Return exactly one JSON object.",
+        "Keep the repaired action minimal and valid for the current observation.",
+    ]
+    if action_name == "browser_click":
+        lines.append('Keep action_name browser_click.')
+        lines.append('Use parameters {"target_text": "<visible link/button text>"}.')
+    if error_code == "model_output_expected_text_not_atomic":
+        lines.append("expected_text must be exactly one visible substring.")
+        lines.append("Do not join anchors with semicolons.")
+    elif error_code == "model_output_invalid_expected_url":
+        lines.append("expected_url must be omitted or a valid local fixture URL.")
+        lines.append("Do not output http<absolute_path>.")
+    elif error_code == "model_output_expected_url_not_matching_destination":
+        lines.append("expected_url must exactly match the destination URL for the chosen target_text.")
+    elif error_code == "model_output_expected_text_not_visible":
+        lines.append("expected_text must be one exact visible substring from the destination page.")
+        lines.append("Do not copy text from the current page when the click navigates elsewhere.")
+    elif error_code == "model_output_unsupported_click_target":
+        lines.append('Use parameters {"target_text": "<visible link/button text>"} for browser_click.')
+        lines.append("Do not use selector, href, link_text, or button_text.")
+    else:
+        lines.append("Use only allowed local fixture actions and safe local fixture URLs.")
+    if scenario_id == "hard_policy_disambiguation" and current_url == "https://local.intranet/":
+        lines.extend(
+            [
+                'For hard_policy_disambiguation from the home page, click "Workspace policy", not "Ticket board".',
+                "Avoid for this goal: Ticket board; Team status; Approvals queue.",
+                'For hard_policy_disambiguation, expected_text must be one exact visible substring; choose one of "Workspace Policy", "Allowed activity", or "Search marker: fixture-backed result for workspace policy review."',
+                "For hard_policy_disambiguation, expected_url for Workspace policy must be exactly https://local.intranet/docs/policy.",
+                "Do not output http<absolute_path>.",
+                "No prose, no markdown.",
+            ]
+        )
+    if error_diagnostics:
+        safe_diagnostics = _sanitize_prompt_value(dict(error_diagnostics))
+        lines.extend(
+            [
+                "Rejection diagnostics:",
+                json.dumps(safe_diagnostics, ensure_ascii=False, sort_keys=True),
+            ]
+        )
+    return lines

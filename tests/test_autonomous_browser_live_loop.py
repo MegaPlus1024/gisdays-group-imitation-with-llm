@@ -79,6 +79,8 @@ def _load_local_model_config() -> dict[str, Any]:
             "model_alias": "third_model",
             "model_endpoint": "http://127.0.0.1:8082/v1",
             "allow_model_calls": False,
+            "repair_enabled": True,
+            "max_repair_attempts": 1,
             "allowed_model_aliases": ["first_model", "second_model", "third_model"],
             "temperature": 0.0,
             "max_tokens": 256,
@@ -127,6 +129,8 @@ def test_local_model_example_config_loads_with_relative_paths() -> None:
     assert config.planner_backend.model_alias == "third_model"
     assert config.planner_backend.model_endpoint == "http://127.0.0.1:8082/v1"
     assert config.planner_backend.allow_model_calls is False
+    assert config.planner_backend.repair_enabled is True
+    assert config.planner_backend.max_repair_attempts == 1
     assert config.planner_backend.allowed_model_aliases == ("first_model", "second_model", "third_model")
 
 
@@ -354,6 +358,8 @@ def test_local_model_backend_rejects_first_click_with_start_url_before_open_page
     config = _load_local_model_config()
     config["planner_backend"]["allow_model_calls"] = True
     config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    config["planner_backend"]["repair_enabled"] = False
+    config["planner_backend"]["max_repair_attempts"] = 0
     client = FakeChatCompletionClient(
         [
             ChatCompletionResponse(
@@ -427,6 +433,8 @@ def test_local_model_backend_accepts_first_open_url_with_start_page_anchor_text(
     config = _load_local_model_config()
     config["planner_backend"]["allow_model_calls"] = True
     config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    config["planner_backend"]["repair_enabled"] = False
+    config["planner_backend"]["max_repair_attempts"] = 0
     client = FakeChatCompletionClient(
         [
             ChatCompletionResponse(
@@ -461,6 +469,8 @@ def test_local_model_backend_accepts_click_with_destination_anchor_text() -> Non
     config = _load_local_model_config()
     config["planner_backend"]["allow_model_calls"] = True
     config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    config["planner_backend"]["repair_enabled"] = False
+    config["planner_backend"]["max_repair_attempts"] = 0
     client = FakeChatCompletionClient(
         [
             ChatCompletionResponse(
@@ -501,6 +511,8 @@ def test_local_model_backend_rejects_click_with_wrong_expected_url_before_fixtur
     config = _load_local_model_config()
     config["planner_backend"]["allow_model_calls"] = True
     config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    config["planner_backend"]["repair_enabled"] = False
+    config["planner_backend"]["max_repair_attempts"] = 0
     client = FakeChatCompletionClient(
         [
             ChatCompletionResponse(
@@ -536,10 +548,107 @@ def test_local_model_backend_rejects_click_with_wrong_expected_url_before_fixtur
     assert summary["runtime_trace"][1]["expected_result"]["metadata"]["resolved_destination_url"] == "https://local.intranet/tickets"
 
 
+def test_local_model_backend_repairs_click_expected_url_mismatch_before_fixture_execution() -> None:
+    config = _load_local_model_config()
+    config["planner_backend"]["allow_model_calls"] = True
+    config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet Home","expected_url":"https://local.intranet/"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"click_policy","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy","expected_url":"https://local.intranet/ticket_board"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"click_policy_repair","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy","expected_url":"https://local.intranet/docs/policy"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"done","action_name":"done","parameters":{},"expected_text":"","done":true}',
+                finish_reason="stop",
+            ),
+        ]
+    )
+
+    summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
+
+    assert summary["status"] == "succeeded"
+    assert summary["error_code"] is None
+    assert summary["stop_reason"] == "planner_signaled_done"
+    assert summary["model_execution"] is True
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["steps_attempted"] == 3
+    assert summary["actions_attempted"] == 2
+    assert summary["actions_succeeded"] == 2
+    assert summary["actions_failed"] == 0
+    assert summary["expected_results_passed"] == 2
+    assert summary["planner_backend"]["repair_attempts"] == 1
+    assert summary["planner_backend"]["repair_attempts_succeeded"] == 1
+    assert summary["planner_backend"]["repair_attempts_failed"] == 0
+    assert summary["planner_backend"]["original_error_code"] == "model_output_expected_url_not_matching_destination"
+    assert summary["planner_backend"]["last_repair_error_code"] is None
+    assert summary["runtime_trace"][1]["validation_status"] == "accepted"
+    assert summary["runtime_trace"][1]["fixture_execution_status"] == "succeeded"
+    assert summary["runtime_trace"][1]["error_code"] is None
+    assert summary["runtime_trace"][1]["planner_action"]["expected_url"] == "https://local.intranet/docs/policy"
+
+
+def test_local_model_backend_repair_failure_rejects_step_before_fixture_execution() -> None:
+    config = _load_local_model_config()
+    config["planner_backend"]["allow_model_calls"] = True
+    config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet Home","expected_url":"https://local.intranet/"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"click_policy","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy","expected_url":"https://local.intranet/ticket_board"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"click_policy_repair","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy; Allowed activity; Search marker: fixture-backed result for workspace policy review.","expected_url":"https://local.intranet/docs/policy"}',
+                finish_reason="stop",
+            ),
+        ]
+    )
+
+    summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
+
+    assert summary["status"] == "rejected"
+    assert summary["error_code"] == "model_output_expected_text_not_atomic"
+    assert summary["stop_reason"] == "planner_action_rejected"
+    assert summary["model_execution"] is True
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["steps_attempted"] == 2
+    assert summary["actions_attempted"] == 1
+    assert summary["actions_succeeded"] == 1
+    assert summary["actions_failed"] == 0
+    assert summary["planner_backend"]["repair_attempts"] == 1
+    assert summary["planner_backend"]["repair_attempts_succeeded"] == 0
+    assert summary["planner_backend"]["repair_attempts_failed"] == 1
+    assert summary["planner_backend"]["original_error_code"] == "model_output_expected_url_not_matching_destination"
+    assert summary["planner_backend"]["last_repair_error_code"] == "model_output_expected_text_not_atomic"
+    assert summary["runtime_trace"][0]["validation_status"] == "accepted"
+    assert summary["runtime_trace"][1]["validation_status"] == "accepted"
+    assert summary["runtime_trace"][1]["fixture_execution_status"] == "skipped"
+    assert summary["runtime_trace"][1]["error_code"] == "model_output_expected_text_not_atomic"
+
+
 def test_local_model_backend_rejects_click_with_current_page_expected_text() -> None:
     config = _load_local_model_config()
     config["planner_backend"]["allow_model_calls"] = True
     config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    config["planner_backend"]["repair_enabled"] = False
+    config["planner_backend"]["max_repair_attempts"] = 0
     client = FakeChatCompletionClient(
         [
             ChatCompletionResponse(
@@ -578,6 +687,8 @@ def test_local_model_backend_rejects_click_with_non_atomic_expected_text() -> No
     config = _load_local_model_config()
     config["planner_backend"]["allow_model_calls"] = True
     config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    config["planner_backend"]["repair_enabled"] = False
+    config["planner_backend"]["max_repair_attempts"] = 0
     client = FakeChatCompletionClient(
         [
             ChatCompletionResponse(
@@ -613,6 +724,8 @@ def test_local_model_backend_rejects_click_with_invalid_expected_url_before_dest
     config = _load_local_model_config()
     config["planner_backend"]["allow_model_calls"] = True
     config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    config["planner_backend"]["repair_enabled"] = False
+    config["planner_backend"]["max_repair_attempts"] = 0
     client = FakeChatCompletionClient(
         [
             ChatCompletionResponse(
@@ -648,6 +761,8 @@ def test_local_model_backend_rejects_invented_open_url_expected_text() -> None:
     config = _load_local_model_config()
     config["planner_backend"]["allow_model_calls"] = True
     config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    config["planner_backend"]["repair_enabled"] = False
+    config["planner_backend"]["max_repair_attempts"] = 0
     client = FakeChatCompletionClient(
         [
             ChatCompletionResponse(

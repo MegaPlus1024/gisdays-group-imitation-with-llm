@@ -29,6 +29,8 @@
     "model_alias": "third_model",
     "model_endpoint": "http://127.0.0.1:8082/v1",
     "allow_model_calls": false,
+    "repair_enabled": true,
+    "max_repair_attempts": 1,
     "allowed_model_aliases": [
       "first_model",
       "second_model",
