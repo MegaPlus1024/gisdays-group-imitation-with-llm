@@ -144,17 +144,19 @@ def test_prompt_includes_click_destination_anchor_guidance() -> None:
 
     assert "For browser_click, expected_text must come from the destination page reached by target_text, not the page you are currently reading." in system
     assert "For browser_click, expected_text must be exactly one visible substring, not multiple anchors joined together." in system
-    assert "For browser_click, expected_url must be a valid local fixture URL if present, and for click actions it must match the destination exactly." in system
+    assert "For browser_click, omit expected_url. Runtime resolves the destination URL from target_text and verifies it locally; if you include expected_url anyway, it must match the destination exactly." in system
     assert "Choose the link/button relevant to the scenario goal." in user
     assert 'For hard_policy_disambiguation from the home page, click "Workspace policy", not "Ticket board".' in user
     assert "Avoid for this goal: Ticket board; Team status; Approvals queue." in user
     assert 'For hard_policy_disambiguation, expected_text must be one exact visible substring; choose one of "Workspace Policy", "Allowed activity", or "Search marker: fixture-backed result for workspace policy review."' in user
-    assert "For hard_policy_disambiguation, expected_url for Workspace policy must be exactly https://local.intranet/docs/policy." in user
+    assert "Runtime destination URL for Workspace policy: https://local.intranet/docs/policy." in user
+    assert "For browser_click, omit expected_url." in user
     assert "Do not choose a link just because it is visible." in user
     assert "Click destination guidance:" in user
     assert "Exact click destinations: Ticket board -> https://local.intranet/tickets; Workspace policy -> https://local.intranet/docs/policy; Team status -> https://local.intranet/team/status; Approvals queue -> https://local.intranet/portal/approvals" in user
     assert "Workspace policy anchors: Workspace Policy; Allowed activity; Search marker: fixture-backed result for workspace policy review." in user
-    assert "If you include expected_url for a click, it must exactly match the listed destination URL." in user
+    assert "For browser_click, omit expected_url; runtime verifies the destination URL from target_text." in user
+    assert "If you include expected_url for a click anyway, it must exactly match the listed destination URL." in user
     assert "Do not invent URL paths such as /ticket_board." in user
     assert "Workspace Policy" in user
     assert "Allowed activity" in user
@@ -231,6 +233,26 @@ def test_browser_click_aliases_normalize_to_target_text(click_key: str) -> None:
     assert "link_text" not in step.parameters
     assert "button_text" not in step.parameters
     assert "text" not in step.parameters
+
+
+def test_browser_click_without_expected_url_is_allowed() -> None:
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"click_policy","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy"}',
+                finish_reason="stop",
+            )
+        ]
+    )
+    planner = _planner(client=client, repair_enabled=False, max_repair_attempts=0)
+
+    step = planner.next_step(OBSERVATION)
+
+    assert step is not None
+    assert step.action_name == "browser_click"
+    assert step.parameters == {"target_text": "Workspace policy"}
+    assert step.expected_text == "Workspace Policy"
+    assert step.expected_url is None
 
 
 def test_browser_click_without_visible_target_is_rejected() -> None:
@@ -374,12 +396,14 @@ def test_repair_prompt_for_hard_policy_disambiguation_contains_exact_constraints
     assert "Avoid for this goal: Ticket board; Team status; Approvals queue." in user
     assert "Use destination-page anchors only." in user
     assert 'For hard_policy_disambiguation, expected_text must be one exact visible substring; choose one of "Workspace Policy", "Allowed activity", or "Search marker: fixture-backed result for workspace policy review."' in user
-    assert "For hard_policy_disambiguation, expected_url for Workspace policy must be exactly https://local.intranet/docs/policy." in user
+    assert "Runtime destination URL for Workspace policy: https://local.intranet/docs/policy." in user
+    assert "For browser_click, omit expected_url." in user
     assert "Do not use http<absolute_path>, https<absolute_path>, or <absolute_path>." in user
     assert "Do not use semicolons." in user
     assert "Do not use multiple expected_text anchors." in user
     assert "Do not use start-page/home-page text." in user
-    assert '{"step_id": "step_001_repair", "action_name": "browser_click", "parameters": {"target_text": "Workspace policy"}, "expected_text": "Workspace Policy", "expected_url": "https://local.intranet/docs/policy"}' in user
+    assert '{"step_id": "step_001_repair", "action_name": "browser_click", "parameters": {"target_text": "Workspace policy"}, "expected_text": "Workspace Policy"}' in user
+    assert "Do not output expected_url." in user
     assert "Do not output http<absolute_path>." in user
     assert "No prose, no markdown." in user
     assert "Rejection diagnostics:" in user
@@ -395,7 +419,7 @@ def test_repair_success_returns_repaired_step_and_tracks_attempts() -> None:
                 finish_reason="stop",
             ),
             ChatCompletionResponse(
-                content='{"step_id":"step_001_repair","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy","expected_url":"https://local.intranet/docs/policy"}',
+                content='{"step_id":"step_001_repair","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy"}',
                 finish_reason="stop",
             ),
         ]
@@ -409,14 +433,16 @@ def test_repair_success_returns_repaired_step_and_tracks_attempts() -> None:
     assert step.action_name == "browser_click"
     assert step.parameters == {"target_text": "Workspace policy"}
     assert step.expected_text == "Workspace Policy"
-    assert step.expected_url == "https://local.intranet/docs/policy"
+    assert step.expected_url is None
     assert planner.repair_attempts == 1
     assert planner.repair_attempts_succeeded == 1
     assert planner.repair_attempts_failed == 0
     assert planner.original_error_code == "model_output_expected_text_not_atomic"
     assert planner.last_error_code is None
     assert len(client.requests) == 2
-    assert "Exact error_code: model_output_expected_text_not_atomic" in client.requests[1].messages[1]["content"]
+    repair_user = client.requests[1].messages[1]["content"]
+    assert "Omit expected_url for browser_click." in repair_user
+    assert "Exact error_code: model_output_expected_text_not_atomic" in repair_user
 
 
 def test_repair_can_be_disabled_with_zero_attempts() -> None:

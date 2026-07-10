@@ -824,7 +824,14 @@ def run_autonomous_browser_live_loop(
                     )
                     break
 
+        click_destination_resolution = None
         if planned_step.action_name == "browser_click":
+            click_destination_resolution = _resolve_browser_click_destination(
+                planned_step.parameters,
+                session=session,
+                fixture_manifest_path=config.browser_session.fixture_manifest_path,
+                repo_root=repo,
+            )
             unsupported_click_issue = _browser_click_target_not_supported(
                 planned_step.parameters,
                 session=session,
@@ -1426,6 +1433,13 @@ def run_autonomous_browser_live_loop(
             expected_results_passed += 1
         else:
             expected_results_failed += 1
+        if (
+            planned_step.action_name == "browser_click"
+            and planned_step.expected_url is None
+            and click_destination_resolution is not None
+            and isinstance(expected_result.get("metadata"), dict)
+        ):
+            expected_result["metadata"]["resolved_destination_url"] = click_destination_resolution.url
 
         next_observation = result.observation if result.observation is not None else session.last_observation
         if next_observation is None:

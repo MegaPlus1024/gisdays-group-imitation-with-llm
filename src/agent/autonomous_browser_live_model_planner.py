@@ -278,7 +278,7 @@ class LocalModelLivePlanner:
             "Do not use link_text, button_text, selector, href, XPath, or CSS selectors for browser_click.",
             "For browser_click, expected_text must come from the destination page reached by target_text, not the page you are currently reading.",
             "For browser_click, expected_text must be exactly one visible substring, not multiple anchors joined together.",
-            "For browser_click, expected_url must be a valid local fixture URL if present, and for click actions it must match the destination exactly.",
+            "For browser_click, omit expected_url. Runtime resolves the destination URL from target_text and verifies it locally; if you include expected_url anyway, it must match the destination exactly.",
             "Never request secrets, credentials, tokens, passwords, file URLs, external URLs, or real browser access.",
         ]
         if self._effective_no_think():
@@ -308,7 +308,7 @@ class LocalModelLivePlanner:
             system_parts.append("When current_url is null, open the scenario start URL before click, extract, or snapshot actions.")
         user_parts.extend(
             [
-                "Return one JSON object with keys step_id, action_name, parameters, expected_text, optional expected_url, optional done, optional metadata.",
+                "Return one JSON object with keys step_id, action_name, parameters, expected_text, optional expected_url (omit it for browser_click), optional done, optional metadata.",
                 "If you are done, set action_name to done and done to true.",
                 "If you are not done, keep expected_text short and grounded in the local fixture observation.",
             ]
@@ -895,7 +895,7 @@ class LocalModelLivePlanner:
                 invalid_action=invalid_action,
                 error_diagnostics=error_diagnostics,
             ),
-            "Return exactly one JSON object with keys step_id, action_name, parameters, expected_text, optional expected_url, optional done, optional metadata.",
+            "Return exactly one JSON object with keys step_id, action_name, parameters, expected_text, optional expected_url (omit it for browser_click), optional done, optional metadata.",
             "No prose, no markdown, no code fences.",
         ]
         return [
@@ -1337,7 +1337,8 @@ def _click_destination_guidance(
     lines: list[str] = [
         "Choose the link/button relevant to the scenario goal.",
         "Do not choose a link just because it is visible.",
-        "If you include expected_url for a click, it must exactly match the listed destination URL.",
+        "For browser_click, omit expected_url; runtime verifies the destination URL from target_text.",
+        "If you include expected_url for a click anyway, it must exactly match the listed destination URL.",
         "Do not invent URL paths such as /ticket_board.",
         "Click destination guidance:",
     ]
@@ -1345,7 +1346,8 @@ def _click_destination_guidance(
         lines.append('For hard_policy_disambiguation from the home page, click "Workspace policy", not "Ticket board".')
         lines.append("Avoid for this goal: Ticket board; Team status; Approvals queue.")
         lines.append('For hard_policy_disambiguation, expected_text must be one exact visible substring; choose one of "Workspace Policy", "Allowed activity", or "Search marker: fixture-backed result for workspace policy review.".')
-        lines.append("For hard_policy_disambiguation, expected_url for Workspace policy must be exactly https://local.intranet/docs/policy.")
+        lines.append("Runtime destination URL for Workspace policy: https://local.intranet/docs/policy.")
+        lines.append("For browser_click, omit expected_url.")
     urls: list[str] = []
     for link in links:
         target_text = link["text"]
@@ -1496,14 +1498,15 @@ def _repair_constraints_lines(
     if action_name == "browser_click":
         lines.append('Keep action_name browser_click.')
         lines.append('Use parameters {"target_text": "<visible link/button text>"}.')
+        lines.append("Omit expected_url for browser_click.")
     if error_code == "model_output_expected_text_not_atomic":
         lines.append("expected_text must be exactly one visible substring.")
         lines.append("Do not join anchors with semicolons.")
     elif error_code == "model_output_invalid_expected_url":
-        lines.append("expected_url must be omitted or a valid local fixture URL.")
+        lines.append("Do not output expected_url.")
         lines.append("Do not output http<absolute_path>.")
     elif error_code == "model_output_expected_url_not_matching_destination":
-        lines.append("expected_url must exactly match the destination URL for the chosen target_text.")
+        lines.append("Omit expected_url for browser_click.")
     elif error_code == "model_output_expected_text_not_visible":
         lines.append("expected_text must be one exact visible substring from the destination page.")
         lines.append("Do not copy text from the current page when the click navigates elsewhere.")
@@ -1519,13 +1522,15 @@ def _repair_constraints_lines(
                 "Avoid for this goal: Ticket board; Team status; Approvals queue.",
                 "Use destination-page anchors only.",
                 'For hard_policy_disambiguation, expected_text must be one exact visible substring; choose one of "Workspace Policy", "Allowed activity", or "Search marker: fixture-backed result for workspace policy review.".',
-                "For hard_policy_disambiguation, expected_url for Workspace policy must be exactly https://local.intranet/docs/policy.",
+                "Runtime destination URL for Workspace policy: https://local.intranet/docs/policy.",
+                "For browser_click, omit expected_url.",
                 "Do not use http<absolute_path>, https<absolute_path>, or <absolute_path>.",
                 "Do not use semicolons.",
                 "Do not use multiple expected_text anchors.",
                 "Do not use start-page/home-page text.",
                 "Suggested repair JSON example:",
-                '{"step_id": "step_001_repair", "action_name": "browser_click", "parameters": {"target_text": "Workspace policy"}, "expected_text": "Workspace Policy", "expected_url": "https://local.intranet/docs/policy"}',
+                '{"step_id": "step_001_repair", "action_name": "browser_click", "parameters": {"target_text": "Workspace policy"}, "expected_text": "Workspace Policy"}',
+                "Do not output expected_url.",
                 "Do not output http<absolute_path>.",
                 "No prose, no markdown.",
             ]
