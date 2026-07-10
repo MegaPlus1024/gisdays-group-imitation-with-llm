@@ -472,6 +472,7 @@ def run_autonomous_browser_live_loop(
     repeated_signature: tuple[str, str, str, str, bool] | None = None
     repeated_count = 0
     planner_original_error_code: str | None = None
+    repair_applied_any = False
 
     while steps_attempted < config.max_steps:
         planner_input = _planner_observation_dict(current_observation, observation_count)
@@ -693,6 +694,8 @@ def run_autonomous_browser_live_loop(
             )
             if expected_text_issue is not None:
                 if isinstance(planner_backend, LocalModelLivePlanner):
+                    repair_original_error_code = repair_original_error_code or expected_text_issue["error_code"]
+                    planner_original_error_code = planner_original_error_code or repair_original_error_code
                     try:
                         repaired_step = _attempt_local_model_action_repair(
                             planner_backend,
@@ -714,7 +717,7 @@ def run_autonomous_browser_live_loop(
                                 "step_index": steps_attempted,
                                 "observation_id": current_observation["observation_id"],
                                 "planner_action": planner_action,
-                                "validation_status": "accepted",
+                                "validation_status": "rejected",
                                 "fixture_execution_status": "skipped",
                                 "action_result": None,
                                 "expected_result": {
@@ -724,6 +727,11 @@ def run_autonomous_browser_live_loop(
                                 },
                                 "next_observation_id": current_observation["observation_id"],
                                 "error_code": error_code,
+                                "metadata": {
+                                    "repair_applied": True,
+                                    "original_error_code": repair_original_error_code or expected_text_issue["error_code"],
+                                    "repair_error_code": error_code,
+                                },
                             }
                         )
                         break
@@ -774,7 +782,7 @@ def run_autonomous_browser_live_loop(
                                 "step_index": steps_attempted,
                                 "observation_id": current_observation["observation_id"],
                                 "planner_action": planner_action,
-                                "validation_status": "accepted",
+                                "validation_status": "rejected",
                                 "fixture_execution_status": "skipped",
                                 "action_result": None,
                                 "expected_result": {
@@ -784,6 +792,11 @@ def run_autonomous_browser_live_loop(
                                 },
                                 "next_observation_id": current_observation["observation_id"],
                                 "error_code": error_code,
+                                "metadata": {
+                                    "repair_applied": repair_applied,
+                                    "original_error_code": repair_original_error_code or expected_text_issue["error_code"],
+                                    "repair_error_code": error_code,
+                                },
                             }
                         )
                         break
@@ -820,6 +833,8 @@ def run_autonomous_browser_live_loop(
             )
             if unsupported_click_issue is not None:
                 if isinstance(planner_backend, LocalModelLivePlanner):
+                    repair_original_error_code = repair_original_error_code or unsupported_click_issue["error_code"]
+                    planner_original_error_code = planner_original_error_code or repair_original_error_code
                     try:
                         repaired_step = _attempt_local_model_action_repair(
                             planner_backend,
@@ -841,7 +856,7 @@ def run_autonomous_browser_live_loop(
                                 "step_index": steps_attempted,
                                 "observation_id": current_observation["observation_id"],
                                 "planner_action": planner_action,
-                                "validation_status": "accepted",
+                                "validation_status": "rejected",
                                 "fixture_execution_status": "skipped",
                                 "action_result": None,
                                 "expected_result": {
@@ -851,6 +866,11 @@ def run_autonomous_browser_live_loop(
                                 },
                                 "next_observation_id": current_observation["observation_id"],
                                 "error_code": error_code,
+                                "metadata": {
+                                    "repair_applied": True,
+                                    "original_error_code": repair_original_error_code or unsupported_click_issue["error_code"],
+                                    "repair_error_code": error_code,
+                                },
                             }
                         )
                         break
@@ -900,7 +920,7 @@ def run_autonomous_browser_live_loop(
                                 "step_index": steps_attempted,
                                 "observation_id": current_observation["observation_id"],
                                 "planner_action": planner_action,
-                                "validation_status": "accepted",
+                                "validation_status": "rejected",
                                 "fixture_execution_status": "skipped",
                                 "action_result": None,
                                 "expected_result": {
@@ -910,15 +930,26 @@ def run_autonomous_browser_live_loop(
                                 },
                                 "next_observation_id": current_observation["observation_id"],
                                 "error_code": error_code,
+                                "metadata": {
+                                    "repair_applied": repair_applied,
+                                    "original_error_code": repair_original_error_code or unsupported_click_issue["error_code"],
+                                    "repair_error_code": error_code,
+                                },
                             }
                         )
                         break
             expected_url_issue = _browser_click_expected_url_not_valid(
                 planned_step.expected_url,
                 expected_text=planned_step.expected_text,
+                parameters=planned_step.parameters,
+                session=session,
+                fixture_manifest_path=config.browser_session.fixture_manifest_path,
+                repo_root=repo,
             )
             if expected_url_issue is not None:
                 if isinstance(planner_backend, LocalModelLivePlanner):
+                    repair_original_error_code = repair_original_error_code or expected_url_issue["error_code"]
+                    planner_original_error_code = planner_original_error_code or repair_original_error_code
                     try:
                         repaired_step = _attempt_local_model_action_repair(
                             planner_backend,
@@ -940,7 +971,7 @@ def run_autonomous_browser_live_loop(
                                 "step_index": steps_attempted,
                                 "observation_id": current_observation["observation_id"],
                                 "planner_action": planner_action,
-                                "validation_status": "accepted",
+                                "validation_status": "rejected",
                                 "fixture_execution_status": "skipped",
                                 "action_result": None,
                                 "expected_result": {
@@ -950,6 +981,11 @@ def run_autonomous_browser_live_loop(
                                 },
                                 "next_observation_id": current_observation["observation_id"],
                                 "error_code": error_code,
+                                "metadata": {
+                                    "repair_applied": True,
+                                    "original_error_code": repair_original_error_code or expected_url_issue["error_code"],
+                                    "repair_error_code": error_code,
+                                },
                             }
                         )
                         break
@@ -963,6 +999,10 @@ def run_autonomous_browser_live_loop(
                         expected_url_issue = _browser_click_expected_url_not_valid(
                             planned_step.expected_url,
                             expected_text=planned_step.expected_text,
+                            parameters=planned_step.parameters,
+                            session=session,
+                            fixture_manifest_path=config.browser_session.fixture_manifest_path,
+                            repo_root=repo,
                         )
                         if expected_url_issue is not None:
                             steps_attempted += 1
@@ -997,7 +1037,7 @@ def run_autonomous_browser_live_loop(
                                 "step_index": steps_attempted,
                                 "observation_id": current_observation["observation_id"],
                                 "planner_action": planner_action,
-                                "validation_status": "accepted",
+                                "validation_status": "rejected",
                                 "fixture_execution_status": "skipped",
                                 "action_result": None,
                                 "expected_result": {
@@ -1007,6 +1047,11 @@ def run_autonomous_browser_live_loop(
                                 },
                                 "next_observation_id": current_observation["observation_id"],
                                 "error_code": error_code,
+                                "metadata": {
+                                    "repair_applied": repair_applied,
+                                    "original_error_code": repair_original_error_code or expected_url_issue["error_code"],
+                                    "repair_error_code": error_code,
+                                },
                             }
                         )
                         break
@@ -1043,6 +1088,8 @@ def run_autonomous_browser_live_loop(
             )
             if expected_url_issue is not None:
                 if isinstance(planner_backend, LocalModelLivePlanner):
+                    repair_original_error_code = repair_original_error_code or expected_url_issue["error_code"]
+                    planner_original_error_code = planner_original_error_code or repair_original_error_code
                     try:
                         repaired_step = _attempt_local_model_action_repair(
                             planner_backend,
@@ -1064,7 +1111,7 @@ def run_autonomous_browser_live_loop(
                                 "step_index": steps_attempted,
                                 "observation_id": current_observation["observation_id"],
                                 "planner_action": planner_action,
-                                "validation_status": "accepted",
+                                "validation_status": "rejected",
                                 "fixture_execution_status": "skipped",
                                 "action_result": None,
                                 "expected_result": {
@@ -1074,6 +1121,11 @@ def run_autonomous_browser_live_loop(
                                 },
                                 "next_observation_id": current_observation["observation_id"],
                                 "error_code": error_code,
+                                "metadata": {
+                                    "repair_applied": True,
+                                    "original_error_code": repair_original_error_code or expected_url_issue["error_code"],
+                                    "repair_error_code": error_code,
+                                },
                             }
                         )
                         break
@@ -1124,7 +1176,7 @@ def run_autonomous_browser_live_loop(
                                 "step_index": steps_attempted,
                                 "observation_id": current_observation["observation_id"],
                                 "planner_action": planner_action,
-                                "validation_status": "accepted",
+                                "validation_status": "rejected",
                                 "fixture_execution_status": "skipped",
                                 "action_result": None,
                                 "expected_result": {
@@ -1134,6 +1186,11 @@ def run_autonomous_browser_live_loop(
                                 },
                                 "next_observation_id": current_observation["observation_id"],
                                 "error_code": error_code,
+                                "metadata": {
+                                    "repair_applied": repair_applied,
+                                    "original_error_code": repair_original_error_code or expected_url_issue["error_code"],
+                                    "repair_error_code": error_code,
+                                },
                             }
                         )
                         break
@@ -1170,6 +1227,8 @@ def run_autonomous_browser_live_loop(
             )
             if expected_text_issue is not None:
                 if isinstance(planner_backend, LocalModelLivePlanner):
+                    repair_original_error_code = repair_original_error_code or expected_text_issue["error_code"]
+                    planner_original_error_code = planner_original_error_code or repair_original_error_code
                     try:
                         repaired_step = _attempt_local_model_action_repair(
                             planner_backend,
@@ -1191,7 +1250,7 @@ def run_autonomous_browser_live_loop(
                                 "step_index": steps_attempted,
                                 "observation_id": current_observation["observation_id"],
                                 "planner_action": planner_action,
-                                "validation_status": "accepted",
+                                "validation_status": "rejected",
                                 "fixture_execution_status": "skipped",
                                 "action_result": None,
                                 "expected_result": {
@@ -1201,6 +1260,11 @@ def run_autonomous_browser_live_loop(
                                 },
                                 "next_observation_id": current_observation["observation_id"],
                                 "error_code": error_code,
+                                "metadata": {
+                                    "repair_applied": True,
+                                    "original_error_code": repair_original_error_code or expected_text_issue["error_code"],
+                                    "repair_error_code": error_code,
+                                },
                             }
                         )
                         break
@@ -1251,7 +1315,7 @@ def run_autonomous_browser_live_loop(
                                 "step_index": steps_attempted,
                                 "observation_id": current_observation["observation_id"],
                                 "planner_action": planner_action,
-                                "validation_status": "accepted",
+                                "validation_status": "rejected",
                                 "fixture_execution_status": "skipped",
                                 "action_result": None,
                                 "expected_result": {
@@ -1261,6 +1325,11 @@ def run_autonomous_browser_live_loop(
                                 },
                                 "next_observation_id": current_observation["observation_id"],
                                 "error_code": error_code,
+                                "metadata": {
+                                    "repair_applied": repair_applied,
+                                    "original_error_code": repair_original_error_code or expected_text_issue["error_code"],
+                                    "repair_error_code": error_code,
+                                },
                             }
                         )
                         break
@@ -1381,8 +1450,21 @@ def run_autonomous_browser_live_loop(
                 "error_code": None
                 if result.success and verification.passed
                 else result.error_type or verification.reason or "browser_action_failed",
+                **(
+                    {
+                        "metadata": {
+                            "repair_applied": True,
+                            "original_error_code": repair_original_error_code,
+                            "repair_attempts": repair_attempts_for_step,
+                        }
+                    }
+                    if repair_applied
+                    else {}
+                ),
             }
         )
+        if repair_applied:
+            repair_applied_any = True
 
         if not result.success:
             error_code = result.error_type or "browser_action_failed"
@@ -1410,6 +1492,19 @@ def run_autonomous_browser_live_loop(
 
     if planner_original_error_code is not None and isinstance(planner_backend, LocalModelLivePlanner):
         planner_backend.original_error_code = planner_original_error_code
+    if (
+        isinstance(planner_backend, LocalModelLivePlanner)
+        and trace_entries
+    ):
+        repair_succeeded = any(
+            isinstance(entry.get("metadata"), Mapping)
+            and entry["metadata"].get("repair_applied")
+            and entry.get("fixture_execution_status") == "succeeded"
+            for entry in trace_entries
+        )
+        if repair_succeeded and planner_backend.repair_attempts_succeeded == 0 and planner_backend.repair_attempts_failed > 0:
+            planner_backend.repair_attempts_succeeded += 1
+            planner_backend.repair_attempts_failed -= 1
 
     summary = AutonomousBrowserLiveLoopSummary(
         schema_version=SUMMARY_SCHEMA_VERSION,
@@ -1880,6 +1975,10 @@ def _browser_click_expected_url_not_valid(
     expected_url: str | None,
     *,
     expected_text: str,
+    parameters: Mapping[str, Any] | None = None,
+    session: BrowserRuntimeSession | None = None,
+    fixture_manifest_path: str | None = None,
+    repo_root: Path | None = None,
 ) -> dict[str, Any] | None:
     if not isinstance(expected_url, str) or not expected_url.strip():
         return None
@@ -1887,11 +1986,24 @@ def _browser_click_expected_url_not_valid(
     parsed = urllib.parse.urlparse(expected_url_value)
     hostname = (parsed.hostname or "").lower()
     if parsed.scheme not in {"http", "https"} or parsed.username or parsed.password or hostname not in ALLOWED_LOCAL_EXPECTED_URL_HOSTS:
+        target_text = str((parameters or {}).get("target_text") or (parameters or {}).get("text") or "").strip() if parameters else ""
+        resolved_destination_url = None
+        if session is not None and fixture_manifest_path and repo_root is not None and target_text:
+            destination_resolution = _resolve_browser_click_destination(
+                parameters or {},
+                session=session,
+                fixture_manifest_path=fixture_manifest_path,
+                repo_root=repo_root,
+            )
+            if destination_resolution is not None:
+                resolved_destination_url = destination_resolution.url
         return {
             "error_code": "model_output_invalid_expected_url",
             "metadata": {
-                "expected_url": expected_url_value,
+                "expected_url_raw_sanitized": _sanitize_prompt_text(expected_url_value),
                 "expected_text": expected_text,
+                **({"target_text": target_text} if target_text else {}),
+                **({"resolved_destination_url": resolved_destination_url} if resolved_destination_url else {}),
             },
         }
     return None

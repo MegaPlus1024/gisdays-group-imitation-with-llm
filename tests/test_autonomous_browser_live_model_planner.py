@@ -372,12 +372,19 @@ def test_repair_prompt_for_hard_policy_disambiguation_contains_exact_constraints
     assert 'Use parameters {"target_text": "<visible link/button text>"}.' in user
     assert 'For hard_policy_disambiguation from the home page, click "Workspace policy", not "Ticket board".' in user
     assert "Avoid for this goal: Ticket board; Team status; Approvals queue." in user
+    assert "Use destination-page anchors only." in user
     assert 'For hard_policy_disambiguation, expected_text must be one exact visible substring; choose one of "Workspace Policy", "Allowed activity", or "Search marker: fixture-backed result for workspace policy review."' in user
     assert "For hard_policy_disambiguation, expected_url for Workspace policy must be exactly https://local.intranet/docs/policy." in user
+    assert "Do not use http<absolute_path>, https<absolute_path>, or <absolute_path>." in user
+    assert "Do not use semicolons." in user
+    assert "Do not use multiple expected_text anchors." in user
+    assert "Do not use start-page/home-page text." in user
+    assert '{"step_id": "step_001_repair", "action_name": "browser_click", "parameters": {"target_text": "Workspace policy"}, "expected_text": "Workspace Policy", "expected_url": "https://local.intranet/docs/policy"}' in user
     assert "Do not output http<absolute_path>." in user
     assert "No prose, no markdown." in user
     assert "Rejection diagnostics:" in user
     assert "model_output_expected_url_not_matching_destination" in user
+    assert "Search marker: fixture-backed result for local policy review." not in user
 
 
 def test_repair_success_returns_repaired_step_and_tracks_attempts() -> None:

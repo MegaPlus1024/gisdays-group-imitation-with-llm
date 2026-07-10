@@ -885,7 +885,7 @@ class LocalModelLivePlanner:
             f"Exact error_code: {error_code}",
             f"Short error message: {error_message}",
             "Current observation JSON:",
-            json.dumps(observation_payload, ensure_ascii=False, sort_keys=True),
+            json.dumps(_repair_observation_payload(observation_payload), ensure_ascii=False, sort_keys=True),
             "Sanitized previous invalid action:",
             json.dumps(_sanitize_prompt_value(invalid_action), ensure_ascii=False, sort_keys=True),
             "Repair constraints:",
@@ -1088,6 +1088,7 @@ def _safe_expected_url(
             {
                 "request_payload_metadata": dict(request_payload_metadata or {}),
                 "expected_url_path": label,
+                "expected_url_raw_sanitized": _sanitize_prompt_text(stripped),
             },
         )
     hostname = (parsed.hostname or "").lower()
@@ -1098,6 +1099,7 @@ def _safe_expected_url(
             {
                 "request_payload_metadata": dict(request_payload_metadata or {}),
                 "expected_url_path": label,
+                "expected_url_raw_sanitized": _sanitize_prompt_text(stripped),
             },
         )
     return stripped
@@ -1515,8 +1517,15 @@ def _repair_constraints_lines(
             [
                 'For hard_policy_disambiguation from the home page, click "Workspace policy", not "Ticket board".',
                 "Avoid for this goal: Ticket board; Team status; Approvals queue.",
-                'For hard_policy_disambiguation, expected_text must be one exact visible substring; choose one of "Workspace Policy", "Allowed activity", or "Search marker: fixture-backed result for workspace policy review."',
+                "Use destination-page anchors only.",
+                'For hard_policy_disambiguation, expected_text must be one exact visible substring; choose one of "Workspace Policy", "Allowed activity", or "Search marker: fixture-backed result for workspace policy review.".',
                 "For hard_policy_disambiguation, expected_url for Workspace policy must be exactly https://local.intranet/docs/policy.",
+                "Do not use http<absolute_path>, https<absolute_path>, or <absolute_path>.",
+                "Do not use semicolons.",
+                "Do not use multiple expected_text anchors.",
+                "Do not use start-page/home-page text.",
+                "Suggested repair JSON example:",
+                '{"step_id": "step_001_repair", "action_name": "browser_click", "parameters": {"target_text": "Workspace policy"}, "expected_text": "Workspace Policy", "expected_url": "https://local.intranet/docs/policy"}',
                 "Do not output http<absolute_path>.",
                 "No prose, no markdown.",
             ]
@@ -1530,3 +1539,20 @@ def _repair_constraints_lines(
             ]
         )
     return lines
+
+
+def _repair_observation_payload(observation_payload: Mapping[str, Any]) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    for key in ("observation_id", "current_url", "title"):
+        value = observation_payload.get(key)
+        if value is not None:
+            payload[key] = _sanitize_prompt_value(value)
+    metadata = observation_payload.get("metadata")
+    if isinstance(metadata, Mapping):
+        safe_metadata: dict[str, Any] = {}
+        for key in ("scenario_id", "fixture_source", "page_opened", "browser_opened"):
+            if key in metadata:
+                safe_metadata[key] = _sanitize_prompt_value(metadata.get(key))
+        if safe_metadata:
+            payload["metadata"] = safe_metadata
+    return payload

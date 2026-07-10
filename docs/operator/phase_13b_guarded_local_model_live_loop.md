@@ -60,6 +60,12 @@ This path should refuse with `allow_model_calls_required` unless the operator ex
 - `model_output_invalid_expected_url` means the model emitted a malformed, non-local, or placeholder `expected_url`; the `Workspace policy` click must use `https://local.intranet/docs/policy`
 - this is still fixture-backed operator guidance only; it does not add browser launch capability or production readiness
 
+## Phase 13B11 note
+
+- repaired live-loop runs now preserve repair provenance in the summary trace with `repair_applied`, `original_error_code`, and `repair_error_code`
+- successful repair attempts are counted from the actual repaired execution trace, while invalid repair outputs still stop safely before fixture execution
+- these diagnostics stay structured for operator troubleshooting and do not change the guarded default behavior
+
 ## Guarded operator run
 
 ```powershell

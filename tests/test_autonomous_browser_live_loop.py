@@ -540,7 +540,7 @@ def test_local_model_backend_rejects_click_with_wrong_expected_url_before_fixtur
     assert summary["actions_succeeded"] == 1
     assert summary["actions_failed"] == 0
     assert summary["runtime_trace"][0]["validation_status"] == "accepted"
-    assert summary["runtime_trace"][1]["validation_status"] == "accepted"
+    assert summary["runtime_trace"][1]["validation_status"] == "rejected"
     assert summary["runtime_trace"][1]["fixture_execution_status"] == "skipped"
     assert summary["runtime_trace"][1]["error_code"] == "model_output_expected_url_not_matching_destination"
     assert summary["runtime_trace"][1]["expected_result"]["reason"] == "model_output_expected_url_not_matching_destination"
@@ -596,6 +596,8 @@ def test_local_model_backend_repairs_click_expected_url_mismatch_before_fixture_
     assert summary["runtime_trace"][1]["fixture_execution_status"] == "succeeded"
     assert summary["runtime_trace"][1]["error_code"] is None
     assert summary["runtime_trace"][1]["planner_action"]["expected_url"] == "https://local.intranet/docs/policy"
+    assert summary["runtime_trace"][1]["metadata"]["repair_applied"] is True
+    assert summary["runtime_trace"][1]["metadata"]["original_error_code"] == "model_output_expected_url_not_matching_destination"
 
 
 def test_local_model_backend_repair_failure_rejects_step_before_fixture_execution() -> None:
@@ -613,7 +615,7 @@ def test_local_model_backend_repair_failure_rejects_step_before_fixture_executio
                 finish_reason="stop",
             ),
             ChatCompletionResponse(
-                content='{"step_id":"click_policy_repair","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy; Allowed activity; Search marker: fixture-backed result for workspace policy review.","expected_url":"https://local.intranet/docs/policy"}',
+                content='{"step_id":"click_policy_repair","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy","expected_url":"http<absolute_path>"}',
                 finish_reason="stop",
             ),
         ]
@@ -622,7 +624,7 @@ def test_local_model_backend_repair_failure_rejects_step_before_fixture_executio
     summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
 
     assert summary["status"] == "rejected"
-    assert summary["error_code"] == "model_output_expected_text_not_atomic"
+    assert summary["error_code"] == "model_output_invalid_expected_url"
     assert summary["stop_reason"] == "planner_action_rejected"
     assert summary["model_execution"] is True
     assert summary["real_browser_execution"] is False
@@ -636,11 +638,15 @@ def test_local_model_backend_repair_failure_rejects_step_before_fixture_executio
     assert summary["planner_backend"]["repair_attempts_succeeded"] == 0
     assert summary["planner_backend"]["repair_attempts_failed"] == 1
     assert summary["planner_backend"]["original_error_code"] == "model_output_expected_url_not_matching_destination"
-    assert summary["planner_backend"]["last_repair_error_code"] == "model_output_expected_text_not_atomic"
+    assert summary["planner_backend"]["last_repair_error_code"] == "model_output_invalid_expected_url"
     assert summary["runtime_trace"][0]["validation_status"] == "accepted"
-    assert summary["runtime_trace"][1]["validation_status"] == "accepted"
+    assert summary["runtime_trace"][1]["validation_status"] == "rejected"
     assert summary["runtime_trace"][1]["fixture_execution_status"] == "skipped"
-    assert summary["runtime_trace"][1]["error_code"] == "model_output_expected_text_not_atomic"
+    assert summary["runtime_trace"][1]["error_code"] == "model_output_invalid_expected_url"
+    assert summary["runtime_trace"][1]["metadata"]["repair_applied"] is True
+    assert summary["runtime_trace"][1]["metadata"]["original_error_code"] == "model_output_expected_url_not_matching_destination"
+    assert summary["runtime_trace"][1]["expected_result"]["metadata"]["expected_url"] == "https://local.intranet/ticket_board"
+    assert summary["runtime_trace"][1]["expected_result"]["metadata"]["resolved_destination_url"] == "https://local.intranet/docs/policy"
 
 
 def test_local_model_backend_rejects_click_with_current_page_expected_text() -> None:
@@ -676,7 +682,7 @@ def test_local_model_backend_rejects_click_with_current_page_expected_text() -> 
     assert summary["actions_succeeded"] == 1
     assert summary["actions_failed"] == 0
     assert summary["runtime_trace"][0]["validation_status"] == "accepted"
-    assert summary["runtime_trace"][1]["validation_status"] == "accepted"
+    assert summary["runtime_trace"][1]["validation_status"] == "rejected"
     assert summary["runtime_trace"][1]["fixture_execution_status"] == "skipped"
     assert summary["runtime_trace"][1]["error_code"] == "model_output_expected_text_not_visible"
     assert summary["runtime_trace"][1]["expected_result"]["reason"] == "model_output_expected_text_not_visible"
@@ -755,6 +761,7 @@ def test_local_model_backend_rejects_click_with_invalid_expected_url_before_dest
     assert summary["runtime_trace"][0]["validation_status"] == "skipped"
     assert summary["runtime_trace"][0]["fixture_execution_status"] == "skipped"
     assert summary["runtime_trace"][0]["error_code"] == "model_output_invalid_expected_url"
+    assert summary["runtime_trace"][0].get("expected_result") is None
 
 
 def test_local_model_backend_rejects_invented_open_url_expected_text() -> None:
@@ -786,7 +793,7 @@ def test_local_model_backend_rejects_invented_open_url_expected_text() -> None:
     assert summary["actions_succeeded"] == 0
     assert summary["actions_failed"] == 0
     assert summary["runtime_trace"][0]["fixture_execution_status"] == "skipped"
-    assert summary["runtime_trace"][0]["validation_status"] == "accepted"
+    assert summary["runtime_trace"][0]["validation_status"] == "rejected"
     assert summary["runtime_trace"][0]["error_code"] == "model_output_expected_text_not_visible"
     assert summary["runtime_trace"][0]["expected_result"]["reason"] == "model_output_expected_text_not_visible"
     assert client.requests[0].endpoint_base_url == "http://127.0.0.1:8082/v1/chat/completions"

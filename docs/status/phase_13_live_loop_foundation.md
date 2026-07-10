@@ -97,3 +97,9 @@
 - `expected_text` is now enforced as one exact visible substring, so semicolon-joined or newline-joined anchor lists are rejected with `model_output_expected_text_not_atomic`
 - malformed `expected_url` values such as placeholder `http<absolute_path>` inputs are rejected with `model_output_invalid_expected_url` before any destination-mismatch check
 - the hard policy disambiguation prompt now calls out the exact `Workspace policy` destination and the exact `https://local.intranet/docs/policy` expected URL, but Codex still does not launch browser or Playwright here
+
+## Phase 13B11 note
+
+- repaired local-model live-loop runs now carry explicit repair provenance in the summary trace, including `repair_applied`, `original_error_code`, and `repair_error_code`
+- successful repaired steps are counted as successful repairs from the final trace, while invalid repair outputs still fail safely before any browser execution
+- this keeps the diagnostics structured without changing the guarded, fixture-backed default behavior
