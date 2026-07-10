@@ -59,6 +59,53 @@ DEFAULT_LIMITATIONS = (
 )
 DEFAULT_REQUEST_MODEL_PATH = "models/gguf/third_model.gguf"
 DEFAULT_REQUEST_MODEL_NAME = "third_model"
+STRICT_JSON_SKELETON = dedent(
+    """
+    {
+      "schema_version": "autonomous_browser_stateful_readonly_planner_output_v1",
+      "scenario_id": "<scenario_id>",
+      "workflow_id": "<workflow_id>",
+      "goal": "<goal>",
+      "actions": [
+        {
+          "step_id": "step_1",
+          "action_name": "browser_open_url",
+          "parameters": {
+            "url": "https://local.intranet/"
+          },
+          "expected_text": "Office Intranet",
+          "collect_fact_keys": []
+        }
+      ],
+      "facts": [
+        {
+          "fact_id": "fact_1",
+          "key": "example_key",
+          "value": "example_value",
+          "source_step_id": "step_1",
+          "source_url": "https://local.intranet/",
+          "evidence_item_id": "evidence_1"
+        }
+      ],
+      "evidence_items": [
+        {
+          "evidence_item_id": "evidence_1",
+          "source_step_id": "step_1",
+          "source_url": "https://local.intranet/",
+          "text_preview": "short evidence text",
+          "fact_ids": ["fact_1"]
+        }
+      ],
+      "final_answer": {
+        "answer_text": "short final answer",
+        "cited_fact_ids": ["fact_1"],
+        "cited_evidence_item_ids": ["evidence_1"],
+        "confidence": "medium"
+      },
+      "done_reason": "task_completed"
+    }
+    """
+).strip()
 
 
 @dataclass(frozen=True)
@@ -591,7 +638,7 @@ def _build_commands_markdown(
         "Codex must not launch models.",
         f"Packet id: `{packet_id}`.",
         f"The packet prepares manual local-model requests for {model_alias_list}.",
-        "Use `planner_prompt.compact.txt` as the prompt source for each scenario.",
+        "Use `planner_prompt.compact.txt` as the prompt source for each trial.",
         "The `third_model` path is documented as `models/gguf/third_model.gguf` and is not accessed by Codex.",
         "",
     ]
@@ -680,7 +727,23 @@ def _build_expected_output_schema_doc() -> str:
         - `browser_extract_text`
         - `browser_snapshot`
 
+        ### Forbidden aliases
+
+        - `action`
+        - `tool`
+        - top-level `url`, `selector`, `name`, `label`, or `target_text` on action items
+        - CSS selectors for `browser_click`
+        - `browser_click` selectors instead of visible text
+
+        ## Copyable strict JSON skeleton
+
+        ```json
+        {STRICT_JSON_SKELETON}
+        ```
+
         ## Facts
+
+        `facts` must be an array.
 
         Each fact item must include:
 
@@ -693,6 +756,8 @@ def _build_expected_output_schema_doc() -> str:
 
         ## Evidence items
 
+        `evidence_items` must be an array.
+
         Each evidence item must include:
 
         - `evidence_item_id`
@@ -700,6 +765,13 @@ def _build_expected_output_schema_doc() -> str:
         - `source_url` (optional)
         - `text_quote` or `text_preview`
         - `fact_ids` (optional)
+
+        Forbidden aliases:
+
+        - `id`
+        - `text`
+        - `content`
+        - `source_step`
 
         ## Final answer
 
@@ -709,6 +781,8 @@ def _build_expected_output_schema_doc() -> str:
         - `cited_fact_ids`
         - `cited_evidence_item_ids`
         - `confidence` (optional)
+
+        Missing citations are invalid.
 
         ## Done reasons
 
@@ -730,6 +804,9 @@ def _build_expected_output_schema_doc() -> str:
 def _build_scenario_prompt_text(*, scenario_id: str, scenario) -> str:
     hints = _scenario_prompt_hints()[scenario_id]
     route_hints = "\n".join(f"- {item}" for item in hints["route_hints"])
+    click_hints = "\n".join(
+        f"- `browser_click` with `parameters.target_text`: `{item}`" for item in hints["click_targets"]
+    )
     required_fact_keys = "\n".join(f"- `{item}`" for item in hints["required_fact_keys"])
     expected_evidence_anchors = "\n".join(f"- {item}" for item in hints["expected_evidence_anchors"])
     final_answer_requirements = "\n".join(f"- {item}" for item in hints["final_answer_requirements"])
@@ -739,7 +816,14 @@ def _build_scenario_prompt_text(*, scenario_id: str, scenario) -> str:
         # Stateful Read-Only Planner Prompt
 
         Return exactly one JSON object. No markdown. No prose. No code fences.
+        Return valid strict JSON with no trailing commas.
         Use the schema version `{OUTPUT_SCHEMA_VERSION}`.
+
+        ## Strict JSON skeleton
+
+        ```json
+        {STRICT_JSON_SKELETON}
+        ```
 
         ## Scenario
 
@@ -756,10 +840,26 @@ def _build_scenario_prompt_text(*, scenario_id: str, scenario) -> str:
         - No external URLs, writes, submits, typing, upload, or download actions.
         - Cite facts and evidence from visited fixture pages.
         - If you are `third_model`, keep `/no_think` at the start of the request content.
+        - Do NOT use the field name `action`.
+        - Do NOT use the field name `name` for actions.
+        - Do NOT use the field name `tool`.
+        - Do NOT place `url`, `selector`, `target_text`, or `label` at the top level of an action item.
+        - Put all action parameters inside `parameters`.
+        - For `browser_click` use `parameters.target_text`, not `selector`.
+        - Do NOT use CSS selectors for `browser_click`.
+        - `facts` MUST be an array, not an object.
+        - `evidence_items` MUST be an array.
+        - `final_answer` MUST include `cited_fact_ids` and `cited_evidence_item_ids`.
+        - Return exactly one valid strict JSON object.
+        - No comments.
 
         ## Route hints
 
         {route_hints}
+
+        ## Suggested click targets
+
+        {click_hints}
 
         ## Required fact keys
 
@@ -779,6 +879,7 @@ def _build_scenario_prompt_text(*, scenario_id: str, scenario) -> str:
         - `done_reason` must be one of `task_completed`, `insufficient_evidence`, `model_failed_task`, or `policy_rejected`.
         - `actions` may only use the read-only browser action surface.
         - `final_answer.answer_text` should be concise and cite the collected facts/evidence ids.
+        - Do not add trailing commas.
         """
     ).strip() + "\n"
 
@@ -790,6 +891,11 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
                 "Home -> Ticket board.",
                 "Ticket board -> Ticket 1.",
                 "Ticket 1 -> Workspace policy.",
+            ),
+            "click_targets": (
+                "Ticket board",
+                "Ticket 1",
+                "Workspace Policy",
             ),
             "required_fact_keys": (
                 "ticket_id",
@@ -817,6 +923,11 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
                 "Approvals queue -> Policy match review.",
                 "Policy match review -> Workspace policy only if the fixture workflow needs it.",
             ),
+            "click_targets": (
+                "Approvals queue",
+                "Policy match review",
+                "Workspace Policy",
+            ),
             "required_fact_keys": (
                 "approval_request",
                 "approval_policy_anchor",
@@ -842,6 +953,11 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
                 "Ticket board -> Workspace policy.",
                 "Workspace policy -> Team status.",
             ),
+            "click_targets": (
+                "Ticket board",
+                "Workspace Policy",
+                "Team status",
+            ),
             "required_fact_keys": (
                 "home_anchor",
                 "ticket_board_anchor",
@@ -865,6 +981,12 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
                 "Ticket board -> Ticket 7.",
                 "Ticket 7 -> Ticket board.",
                 "Ticket board -> Ticket 8.",
+            ),
+            "click_targets": (
+                "Ticket board",
+                "Ticket 7",
+                "Ticket board",
+                "Ticket 8",
             ),
             "required_fact_keys": (
                 "ticket_7_id",
@@ -893,6 +1015,9 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
         "stateful_policy_search_marker_review": {
             "route_hints": (
                 "Home -> Workspace policy.",
+            ),
+            "click_targets": (
+                "Workspace Policy",
             ),
             "required_fact_keys": (
                 "policy_anchor",

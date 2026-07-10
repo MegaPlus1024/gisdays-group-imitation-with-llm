@@ -794,19 +794,44 @@ def _validate_stateful_output(
 
     actions_payload = payload.get("actions")
     if not isinstance(actions_payload, list) or not actions_payload:
-        diagnostics.append({"finding_type": "invalid_actions_collection", "path": "actions"})
+        diagnostics.append(
+            {
+                "finding_type": "invalid_actions_collection",
+                "path": "actions",
+                "expected_type": "array",
+                "actions_type": type(actions_payload).__name__,
+            }
+        )
         return _validation_failure("invalid_actions_collection", diagnostics, 0)
 
     normalized_actions: list[dict[str, Any]] = []
     seen_step_ids: set[str] = set()
     for index, action in enumerate(actions_payload):
         if not isinstance(action, Mapping):
-            diagnostics.append({"finding_type": "invalid_action_shape", "path": f"actions[{index}]"})
+            diagnostics.append(
+                {
+                    "finding_type": "invalid_action_shape",
+                    "path": f"actions[{index}]",
+                    "action_index": index,
+                    "present_fields": [],
+                    "expected_field": "action_name",
+                    "hint": "use action_name, not action",
+                }
+            )
             return _validation_failure("invalid_action_shape", diagnostics, len(normalized_actions))
         step_id = _safe_identifier(action.get("step_id"), f"actions[{index}].step_id")
         action_name = _safe_identifier(action.get("action_name"), f"actions[{index}].action_name")
         if step_id is None or action_name is None:
-            diagnostics.append({"finding_type": "missing_action_field", "path": f"actions[{index}]"})
+            diagnostics.append(
+                {
+                    "finding_type": "missing_action_field",
+                    "path": f"actions[{index}]",
+                    "action_index": index,
+                    "present_fields": sorted(str(key) for key in action.keys()),
+                    "expected_field": "action_name",
+                    "hint": "use action_name, not action",
+                }
+            )
             return _validation_failure("missing_action_field", diagnostics, len(normalized_actions))
         if step_id in seen_step_ids:
             diagnostics.append({"finding_type": "duplicate_step_id", "path": f"actions[{index}].step_id"})
@@ -861,7 +886,14 @@ def _validate_stateful_output(
 
     facts_payload = payload.get("facts")
     if not isinstance(facts_payload, list) or not facts_payload:
-        diagnostics.append({"finding_type": "invalid_facts_collection", "path": "facts"})
+        diagnostics.append(
+            {
+                "finding_type": "invalid_facts_collection",
+                "path": "facts",
+                "expected_type": "array",
+                "facts_type": type(facts_payload).__name__,
+            }
+        )
         return _validation_failure("invalid_facts_collection", diagnostics, len(normalized_actions))
 
     normalized_facts: list[dict[str, Any]] = []
@@ -869,7 +901,15 @@ def _validate_stateful_output(
     fact_keys: set[str] = set()
     for index, fact in enumerate(facts_payload):
         if not isinstance(fact, Mapping):
-            diagnostics.append({"finding_type": "invalid_fact_shape", "path": f"facts[{index}]"})
+            diagnostics.append(
+                {
+                    "finding_type": "invalid_fact_shape",
+                    "path": f"facts[{index}]",
+                    "fact_index": index,
+                    "present_fields": [],
+                    "expected_type": "object",
+                }
+            )
             return _validation_failure("invalid_fact_shape", diagnostics, len(normalized_actions))
         fact_id = _safe_identifier(fact.get("fact_id"), f"facts[{index}].fact_id")
         key = _safe_identifier(fact.get("key"), f"facts[{index}].key")
@@ -921,19 +961,43 @@ def _validate_stateful_output(
 
     evidence_payload = payload.get("evidence_items")
     if not isinstance(evidence_payload, list) or not evidence_payload:
-        diagnostics.append({"finding_type": "invalid_evidence_collection", "path": "evidence_items"})
+        diagnostics.append(
+            {
+                "finding_type": "invalid_evidence_collection",
+                "path": "evidence_items",
+                "expected_type": "array",
+                "evidence_items_type": type(evidence_payload).__name__,
+            }
+        )
         return _validation_failure("invalid_evidence_collection", diagnostics, len(normalized_actions))
 
     normalized_evidence: list[dict[str, Any]] = []
     evidence_ids: set[str] = set()
     for index, evidence in enumerate(evidence_payload):
         if not isinstance(evidence, Mapping):
-            diagnostics.append({"finding_type": "invalid_evidence_item_shape", "path": f"evidence_items[{index}]"})
+            diagnostics.append(
+                {
+                    "finding_type": "invalid_evidence_item_shape",
+                    "path": f"evidence_items[{index}]",
+                    "evidence_item_index": index,
+                    "present_fields": [],
+                    "expected_id_field": "evidence_item_id",
+                }
+            )
             return _validation_failure("invalid_evidence_item_shape", diagnostics, len(normalized_actions))
         evidence_id = _safe_identifier(evidence.get("evidence_item_id"), f"evidence_items[{index}].evidence_item_id")
         source_step_id = _safe_identifier(evidence.get("source_step_id"), f"evidence_items[{index}].source_step_id")
         if evidence_id is None or source_step_id is None:
-            diagnostics.append({"finding_type": "missing_evidence_field", "path": f"evidence_items[{index}]"})
+            diagnostics.append(
+                {
+                    "finding_type": "missing_evidence_field",
+                    "path": f"evidence_items[{index}]",
+                    "evidence_item_index": index,
+                    "present_fields": sorted(str(key) for key in evidence.keys()),
+                    "expected_id_field": "evidence_item_id",
+                    "hint": "use evidence_item_id, not id",
+                }
+            )
             return _validation_failure("missing_evidence_field", diagnostics, len(normalized_actions))
         if evidence_id in evidence_ids:
             diagnostics.append({"finding_type": "duplicate_evidence_item_id", "path": f"evidence_items[{index}].evidence_item_id"})
@@ -996,7 +1060,14 @@ def _validate_stateful_output(
 
     final_answer_payload = payload.get("final_answer")
     if not isinstance(final_answer_payload, Mapping):
-        diagnostics.append({"finding_type": "invalid_final_answer_shape", "path": "final_answer"})
+        diagnostics.append(
+            {
+                "finding_type": "invalid_final_answer_shape",
+                "path": "final_answer",
+                "present_fields": [],
+                "expected_fields": ["answer_text", "cited_fact_ids", "cited_evidence_item_ids"],
+            }
+        )
         return _validation_failure("invalid_final_answer_shape", diagnostics, len(normalized_actions))
 
     answer_text = _optional_safe_text(final_answer_payload.get("answer_text"), "final_answer.answer_text")
@@ -1005,8 +1076,19 @@ def _validate_stateful_output(
         return _validation_failure("missing_final_answer_text", diagnostics, len(normalized_actions))
     cited_fact_ids_payload = final_answer_payload.get("cited_fact_ids")
     cited_evidence_ids_payload = final_answer_payload.get("cited_evidence_item_ids")
-    if not isinstance(cited_fact_ids_payload, list) or not isinstance(cited_evidence_ids_payload, list):
-        diagnostics.append({"finding_type": "invalid_final_answer_citations", "path": "final_answer"})
+    missing_fields: list[str] = []
+    if not isinstance(cited_fact_ids_payload, list) or not cited_fact_ids_payload:
+        missing_fields.append("cited_fact_ids")
+    if not isinstance(cited_evidence_ids_payload, list) or not cited_evidence_ids_payload:
+        missing_fields.append("cited_evidence_item_ids")
+    if missing_fields:
+        diagnostics.append(
+            {
+                "finding_type": "invalid_final_answer_citations",
+                "path": "final_answer",
+                "missing_fields": missing_fields,
+            }
+        )
         return _validation_failure("invalid_final_answer_citations", diagnostics, len(normalized_actions))
     cited_fact_ids: list[str] = []
     for index, candidate in enumerate(cited_fact_ids_payload):

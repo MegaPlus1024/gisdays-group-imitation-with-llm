@@ -88,7 +88,7 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert packet["captured_output_dir"] == "artifacts/autonomous_runtime_planner_outputs/stateful_readonly_planner"
 
     assert "planner_prompt.compact.txt" in commands_md
-    assert "Use `planner_prompt.compact.txt` as the prompt source for each scenario." in commands_md
+    assert "Use `planner_prompt.compact.txt` as the prompt source for each trial." in commands_md
     assert "--execute-fixture" in commands_md
     assert "models/gguf/third_model.gguf" in commands_md
     assert "Codex must not launch models." in commands_md
@@ -100,9 +100,27 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert any(item["id"] == "run_pytest" for item in commands["commands"])
 
     assert "Stateful Read-Only Planner Prompt" in prompt_text
+    assert "Return valid strict JSON with no trailing commas." in prompt_text
+    assert '"action_name": "browser_open_url"' in prompt_text
+    assert '"parameters": {' in prompt_text
+    assert "Do NOT use the field name `action`." in prompt_text
+    assert "For `browser_click` use `parameters.target_text`, not `selector`." in prompt_text
     assert "Ticket board" in prompt_text
-    assert "Workspace policy" in prompt_text
+    assert "Workspace Policy" in prompt_text
+    assert "browser_click" in prompt_text
     assert "fixture-backed" in prompt_text
+    assert "a[href" not in prompt_text
+    assert "queryselector" not in prompt_text.lower()
+
+    schema_text = schema_doc_path.read_text(encoding="utf-8")
+    assert "Forbidden aliases" in schema_text
+    assert "- `action`" in schema_text
+    assert "- `tool`" in schema_text
+    assert "facts` must be an array" in schema_text.lower()
+    assert "evidence_items` must be an array" in schema_text.lower()
+    assert "cited_fact_ids" in schema_text
+    assert "cited_evidence_item_ids" in schema_text
+    assert "Missing citations are invalid." in schema_text
 
 
 def test_cli_accepts_bom_config_and_prints_compact_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

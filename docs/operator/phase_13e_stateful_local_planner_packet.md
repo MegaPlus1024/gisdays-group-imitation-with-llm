@@ -1,0 +1,33 @@
+# Phase 13E2a Stateful Local Planner Packet Operator Notes
+
+## What to run
+
+Rebuild the packet after updating the prompt/schema hardening:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\build_autonomous_browser_stateful_readonly_planner_packet.py `
+  --config configs\autonomous_runtime\browser_stateful_readonly_planner_packet.example.json
+```
+
+Then inspect the generated prompt and schema docs in the packet output directory.
+
+If you want to recheck the offline evaluator shape, use:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_autonomous_browser_stateful_readonly_planner_evaluator.py `
+  --packet-dir artifacts\autonomous_runtime_planner_packets\stateful_readonly_planner
+```
+
+## What changed in E2a
+
+- the prompt now includes a strict JSON skeleton with `action_name` and `parameters`
+- `browser_click` guidance now points at `parameters.target_text`
+- the schema doc now names forbidden aliases like `action`, `tool`, `id`, `text`, and `content`
+- evaluator diagnostics now name the missing shape fields more clearly
+
+## Safety boundary
+
+- strict validation remains strict
+- no alias normalization is enabled by default
+- no models, browser, Playwright, Chromium, or llama-server are launched by Codex
+- generated packet artifacts are evidence only and should not be committed

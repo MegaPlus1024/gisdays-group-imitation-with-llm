@@ -552,13 +552,28 @@ def _output_for_scenario(scenario) -> dict[str, Any]:
 
 
 def _write_valid_outputs(packet_summary: dict[str, Any], repo_root: Path) -> None:
+    _write_outputs(packet_summary, repo_root)
+
+
+def _write_outputs(
+    packet_summary: dict[str, Any],
+    repo_root: Path,
+    *,
+    overrides: dict[str, dict[str, Any]] | None = None,
+) -> None:
+    overrides = overrides or {}
     for record in packet_summary["request_records"]:
         scenario_id = str(record["scenario_id"])
         scenario = build_default_stateful_readonly_workflow_scenarios()[scenario_id]
-        payload = _output_for_scenario(scenario)
+        payload = overrides.get(scenario_id) or _output_for_scenario(scenario)
         raw_output_path = repo_root / str(record["raw_output_path"])
         raw_output_path.parent.mkdir(parents=True, exist_ok=True)
         raw_output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _output_copy(scenario_id: str) -> dict[str, Any]:
+    scenario = build_default_stateful_readonly_workflow_scenarios()[scenario_id]
+    return json.loads(json.dumps(_output_for_scenario(scenario)))
 
 
 def test_dry_run_accepts_valid_outputs_without_fixture_execution(tmp_path: Path) -> None:
@@ -632,6 +647,99 @@ def test_fixture_execution_succeeds_for_valid_outputs(tmp_path: Path) -> None:
     assert evaluation["scenario_summaries"][1]["scenario_id"] == "stateful_approval_policy_crosscheck"
     assert evaluation["scenario_summaries"][1]["route_stable"] is True
     assert evaluation["scenario_summaries"][1]["unique_matched_urls"] == ["https://local.intranet/docs/policy"]
+
+
+def test_missing_action_field_diagnostics_include_index_and_present_fields(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    overrides = {
+        "stateful_policy_ticket_crosscheck": {
+            **_output_copy("stateful_policy_ticket_crosscheck"),
+            "actions": [
+                {
+                    "step_id": "step_1",
+                    "action": "browser_open_url",
+                    "parameters": {"url": "https://local.intranet/"},
+                }
+            ],
+        }
+    }
+    _write_outputs(packet_summary, tmp_path, overrides=overrides)
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_policy_ticket_crosscheck")
+    diagnostics = summary["diagnostics"]
+
+    assert evaluation["status"] == "completed_with_failures"
+    assert evaluation["error_code"] == "missing_action_field"
+    assert summary["status"] == "rejected"
+    assert summary["failure_class"] == "model_failed_task"
+    assert diagnostics[0]["finding_type"] == "missing_action_field"
+    assert diagnostics[0]["action_index"] == 0
+    assert diagnostics[0]["present_fields"] == ["action", "parameters", "step_id"]
+    assert diagnostics[0]["expected_field"] == "action_name"
+    assert diagnostics[0]["hint"] == "use action_name, not action"
+
+
+def test_facts_object_is_rejected_with_array_diagnostics(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    payload = _output_copy("stateful_policy_ticket_crosscheck")
+    payload["facts"] = {"fact_id": "bad"}
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_policy_ticket_crosscheck": payload})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_policy_ticket_crosscheck")
+    diagnostics = summary["diagnostics"]
+
+    assert evaluation["status"] == "completed_with_failures"
+    assert evaluation["error_code"] == "invalid_facts_collection"
+    assert summary["failure_class"] == "model_failed_task"
+    assert diagnostics[0]["finding_type"] == "invalid_facts_collection"
+    assert diagnostics[0]["facts_type"] == "dict"
+    assert diagnostics[0]["expected_type"] == "array"
+
+
+def test_evidence_item_id_alias_is_rejected_with_clear_diagnostics(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    payload = _output_copy("stateful_approval_policy_crosscheck")
+    payload["evidence_items"][0] = {
+        "id": "evidence_1",
+        "source_step_id": "inspect_approval_match",
+        "source_url": "https://local.intranet/portal/approval-match",
+        "text_preview": "Approval Policy Match | Request id: APR-51.",
+        "fact_ids": ["approval_fact_1"],
+    }
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_approval_policy_crosscheck": payload})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_approval_policy_crosscheck")
+    diagnostics = summary["diagnostics"]
+
+    assert evaluation["status"] == "completed_with_failures"
+    assert evaluation["error_code"] == "missing_evidence_field"
+    assert summary["failure_class"] == "model_failed_task"
+    assert diagnostics[0]["finding_type"] == "missing_evidence_field"
+    assert diagnostics[0]["evidence_item_index"] == 0
+    assert diagnostics[0]["present_fields"] == ["fact_ids", "id", "source_step_id", "source_url", "text_preview"]
+    assert diagnostics[0]["expected_id_field"] == "evidence_item_id"
+    assert diagnostics[0]["hint"] == "use evidence_item_id, not id"
+
+
+def test_final_answer_missing_citations_has_clear_diagnostics(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    payload = _output_copy("stateful_ticket_priority_digest")
+    del payload["final_answer"]["cited_fact_ids"]
+    del payload["final_answer"]["cited_evidence_item_ids"]
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_ticket_priority_digest": payload})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_ticket_priority_digest")
+    diagnostics = summary["diagnostics"]
+
+    assert evaluation["status"] == "completed_with_failures"
+    assert evaluation["error_code"] == "invalid_final_answer_citations"
+    assert summary["failure_class"] == "model_failed_task"
+    assert diagnostics[0]["finding_type"] == "invalid_final_answer_citations"
+    assert diagnostics[0]["missing_fields"] == ["cited_fact_ids", "cited_evidence_item_ids"]
 
 
 def test_missing_captured_output_returns_safe_failure(tmp_path: Path) -> None:

@@ -102,6 +102,7 @@
 - Phase 13D5: fixes manifest-backed fixture route mapping for extensionless logical URLs and replaces title-only replay anchors with visible body anchors from the local fixtures.
 - Phase 13D final: successful guarded Playwright replay of live-loop traces, 3/3 traces succeeded with 8/8 actions and 8/8 expected checks, `real_browser_execution: true`, and `real_network_traffic: false`.
 - Phase 13E1: adds the scripted read-only stateful workflow foundation in `docs/status/phase_13e_readonly_stateful_workflows.md`; it records workflow state, facts, evidence, and final answers while staying fixture-only and read-only.
+- Phase 13E2a: hardens the stateful local-planner packet prompt/schema and evaluator diagnostics after the first `third_model` run exposed strict output-contract mismatches; it keeps validation strict and does not normalize aliases.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

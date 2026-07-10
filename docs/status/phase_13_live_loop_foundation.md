@@ -204,3 +204,4 @@
 - Phase 13E adds the read-only stateful workflow foundation in `docs/status/phase_13e_readonly_stateful_workflows.md` and `docs/operator/phase_13e_readonly_stateful_workflows.md`
 - the new layer stays fixture-only, scripted, and read-only while it records state, facts, evidence, and final answers for local intranet workflows
 - no model, browser, or Playwright launch is needed from Codex to document or run the scripted E1 path
+- Phase 13E2a hardens the companion local-planner packet prompt/schema and evaluator diagnostics after the first `third_model` E2 run exposed strict output-contract mismatches
