@@ -269,7 +269,6 @@ class RealPlaywrightBackend:
         expected_text: str | None = None,
         parameters: Mapping[str, Any] | None = None,
     ) -> PlaywrightExecutionResult:
-        del expected_text
         if self._page is None:
             return _action_failure(action_name, logical_url, served_url, "playwright_page_not_ready")
         try:
@@ -277,21 +276,49 @@ class RealPlaywrightBackend:
             response: Any | None = None
             requires_navigation = False
             action_notes: list[str] = []
+            before_url = str(self._page.url)
+            selector = None
+            target_text = None
+            click_diagnostics: dict[str, Any] = {"selector_kind": None, "clickable": False}
             if action_name == "browser_open_url":
                 requires_navigation = True
                 response = self._page.goto(served_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
             elif action_name == "browser_click":
                 selector = _selector_from_params(params)
                 target_text = _string_param(params, "target_text") or _string_param(params, "text")
-                if selector:
-                    self._page.click(selector, timeout=self.timeout_ms)
-                elif target_text:
-                    self._page.get_by_text(target_text).click(timeout=self.timeout_ms)
-                else:
-                    requires_navigation = True
-                    response = self._page.goto(served_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
-                if not response and served_url and str(self._page.url) != served_url:
-                    response = self._page.goto(served_url, wait_until="domcontentloaded", timeout=self.timeout_ms)
+                click_locator, click_diagnostics = _click_locator_from_page(self._page, selector=selector, target_text=target_text)
+                if click_locator is None:
+                    return _action_failure(
+                        action_name,
+                        logical_url,
+                        served_url,
+                        "browser_click_target_not_found",
+                        diagnostics={
+                            "before_url": before_url,
+                            "target_text": target_text,
+                            "selector": selector,
+                            "selector_kind": click_diagnostics.get("selector_kind"),
+                            "clickable": click_diagnostics.get("clickable"),
+                        },
+                    )
+                try:
+                    click_locator.click(timeout=self.timeout_ms)
+                except Exception as exc:
+                    return _action_failure(
+                        action_name,
+                        logical_url,
+                        served_url,
+                        "playwright_action_failed",
+                        exc,
+                        diagnostics={
+                            "before_url": before_url,
+                            "target_text": target_text,
+                            "selector": selector,
+                            "selector_kind": click_diagnostics.get("selector_kind"),
+                            "clickable": click_diagnostics.get("clickable"),
+                        },
+                    )
+                _wait_for_page_settle(self._page, self.timeout_ms)
             elif action_name == "browser_wait":
                 wait_ms = _bounded_wait_ms(params)
                 self._page.wait_for_timeout(wait_ms)
@@ -330,16 +357,50 @@ class RealPlaywrightBackend:
                         "browser_http_error",
                         diagnostics={"http_status": status, "logical_url": logical_url},
                     )
+            current_url = str(self._page.url)
             body_text = str(self._page.inner_text("body", timeout=self.timeout_ms) or "")
+            expected_text_found = None
+            if isinstance(expected_text, str) and expected_text:
+                expected_text_found = expected_text in body_text
+            if action_name == "browser_click" and isinstance(expected_text, str) and expected_text and expected_text_found is False and before_url == current_url:
+                return _action_failure(
+                    action_name,
+                    logical_url,
+                    current_url or served_url,
+                    "browser_click_navigation_not_detected",
+                    diagnostics={
+                        "before_url": before_url,
+                        "after_url": current_url,
+                        "target_text": target_text,
+                        "selector": selector,
+                        "selector_kind": click_diagnostics.get("selector_kind"),
+                        "clickable": click_diagnostics.get("clickable"),
+                        "expected_text": expected_text,
+                        "expected_text_found": expected_text_found,
+                        "text_preview": _preview(body_text),
+                    },
+                )
             text = " ".join([body_text, *action_notes])
             artifact_ref = "playwright_snapshot_placeholder" if action_name == "browser_snapshot" else None
             return PlaywrightExecutionResult(
                 action_name=action_name,
                 logical_url=logical_url,
-                served_url=served_url,
+                served_url=current_url or served_url,
                 success=True,
                 text_preview=_preview(text),
                 artifact_ref=artifact_ref,
+                diagnostics={
+                    "before_url": before_url if action_name == "browser_click" else None,
+                    "current_url": current_url,
+                    "expected_text": expected_text,
+                    "expected_text_found": expected_text_found,
+                    "navigation_changed": before_url != current_url if action_name == "browser_click" else None,
+                    "selector": selector if action_name == "browser_click" else None,
+                    "selector_kind": click_diagnostics.get("selector_kind") if action_name == "browser_click" else None,
+                    "clickable": click_diagnostics.get("clickable") if action_name == "browser_click" else None,
+                    "text_preview": _preview(body_text),
+                    "page_title": _page_title(self._page),
+                },
             )
         except Exception as exc:
             return _action_failure(action_name, logical_url, served_url, "playwright_action_failed", exc)
@@ -1016,6 +1077,63 @@ def _selector_from_params(payload: Mapping[str, Any]) -> str | None:
     return None
 
 
+def _click_locator_from_page(page: Any, *, selector: str | None, target_text: str | None) -> tuple[Any | None, dict[str, Any]]:
+    if selector:
+        locator = _safe_locator(page, "locator", selector)
+        return locator, {"selector_kind": "explicit_selector", "clickable": True}
+    if not target_text:
+        return None, {"selector_kind": None, "clickable": False}
+    candidates = (
+        ("role_link", _safe_locator(page, "get_by_role", "link", name=target_text, exact=True), True),
+        ("role_button", _safe_locator(page, "get_by_role", "button", name=target_text, exact=True), True),
+        ("anchor_text", _safe_locator(page, "locator", "a"), True),
+        ("button_text", _safe_locator(page, "locator", "button"), True),
+        ("text", _safe_locator(page, "get_by_text", target_text, exact=True), False),
+    )
+    for selector_kind, locator, clickable in candidates:
+        if locator is None:
+            continue
+        if selector_kind == "anchor_text":
+            try:
+                locator = locator.filter(has_text=target_text)
+            except Exception:
+                locator = None
+        elif selector_kind == "button_text":
+            try:
+                locator = locator.filter(has_text=target_text)
+            except Exception:
+                locator = None
+        locator = _first_matching_locator(locator)
+        if locator is not None:
+            return locator, {"selector_kind": selector_kind, "clickable": clickable}
+    return None, {"selector_kind": None, "clickable": False}
+
+
+def _safe_locator(page: Any, method_name: str, *args: Any, **kwargs: Any) -> Any | None:
+    method = getattr(page, method_name, None)
+    if method is None:
+        return None
+    try:
+        return method(*args, **kwargs)
+    except Exception:
+        return None
+
+
+def _first_matching_locator(locator: Any | None) -> Any | None:
+    if locator is None:
+        return None
+    try:
+        count = int(locator.count())
+    except Exception:
+        return locator
+    if count <= 0:
+        return None
+    first = getattr(locator, "first", None)
+    if count > 1 and first is not None:
+        return first
+    return locator
+
+
 def _form_submit_selector(payload: Mapping[str, Any]) -> str | None:
     form_id = _string_param(payload, "form_id")
     if form_id:
@@ -1039,6 +1157,28 @@ def _bounded_wait_ms(payload: Mapping[str, Any]) -> int:
     if isinstance(value, int) and 0 <= value <= 5_000:
         return value
     return 100
+
+
+def _wait_for_page_settle(page: Any, timeout_ms: int) -> None:
+    for state in ("domcontentloaded", "load", "networkidle"):
+        try:
+            page.wait_for_load_state(state, timeout=timeout_ms)
+        except Exception:
+            continue
+
+
+def _page_title(page: Any) -> str | None:
+    title_attr = getattr(page, "title", None)
+    if title_attr is None:
+        return None
+    try:
+        value = title_attr() if callable(title_attr) else title_attr
+    except Exception:
+        return None
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text or None
 
 
 def _validate_loopback_host(host: str) -> None:

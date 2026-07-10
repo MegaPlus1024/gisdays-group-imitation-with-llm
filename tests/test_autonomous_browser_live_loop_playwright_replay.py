@@ -1365,6 +1365,154 @@ def test_guarded_playwright_handoff_uses_canonical_plan_shape_without_launching_
     )
 
 
+def test_guarded_playwright_handoff_aggregates_nested_real_browser_flags_and_final_url(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import src.agent.autonomous_browser_live_loop_playwright_replay as live_loop_replay
+
+    trace_root = tmp_path / "live_loop_variance_suite"
+    trace_paths = {
+        "hard_policy_disambiguation": trace_root / "hard_policy_disambiguation" / "trial_01" / "autonomous_browser_live_loop_trace.json",
+        "hard_ticket_priority_crosscheck": trace_root / "hard_ticket_priority_crosscheck" / "trial_01" / "autonomous_browser_live_loop_trace.json",
+        "hard_approval_policy_match": trace_root / "hard_approval_policy_match" / "trial_01" / "autonomous_browser_live_loop_trace.json",
+    }
+    _write_json_encoded(trace_paths["hard_policy_disambiguation"], _policy_trace("hard_policy_disambiguation", "trial_01", include_skipped=False), encoding="utf-8-sig")
+    _write_json_encoded(trace_paths["hard_ticket_priority_crosscheck"], _ticket_trace("hard_ticket_priority_crosscheck", "trial_01", include_skipped=False), encoding="utf-8-sig")
+    _write_json_encoded(trace_paths["hard_approval_policy_match"], _approval_trace("hard_approval_policy_match", "trial_01", include_skipped=False), encoding="utf-8-sig")
+
+    variance_summary = _variance_summary(
+        [
+            _trial_row(
+                "hard_policy_disambiguation",
+                1,
+                "trial_01",
+                "live_loop_variance_suite/hard_policy_disambiguation/trial_01/autonomous_browser_live_loop_trace.json",
+                matched_url="https://local.intranet/docs/policy",
+            ),
+            _trial_row(
+                "hard_ticket_priority_crosscheck",
+                1,
+                "trial_01",
+                "live_loop_variance_suite/hard_ticket_priority_crosscheck/trial_01/autonomous_browser_live_loop_trace.json",
+                matched_url="https://local.intranet/tickets/1",
+            ),
+            _trial_row(
+                "hard_approval_policy_match",
+                1,
+                "trial_01",
+                "live_loop_variance_suite/hard_approval_policy_match/trial_01/autonomous_browser_live_loop_trace.json",
+                matched_url="https://local.intranet/portal/approval-match",
+            ),
+        ]
+    )
+    _write_json_encoded(tmp_path / "live_loop_variance_suite.summary.json", variance_summary, encoding="utf-8-sig")
+
+    def fake_operator(
+        config_artifact: Mapping[str, Any] | str | Path,
+        *,
+        repo_root: Path | None = None,
+        allow_real_browser: bool = False,
+        confirm_real_browser: str | None = None,
+        dry_run: bool = False,
+        replay_backend: str | None = None,
+    ) -> dict[str, Any]:
+        del allow_real_browser, confirm_real_browser, dry_run, replay_backend
+        assert repo_root == tmp_path
+        config_path = Path(config_artifact)
+        config = json.loads((repo_root / config_path).read_text(encoding="utf-8"))
+        plan_path = repo_root / config["replay_plan_path"]
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        final_action = plan["actions"][-1]
+        final_url = final_action.get("expected_url") or final_action["parameters"].get("url")
+        replayed_actions = []
+        for action in plan["actions"]:
+            action_expected_text = action.get("expected_text")
+            replayed_actions.append(
+                {
+                    "step_id": action["step_id"],
+                    "action_name": action["action_name"],
+                    "logical_url": action["parameters"].get("url"),
+                    "served_url": action.get("expected_url") or action["parameters"].get("url"),
+                    "target_text": action["parameters"].get("target_text"),
+                    "expected_text": action_expected_text,
+                    "expected_text_found": True,
+                    "success": True,
+                    "error_code": None,
+                    "text_preview": action_expected_text,
+                    "navigation_changed": True,
+                    "selector_kind": "role_link",
+                    "clickable": True,
+                    "diagnostics": {
+                        "before_url": action["parameters"].get("url"),
+                        "current_url": final_url,
+                        "expected_text": action_expected_text,
+                        "expected_text_found": True,
+                        "navigation_changed": True,
+                        "selector_kind": "role_link",
+                        "clickable": True,
+                        "text_preview": action_expected_text,
+                        "page_title": action_expected_text,
+                    },
+                }
+            )
+        return {
+            "status": "succeeded",
+            "error_code": None,
+            "no_runtime_execution": False,
+            "replay_backend": "playwright",
+            "fixture_replay_execution": False,
+            "playwright_execution": True,
+            "browser_opened": True,
+            "real_network_traffic": False,
+            "real_browser_execution": True,
+            "actions_attempted": len(plan["actions"]),
+            "actions_succeeded": len(plan["actions"]),
+            "actions_failed": 0,
+            "expected_results_passed": len(plan["actions"]),
+            "expected_results_failed": 0,
+            "expected_results_total": len(plan["actions"]),
+            "diagnostics": {
+                "replay_result": {
+                    "status": "succeeded",
+                    "error_code": None,
+                    "final_url": final_url,
+                    "actions_attempted": len(plan["actions"]),
+                    "actions_succeeded": len(plan["actions"]),
+                    "actions_failed": 0,
+                    "expected_results_passed": len(plan["actions"]),
+                    "expected_results_failed": 0,
+                },
+                "replayed_actions": replayed_actions,
+            },
+        }
+
+    monkeypatch.setattr(live_loop_replay, "run_autonomous_browser_plan_playwright_replay_operator", fake_operator)
+
+    config = _base_config()
+    config["input_variance_suite_summary"] = "live_loop_variance_suite.summary.json"
+    config["input_trace_root"] = "live_loop_variance_suite"
+    config["output_dir"] = "artifacts/live_loop_playwright_replay_tests"
+    summary = run_autonomous_browser_live_loop_playwright_replay(
+        config,
+        repo_root=tmp_path,
+        dry_run=False,
+        allow_real_browser=True,
+        allow_playwright=True,
+    )
+
+    assert summary["status"] == "succeeded"
+    assert summary["real_browser_execution"] is True
+    assert summary["playwright_execution"] is True
+    assert summary["browser_opened"] is True
+    assert summary["traces_succeeded"] == 3
+    assert all(item["fixture_only"] is True for item in summary["replay_trace_summaries"])
+    assert summary["replay_trace_summaries"][0]["replay_final_url"] == "https://local.intranet/docs/policy"
+    assert summary["replay_trace_summaries"][0]["diagnostics"]["replay_result"]["final_url"] == "https://local.intranet/docs/policy"
+    assert summary["replay_trace_summaries"][0]["diagnostics"]["replayed_actions"][0]["step_id"] == "step_0001"
+    assert summary["replay_trace_summaries"][0]["diagnostics"]["replayed_actions"][0]["expected_text_found"] is True
+
+
 def test_guarded_playwright_backend_failure_surfaces_sanitized_validation_diagnostics(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -180,3 +180,9 @@
 
 - Phase 13D3 fixes the generated guarded Playwright operator config shape and records the generated backend config path in replay diagnostics
 - the remaining guarded replay failure was a config-shape mismatch before browser launch, not a real Playwright run
+
+## Phase 13D4 note
+
+- Phase 13D4 fixes the first real guarded Playwright replay runtime barrier: click/navigation semantics, post-click expected-text checks, and top-level summary aggregation
+- D3 reached the guarded backend with `browser_opened: true`, but click navigation stayed on the home page and the nested operator summaries carried the real browser flags that the top-level summary initially missed
+- Codex still did not launch browser, Playwright, Chromium, or a model for this documentation step

@@ -106,6 +106,7 @@ class AutonomousBrowserLiveLoopPlaywrightReplayTraceSummary:
     matched_url: str | None
     replay_final_url: str | None
     fixture_only: bool
+    real_browser_execution: bool
     real_network_traffic: bool
     browser_opened: bool
     playwright_execution: bool
@@ -134,6 +135,7 @@ class AutonomousBrowserLiveLoopPlaywrightReplayTraceSummary:
             "matched_url": self.matched_url,
             "replay_final_url": self.replay_final_url,
             "fixture_only": self.fixture_only,
+            "real_browser_execution": self.real_browser_execution,
             "real_network_traffic": self.real_network_traffic,
             "browser_opened": self.browser_opened,
             "playwright_execution": self.playwright_execution,
@@ -721,6 +723,7 @@ def _trace_summary_from_plan(
         matched_url=matched_url,
         replay_final_url=replay_final_url,
         fixture_only=True,
+        real_browser_execution=False,
         real_network_traffic=False,
         browser_opened=False,
         playwright_execution=False,
@@ -788,6 +791,21 @@ def _trace_summary_from_operator(
             diagnostics["validation_error_code"] = _optional_text(validation_result.get("error_code"))
             diagnostics["validation_error_message"] = _optional_text(validation_result.get("message"))
             diagnostics["validation_errors"] = _safe_validation_diagnostics(validation_result)
+        replay_result = operator_diagnostics.get("replay_result")
+        if isinstance(replay_result, Mapping):
+            diagnostics["replay_result"] = {
+                "status": _optional_text(replay_result.get("status")),
+                "error_code": _optional_text(replay_result.get("error_code")),
+                "final_url": _optional_text(replay_result.get("final_url")),
+                "actions_attempted": _int(replay_result.get("actions_attempted")),
+                "actions_succeeded": _int(replay_result.get("actions_succeeded")),
+                "actions_failed": _int(replay_result.get("actions_failed")),
+                "expected_results_passed": _int(replay_result.get("expected_results_passed")),
+                "expected_results_failed": _int(replay_result.get("expected_results_failed")),
+            }
+        replayed_actions = operator_diagnostics.get("replayed_actions")
+        if isinstance(replayed_actions, list):
+            diagnostics["replayed_actions"] = [_safe_replayed_action_diagnostic(item) for item in replayed_actions if isinstance(item, Mapping)]
         if isinstance(operator_diagnostics.get("config_error"), str):
             diagnostics["validation_error_message"] = str(operator_diagnostics["config_error"])
         if isinstance(operator_diagnostics.get("replay_plan_error"), str):
@@ -817,7 +835,8 @@ def _trace_summary_from_operator(
         expected_results_failed=expected_failed,
         matched_url=matched_url,
         replay_final_url=replay_final_url,
-        fixture_only=bool(operator_summary.get("fixture_replay_execution", True)),
+        fixture_only=True,
+        real_browser_execution=bool(operator_summary.get("real_browser_execution", False)),
         real_network_traffic=bool(operator_summary.get("real_network_traffic", False)),
         browser_opened=bool(operator_summary.get("browser_opened", False)),
         playwright_execution=bool(operator_summary.get("playwright_execution", False)),
@@ -872,6 +891,7 @@ def _trace_failure_summary(
         matched_url=selection.matched_url,
         replay_final_url=_final_trace_url(selection.trace_payload),
         fixture_only=True,
+        real_browser_execution=False,
         real_network_traffic=False,
         browser_opened=False,
         playwright_execution=False,
@@ -920,6 +940,49 @@ def _safe_validation_diagnostics(validation_result: Mapping[str, Any]) -> dict[s
         if key in validation_result and validation_result[key] is not None:
             diagnostics[key] = _jsonable(validation_result[key])
     return diagnostics
+
+
+def _safe_replayed_action_diagnostic(item: Mapping[str, Any]) -> dict[str, Any]:
+    safe_keys = (
+        "step_id",
+        "action_name",
+        "logical_url",
+        "served_url",
+        "target_text",
+        "expected_text",
+        "expected_text_found",
+        "success",
+        "error_code",
+        "text_preview",
+        "navigation_changed",
+        "selector",
+        "selector_kind",
+        "clickable",
+        "artifact_ref",
+    )
+    safe_item = {key: _jsonable(item[key]) for key in safe_keys if key in item and item[key] is not None}
+    diagnostics = item.get("diagnostics")
+    if isinstance(diagnostics, Mapping):
+        safe_item["diagnostics"] = {
+            key: _jsonable(value)
+            for key, value in diagnostics.items()
+            if key
+            in {
+                "before_url",
+                "current_url",
+                "after_url",
+                "expected_text",
+                "expected_text_found",
+                "navigation_changed",
+                "selector",
+                "selector_kind",
+                "clickable",
+                "text_preview",
+                "page_title",
+            }
+            and value is not None
+        }
+    return safe_item
 
 
 def _scenario_accumulator(scenario_id: str, limitations: tuple[str, ...]) -> "_ScenarioAccumulator":

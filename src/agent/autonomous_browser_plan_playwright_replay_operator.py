@@ -623,21 +623,25 @@ def _default_playwright_replay_executor(
                     )
                     actions_attempted += 1
                     text_preview = str(result.text_preview or "")
-                    if result.success:
-                        actions_succeeded += 1
-                    else:
-                        actions_failed += 1
-                    expected_text = action.get("expected_text")
-                    if isinstance(expected_text, str):
-                        if expected_text in text_preview:
-                            expected_passed += 1
-                        else:
-                            expected_failed += 1
+                    action_expected_text = action.get("expected_text")
+                    expected_text_found = None
+                    if isinstance(action_expected_text, str) and action_expected_text:
+                        expected_text_found = action_expected_text in text_preview
                     action_summaries.append(
                         {
+                            "step_id": str(action.get("step_id") or f"replay_step_{index + 1:02d}"),
                             "action_name": action_name,
                             "logical_url": logical_url,
-                            "served_url": served_url,
+                            "served_url": result.served_url,
+                            "target_text": (
+                                parameters.get("target_text")
+                                if isinstance(parameters.get("target_text"), str) and parameters.get("target_text")
+                                else parameters.get("text")
+                                if isinstance(parameters.get("text"), str) and parameters.get("text")
+                                else None
+                            ),
+                            "expected_text": action_expected_text if isinstance(action_expected_text, str) else None,
+                            "expected_text_found": expected_text_found,
                             "success": result.success,
                             "error_code": result.error_code,
                             "text_preview": text_preview,
@@ -645,6 +649,15 @@ def _default_playwright_replay_executor(
                             "diagnostics": _jsonable(result.diagnostics),
                         }
                     )
+                    if result.success:
+                        actions_succeeded += 1
+                    else:
+                        actions_failed += 1
+                    if isinstance(action_expected_text, str):
+                        if action_expected_text in text_preview:
+                            expected_passed += 1
+                        else:
+                            expected_failed += 1
                     if not result.success:
                         break
     except PlaywrightExecutionError as exc:
@@ -675,6 +688,7 @@ def _default_playwright_replay_executor(
         error_code = "browser_action_failed"
     elif expected_failed > 0:
         error_code = "expected_result_failed"
+    final_url = action_summaries[-1]["served_url"] if action_summaries else None
     return {
         "status": status,
         "error_code": error_code,
@@ -696,6 +710,16 @@ def _default_playwright_replay_executor(
             "fixture_manifest_path": DEFAULT_FIXTURE_MANIFEST_PATH,
             "allowed_hosts": list(config.allowed_hosts),
             "base_url": base_url,
+            "replay_result": {
+                "status": status,
+                "error_code": error_code,
+                "final_url": final_url,
+                "actions_attempted": actions_attempted,
+                "actions_succeeded": actions_succeeded,
+                "actions_failed": actions_failed,
+                "expected_results_passed": expected_passed,
+                "expected_results_failed": expected_failed,
+            },
         },
     }
 

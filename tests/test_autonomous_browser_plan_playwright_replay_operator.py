@@ -18,7 +18,7 @@ from src.agent.autonomous_browser_plan_playwright_replay_operator import (
     load_autonomous_browser_plan_playwright_replay_operator_config,
     run_autonomous_browser_plan_playwright_replay_operator,
 )
-from src.agent.autonomous_browser_playwright_execution import PlaywrightExecutionResult
+from src.agent.autonomous_browser_playwright_execution import PlaywrightExecutionResult, RealPlaywrightBackend, _click_locator_from_page
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -116,6 +116,105 @@ def _fake_playwright_executor(
         return dict(replay_result)
 
     return executor
+
+
+class _FakeClickLocator:
+    def __init__(self, page: "_FakeClickPage", kind: str, *, count: int, click_handler: Any | None = None) -> None:
+        self._page = page
+        self._kind = kind
+        self._count = count
+        self._click_handler = click_handler
+
+    def count(self) -> int:
+        return self._count
+
+    @property
+    def first(self) -> "_FakeClickLocator":
+        return self
+
+    def filter(self, *, has_text: str) -> "_FakeClickLocator":
+        if self._count <= 0 or has_text != self._page.target_text:
+            return _FakeClickLocator(self._page, f"{self._kind}.filtered", count=0)
+        return self
+
+    def click(self, timeout: int) -> None:
+        del timeout
+        self._page.click_log.append(self._kind)
+        if self._click_handler is not None:
+            self._click_handler()
+
+
+class _FakeClickPage:
+    def __init__(
+        self,
+        *,
+        url: str,
+        title: str,
+        body_text: str,
+        target_text: str,
+        role_link_count: int = 0,
+        role_button_count: int = 0,
+        anchor_count: int = 0,
+        button_count: int = 0,
+        text_count: int = 0,
+        post_click_url: str | None = None,
+        post_click_title: str | None = None,
+        post_click_body_text: str | None = None,
+    ) -> None:
+        self.url = url
+        self._title = title
+        self._body_text = body_text
+        self.target_text = target_text
+        self.role_link_count = role_link_count
+        self.role_button_count = role_button_count
+        self.anchor_count = anchor_count
+        self.button_count = button_count
+        self.text_count = text_count
+        self.post_click_url = post_click_url or url
+        self.post_click_title = post_click_title or title
+        self.post_click_body_text = post_click_body_text or body_text
+        self.calls: list[tuple[Any, ...]] = []
+        self.click_log: list[str] = []
+
+    def get_by_role(self, role: str, *, name: str, exact: bool = True) -> _FakeClickLocator:
+        self.calls.append(("get_by_role", role, name, exact))
+        if name != self.target_text:
+            return _FakeClickLocator(self, f"role:{role}:{name}", count=0)
+        count = self.role_link_count if role == "link" else self.role_button_count if role == "button" else 0
+        handler = self._apply_click if count > 0 and role in {"link", "button"} else None
+        return _FakeClickLocator(self, f"role:{role}:{name}", count=count, click_handler=handler)
+
+    def locator(self, selector: str) -> _FakeClickLocator:
+        self.calls.append(("locator", selector))
+        if selector == "a":
+            return _FakeClickLocator(self, selector, count=self.anchor_count, click_handler=self._apply_click if self.anchor_count > 0 else None)
+        if selector == "button":
+            return _FakeClickLocator(self, selector, count=self.button_count, click_handler=self._apply_click if self.button_count > 0 else None)
+        return _FakeClickLocator(self, selector, count=1, click_handler=self._apply_click)
+
+    def get_by_text(self, text: str, exact: bool = True) -> _FakeClickLocator:
+        self.calls.append(("get_by_text", text, exact))
+        count = self.text_count if text == self.target_text else 0
+        handler = self._apply_click if count > 0 else None
+        return _FakeClickLocator(self, f"text:{text}", count=count, click_handler=handler)
+
+    def wait_for_load_state(self, state: str, timeout: int) -> None:
+        del timeout
+        self.calls.append(("wait_for_load_state", state))
+
+    def inner_text(self, selector: str, timeout: int) -> str:
+        del selector, timeout
+        self.calls.append(("inner_text", "body"))
+        return self._body_text
+
+    def title(self) -> str:
+        self.calls.append(("title",))
+        return self._title
+
+    def _apply_click(self) -> None:
+        self.url = self.post_click_url
+        self._title = self.post_click_title
+        self._body_text = self.post_click_body_text
 
 
 def _write_config(
@@ -666,6 +765,77 @@ def test_guarded_fixture_replay_uses_fixture_backend(tmp_path: Path) -> None:
     assert "real_network_traffic" in encoded
     assert "browser_opened" in encoded
     assert "supersecret" not in encoded
+
+
+def test_click_target_selection_prefers_clickable_link_over_generic_text() -> None:
+    page = _FakeClickPage(
+        url="https://local.intranet/",
+        title="Office Intranet",
+        body_text="Office Intranet Home Workspace policy Ticket board",
+        target_text="Workspace policy",
+        role_link_count=1,
+        text_count=1,
+    )
+
+    locator, diagnostics = _click_locator_from_page(page, selector=None, target_text="Workspace policy")
+
+    assert locator is not None
+    assert diagnostics["selector_kind"] == "role_link"
+    assert diagnostics["clickable"] is True
+    assert page.calls[0] == ("get_by_role", "link", "Workspace policy", True)
+
+
+def test_click_without_navigation_requires_visible_expected_text() -> None:
+    backend = RealPlaywrightBackend(headless=True, timeout_ms=1_000)
+    backend._page = _FakeClickPage(
+        url="https://local.intranet/",
+        title="Office Intranet",
+        body_text="Office Intranet Home Workspace policy Ticket board",
+        target_text="Workspace policy",
+        role_link_count=1,
+    )
+
+    result = backend.run_action(
+        "browser_click",
+        "https://local.intranet/",
+        logical_url="https://local.intranet/",
+        expected_text="Allowed activity",
+        parameters={"target_text": "Workspace policy"},
+    )
+
+    assert result.success is False
+    assert result.error_code == "browser_click_navigation_not_detected"
+    assert result.diagnostics["expected_text"] == "Allowed activity"
+    assert result.diagnostics["expected_text_found"] is False
+
+
+def test_click_navigation_updates_url_and_expected_text_preview() -> None:
+    backend = RealPlaywrightBackend(headless=True, timeout_ms=1_000)
+    backend._page = _FakeClickPage(
+        url="https://local.intranet/",
+        title="Office Intranet",
+        body_text="Office Intranet Home Ticket board Workspace policy",
+        target_text="Ticket board",
+        role_link_count=1,
+        post_click_url="https://local.intranet/tickets",
+        post_click_title="Ticket Board",
+        post_click_body_text="Ticket Board Home Ticket 1 Team status Open tickets",
+    )
+
+    result = backend.run_action(
+        "browser_click",
+        "https://local.intranet/",
+        logical_url="https://local.intranet/",
+        expected_text="Ticket Board",
+        parameters={"target_text": "Ticket board"},
+    )
+
+    assert result.success is True
+    assert result.served_url == "https://local.intranet/tickets"
+    assert result.diagnostics["expected_text"] == "Ticket Board"
+    assert result.diagnostics["expected_text_found"] is True
+    assert result.diagnostics["navigation_changed"] is True
+    assert "Ticket Board Home Ticket 1 Team status Open tickets" in result.text_preview
 
 
 def test_no_playwright_import_or_browser_server_model_use(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

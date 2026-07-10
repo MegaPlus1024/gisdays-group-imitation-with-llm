@@ -9,6 +9,9 @@
 - Phase 13D1 fixed the variance-suite handoff so replay sees the per-trial trace files at the summary-recorded relative paths
 - Phase 13D2 fixes the replay trace/action handoff so canonical `action_name` values reach the guarded backend and pre-browser validation failures surface sanitized diagnostics
 - Phase 13D3 fixes the generated guarded operator-config shape and writes the backend config next to each replay plan
+- Phase 13D4 fixes the first real guarded Playwright replay barrier: clicks must target a clickable element, wait for navigation, and validate the post-click page rather than staying on the home page
+- post-click expected-text checks now use the rendered destination page, and nested operator summaries carry the real browser flags that top-level aggregation reads
+- Codex still does not launch browser, Playwright, Chromium, or a model for this path
 
 ## Dry-run command
 
