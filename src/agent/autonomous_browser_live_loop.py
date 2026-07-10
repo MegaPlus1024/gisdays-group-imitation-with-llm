@@ -1730,6 +1730,28 @@ def run_autonomous_browser_live_loop(
         current_observation = next_observation_dict
         completion_match = _completion_policy_goal_satisfied(config, current_observation)
         if completion_match is not None:
+            matched_criteria = completion_match.get("matched_completion_criteria")
+            matched_scenario_id = (
+                matched_criteria.get("scenario_id")
+                if isinstance(matched_criteria, Mapping)
+                else None
+            )
+            if matched_scenario_id != config.scenario_id:
+                stop_reason = "completion_policy_scenario_mismatch"
+                status = "failed"
+                error_code = "completion_policy_scenario_mismatch"
+                if trace_entries:
+                    last_trace = trace_entries[-1]
+                    metadata = dict(last_trace.get("metadata", {})) if isinstance(last_trace.get("metadata"), Mapping) else {}
+                    metadata.update(
+                        {
+                            "completion_policy_id": completion_match.get("completion_policy_id"),
+                            "matched_completion_criteria": matched_criteria,
+                            "completion_policy_scenario_mismatch": True,
+                        }
+                    )
+                    last_trace["metadata"] = metadata
+                break
             stop_reason = "goal_satisfied"
             status = "succeeded"
             error_code = None
@@ -2197,8 +2219,6 @@ def _completion_policy_goal_satisfied(
         return None
     criteria_key = config.scenario_id
     criteria = policy.scenario_criteria.get(criteria_key)
-    if criteria is None and len(policy.scenario_criteria) == 1:
-        criteria_key, criteria = next(iter(policy.scenario_criteria.items()))
     if criteria is None:
         return None
     current_url = _optional_text(observation.get("current_url"))

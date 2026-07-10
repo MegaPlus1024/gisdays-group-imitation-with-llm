@@ -13,6 +13,7 @@ import src.agent.autonomous_browser_live_model_planner as live_model_planner
 from src.agent.autonomous_browser_live_loop import (
     CONFIG_SCHEMA_VERSION,
     SUMMARY_SCHEMA_VERSION,
+    _completion_policy_goal_satisfied,
     load_autonomous_browser_live_loop_config,
     run_autonomous_browser_live_loop,
 )
@@ -47,10 +48,10 @@ def _write_config(tmp_path: Path, payload: dict[str, Any]) -> Path:
     return path
 
 
-def _load_local_model_config() -> dict[str, Any]:
+def _load_local_model_config(scenario_id: str = "browser_live_loop_local_model_policy_review_v1") -> dict[str, Any]:
     return {
         "schema_version": CONFIG_SCHEMA_VERSION,
-        "scenario_id": "browser_live_loop_local_model_policy_review_v1",
+        "scenario_id": scenario_id,
         "loop_backend": "offline_fixture",
         "output_dir": "artifacts/autonomous_runtime_summaries/browser_live_loop_local_model_tests",
         "no_runtime_execution": True,
@@ -106,9 +107,8 @@ def _load_local_model_config() -> dict[str, Any]:
     }
 
 
-def _load_local_model_no_page_config() -> dict[str, Any]:
-    config = _load_local_model_config()
-    config["scenario_id"] = "browser_live_loop_local_model_no_page_v1"
+def _load_local_model_no_page_config(scenario_id: str = "browser_live_loop_local_model_no_page_v1") -> dict[str, Any]:
+    config = _load_local_model_config(scenario_id=scenario_id)
     config["browser_session"]["start_url"] = None
     config["browser_session"]["metadata"] = {
         "fixture_only": True,
@@ -117,8 +117,8 @@ def _load_local_model_no_page_config() -> dict[str, Any]:
     return config
 
 
-def _load_local_model_completion_policy_disabled_config() -> dict[str, Any]:
-    config = _load_local_model_config()
+def _load_local_model_completion_policy_disabled_config(scenario_id: str = "browser_live_loop_local_model_policy_review_v1") -> dict[str, Any]:
+    config = _load_local_model_config(scenario_id=scenario_id)
     config["completion_policy"]["enabled"] = False
     return config
 
@@ -988,7 +988,7 @@ def test_local_model_backend_succeeds_with_fake_client() -> None:
 
 
 def test_local_model_backend_stops_when_completion_policy_goal_is_satisfied() -> None:
-    config = _load_local_model_config()
+    config = _load_local_model_config(scenario_id="hard_policy_disambiguation")
     config["planner_backend"]["allow_model_calls"] = True
     config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
     client = FakeChatCompletionClient(
@@ -1021,7 +1021,7 @@ def test_local_model_backend_stops_when_completion_policy_goal_is_satisfied() ->
     assert summary["expected_results_failed"] == 0
     assert summary["runtime_trace"][-1]["metadata"]["goal_satisfied"] is True
     assert summary["runtime_trace"][-1]["metadata"]["completion_policy_id"] == "fixture_goal_completion_v1"
-    assert summary["runtime_trace"][-1]["metadata"]["matched_completion_criteria"]["scenario_id"] == "hard_policy_disambiguation"
+    assert summary["runtime_trace"][-1]["metadata"]["matched_completion_criteria"]["scenario_id"] == summary["scenario_id"]
     assert summary["runtime_trace"][-1]["metadata"]["matched_completion_criteria"]["matched_url"] == "https://local.intranet/docs/policy"
     assert summary["runtime_trace"][-1]["metadata"]["matched_completion_criteria"]["matched_text_anchors"] == [
         "Workspace Policy",
@@ -1031,22 +1031,14 @@ def test_local_model_backend_stops_when_completion_policy_goal_is_satisfied() ->
     assert len(client.requests) == 2
 
 
-def test_local_model_backend_does_not_stop_for_ticket_1_when_completion_policy_is_enabled() -> None:
-    config = _load_local_model_config()
+def test_local_model_backend_does_not_stop_for_hard_ticket_priority_crosscheck_when_completion_policy_is_enabled() -> None:
+    config = _load_local_model_config(scenario_id="hard_ticket_priority_crosscheck")
     config["planner_backend"]["allow_model_calls"] = True
     config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
     client = FakeChatCompletionClient(
         [
             ChatCompletionResponse(
                 content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet Home","expected_url":"https://local.intranet/"}',
-                finish_reason="stop",
-            ),
-            ChatCompletionResponse(
-                content='{"step_id":"click_board","action_name":"browser_click","parameters":{"target_text":"Ticket board"},"expected_text":"Ticket Board","expected_url":"https://local.intranet/tickets"}',
-                finish_reason="stop",
-            ),
-            ChatCompletionResponse(
-                content='{"step_id":"click_ticket","action_name":"browser_click","parameters":{"target_text":"Ticket 1"},"expected_text":"Ticket 1","expected_url":"https://local.intranet/tickets/1"}',
                 finish_reason="stop",
             ),
             ChatCompletionResponse(
@@ -1061,16 +1053,64 @@ def test_local_model_backend_does_not_stop_for_ticket_1_when_completion_policy_i
     assert summary["status"] == "succeeded"
     assert summary["stop_reason"] == "planner_signaled_done"
     assert summary["error_code"] is None
-    assert summary["steps_attempted"] == 4
-    assert summary["actions_attempted"] == 3
-    assert summary["expected_results_passed"] == 3
+    assert summary["steps_attempted"] == 2
+    assert summary["actions_attempted"] == 1
+    assert summary["expected_results_passed"] == 1
     assert summary["runtime_trace"][-1]["planner_action"]["done"] is True
-    assert "goal_satisfied" not in summary["runtime_trace"][2].get("metadata", {})
-    assert len(client.requests) == 4
+    assert "goal_satisfied" not in summary["runtime_trace"][0].get("metadata", {})
+    assert len(client.requests) == 2
+
+
+def test_local_model_backend_does_not_stop_for_hard_approval_policy_match_when_completion_policy_is_enabled() -> None:
+    config = _load_local_model_config(scenario_id="hard_approval_policy_match")
+    config["planner_backend"]["allow_model_calls"] = True
+    config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"open_home","action_name":"browser_open_url","parameters":{"url":"https://local.intranet/"},"expected_text":"Office Intranet Home","expected_url":"https://local.intranet/"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"click_policy","action_name":"browser_click","parameters":{"target_text":"Workspace policy"},"expected_text":"Workspace Policy","expected_url":"https://local.intranet/docs/policy"}',
+                finish_reason="stop",
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"done","action_name":"done","parameters":{},"expected_text":"","done":true}',
+                finish_reason="stop",
+            ),
+        ]
+    )
+
+    summary = run_autonomous_browser_live_loop(config, repo_root=PROJECT_ROOT, model_client=client)
+
+    assert summary["status"] == "succeeded"
+    assert summary["stop_reason"] == "planner_signaled_done"
+    assert summary["error_code"] is None
+    assert summary["steps_attempted"] == 3
+    assert summary["actions_attempted"] == 2
+    assert summary["expected_results_passed"] == 2
+    assert "goal_satisfied" not in summary["runtime_trace"][1].get("metadata", {})
+    assert len(client.requests) == 3
+
+
+def test_completion_policy_does_not_match_other_scenarios_with_different_ids() -> None:
+    config = load_autonomous_browser_live_loop_config(_load_local_model_config(scenario_id="hard_ticket_priority_crosscheck"))
+    observation = {
+        "observation_id": "observation_0006",
+        "current_url": "https://local.intranet/docs/policy",
+        "title": "Workspace Policy",
+        "text_preview": "Workspace Policy Home Ticket 1 Allowed activity Search marker: fixture-backed result for workspace policy review.",
+        "metadata": {"fixture_source": True},
+    }
+
+    match = _completion_policy_goal_satisfied(config, observation)
+
+    assert match is None
 
 
 def test_completion_policy_disabled_preserves_old_behavior_until_done() -> None:
-    config = _load_local_model_completion_policy_disabled_config()
+    config = _load_local_model_completion_policy_disabled_config(scenario_id="hard_policy_disambiguation")
     config["planner_backend"]["allow_model_calls"] = True
     config["planner_backend"]["model_endpoint"] = "http://127.0.0.1:8082/v1"
     client = FakeChatCompletionClient(

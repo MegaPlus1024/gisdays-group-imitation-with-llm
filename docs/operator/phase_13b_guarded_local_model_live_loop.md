@@ -78,6 +78,13 @@ This path should refuse with `allow_model_calls_required` unless the operator ex
 - `goal_satisfied` is recorded in the trace metadata together with `completion_policy_id`, `matched_completion_criteria`, `matched_url`, and `matched_text_anchors`
 - if the live loop still ends with `max_steps_reached` while every expected check passed, the completion policy is missing or disabled; this remains fixture-backed operator guidance only
 
+## Phase 13B16 note
+
+- the completion policy is now scoped strictly to the current `scenario_id`; only `hard_policy_disambiguation` has completion criteria right now
+- `hard_ticket_priority_crosscheck` and `hard_approval_policy_match` should not inherit `goal_satisfied` from the policy scenario
+- `goal_satisfied` is valid only when `matched_completion_criteria.scenario_id` equals the live loop `scenario_id`; if a mismatch is detected, the run fails safely with `completion_policy_scenario_mismatch`
+- if other scenarios do not yet have completion criteria, `done`, `max_steps`, or ordinary failure/rejection is the expected outcome
+
 ## Guarded operator run
 
 ```powershell

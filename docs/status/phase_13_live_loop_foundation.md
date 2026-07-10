@@ -115,3 +115,10 @@
 - the live loop now has an explicit fixture-backed completion policy, so `hard_policy_disambiguation` stops with `status: succeeded` and `stop_reason: goal_satisfied` once the Workspace Policy page is reached with the required anchors
 - the completion decision is auditable in trace metadata via `goal_satisfied`, `completion_policy_id`, `matched_completion_criteria`, `matched_url`, and `matched_text_anchors`
 - the policy is fixture-local only; it does not add browser launch capability, real Playwright execution, or Codex-launched model execution
+
+## Phase 13B16 note
+
+- the completion policy is now scoped strictly by current `scenario_id`, so `hard_policy_disambiguation` is the only scenario backed by completion criteria for now
+- `hard_ticket_priority_crosscheck` and `hard_approval_policy_match` no longer inherit policy completion from the policy scenario; they should continue normally until `done`, `max_steps`, or a real rejection/failure
+- `goal_satisfied` is only valid when the matched criteria scenario id matches the live loop `scenario_id`
+- this remains fixture-backed only and does not add browser launch capability or Codex-launched model execution
