@@ -2,6 +2,8 @@
 
 This phase adds a repeated stateful read-only planner variance packet for `third_model`.
 
+After `a59b14f`, the final operator rerun succeeded for all 15 captured outputs and all 15 materialized workflows while keeping evaluator/materializer execution offline and fixture-backed.
+
 ## What it does
 
 - prepares three trials per stateful workflow scenario
@@ -24,6 +26,7 @@ This phase adds a repeated stateful read-only planner variance packet for `third
 - Missing captured outputs remain a handled failure mode in the evaluator and materializer.
 - The command markdown should mention `planner_prompt.compact.txt` as the prompt source for each trial.
 - The packet stays limited to `third_model` and the five stateful scenarios.
+- Generated packet, output, and materialized workflow artifacts are operator evidence only and must not be committed.
 
 ## Safety boundaries
 
@@ -84,3 +87,10 @@ This phase adds a repeated stateful read-only planner variance packet for `third
 - `policy_anchor` must be copied exactly as the visible title `Workspace Policy`; the URL belongs in `source_url` only and should not be normalized into the fact value by the evaluator.
 - The evaluator remains strict: a policy URL in `policy_anchor` is still a `fact_value_mismatch`.
 - this remains fixture-backed, read-only, and does not add model/browser/Playwright execution from Codex
+
+## Phase 13E4 final success guidance
+
+- Final operator evidence after `a59b14f` is a full offline success: evaluator `15/15` validation accepted and `15/15` workflows succeeded; materializer `15/15` outputs accepted and `15/15` workflows materialized.
+- Scenario coverage is complete at `3/3` for each of the five controlled stateful scenarios.
+- The operator-run model calls were manual against `third_model`; evaluator and materializer still performed no model calls, browser launches, Playwright runs, or external network activity.
+- Treat the generated artifacts as evidence only. Keep them untracked and out of commits.

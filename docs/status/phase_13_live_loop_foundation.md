@@ -257,3 +257,9 @@
 - Phase 13E4i narrows the last remaining policy-ticket mismatch after `7e5a1de`: the offline variance evaluator still accepts 15/15 outputs by validation and 12/15 workflows, and the only remaining failures are `policy_anchor` values emitted as `https://local.intranet/docs/policy` instead of the visible `Workspace Policy` title.
 - The policy-ticket prompt now requires `policy_anchor` exactly as `Workspace Policy`, says the URL belongs in `source_url` only, and keeps the evaluator strict.
 - this is still fixture-backed, read-only, and does not add model/browser/Playwright execution from Codex
+
+## Phase 13E4 final success
+
+- After `a59b14f`, the repeated stateful planner variance suite reached full offline success: evaluator `status: succeeded`, `validation_accepted: 15`, `workflows_succeeded: 15`, and all five scenarios passed `3/3`.
+- The companion materializer also succeeded with `outputs_accepted: 15` and `workflows_materialized: 15`.
+- This remains controlled fixture-only evidence for repeated `third_model` stateful read-only planning. Evaluator and materializer still did not launch models, browser, Playwright, or external network activity, and the generated artifacts remain operator evidence only.

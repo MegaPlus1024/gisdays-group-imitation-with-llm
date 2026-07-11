@@ -115,6 +115,7 @@
 - Phase 13E4g fixes final-answer validation for prose containing allowed local fixture URLs; the captured variance rerun now accepts 15/15 outputs by validation and reports the remaining policy-ticket issue as an honest fixture fact mismatch.
 - Phase 13E4h anchors the remaining policy-ticket `ticket_id` mismatch after E4g reached 12/15 workflow success: the prompt now requires the exact visible `Ticket 1` label and warns against invented ids such as `TICKET-12345`, while keeping verifier rejection strict.
 - Phase 13E4i anchors the remaining policy-ticket `policy_anchor` mismatch after the `ticket_id` repair: the prompt now requires the exact visible `Workspace Policy` title, keeps the policy URL in `source_url` only, and does not relax verifier checks.
+- Phase 13E4 final success: after `a59b14f`, the repeated stateful planner variance evaluator accepted and completed all `15/15` captured outputs across `5 x 3` trials, and the offline materializer accepted and materialized all `15/15` workflows without model, browser, or Playwright execution.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

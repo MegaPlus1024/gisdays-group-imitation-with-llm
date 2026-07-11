@@ -8,21 +8,24 @@ It prepares three manual trials for each of the five stateful workflow scenarios
 
 The suite is fixture-only and read-only. Codex does not launch a model, browser, or Playwright to create it.
 
+After `a59b14f`, the final operator rerun succeeded end to end: the offline evaluator accepted and completed all 15/15 captured outputs across 5 scenarios x 3 trials, and the offline materializer accepted and materialized all 15/15 workflows.
+
 ## Evidence table
 
 | scenario_id | trials_per_scenario | model_alias | packet | evaluator | materializer |
 |---|---:|---|---|---|---|
-| `stateful_policy_ticket_crosscheck` | 3 | `third_model` | prepared | prepared | prepared |
-| `stateful_approval_policy_crosscheck` | 3 | `third_model` | prepared | prepared | prepared |
-| `stateful_intranet_overview_digest` | 3 | `third_model` | prepared | prepared | prepared |
-| `stateful_ticket_priority_digest` | 3 | `third_model` | prepared | prepared | prepared |
-| `stateful_policy_search_marker_review` | 3 | `third_model` | prepared | prepared | prepared |
+| `stateful_policy_ticket_crosscheck` | 3 | `third_model` | prepared | succeeded | succeeded |
+| `stateful_approval_policy_crosscheck` | 3 | `third_model` | prepared | succeeded | succeeded |
+| `stateful_intranet_overview_digest` | 3 | `third_model` | prepared | succeeded | succeeded |
+| `stateful_ticket_priority_digest` | 3 | `third_model` | prepared | succeeded | succeeded |
+| `stateful_policy_search_marker_review` | 3 | `third_model` | prepared | succeeded | succeeded |
 
 ## Scenario outcomes
 
 - The packet builder emits per-scenario compact prompts, request records, and relative request/output paths.
-- The evaluator is designed to consume 15 captured outputs across the five stateful scenarios.
-- The materializer is designed to turn accepted outputs into per-workflow state, trace, and workflow-summary artifacts.
+- Final evaluator result after `a59b14f`: `status: succeeded`, `outputs_ingested: 15`, `validation_accepted: 15`, `workflows_succeeded: 15`, `pass_rate_overall: 1.0`, `validation_acceptance_rate: 1.0`.
+- Scenario success was 3/3 for each of: `stateful_policy_ticket_crosscheck`, `stateful_approval_policy_crosscheck`, `stateful_intranet_overview_digest`, `stateful_ticket_priority_digest`, and `stateful_policy_search_marker_review`.
+- Final materializer result after `a59b14f`: `status: succeeded`, `outputs_accepted: 15`, `workflows_materialized: 15`, `workflows_failed: 0`.
 
 ## Repairs and guards exercised
 
@@ -45,6 +48,7 @@ The suite is fixture-only and read-only. Codex does not launch a model, browser,
 - It remains constrained to the five stateful read-only workflow scenarios and `third_model` only.
 - It does not prove live external browsing or security hardening.
 - The evaluator and materializer remain offline replay steps.
+- The captured outputs and materialized workflow artifacts are operator evidence only and must not be committed.
 
 ## Next recommended phase
 
@@ -90,3 +94,10 @@ Use the variance packet as the repeatable fixture source for continued offline a
 - After `7e5a1de`, the captured 15-output variance evaluator rerun still accepted 15/15 by validation and reached 12/15 workflow success; the only remaining 3/15 failures were `policy_anchor` mismatches where the model emitted `https://local.intranet/docs/policy` instead of the visible title `Workspace Policy`.
 - Phase 13E4i anchors `policy_anchor` to the exact visible Workspace Policy title/header text, explicitly says the URL belongs in `source_url` only, and keeps `policy_marker` and `ticket_id` exact.
 - This remains a prompt-grounding repair only; the evaluator is not relaxed and still rejects the policy URL as a `policy_anchor` value.
+
+## Phase 13E4 final success
+
+- After `a59b14f`, the final operator rerun succeeded for the full repeated stateful planner variance packet: evaluator `status: succeeded`, `outputs_total: 15`, `outputs_present: 15`, `outputs_ingested: 15`, `validation_accepted: 15`, `workflows_succeeded: 15`, `workflows_failed: 0`.
+- The final materializer rerun also succeeded: `outputs_total: 15`, `outputs_present: 15`, `outputs_accepted: 15`, `workflows_materialized: 15`, `workflows_failed: 0`.
+- Both evaluator and materializer remained offline and fixture-backed with `model_execution: false`, `real_browser_execution: false`, `playwright_execution: false`, `browser_opened: false`, and no external network activity.
+- This is a controlled research success for repeated stateful read-only workflow planning under `third_model`, not a production-readiness claim.
