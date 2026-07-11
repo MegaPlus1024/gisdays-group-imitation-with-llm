@@ -18,14 +18,22 @@ from src.agent.autonomous_browser_stateful_readonly_planner_variance import (  #
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the offline repeated stateful read-only planner variance evaluator.")
-    parser.add_argument("--config", required=True)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--packet-dir")
+    group.add_argument("--config")
     args = parser.parse_args(argv)
 
     try:
-        summary = run_autonomous_browser_stateful_readonly_planner_variance_evaluator(
-            _resolve_repo_path(args.config),
-            repo_root=PROJECT_ROOT,
-        )
+        if args.packet_dir is not None:
+            summary = run_autonomous_browser_stateful_readonly_planner_variance_evaluator(
+                packet_dir=_resolve_repo_path(args.packet_dir),
+                repo_root=PROJECT_ROOT,
+            )
+        else:
+            summary = run_autonomous_browser_stateful_readonly_planner_variance_evaluator(
+                _resolve_repo_path(args.config),
+                repo_root=PROJECT_ROOT,
+            )
     except (OSError, ValueError) as exc:
         summary = {
             "schema_version": EVALUATOR_SUMMARY_SCHEMA_VERSION,

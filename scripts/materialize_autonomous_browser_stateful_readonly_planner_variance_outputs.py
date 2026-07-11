@@ -18,14 +18,25 @@ from src.agent.autonomous_browser_stateful_readonly_planner_variance import (  #
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Materialize accepted repeated stateful read-only planner outputs.")
-    parser.add_argument("--config", required=True)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--packet-dir")
+    group.add_argument("--config")
+    parser.add_argument("--output-dir")
     args = parser.parse_args(argv)
 
     try:
-        summary = run_autonomous_browser_stateful_readonly_planner_variance_materializer(
-            _resolve_repo_path(args.config),
-            repo_root=PROJECT_ROOT,
-        )
+        if args.packet_dir is not None:
+            summary = run_autonomous_browser_stateful_readonly_planner_variance_materializer(
+                packet_dir=_resolve_repo_path(args.packet_dir),
+                output_dir=_resolve_repo_path(args.output_dir) if args.output_dir is not None else None,
+                repo_root=PROJECT_ROOT,
+            )
+        else:
+            summary = run_autonomous_browser_stateful_readonly_planner_variance_materializer(
+                _resolve_repo_path(args.config),
+                output_dir=_resolve_repo_path(args.output_dir) if args.output_dir is not None else None,
+                repo_root=PROJECT_ROOT,
+            )
     except (OSError, ValueError) as exc:
         summary = {
             "schema_version": MATERIALIZER_SUMMARY_SCHEMA_VERSION,

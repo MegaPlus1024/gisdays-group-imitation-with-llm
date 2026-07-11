@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import hashlib
 import json
 from collections import Counter
@@ -62,6 +63,8 @@ DEFAULT_CAPTURED_OUTPUT_DIR = "artifacts/autonomous_runtime_planner_outputs/stat
 DEFAULT_EVALUATOR_OUTPUT_DIR = "artifacts/autonomous_runtime_planner_summaries/stateful_readonly_planner_variance_evaluator"
 DEFAULT_MATERIALIZED_OUTPUT_DIR = DEFAULT_VARIANCE_MATERIALIZED_OUTPUT_DIR
 DEFAULT_RUNTIME_CONFIG_FILENAME = "variance_config.local.json"
+DEFAULT_PACKET_SUMMARY_FILENAME = "autonomous_browser_stateful_readonly_planner_variance_packet_summary.json"
+DEFAULT_PACKET_MANIFEST_FILENAME = "autonomous_browser_stateful_readonly_planner_variance_packet.json"
 DEFAULT_REQUEST_RECORDS_FILENAME = "request_records.json"
 DEFAULT_REQUEST_PATHS_FILENAME = "request_paths.json"
 DEFAULT_OUTPUT_PATHS_FILENAME = "output_paths.json"
@@ -217,6 +220,8 @@ class StatefulReadonlyPlannerVariancePacketSummary:
     scenarios_total: int
     trials_per_scenario: int
     trials_total: int
+    requests_total: int
+    fixture_only: bool
     model_aliases: tuple[str, ...] = ()
     scenario_ids: tuple[str, ...] = ()
     trial_ids: tuple[str, ...] = ()
@@ -249,6 +254,8 @@ class StatefulReadonlyPlannerVariancePacketSummary:
             "scenarios_total": self.scenarios_total,
             "trials_per_scenario": self.trials_per_scenario,
             "trials_total": self.trials_total,
+            "requests_total": self.requests_total,
+            "fixture_only": self.fixture_only,
             "model_aliases": list(self.model_aliases),
             "scenario_ids": list(self.scenario_ids),
             "trial_ids": list(self.trial_ids),
@@ -886,6 +893,7 @@ def build_autonomous_browser_stateful_readonly_planner_variance_packet(
         "trials_per_scenario": build_config.trials_per_scenario,
         "request_records": trial_records,
         "request_count": len(trial_records),
+        "requests_total": len(trial_records),
         "output_dir": build_config.output_dir,
         "captured_output_dir": build_config.captured_output_dir,
         "materialized_output_dir": build_config.materialized_output_dir,
@@ -927,6 +935,8 @@ def build_autonomous_browser_stateful_readonly_planner_variance_packet(
         scenarios_total=len(scenario_ids),
         trials_per_scenario=build_config.trials_per_scenario,
         trials_total=len(trial_records),
+        requests_total=len(trial_records),
+        fixture_only=build_config.fixture_only,
         model_aliases=tuple(model_aliases),
         scenario_ids=tuple(scenario_ids),
         trial_ids=tuple(trial_ids),
@@ -946,32 +956,37 @@ def build_autonomous_browser_stateful_readonly_planner_variance_packet(
 
 
 def run_autonomous_browser_stateful_readonly_planner_variance_evaluator(
-    config_artifact: str | Path | Mapping[str, Any],
+    config_artifact: str | Path | Mapping[str, Any] | None = None,
     *,
+    packet_dir: str | Path | None = None,
     repo_root: str | Path | None = None,
 ) -> dict[str, Any]:
     repo = Path(repo_root) if repo_root is not None else Path(".")
-    config = _load_runtime_config(config_artifact)
-    if config["status"] != "ok":
+    packet_context = (
+        _load_packet_context(packet_dir, repo_root=repo)
+        if packet_dir is not None
+        else _load_packet_context_from_build_config(config_artifact, repo_root=repo)
+    )
+    if packet_context["status"] != "ok":
         return _evaluator_failure_summary(
-            packet_id=config.get("packet_id"),
-            packet_output_dir=config.get("packet_output_dir"),
-            output_dir=config.get("output_dir"),
-            materialized_output_dir=config.get("materialized_output_dir"),
-            error_code=str(config.get("error_code") or "config_validation_failed"),
-            limitations=tuple(config.get("limitations") or DEFAULT_LIMITATIONS),
+            packet_id=packet_context.get("packet_id"),
+            packet_output_dir=packet_context.get("packet_dir") or packet_context.get("packet_output_dir"),
+            output_dir=packet_context.get("packet_output_dir") or packet_context.get("packet_dir"),
+            materialized_output_dir=packet_context.get("materialized_output_dir"),
+            error_code=str(packet_context.get("error_code") or "config_validation_failed"),
+            limitations=tuple(packet_context.get("limitations") or DEFAULT_LIMITATIONS),
+            diagnostics=_jsonable({key: value for key, value in packet_context.items() if key not in {"status", "limitations"}}),
         )
 
-    runtime_config = config["config"]
-    packet_output_dir = str(runtime_config["packet_output_dir"])
-    output_dir = str(runtime_config["output_dir"])
-    materialized_output_dir = str(runtime_config["materialized_output_dir"])
-    packet_id = str(runtime_config["packet_id"])
-    model_aliases = tuple(runtime_config["model_aliases"])
-    scenario_ids = tuple(runtime_config["scenario_ids"])
-    trial_ids = tuple(runtime_config["trial_ids"])
-    trial_records = tuple(runtime_config["trial_records"])
-    limitations = tuple(runtime_config.get("limitations") or DEFAULT_LIMITATIONS)
+    packet_output_dir = str(packet_context["packet_output_dir"])
+    output_dir = packet_output_dir
+    materialized_output_dir = str(packet_context["materialized_output_dir"])
+    packet_id = str(packet_context["packet_id"])
+    model_aliases = tuple(packet_context["model_aliases"])
+    scenario_ids = tuple(packet_context["scenario_ids"])
+    trial_ids = tuple(packet_context["trial_ids"])
+    trial_records = tuple(packet_context["request_records"])
+    limitations = tuple(packet_context.get("limitations") or DEFAULT_LIMITATIONS)
 
     output_root = repo / output_dir
     output_root.mkdir(parents=True, exist_ok=True)
@@ -1165,31 +1180,40 @@ def run_autonomous_browser_stateful_readonly_planner_variance_evaluator(
 
 
 def run_autonomous_browser_stateful_readonly_planner_variance_materializer(
-    config_artifact: str | Path | Mapping[str, Any],
+    config_artifact: str | Path | Mapping[str, Any] | None = None,
     *,
+    packet_dir: str | Path | None = None,
+    output_dir: str | Path | None = None,
     repo_root: str | Path | None = None,
 ) -> dict[str, Any]:
     repo = Path(repo_root) if repo_root is not None else Path(".")
-    config = _load_runtime_config(config_artifact)
-    if config["status"] != "ok":
+    packet_context = (
+        _load_packet_context(packet_dir, repo_root=repo)
+        if packet_dir is not None
+        else _load_packet_context_from_build_config(config_artifact, repo_root=repo)
+    )
+    if packet_context["status"] != "ok":
         return _materializer_failure_summary(
-            packet_id=config.get("packet_id"),
-            output_dir=config.get("materialized_output_dir"),
-            error_code=str(config.get("error_code") or "config_validation_failed"),
-            limitations=tuple(config.get("limitations") or DEFAULT_LIMITATIONS),
+            packet_id=packet_context.get("packet_id"),
+            output_dir=packet_context.get("materialized_output_dir") or packet_context.get("packet_dir"),
+            error_code=str(packet_context.get("error_code") or "config_validation_failed"),
+            limitations=tuple(packet_context.get("limitations") or DEFAULT_LIMITATIONS),
+            diagnostics=_jsonable({key: value for key, value in packet_context.items() if key not in {"status", "limitations"}}),
         )
 
-    runtime_config = config["config"]
-    packet_id = str(runtime_config["packet_id"])
-    packet_output_dir = str(runtime_config["packet_output_dir"])
-    output_dir = str(runtime_config["materialized_output_dir"])
-    model_aliases = tuple(runtime_config["model_aliases"])
-    scenario_ids = tuple(runtime_config["scenario_ids"])
-    trial_ids = tuple(runtime_config["trial_ids"])
-    trial_records = tuple(runtime_config["trial_records"])
-    limitations = tuple(runtime_config.get("limitations") or DEFAULT_LIMITATIONS)
+    packet_id = str(packet_context["packet_id"])
+    packet_output_dir = str(packet_context["packet_output_dir"])
+    output_dir_path = Path(output_dir) if output_dir is not None else Path(str(packet_context["materialized_output_dir"]))
+    if not output_dir_path.is_absolute():
+        output_dir_path = repo / output_dir_path
+    output_dir = _repo_relative_path(repo, output_dir_path)
+    model_aliases = tuple(packet_context["model_aliases"])
+    scenario_ids = tuple(packet_context["scenario_ids"])
+    trial_ids = tuple(packet_context["trial_ids"])
+    trial_records = tuple(packet_context["request_records"])
+    limitations = tuple(packet_context.get("limitations") or DEFAULT_LIMITATIONS)
 
-    output_root = repo / output_dir
+    output_root = output_dir_path
     output_root.mkdir(parents=True, exist_ok=True)
 
     scenario_defs = build_default_stateful_readonly_workflow_scenarios()
@@ -1443,6 +1467,8 @@ def _materialize_trial_record(
     source_output_path = _safe_relative_path(record.get("raw_output_path") or record.get("output_path"), "output_path")
     source_response_path = _safe_relative_path(record.get("response_path"), "response_path")
     if model_alias is None or scenario_id is None or trial_id is None or trial_label is None or workflow_id is None or source_output_path is None:
+        invalid_workflow_dir = repo_root / materialized_output_dir / (model_alias or "unknown_model") / (scenario_id or "unknown_scenario") / (trial_label or "unknown_trial")
+        invalid_workflow_dir.mkdir(parents=True, exist_ok=True)
         summary = _materialized_workflow_summary(
             packet_id=packet_id,
             model_alias=model_alias or "unknown_model",
@@ -1462,10 +1488,7 @@ def _materialize_trial_record(
             source_response_path=source_response_path,
             diagnostics={"finding_type": "invalid_request_record"},
         )
-        _write_json(
-            repo_root / materialized_output_dir / (model_alias or "unknown_model") / (scenario_id or "unknown_scenario") / (trial_label or "unknown_trial") / "materialized_workflow_summary.json",
-            summary,
-        )
+        _write_json(invalid_workflow_dir / "materialized_workflow_summary.json", summary)
         return {
             "status": "failed",
             "error_code": "config_validation_failed",
@@ -2310,6 +2333,136 @@ def _load_runtime_config(config_artifact: str | Path | Mapping[str, Any]) -> dic
     }
 
 
+def _load_packet_context(packet_dir_artifact: str | Path, *, repo_root: Path) -> dict[str, Any]:
+    packet_dir_path = Path(packet_dir_artifact)
+    if not packet_dir_path.is_absolute():
+        packet_dir_path = repo_root / packet_dir_path
+    packet_dir_display = _repo_relative_path(repo_root, packet_dir_path)
+    summary_files = (
+        DEFAULT_PACKET_SUMMARY_FILENAME,
+        DEFAULT_PACKET_MANIFEST_FILENAME,
+    )
+    checked_files = [f"{packet_dir_display}/{filename}" for filename in summary_files]
+    first_issue = "missing_packet_summary"
+    for filename in summary_files:
+        summary_path = packet_dir_path / filename
+        if not summary_path.exists():
+            continue
+        try:
+            payload = json.loads(summary_path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError):
+            first_issue = "packet_summary_unreadable"
+            continue
+        if not isinstance(payload, Mapping):
+            first_issue = "packet_summary_invalid"
+            continue
+        request_records = _safe_runtime_trial_records(payload.get("request_records"))
+        if request_records is None:
+            first_issue = "packet_summary_missing_request_records"
+            continue
+        packet_id = _safe_text(payload.get("packet_id"))
+        if packet_id is None:
+            first_issue = "packet_summary_missing_packet_id"
+            continue
+        model_aliases = _safe_string_list(payload.get("model_aliases"), "model_aliases")
+        if model_aliases is None:
+            model_aliases = _unique_values(request_records, "model_alias")
+        scenario_ids = _safe_string_list(payload.get("scenario_ids"), "scenario_ids")
+        if scenario_ids is None:
+            scenario_ids = _unique_values(request_records, "scenario_id")
+        trial_ids = _safe_string_list(payload.get("trial_ids"), "trial_ids")
+        if trial_ids is None:
+            trial_ids = _unique_values(request_records, "trial_label")
+        trials_per_scenario = payload.get("trials_per_scenario")
+        if not isinstance(trials_per_scenario, int) or isinstance(trials_per_scenario, bool) or trials_per_scenario <= 0:
+            trials_per_scenario = len(trial_ids)
+        packet_output_dir = _safe_relative_path(payload.get("output_dir", packet_dir_display), "output_dir") or packet_dir_display
+        captured_output_dir = _safe_relative_path(payload.get("captured_output_dir", DEFAULT_CAPTURED_OUTPUT_DIR), "captured_output_dir") or DEFAULT_CAPTURED_OUTPUT_DIR
+        materialized_output_dir = _safe_relative_path(payload.get("materialized_output_dir", DEFAULT_MATERIALIZED_OUTPUT_DIR), "materialized_output_dir") or DEFAULT_MATERIALIZED_OUTPUT_DIR
+        limitations = tuple(str(item).strip() for item in payload.get("limitations", []) if isinstance(item, str) and item.strip()) or DEFAULT_LIMITATIONS
+        return {
+            "status": "ok",
+            "packet_id": packet_id,
+            "packet_dir": packet_dir_display,
+            "packet_output_dir": packet_output_dir,
+            "captured_output_dir": captured_output_dir,
+            "materialized_output_dir": materialized_output_dir,
+            "models_total": len(model_aliases),
+            "scenarios_total": len(scenario_ids),
+            "trials_per_scenario": trials_per_scenario,
+            "requests_total": len(request_records),
+            "model_aliases": tuple(model_aliases),
+            "scenario_ids": tuple(scenario_ids),
+            "trial_ids": tuple(trial_ids),
+            "request_records": request_records,
+            "limitations": limitations,
+            "summary_file": f"{packet_dir_display}/{filename}",
+        }
+    return {
+        "status": "failed",
+        "error_code": "config_validation_failed",
+        "packet_id": None,
+        "packet_dir": packet_dir_display,
+        "expected_summary_files": checked_files,
+        "finding_type": first_issue,
+        "hint": "build variance packet first or pass --packet-dir to the generated packet directory",
+        "limitations": DEFAULT_LIMITATIONS,
+    }
+
+
+def _load_packet_context_from_build_config(config_artifact: str | Path | Mapping[str, Any], *, repo_root: Path) -> dict[str, Any]:
+    config = _load_build_config(config_artifact)
+    if config["status"] != "ok":
+        return {
+            "status": "failed",
+            "error_code": str(config.get("error_code") or "config_validation_failed"),
+            "packet_id": config.get("packet_id"),
+            "packet_dir": config.get("output_dir"),
+            "packet_output_dir": config.get("output_dir"),
+            "materialized_output_dir": config.get("materialized_output_dir"),
+            "expected_summary_files": [],
+            "finding_type": "invalid_build_config",
+            "hint": "build variance packet first or pass --packet-dir to the generated packet directory",
+            "limitations": tuple(config.get("limitations") or DEFAULT_LIMITATIONS),
+        }
+
+    build_config = config["config"]
+    packet_context = _load_packet_context(str(build_config["output_dir"]), repo_root=repo_root)
+    if packet_context["status"] != "ok":
+        packet_context = dict(packet_context)
+        packet_context["packet_id"] = build_config["packet_id"]
+        packet_context["packet_output_dir"] = build_config["output_dir"]
+        packet_context["materialized_output_dir"] = build_config["materialized_output_dir"]
+        packet_context["limitations"] = tuple(config.get("limitations") or DEFAULT_LIMITATIONS)
+        return packet_context
+
+    packet_context = dict(packet_context)
+    packet_context["packet_id"] = build_config["packet_id"]
+    packet_context["packet_output_dir"] = build_config["output_dir"]
+    packet_context["materialized_output_dir"] = build_config["materialized_output_dir"]
+    packet_context["captured_output_dir"] = build_config["captured_output_dir"]
+    packet_context["limitations"] = tuple(config.get("limitations") or DEFAULT_LIMITATIONS)
+    return packet_context
+
+
+def _unique_values(records: tuple[dict[str, Any], ...], key: str) -> list[str]:
+    values: list[str] = []
+    seen: set[str] = set()
+    for record in records:
+        text = _safe_text(record.get(key))
+        if text is not None and text not in seen:
+            seen.add(text)
+            values.append(text)
+    return values
+
+
+def _repo_relative_path(repo_root: Path, value: Path) -> str:
+    try:
+        return value.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return value.name
+
+
 def _safe_runtime_models(value: Any) -> tuple[dict[str, Any], ...] | None:
     if not isinstance(value, list) or not value:
         return None
@@ -2520,13 +2673,23 @@ def _jsonable(value: Any) -> Any:
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    safe_path = _windows_safe_path(path)
+    safe_path.parent.mkdir(parents=True, exist_ok=True)
+    safe_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
 
 
 def _write_text(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    safe_path = _windows_safe_path(path)
+    safe_path.parent.mkdir(parents=True, exist_ok=True)
+    safe_path.write_text(text, encoding="utf-8")
+
+
+def _windows_safe_path(path: Path) -> Path:
+    if os.name == "nt":
+        path_text = str(path)
+        if len(path_text) >= 248 and not path_text.startswith("\\\\?\\") and path.is_absolute():
+            return Path("\\\\?\\" + path_text)
+    return path
 
 
 def _windows_path(value: str) -> str:
@@ -2568,8 +2731,9 @@ def _evaluator_failure_summary(
     materialized_output_dir: str | None,
     error_code: str,
     limitations: tuple[str, ...],
+    diagnostics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    summary = {
         "schema_version": EVALUATOR_SUMMARY_SCHEMA_VERSION,
         "packet_id": packet_id,
         "status": "failed",
@@ -2605,6 +2769,9 @@ def _evaluator_failure_summary(
         "no_runtime_execution": True,
         "limitations": list(limitations),
     }
+    if diagnostics is not None:
+        summary["diagnostics"] = diagnostics
+    return summary
 
 
 def _materializer_failure_summary(
@@ -2613,8 +2780,9 @@ def _materializer_failure_summary(
     output_dir: str | None,
     error_code: str,
     limitations: tuple[str, ...],
+    diagnostics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    summary = {
         "schema_version": MATERIALIZER_SUMMARY_SCHEMA_VERSION,
         "packet_id": packet_id,
         "status": "failed",
@@ -2644,3 +2812,6 @@ def _materializer_failure_summary(
         "no_runtime_execution": True,
         "limitations": list(limitations),
     }
+    if diagnostics is not None:
+        summary["diagnostics"] = diagnostics
+    return summary

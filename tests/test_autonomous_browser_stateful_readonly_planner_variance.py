@@ -33,6 +33,7 @@ MATERIALIZER_CLI_PATH = PROJECT_ROOT / "scripts" / "materialize_autonomous_brows
 PACKET_OUTPUT_DIR = "artifacts/autonomous_runtime_planner_packets/stateful_readonly_planner_variance"
 MATERIALIZED_OUTPUT_DIR = "artifacts/autonomous_runtime_summaries/stateful_readonly_planner_variance_materialized"
 BASE_PACKET_CONFIG_RELATIVE = Path("configs/autonomous_runtime/browser_stateful_readonly_planner_packet.example.json")
+VARIANCE_CONFIG_RELATIVE = Path("configs/autonomous_runtime/browser_stateful_readonly_planner_variance.example.json")
 
 
 def _config() -> dict[str, Any]:
@@ -56,6 +57,14 @@ def _stage_base_packet_config(repo_root: Path) -> None:
     destination = repo_root / BASE_PACKET_CONFIG_RELATIVE
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(PROJECT_ROOT / BASE_PACKET_CONFIG_RELATIVE, destination)
+
+
+def _stage_variance_config(repo_root: Path, *, bom: bool = False) -> Path:
+    destination = repo_root / VARIANCE_CONFIG_RELATIVE
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    text = CONFIG_PATH.read_text(encoding="utf-8")
+    destination.write_text(text, encoding="utf-8-sig" if bom else "utf-8")
+    return destination
 
 
 def _build_packet(tmp_path: Path, config: dict[str, Any] | None = None) -> tuple[dict[str, Any], Path]:
@@ -86,13 +95,6 @@ def _write_outputs(packet_summary: dict[str, Any], repo_root: Path) -> None:
                 "usage": {"prompt_tokens": 312, "completion_tokens": 185, "total_tokens": 497},
             },
         )
-
-
-def _rewrite_runtime_config_with_bom(packet_dir: Path) -> Path:
-    runtime_config_path = packet_dir / "variance_config.local.json"
-    runtime_config = runtime_config_path.read_text(encoding="utf-8")
-    runtime_config_path.write_text(runtime_config, encoding="utf-8-sig")
-    return runtime_config_path
 
 
 def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> None:
@@ -165,6 +167,9 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert packet_json["model_aliases"] == ["third_model"]
     assert packet_json["trials_per_scenario"] == 3
     assert packet_json["request_count"] == 15
+    assert packet_json["requests_total"] == 15
+    assert summary["requests_total"] == 15
+    assert summary["fixture_only"] is True
     assert request_paths["third_model"]["stateful_ticket_priority_digest"]["trial_03"].endswith(
         "third_model/stateful_ticket_priority_digest/trial_03/request.json"
     )
@@ -218,17 +223,20 @@ def test_build_cli_accepts_bom_config_and_prints_compact_json(tmp_path: Path, ca
     assert payload["real_browser_execution"] is False
 
 
-def test_evaluator_and_materializer_accept_bom_runtime_config_and_replay() -> None:
+def test_evaluator_and_materializer_accept_packet_dir_and_replay() -> None:
     short_root = Path("C:/tmp")
     short_root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="variance_", dir=short_root) as temp_dir:
         repo_root = Path(temp_dir)
         packet_summary, packet_dir = _build_packet(repo_root)
         _write_outputs(packet_summary, repo_root)
-        runtime_config_path = _rewrite_runtime_config_with_bom(packet_dir)
 
-        evaluation = run_autonomous_browser_stateful_readonly_planner_variance_evaluator(runtime_config_path, repo_root=repo_root)
-        materialized = run_autonomous_browser_stateful_readonly_planner_variance_materializer(runtime_config_path, repo_root=repo_root)
+        evaluation = run_autonomous_browser_stateful_readonly_planner_variance_evaluator(packet_dir=packet_dir, repo_root=repo_root)
+        materialized = run_autonomous_browser_stateful_readonly_planner_variance_materializer(
+            packet_dir=packet_dir,
+            output_dir=repo_root / "artifacts" / "autonomous_runtime_summaries" / "stateful_readonly_planner_variance_materialized",
+            repo_root=repo_root,
+        )
 
         assert evaluation["schema_version"] == EVALUATOR_SUMMARY_SCHEMA_VERSION
         assert evaluation["status"] == "succeeded"
@@ -284,6 +292,103 @@ def test_evaluator_and_materializer_accept_bom_runtime_config_and_replay() -> No
         assert first_output["state_path"].endswith("materialized_state.json")
         assert first_output["trace_path"].endswith("materialized_trace.json")
         assert first_output["workflow_summary_path"].endswith("materialized_workflow_summary.json")
+
+
+def test_evaluator_and_materializer_accept_config_and_replay(tmp_path: Path) -> None:
+    short_root = Path("C:/tmp")
+    short_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="variance_cfg_", dir=short_root) as temp_dir:
+        repo_root = Path(temp_dir)
+        _stage_base_packet_config(repo_root)
+        _stage_variance_config(repo_root, bom=True)
+        packet_summary, packet_dir = _build_packet(repo_root)
+        _write_outputs(packet_summary, repo_root)
+
+        config_path = repo_root / VARIANCE_CONFIG_RELATIVE
+        evaluation = run_autonomous_browser_stateful_readonly_planner_variance_evaluator(config_path, repo_root=repo_root)
+        materialized = run_autonomous_browser_stateful_readonly_planner_variance_materializer(config_path, repo_root=repo_root)
+
+        assert evaluation["status"] == "succeeded"
+        assert evaluation["outputs_total"] == 15
+        assert materialized["status"] == "succeeded"
+        assert materialized["outputs_accepted"] == 15
+
+
+def test_evaluator_config_loads_generated_packet_and_reports_missing_packet(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _stage_base_packet_config(tmp_path)
+    _stage_variance_config(tmp_path, bom=True)
+    module = _load_cli_module(EVALUATOR_CLI_PATH)
+    original_project_root = module.PROJECT_ROOT
+    module.PROJECT_ROOT = tmp_path
+    try:
+        exit_code = module.main(["--config", "configs/autonomous_runtime/browser_stateful_readonly_planner_variance.example.json"])
+    finally:
+        module.PROJECT_ROOT = original_project_root
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["status"] == "failed"
+    assert payload["error_code"] == "config_validation_failed"
+    assert payload["diagnostics"]["finding_type"] == "missing_packet_summary"
+    assert payload["diagnostics"]["packet_dir"] == PACKET_OUTPUT_DIR
+    assert payload["diagnostics"]["expected_summary_files"]
+    assert "build variance packet first" in payload["diagnostics"]["hint"]
+
+
+def test_materializer_config_loads_generated_packet_and_reports_missing_packet(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _stage_base_packet_config(tmp_path)
+    _stage_variance_config(tmp_path)
+    module = _load_cli_module(MATERIALIZER_CLI_PATH)
+    original_project_root = module.PROJECT_ROOT
+    module.PROJECT_ROOT = tmp_path
+    try:
+        exit_code = module.main(["--config", "configs/autonomous_runtime/browser_stateful_readonly_planner_variance.example.json"])
+    finally:
+        module.PROJECT_ROOT = original_project_root
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["status"] == "failed"
+    assert payload["error_code"] == "config_validation_failed"
+    assert payload["diagnostics"]["finding_type"] == "missing_packet_summary"
+    assert payload["diagnostics"]["packet_dir"] == PACKET_OUTPUT_DIR
+    assert payload["diagnostics"]["expected_summary_files"]
+
+
+def test_cli_help_mentions_packet_dir(capsys: pytest.CaptureFixture[str]) -> None:
+    evaluator_module = _load_cli_module(EVALUATOR_CLI_PATH)
+    materializer_module = _load_cli_module(MATERIALIZER_CLI_PATH)
+
+    with pytest.raises(SystemExit):
+        evaluator_module.main(["--help"])
+    evaluator_help = capsys.readouterr().out
+    assert "--packet-dir" in evaluator_help
+
+    with pytest.raises(SystemExit):
+        materializer_module.main(["--help"])
+    materializer_help = capsys.readouterr().out
+    assert "--packet-dir" in materializer_help
+    assert "--output-dir" in materializer_help
+
+
+def test_packet_dir_smoke_returns_missing_output_summary(tmp_path: Path) -> None:
+    _stage_base_packet_config(tmp_path)
+    packet_summary, packet_dir = _build_packet(tmp_path)
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_variance_evaluator(packet_dir=packet_dir, repo_root=tmp_path)
+    materialized = run_autonomous_browser_stateful_readonly_planner_variance_materializer(
+        packet_dir=packet_dir,
+        output_dir=tmp_path / MATERIALIZED_OUTPUT_DIR,
+        repo_root=tmp_path,
+    )
+
+    assert evaluation["status"] == "completed_with_missing_outputs"
+    assert evaluation["error_code"] == "missing_captured_outputs"
+    assert materialized["status"] == "completed_with_missing_outputs"
+    assert materialized["error_code"] == "missing_captured_outputs"
+    encoded = json.dumps({"evaluation": evaluation, "materialized": materialized}, ensure_ascii=False)
+    assert "C:\\" not in encoded
+    assert str(tmp_path) not in encoded
 
 
 def test_cli_invalid_config_returns_structured_failure(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
