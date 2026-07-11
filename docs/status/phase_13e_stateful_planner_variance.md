@@ -101,3 +101,4 @@ Use the variance packet as the repeatable fixture source for continued offline a
 - The final materializer rerun also succeeded: `outputs_total: 15`, `outputs_present: 15`, `outputs_accepted: 15`, `workflows_materialized: 15`, `workflows_failed: 0`.
 - Both evaluator and materializer remained offline and fixture-backed with `model_execution: false`, `real_browser_execution: false`, `playwright_execution: false`, `browser_opened: false`, and no external network activity.
 - This is a controlled research success for repeated stateful read-only workflow planning under `third_model`, not a production-readiness claim.
+- The project-wide closure report that maps this success back to the original TZ is `docs/status/final_project_completion_report.md`.

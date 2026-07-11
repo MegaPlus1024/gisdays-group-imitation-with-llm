@@ -263,3 +263,4 @@
 - After `a59b14f`, the repeated stateful planner variance suite reached full offline success: evaluator `status: succeeded`, `validation_accepted: 15`, `workflows_succeeded: 15`, and all five scenarios passed `3/3`.
 - The companion materializer also succeeded with `outputs_accepted: 15` and `workflows_materialized: 15`.
 - This remains controlled fixture-only evidence for repeated `third_model` stateful read-only planning. Evaluator and materializer still did not launch models, browser, Playwright, or external network activity, and the generated artifacts remain operator evidence only.
+- The project-level closure that places this evidence in the broader TZ is documented in `docs/status/final_project_completion_report.md`.

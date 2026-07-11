@@ -1,0 +1,131 @@
+# Final Project Completion Report
+
+## Executive summary
+
+This repository now satisfies the research-prototype closure for the stated TZ: a controlled local LLM agent stack was designed, implemented, and experimentally checked across single-agent, orchestrator/executor, guarded browser, and final stateful read-only planner tracks.
+
+The strongest final browser-planner evidence is the repeated stateful read-only planner variance success under `third_model`: 5 controlled scenarios x 3 trials = 15 captured outputs, 15/15 validation acceptance, 15/15 evaluator workflow success, and 15/15 materialized workflows. Those model calls were manual operator runs. The evaluator and materializer stayed offline, fixture-backed, and did not launch models, browser, Playwright, Chromium, or external network activity.
+
+This is a controlled fixture-only research prototype. It is not production-ready, not a claim of enterprise browser automation, not a claim of email/git support, and not a claim of high-scale multi-agent deployment.
+
+## A. Analysis of implementation means
+
+- Local small/medium LLMs were used through GGUF-backed local model aliases `first_model`, `second_model`, and `third_model`.
+- The documented local launch method is `llama.cpp` / `llama-server` with an OpenAI-compatible `/chat/completions` API shape and PowerShell wrappers such as `scripts/start_llama_server.ps1`.
+- Integration with the execution agent is implemented through `src/agent/llm_client.py`, `src/agent/action_selector.py`, `src/agent/script_registry.py`, and `src/agent/script_execution_bridge.py`.
+- Role, context, and script formats are represented through `AgentState`, role templates/configs, prompt contracts, `NextAction` JSON, and the parameterized script registry.
+
+## B. Overall design
+
+- The project implements an orchestrator/agent interaction model with a sequential orchestrator/executor prototype for group work and a separate read-only browser-planner path for controlled fixture workflows.
+- Initial state composition is built from role, objective, environment, resources, constraints, available actions, and recent history.
+- Parameterized actions/scripts are archived in the script registry and scenario/config packets rather than being hard-coded as one fixed scenario.
+- Local LLM next-action choice is mediated through JSON-only prompt contracts, parser/validator layers, and bounded repair logic before any execution bridge is reached.
+- Action, error, and history logging exist through workflow traces, JSONL logs, evaluator summaries, and materialized workflow artifacts.
+
+## C. Minimal activity scripts
+
+- Browser/read/navigation is the main demonstrated activity path. The strongest evidence line is the controlled fixture-backed browser and stateful read-only workflow stack.
+- File actions, document/file stubs, and simple shell commands exist at prototype level and are bounded by safe roots, allowlists, and fixture-oriented execution rules.
+- Email and git actions are intentionally out of scope for final closure. They are not part of the final proven capability set and should remain optional future work only.
+
+## D. Agent prototype
+
+- Config and packet input paths exist for agent state, evaluation scenarios, browser-plan packets, planner-output ingestion packets, variance packets, and materializer/evaluator configs.
+- The local LLM planner path is implemented as a prompt -> JSON output -> validator -> evaluator/materializer chain, with manual operator model execution where real local model outputs were needed.
+- Parameterized action selection is enforced through the `NextAction` contract plus registry validation rather than free-form execution.
+- Evaluator, materializer, and history artifacts exist for repeated stateful read-only workflows and for earlier orchestrator/executor experiments.
+- The final browser/stateful closure remains read-only and controlled: it proves repeated workflow planning and replay against fixtures, not a general autonomous runtime.
+
+## E. Experiments with local models
+
+### first_model
+
+- `first_model` exists as the smallest documented local candidate.
+- Evidence across orchestrator/executor work shows it is weak as orchestrator and repeatedly failed at orchestrator plan parsing.
+- It may remain a bounded executor candidate in limited scenarios, but it is not the preferred planner/orchestrator path.
+
+### second_model
+
+- `second_model` was the strongest earlier baseline in the single-agent and orchestrator/executor lines.
+- It delivered the best simple-scenario resource-balanced pair with `second_model -> first_model` and the best preliminary quality-focused group pair with `second_model -> second_model`.
+- It also underpins earlier compact browser-planner and guarded browser evidence.
+
+### third_model
+
+- `third_model` was introduced as the stronger browser/stateful planner candidate.
+- The early compact baseline comparison with `second_model` was a tie on the lighter packet, so the project did not immediately claim it as a winner.
+- The final repeated stateful read-only variance evidence is the strongest model-specific success line in the browser/stateful track:
+  - 5 scenarios x 3 trials = 15 outputs
+  - evaluator: 15/15 validation accepted, 15/15 workflows succeeded
+  - materializer: 15/15 outputs accepted, 15/15 workflows materialized
+- Important caveat: the `third_model` calls were manual operator runs. The evaluator and materializer were offline and performed no model execution.
+
+## F. Minimal resource evaluation
+
+### What is supported by evidence
+
+- CPU-only feasibility is supported at prototype level. The project explicitly documents CPU-first assumptions and multiple local runs without requiring production GPU dependence.
+- Windows workstation usage is documented throughout the repository, with Python 3.12 and local PowerShell workflows. An optional GPU smoke was also documented separately for an NVIDIA RTX PRO 4000 Blackwell workstation path, but it is a short readiness check rather than a capacity proof.
+- The resource evidence base is mixed:
+  - older single-agent resource evaluation is formula-based
+  - orchestrator/executor runtime probe adds short measured RSS/CPU telemetry
+  - bounded stress evidence remains preliminary and only supports stable concurrency 1 for the tested pair
+- Exact latency tables for the final Phase 13E4 repeated stateful planner path are not documented. That gap should remain explicit.
+
+### Practical resource interpretation
+
+- If agents share one local model server and plan sequentially, model memory can be shared and the system is more likely to be latency-bound than model-memory-bound.
+- If each agent owns its own local model instance, memory scales roughly linearly with the number of active model instances.
+- KV cache growth, context size, browser/document fixtures, logs, and materialized artifacts add overhead beyond the bare GGUF size.
+
+### Conservative concurrency formula
+
+`N_agents_parallel ~= floor(Available_RAM_for_agent_runtime / RAM_per_agent_instance)`
+
+Use this only as a conservative planning aid, not as proof of achievable concurrency.
+
+- `Available_RAM_for_agent_runtime` should exclude OS reserve and non-agent background load.
+- `RAM_per_agent_instance` should include model serving overhead, KV cache/context growth, and per-agent workflow overhead.
+- Practical concurrent-agent limits should be validated by dedicated load tests; they should not be claimed from the formula alone.
+
+### Known limitations of the resource section
+
+- Precise latency numbers for the final stateful planner loop are missing.
+- No final high-confidence concurrency table exists for the `third_model` stateful workflow path.
+- The best existing group capacity evidence remains preliminary and scenario-dependent.
+
+## G. Final recommendation
+
+### Chosen implementation direction
+
+- Keep the controlled local LLM architecture based on role/context/config input, JSON next-action planning, registry validation, bounded execution, and evidence-first evaluator/materializer reporting.
+- For further browser/stateful development, use `third_model` as the main controlled read-only planner candidate because it is the model behind the final 15/15 repeated stateful variance success.
+- Keep `second_model` as the main baseline comparator and earlier orchestrator candidate reference.
+- Do not use `first_model` as the default orchestrator.
+
+### Resource recommendation
+
+- Continue with CPU-first or shared-endpoint local development unless a new GPU/capacity study is explicitly planned.
+- Treat concurrency estimates as provisional until measured under dedicated load tests.
+- Prefer shared local model serving when comparing multiple controlled agents, because it avoids linear duplication of model memory.
+
+### Limitations and caveats
+
+- controlled fixture-only research prototype
+- not production-ready
+- not real enterprise browser automation
+- not external web browsing
+- not email/git support
+- not a production multi-agent scheduler
+- not a proven high-scale deployment configuration
+
+## Coverage against the TZ
+
+- local LLM agent prototype with role/context/script inputs: covered
+- autonomous next-action choice through a local model contract: covered at prototype level
+- action and error history preservation: covered
+- short report with model comparison and resource discussion: covered
+- repeated stateful planner experiments with final 15/15 success: covered
+- minimal resource discussion and conservative concurrency formula: covered
+- production-readiness claim: intentionally not made
