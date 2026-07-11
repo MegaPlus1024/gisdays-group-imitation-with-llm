@@ -113,6 +113,7 @@
 - Phase 13E4e tightens the remaining fact anchoring after the E4d diagnostics: the policy-ticket prompt now copies the exact workspace policy marker without inventing admin approval language, and the ticket-priority prompt now copies Ticket 8 requester tier exactly as `office worker`.
 - Phase 13E4f adds safe `missing_final_answer_text` diagnostic context and the explicit `ticket_8_marker` anchor so the variance suite can distinguish a truly missing final answer from a present one.
 - Phase 13E4g fixes final-answer validation for prose containing allowed local fixture URLs; the captured variance rerun now accepts 15/15 outputs by validation and reports the remaining policy-ticket issue as an honest fixture fact mismatch.
+- Phase 13E4h anchors the remaining policy-ticket `ticket_id` mismatch after E4g reached 12/15 workflow success: the prompt now requires the exact visible `Ticket 1` label and warns against invented ids such as `TICKET-12345`, while keeping verifier rejection strict.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

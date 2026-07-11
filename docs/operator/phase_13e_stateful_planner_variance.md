@@ -68,5 +68,12 @@ This phase adds a repeated stateful read-only planner variance packet for `third
 
 - If `final_answer.answer_text` contains an allowed local fixture URL inside ordinary prose, it should now validate instead of surfacing as `missing_final_answer_text`.
 - The validator still rejects truly missing or blank final answers and still blocks disallowed URL schemes or non-local hosts.
-- A post-fix offline evaluator rerun on the captured 15-output packet accepted 15/15 by validation; the remaining policy-ticket failures are now honest fixture mismatches on `policy_anchor`, not final-answer extraction failures.
+- A post-fix offline evaluator rerun on the captured 15-output packet accepted 15/15 by validation and reached 12/15 workflow success; the remaining policy-ticket failures are now honest fixture mismatches on `ticket_id`, not final-answer extraction failures.
+- this remains fixture-backed, read-only, and does not add model/browser/Playwright execution from Codex
+
+## Phase 13E4h guidance
+
+- For `stateful_policy_ticket_crosscheck`, `ticket_id` must be copied exactly as `Ticket 1` from the visible `Ticket 1 - Quarterly Access Review` page/title.
+- Do not use invented internal ids such as `TICKET-12345`; the evaluator still rejects those as `fact_value_mismatch`.
+- Keep `ticket_topic` as `Quarterly Access Review`, copy priority/role from visible ticket text, and keep `policy_marker` exact.
 - this remains fixture-backed, read-only, and does not add model/browser/Playwright execution from Codex

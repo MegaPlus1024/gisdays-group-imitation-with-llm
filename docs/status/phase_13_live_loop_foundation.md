@@ -245,3 +245,9 @@
 
 - Phase 13E4g fixes final-answer validation for ordinary prose that embeds allowed local fixture URLs; the captured variance evaluator rerun now accepts 15/15 outputs by validation and leaves the remaining policy-ticket gap as a fixture fact mismatch.
 - this is still fixture-backed, read-only, and does not add model/browser/Playwright execution from Codex
+
+## Phase 13E4h note
+
+- Phase 13E4h anchors the remaining policy-ticket fact mismatch: after E4g, the offline variance evaluator accepted 15/15 outputs by validation and reached 12/15 workflow success, with only `stateful_policy_ticket_crosscheck` failing because `ticket_id` was invented as `TICKET-12345` instead of copied as `Ticket 1`.
+- The policy-ticket prompt now requires the exact visible `Ticket 1` label from `Ticket 1 - Quarterly Access Review` and keeps the verifier strict.
+- this is still fixture-backed, read-only, and does not add model/browser/Playwright execution from Codex

@@ -125,9 +125,16 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert "Requester tier: facilities." in ticket_priority_prompt_text
     assert "After Ticket 7, reopen the hardboard with browser_open_url before continuing to Ticket 8." in ticket_priority_prompt_text
     assert "policy_marker must be copied exactly from the visible Workspace Policy search marker text: fixture-backed result for workspace policy review." in prompt_text
+    assert "The required ticket_id value is exactly Ticket 1." in prompt_text
+    assert "Do not invent internal ticket ids such as TICKET-12345." in prompt_text
+    assert "Copy ticket_id from the visible Ticket 1 page/title: Ticket 1 - Quarterly Access Review." in prompt_text
+    assert "The required ticket_topic value is exactly Quarterly Access Review." in prompt_text
+    assert "Copy ticket_priority from the visible text Priority: high." in prompt_text
+    assert "Copy ticket_role from the visible text Assigned role: office worker." in prompt_text
     assert "Do not invent policy sections, approval rules, or admin approval language unless the fixture page visibly shows them." in prompt_text
     assert "Workspace Policy facts and evidence should come from https://local.intranet/docs/policy." in prompt_text
     assert "evidence text_preview must be a visible text span from the replayed page." in prompt_text
+    assert "Use ticket_id exactly as Ticket 1 and ticket_topic exactly as Quarterly Access Review." in prompt_text
     assert "The required ticket_8_requester_tier value is exactly office worker." in ticket_priority_prompt_text
     assert 'Do not use general unless the Ticket 8 page visibly shows general.' in ticket_priority_prompt_text
     assert "The required ticket_8_marker value is exactly decoy for the priority cross-check." in ticket_priority_prompt_text

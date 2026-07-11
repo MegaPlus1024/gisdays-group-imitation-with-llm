@@ -76,5 +76,11 @@ Use the variance packet as the repeatable fixture source for continued offline a
 ## Phase 13E4g note
 
 - Phase 13E4g fixes the remaining false `missing_final_answer_text` rejection: final-answer prose may contain allowed local fixture URLs, and the validator now scans embedded URL tokens instead of parsing the whole sentence as a URL.
-- After this fix, the captured 15-output variance evaluator rerun accepted 15/15 by validation and kept the honest remaining 3/15 workflow failures as `fact_value_mismatch` on policy-ticket `policy_anchor`.
+- After this fix, the captured 15-output variance evaluator rerun accepted 15/15 by validation and reached 12/15 workflow success; the remaining 3/15 policy-ticket failures were honest `fact_value_mismatch` results on `ticket_id`, where the model used `TICKET-12345` instead of the visible fixture label `Ticket 1`.
 - this remains fixture-backed, read-only, and does not add model/browser/Playwright execution from Codex
+
+## Phase 13E4h note
+
+- Phase 13E4h anchors `stateful_policy_ticket_crosscheck` to copy `ticket_id` exactly as `Ticket 1` from the visible `Ticket 1 - Quarterly Access Review` page/title and explicitly warns against invented internal ids such as `TICKET-12345`.
+- The prompt keeps `ticket_topic` anchored to `Quarterly Access Review`, ticket priority/role grounded in the visible ticket text, and `policy_marker` copied exactly from the Workspace Policy fixture marker.
+- This is a prompt grounding repair only; the evaluator still rejects synthetic ticket ids as `fact_value_mismatch` and no verifier relaxation is introduced.
