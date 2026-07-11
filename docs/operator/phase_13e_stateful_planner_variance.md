@@ -50,3 +50,9 @@ This phase adds a repeated stateful read-only planner variance packet for `third
 - Ticket-priority fact comparison now accepts case variations after punctuation trimming, so `urgent` and `Urgent` should compare equal when the visible fixture span matches.
 - Final-answer citation diagnostics should keep the model-output `evidence_item_id` values visible when they are available, so the output ids can be checked directly alongside replay ids in deeper diagnostics.
 - The ticket-priority prompt explicitly says to reopen the hardboard after Ticket 7 before continuing to Ticket 8; if a replay still walks straight from Ticket 7 to Ticket 8, the prompt is not yet aligned.
+
+## Phase 13E4e guidance
+
+- Policy-ticket prompting now explicitly anchors `policy_marker` to the exact visible Workspace Policy search marker text and warns against inventing admin approval or policy section language that is not on the fixture page.
+- Ticket-priority prompting now explicitly anchors `ticket_8_requester_tier` to `office worker`, warns against using `general` unless it is visibly present, and reminds the model that Ticket 8 is a decoy whose visible facts still need to be copied exactly.
+- These prompt changes are narrow anchoring fixes only; the evaluator still rejects hallucinated facts.

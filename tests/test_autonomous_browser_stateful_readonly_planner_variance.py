@@ -382,6 +382,9 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert "https://local.intranet/tickets/hardboard" in ticket_priority_prompt_text
     assert "Priority cross-check board" in ticket_priority_prompt_text
     assert "Requester tier: facilities." in ticket_priority_prompt_text
+    assert "The required ticket_8_requester_tier value is exactly office worker." in ticket_priority_prompt_text
+    assert 'Do not use general unless the Ticket 8 page visibly shows general.' in ticket_priority_prompt_text
+    assert "Ticket 8 is the decoy; still copy its actual visible facts exactly." in ticket_priority_prompt_text
     assert "Cite the collected fact ids and evidence item ids." in ticket_priority_prompt_text
 
 

@@ -230,3 +230,8 @@
 
 - Phase 13E4d narrows the remaining alignment gap after the E4c diagnostics: fixture-span comparison is now case-folded, the evaluator preserves model-output citation ids in diagnostics, and the ticket-priority prompt explicitly tells the model to reopen the hardboard before Ticket 8.
 - this is still fixture-backed, read-only, and does not add browser/Playwright execution from Codex
+
+## Phase 13E4e note
+
+- Phase 13E4e tightens the remaining stateful variance fact anchoring after the E4d diagnostics: the policy-ticket prompt now says to copy the exact workspace policy marker without inventing admin approval language, and the ticket-priority prompt now says to copy Ticket 8 requester tier exactly as `office worker`.
+- this is still fixture-backed, read-only, and does not add browser/Playwright execution from Codex

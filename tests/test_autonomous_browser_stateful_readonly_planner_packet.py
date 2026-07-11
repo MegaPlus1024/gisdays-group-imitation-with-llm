@@ -124,6 +124,16 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert "Priority cross-check board" in ticket_priority_prompt_text
     assert "Requester tier: facilities." in ticket_priority_prompt_text
     assert "After Ticket 7, reopen the hardboard with browser_open_url before continuing to Ticket 8." in ticket_priority_prompt_text
+    assert "policy_marker must be copied exactly from the visible Workspace Policy search marker text: fixture-backed result for workspace policy review." in prompt_text
+    assert "Do not invent policy sections, approval rules, or admin approval language unless the fixture page visibly shows them." in prompt_text
+    assert "Workspace Policy facts and evidence should come from https://local.intranet/docs/policy." in prompt_text
+    assert "evidence text_preview must be a visible text span from the replayed page." in prompt_text
+    assert "The required ticket_8_requester_tier value is exactly office worker." in ticket_priority_prompt_text
+    assert 'Do not use general unless the Ticket 8 page visibly shows general.' in ticket_priority_prompt_text
+    assert "Ticket 8 is the decoy; still copy its actual visible facts exactly." in ticket_priority_prompt_text
+    assert "Ticket 7 facts and evidence should come from https://local.intranet/tickets/7." in ticket_priority_prompt_text
+    assert "Ticket 8 facts and evidence should come from https://local.intranet/tickets/8." in ticket_priority_prompt_text
+    assert "evidence text_preview must quote visible text from the Ticket 8 page." in ticket_priority_prompt_text
     assert "Cite the collected fact ids and evidence item ids." in ticket_priority_prompt_text
 
     assert "Approval required facts" in approval_prompt_text

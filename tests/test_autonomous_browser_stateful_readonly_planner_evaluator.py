@@ -726,6 +726,43 @@ def test_valid_approval_output_with_all_required_fact_keys_passes(tmp_path: Path
     assert summary["fixture_execution_status"] == "succeeded"
 
 
+def test_policy_ticket_prompt_marker_exact_value_passes(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    payload = _output_copy("stateful_policy_ticket_crosscheck")
+    payload["facts"][6]["value"] = "fixture-backed result for workspace policy review"
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_policy_ticket_crosscheck": payload})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_policy_ticket_crosscheck")
+
+    assert evaluation["status"] == "succeeded"
+    assert summary["status"] == "succeeded"
+    assert summary["validation_status"] == "accepted"
+    assert summary["dry_run_status"] == "accepted"
+    assert summary["fixture_execution_status"] == "succeeded"
+
+
+def test_policy_ticket_prompt_hallucinated_policy_marker_is_rejected(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    payload = _output_copy("stateful_policy_ticket_crosscheck")
+    payload["facts"][6]["value"] = "High priority tickets require admin approval"
+    payload["evidence_items"][1]["text_preview"] = "Section 4.2.1: High priority tickets require admin approval"
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_policy_ticket_crosscheck": payload})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_policy_ticket_crosscheck")
+    diagnostics = summary["diagnostics"]
+
+    assert evaluation["status"] == "completed_with_failures"
+    assert evaluation["error_code"] == "fact_value_mismatch"
+    assert summary["status"] == "failed"
+    assert summary["failure_class"] == "model_failed_task"
+    fact_diag = diagnostics["fixture"]["fact_value_mismatch"]
+    assert fact_diag["key"] == "policy_marker"
+    assert fact_diag["expected_value"] == "fixture-backed result for workspace policy review"
+    assert fact_diag["model_value"] == "High priority tickets require admin approval"
+
+
 def test_text_span_fact_values_are_accepted(tmp_path: Path) -> None:
     packet_summary, packet_dir = _build_packet(tmp_path)
     payload = _output_copy("stateful_ticket_priority_digest")
@@ -741,6 +778,43 @@ def test_text_span_fact_values_are_accepted(tmp_path: Path) -> None:
     assert summary["validation_status"] == "accepted"
     assert summary["dry_run_status"] == "accepted"
     assert summary["fixture_execution_status"] == "succeeded"
+
+
+def test_ticket_priority_digest_ticket_8_requester_tier_exact_value_passes(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    payload = _output_copy("stateful_ticket_priority_digest")
+    payload["facts"][8]["value"] = "office worker"
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_ticket_priority_digest": payload})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_ticket_priority_digest")
+
+    assert evaluation["status"] == "succeeded"
+    assert summary["status"] == "succeeded"
+    assert summary["validation_status"] == "accepted"
+    assert summary["dry_run_status"] == "accepted"
+    assert summary["fixture_execution_status"] == "succeeded"
+
+
+def test_ticket_priority_digest_ticket_8_requester_tier_hallucinated_general_is_rejected(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    payload = _output_copy("stateful_ticket_priority_digest")
+    payload["facts"][8]["value"] = "general"
+    payload["evidence_items"][1]["text_preview"] = "Ticket 8 - Follow-up Note | Requester tier: general. | Priority: low."
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_ticket_priority_digest": payload})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_ticket_priority_digest")
+    diagnostics = summary["diagnostics"]
+
+    assert evaluation["status"] == "completed_with_failures"
+    assert evaluation["error_code"] == "fact_value_mismatch"
+    assert summary["status"] == "failed"
+    assert summary["failure_class"] == "model_failed_task"
+    fact_diag = diagnostics["fixture"]["fact_value_mismatch"]
+    assert fact_diag["key"] == "ticket_8_requester_tier"
+    assert fact_diag["expected_value"] == "office worker"
+    assert fact_diag["model_value"] == "general"
 
 
 def test_fact_value_mismatch_diagnostics_include_span_context(tmp_path: Path) -> None:
