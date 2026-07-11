@@ -8,6 +8,10 @@ The strongest final browser-planner evidence is the repeated stateful read-only 
 
 This is a controlled fixture-only research prototype. It is not production-ready, not a claim of enterprise browser automation, not a claim of email/git support, and not a claim of high-scale multi-agent deployment.
 
+## Post-completion note
+
+Phase 14 adds an optional multi-model benchmark layer for the completed controlled read-only prototype. It reuses the five stateful read-only scenarios to prepare repeated packet paths for multiple configured model aliases and to classify captured outputs per model offline. This expansion does not change the original TZ completion claim in this report.
+
 ## A. Analysis of implementation means
 
 - Local small/medium LLMs were used through GGUF-backed local model aliases `first_model`, `second_model`, and `third_model`.
