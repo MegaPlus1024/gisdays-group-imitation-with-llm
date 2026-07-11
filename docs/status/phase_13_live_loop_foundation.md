@@ -208,3 +208,9 @@
 - Phase 13E2b aligns the confidence enum and truncated-output diagnostics after the follow-up `third_model` E2 run narrowed the remaining failures to `invalid_confidence` and one truncated response
 - Phase 13E2c tightens the approval required-fact prompt and missing-key diagnostics after the follow-up `third_model` E2 run reached 4/5 accepted workflows and failed only on the approval required-fact omission
 - Phase 13E2 is now successful: the final `third_model` stateful read-only planner pass accepted all 5/5 outputs and 5/5 workflows in the fixture-only evaluator
+
+## Phase 13E3 note
+
+- Phase 13E3 materializes the accepted stateful planner outputs into workflow state, trace, and workflow-summary artifacts in `docs/status/phase_13e_stateful_planner_materialization.md`.
+- the materializer reuses the strict packet/evaluator parsing and validation path, and it stays offline and fixture-backed
+- missing captured outputs remain a handled failure mode, not a crash path
