@@ -63,3 +63,10 @@ This phase adds a repeated stateful read-only planner variance packet for `third
 - policy-ticket outputs with a real `final_answer.answer_text` are accepted; truly missing answer text still rejects.
 - ticket-priority prompting now explicitly anchors `ticket_8_marker` to `decoy for the priority cross-check`, warns against `none`, and tells the model to copy the visible search-marker phrase from the Ticket 8 page.
 - this remains fixture-backed, read-only, and does not add browser/Playwright execution from Codex
+
+## Phase 13E4g guidance
+
+- If `final_answer.answer_text` contains an allowed local fixture URL inside ordinary prose, it should now validate instead of surfacing as `missing_final_answer_text`.
+- The validator still rejects truly missing or blank final answers and still blocks disallowed URL schemes or non-local hosts.
+- A post-fix offline evaluator rerun on the captured 15-output packet accepted 15/15 by validation; the remaining policy-ticket failures are now honest fixture mismatches on `policy_anchor`, not final-answer extraction failures.
+- this remains fixture-backed, read-only, and does not add model/browser/Playwright execution from Codex

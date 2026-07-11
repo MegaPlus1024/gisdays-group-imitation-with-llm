@@ -72,3 +72,9 @@ Use the variance packet as the repeatable fixture source for continued offline a
 - Phase 13E4f adds a safe diagnostic context trail for the `missing_final_answer_text` path and keeps policy-ticket outputs with a real `final_answer.answer_text` accepted.
 - the ticket-priority prompt now explicitly anchors `ticket_8_marker` to `decoy for the priority cross-check`, warns against `none`, and tells the model to copy the visible search-marker phrase from the Ticket 8 page
 - this remains fixture-backed, read-only, and does not add browser/Playwright execution from Codex
+
+## Phase 13E4g note
+
+- Phase 13E4g fixes the remaining false `missing_final_answer_text` rejection: final-answer prose may contain allowed local fixture URLs, and the validator now scans embedded URL tokens instead of parsing the whole sentence as a URL.
+- After this fix, the captured 15-output variance evaluator rerun accepted 15/15 by validation and kept the honest remaining 3/15 workflow failures as `fact_value_mismatch` on policy-ticket `policy_anchor`.
+- this remains fixture-backed, read-only, and does not add model/browser/Playwright execution from Codex

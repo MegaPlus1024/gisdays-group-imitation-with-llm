@@ -240,3 +240,8 @@
 
 - Phase 13E4f adds safe `missing_final_answer_text` diagnostic context and an explicit Ticket 8 marker anchor so the variance suite can distinguish a truly missing final answer from a present one and keep `ticket_8_marker` grounded in the visible decoy phrase.
 - this is still fixture-backed, read-only, and does not add browser/Playwright execution from Codex
+
+## Phase 13E4g note
+
+- Phase 13E4g fixes final-answer validation for ordinary prose that embeds allowed local fixture URLs; the captured variance evaluator rerun now accepts 15/15 outputs by validation and leaves the remaining policy-ticket gap as a fixture fact mismatch.
+- this is still fixture-backed, read-only, and does not add model/browser/Playwright execution from Codex

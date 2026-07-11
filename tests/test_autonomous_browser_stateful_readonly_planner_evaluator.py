@@ -778,6 +778,30 @@ def test_policy_ticket_output_with_final_answer_text_passes(tmp_path: Path) -> N
     assert summary["fixture_execution_status"] == "succeeded"
 
 
+def test_policy_ticket_final_answer_with_embedded_local_url_passes_validation(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    payload = _output_copy("stateful_policy_ticket_crosscheck")
+    payload["final_answer"] = {
+        "answer_text": (
+            "Ticket Ticket 1 has high priority and the Workspace Policy anchor "
+            "https://local.intranet/docs/policy#priority is cited with the fixture-backed marker."
+        ),
+        "cited_fact_ids": [fact["fact_id"] for fact in payload["facts"]],
+        "cited_evidence_item_ids": [item["evidence_item_id"] for item in payload["evidence_items"]],
+        "confidence": "medium",
+    }
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_policy_ticket_crosscheck": payload})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_policy_ticket_crosscheck")
+
+    assert evaluation["status"] == "succeeded"
+    assert summary["status"] == "succeeded"
+    assert summary["validation_status"] == "accepted"
+    assert summary["dry_run_status"] == "accepted"
+    assert summary["error_code"] is None
+
+
 def test_policy_ticket_missing_final_answer_text_is_rejected_with_safe_diagnostics(tmp_path: Path) -> None:
     packet_summary, packet_dir = _build_packet(tmp_path)
     payload = _output_copy("stateful_policy_ticket_crosscheck")
@@ -796,6 +820,29 @@ def test_policy_ticket_missing_final_answer_text_is_rejected_with_safe_diagnosti
     assert diagnostics[0]["path"] == "final_answer.answer_text"
     assert diagnostics[0]["final_answer_type"] == "dict"
     assert diagnostics[0]["final_answer_keys"] == [
+        "cited_evidence_item_ids",
+        "cited_fact_ids",
+        "confidence",
+    ]
+
+
+def test_policy_ticket_empty_final_answer_text_is_rejected_with_safe_diagnostics(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    payload = _output_copy("stateful_policy_ticket_crosscheck")
+    payload["final_answer"]["answer_text"] = "   "
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_policy_ticket_crosscheck": payload})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_policy_ticket_crosscheck")
+    diagnostics = summary["diagnostics"]
+
+    assert evaluation["status"] == "completed_with_failures"
+    assert evaluation["error_code"] == "missing_final_answer_text"
+    assert summary["status"] == "rejected"
+    assert diagnostics[0]["finding_type"] == "missing_final_answer_text"
+    assert diagnostics[0]["final_answer_type"] == "dict"
+    assert diagnostics[0]["final_answer_keys"] == [
+        "answer_text",
         "cited_evidence_item_ids",
         "cited_fact_ids",
         "confidence",

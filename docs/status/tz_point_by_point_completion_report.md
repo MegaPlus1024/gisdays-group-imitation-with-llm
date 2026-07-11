@@ -112,6 +112,7 @@
 - Phase 13E4d narrows the remaining alignment gap after the E4c diagnostics: fact comparison now case-folds fixture spans, citation diagnostics keep model-output evidence ids visible, and the ticket-priority prompt explicitly reopens the hardboard before Ticket 8.
 - Phase 13E4e tightens the remaining fact anchoring after the E4d diagnostics: the policy-ticket prompt now copies the exact workspace policy marker without inventing admin approval language, and the ticket-priority prompt now copies Ticket 8 requester tier exactly as `office worker`.
 - Phase 13E4f adds safe `missing_final_answer_text` diagnostic context and the explicit `ticket_8_marker` anchor so the variance suite can distinguish a truly missing final answer from a present one.
+- Phase 13E4g fixes final-answer validation for prose containing allowed local fixture URLs; the captured variance rerun now accepts 15/15 outputs by validation and reports the remaining policy-ticket issue as an honest fixture fact mismatch.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

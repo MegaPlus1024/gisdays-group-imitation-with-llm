@@ -61,6 +61,7 @@ DEFAULT_LIMITATIONS = (
     "no Playwright execution",
     "not production browser automation",
 )
+URL_TOKEN_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s<>'\")\]}]+")
 
 
 @dataclass(frozen=True)
@@ -1903,20 +1904,20 @@ def _reject_path_or_url(text: str, path: str) -> dict[str, Any] | None:
     normalized = text.strip()
     if not normalized:
         return None
-    if normalized.startswith("file://"):
-        return {"finding_type": "file_url_not_allowed", "path": path}
     if normalized.startswith("\\\\") or normalized.startswith("/") or (
         len(normalized) >= 3 and normalized[1] == ":" and normalized[2] in {"\\", "/"}
     ):
         return {"finding_type": "absolute_path_not_allowed", "path": path}
-    if "://" not in normalized:
-        return None
-    parsed = urlparse(normalized)
-    if parsed.scheme not in {"http", "https"}:
-        return {"finding_type": "external_url_not_allowed", "path": path}
-    host = (parsed.hostname or "").lower()
-    if host not in ALLOWED_LOCAL_HOSTS:
-        return {"finding_type": "external_url_not_allowed", "path": path}
+    for match in URL_TOKEN_PATTERN.finditer(normalized):
+        url_token = match.group(0).rstrip(".,;:")
+        parsed = urlparse(url_token)
+        if parsed.scheme == "file":
+            return {"finding_type": "file_url_not_allowed", "path": path}
+        if parsed.scheme not in {"http", "https"}:
+            return {"finding_type": "external_url_not_allowed", "path": path}
+        host = (parsed.hostname or "").lower()
+        if host not in ALLOWED_LOCAL_HOSTS:
+            return {"finding_type": "external_url_not_allowed", "path": path}
     return None
 
 
