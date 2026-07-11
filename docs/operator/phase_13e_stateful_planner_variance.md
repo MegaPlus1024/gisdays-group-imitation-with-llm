@@ -77,3 +77,10 @@ This phase adds a repeated stateful read-only planner variance packet for `third
 - Do not use invented internal ids such as `TICKET-12345`; the evaluator still rejects those as `fact_value_mismatch`.
 - Keep `ticket_topic` as `Quarterly Access Review`, copy priority/role from visible ticket text, and keep `policy_marker` exact.
 - this remains fixture-backed, read-only, and does not add model/browser/Playwright execution from Codex
+
+## Phase 13E4i guidance
+
+- If `stateful_policy_ticket_crosscheck` still fails after the `ticket_id` anchor, check whether the model is putting `https://local.intranet/docs/policy` into `policy_anchor`.
+- `policy_anchor` must be copied exactly as the visible title `Workspace Policy`; the URL belongs in `source_url` only and should not be normalized into the fact value by the evaluator.
+- The evaluator remains strict: a policy URL in `policy_anchor` is still a `fact_value_mismatch`.
+- this remains fixture-backed, read-only, and does not add model/browser/Playwright execution from Codex

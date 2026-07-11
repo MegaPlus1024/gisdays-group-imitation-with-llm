@@ -131,10 +131,15 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert "The required ticket_topic value is exactly Quarterly Access Review." in prompt_text
     assert "Copy ticket_priority from the visible text Priority: high." in prompt_text
     assert "Copy ticket_role from the visible text Assigned role: office worker." in prompt_text
+    assert "The required policy_anchor value is exactly Workspace Policy." in prompt_text
+    assert "Do not use https://local.intranet/docs/policy as policy_anchor." in prompt_text
+    assert "The URL belongs in source_url only, not in the fact value." in prompt_text
+    assert "Copy policy_anchor from the visible page title/header text: Workspace Policy." in prompt_text
     assert "Do not invent policy sections, approval rules, or admin approval language unless the fixture page visibly shows them." in prompt_text
     assert "Workspace Policy facts and evidence should come from https://local.intranet/docs/policy." in prompt_text
     assert "evidence text_preview must be a visible text span from the replayed page." in prompt_text
     assert "Use ticket_id exactly as Ticket 1 and ticket_topic exactly as Quarterly Access Review." in prompt_text
+    assert "Use policy_anchor exactly as Workspace Policy, never the policy URL." in prompt_text
     assert "The required ticket_8_requester_tier value is exactly office worker." in ticket_priority_prompt_text
     assert 'Do not use general unless the Ticket 8 page visibly shows general.' in ticket_priority_prompt_text
     assert "The required ticket_8_marker value is exactly decoy for the priority cross-check." in ticket_priority_prompt_text

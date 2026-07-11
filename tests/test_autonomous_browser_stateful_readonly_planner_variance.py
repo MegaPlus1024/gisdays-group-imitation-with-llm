@@ -380,6 +380,9 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert "The required ticket_id value is exactly Ticket 1." in prompt_text
     assert "Do not invent internal ticket ids such as TICKET-12345." in prompt_text
     assert "Copy ticket_id from the visible Ticket 1 page/title: Ticket 1 - Quarterly Access Review." in prompt_text
+    assert "The required policy_anchor value is exactly Workspace Policy." in prompt_text
+    assert "Do not use https://local.intranet/docs/policy as policy_anchor." in prompt_text
+    assert "Copy policy_anchor from the visible page title/header text: Workspace Policy." in prompt_text
     assert "Cite the collected fact ids and evidence item ids." in prompt_text
     assert "final_answer.answer_text" in prompt_text
     assert "https://local.intranet/tickets/hardboard" in ticket_priority_prompt_text

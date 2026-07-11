@@ -251,3 +251,9 @@
 - Phase 13E4h anchors the remaining policy-ticket fact mismatch: after E4g, the offline variance evaluator accepted 15/15 outputs by validation and reached 12/15 workflow success, with only `stateful_policy_ticket_crosscheck` failing because `ticket_id` was invented as `TICKET-12345` instead of copied as `Ticket 1`.
 - The policy-ticket prompt now requires the exact visible `Ticket 1` label from `Ticket 1 - Quarterly Access Review` and keeps the verifier strict.
 - this is still fixture-backed, read-only, and does not add model/browser/Playwright execution from Codex
+
+## Phase 13E4i note
+
+- Phase 13E4i narrows the last remaining policy-ticket mismatch after `7e5a1de`: the offline variance evaluator still accepts 15/15 outputs by validation and 12/15 workflows, and the only remaining failures are `policy_anchor` values emitted as `https://local.intranet/docs/policy` instead of the visible `Workspace Policy` title.
+- The policy-ticket prompt now requires `policy_anchor` exactly as `Workspace Policy`, says the URL belongs in `source_url` only, and keeps the evaluator strict.
+- this is still fixture-backed, read-only, and does not add model/browser/Playwright execution from Codex

@@ -84,3 +84,9 @@ Use the variance packet as the repeatable fixture source for continued offline a
 - Phase 13E4h anchors `stateful_policy_ticket_crosscheck` to copy `ticket_id` exactly as `Ticket 1` from the visible `Ticket 1 - Quarterly Access Review` page/title and explicitly warns against invented internal ids such as `TICKET-12345`.
 - The prompt keeps `ticket_topic` anchored to `Quarterly Access Review`, ticket priority/role grounded in the visible ticket text, and `policy_marker` copied exactly from the Workspace Policy fixture marker.
 - This is a prompt grounding repair only; the evaluator still rejects synthetic ticket ids as `fact_value_mismatch` and no verifier relaxation is introduced.
+
+## Phase 13E4i note
+
+- After `7e5a1de`, the captured 15-output variance evaluator rerun still accepted 15/15 by validation and reached 12/15 workflow success; the only remaining 3/15 failures were `policy_anchor` mismatches where the model emitted `https://local.intranet/docs/policy` instead of the visible title `Workspace Policy`.
+- Phase 13E4i anchors `policy_anchor` to the exact visible Workspace Policy title/header text, explicitly says the URL belongs in `source_url` only, and keeps `policy_marker` and `ticket_id` exact.
+- This remains a prompt-grounding repair only; the evaluator is not relaxed and still rejects the policy URL as a `policy_anchor` value.
