@@ -218,5 +218,10 @@
 ## Phase 13E4 note
 
 - Phase 13E4 adds a repeated stateful read-only planner variance suite in `docs/status/phase_13e_stateful_planner_variance.md` and `docs/operator/phase_13e_stateful_planner_variance.md`
+
+## Phase 13E4c note
+
+- Phase 13E4c aligns the stateful planner variance prompts, fixture-workflow comparison mode, and click-target diagnostics after an earlier replay that accepted all 15 outputs by schema but failed all 15 workflows.
+- The stateful packet now separates overview, hardboard, and policy citation guidance more clearly, and the evaluator/workflow traces keep the source-output and visible-target context attached to failures.
 - the new suite prepares three trials for each of the five stateful scenarios under `third_model`, then reuses the offline evaluator and materializer paths
 - the commands and runtime config stay fixture-backed, read-only, and safe for BOM-prefixed JSON inputs

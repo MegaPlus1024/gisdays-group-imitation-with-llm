@@ -49,3 +49,10 @@ The suite is fixture-only and read-only. Codex does not launch a model, browser,
 ## Next recommended phase
 
 Use the variance packet as the repeatable fixture source for continued offline audit, comparison, or reporting without changing runtime behavior.
+
+## Phase 13E4c note
+
+- Phase 13E4c aligns the stateful planner variance prompts, evaluator comparisons, and workflow diagnostics after a replay that accepted all 15/15 outputs by schema but failed all 15/15 workflows.
+- The overview prompt now separates the ticket board page from the direct policy and team-status reads, the ticket-priority prompt points at the hardboard fixture route, and the policy-search prompt keeps the citation requirement explicit.
+- The evaluator now accepts exact fixture text or a contained visible span for fact comparison and reports richer mismatch and citation diagnostics with scenario, trial, and source-output context.
+- The workflow now reports click-target-not-found traces with the visible targets on the current fixture page.

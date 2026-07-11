@@ -108,6 +108,7 @@
 - Phase 13E2 final success: `third_model` accepted 5/5 stateful read-only planner outputs and 5/5 workflows in the fixture-only evaluator, with no browser or Playwright execution.
 - Phase 13E3 materializes accepted stateful read-only planner outputs into workflow state, trace, and workflow-summary artifacts in `docs/status/phase_13e_stateful_planner_materialization.md`; it reuses the strict evaluator path and stays offline/fixture-backed.
 - Phase 13E4 adds the repeated stateful read-only planner variance suite in `docs/status/phase_13e_stateful_planner_variance.md`; it prepares three trials for each of the five stateful scenarios under `third_model` and keeps the evaluator/materializer flow offline and fixture-backed.
+- Phase 13E4c tightens the stateful variance prompts and replay diagnostics so fixture-span fact values and click-target misses are reported with more useful scenario and source-output context.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

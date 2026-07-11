@@ -1424,6 +1424,9 @@ def _evaluate_trial_record(
                         extracted["candidate_output"],
                         scenario=scenario,
                         scenario_hints=_scenario_prompt_hints()[str(record["scenario_id"])],
+                        scenario_id=str(record["scenario_id"]),
+                        trial_label=str(record.get("trial_label") or str(record.get("trial_id")).split("__")[-1]),
+                        source_output_path=str(record.get("raw_output_path") or record.get("output_path")),
                     )
                     if validation["status"] == "accepted":
                         normalized = validation["normalized_output"]
@@ -1653,6 +1656,9 @@ def _materialize_trial_record(
         extracted["candidate_output"],
         scenario=scenario,
         scenario_hints=_scenario_prompt_hints()[scenario_id],
+        scenario_id=scenario_id,
+        trial_label=trial_label,
+        source_output_path=source_output_path,
     )
     if validation["status"] != "accepted":
         error_code = str(validation.get("error_code") or "model_failed_task")

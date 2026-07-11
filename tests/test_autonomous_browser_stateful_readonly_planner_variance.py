@@ -314,6 +314,7 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     runtime_config_path = output_dir / "variance_config.local.json"
     schema_doc_path = output_dir / "expected_output_schema.md"
     prompt_path = output_dir / "prompts" / "stateful_policy_ticket_crosscheck" / "planner_prompt.compact.txt"
+    ticket_priority_prompt_path = output_dir / "prompts" / "stateful_ticket_priority_digest" / "planner_prompt.compact.txt"
 
     for path in (
         packet_path,
@@ -326,6 +327,7 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
         runtime_config_path,
         schema_doc_path,
         prompt_path,
+        ticket_priority_prompt_path,
     ):
         assert path.exists()
 
@@ -337,6 +339,7 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     trial_records = json.loads(trial_records_path.read_text(encoding="utf-8"))
     runtime_config = json.loads(runtime_config_path.read_text(encoding="utf-8"))
     prompt_text = prompt_path.read_text(encoding="utf-8")
+    ticket_priority_prompt_text = ticket_priority_prompt_path.read_text(encoding="utf-8")
 
     assert packet_json["schema_version"] == PACKET_SCHEMA_VERSION
     assert packet_json["packet_id"] == "phase_13e4_stateful_readonly_planner_variance"
@@ -374,7 +377,12 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert "Return exactly one JSON object" in prompt_text
     assert "Ticket board" in prompt_text
     assert "Workspace Policy" in prompt_text
+    assert "Cite the collected fact ids and evidence item ids." in prompt_text
     assert "final_answer.answer_text" in prompt_text
+    assert "https://local.intranet/tickets/hardboard" in ticket_priority_prompt_text
+    assert "Priority cross-check board" in ticket_priority_prompt_text
+    assert "Requester tier: facilities." in ticket_priority_prompt_text
+    assert "Cite the collected fact ids and evidence item ids." in ticket_priority_prompt_text
 
 
 def test_build_cli_accepts_bom_config_and_prints_compact_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

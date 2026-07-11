@@ -726,6 +726,50 @@ def test_valid_approval_output_with_all_required_fact_keys_passes(tmp_path: Path
     assert summary["fixture_execution_status"] == "succeeded"
 
 
+def test_text_span_fact_values_are_accepted(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    payload = _output_copy("stateful_ticket_priority_digest")
+    payload["facts"][1]["value"] = "Escalation Review for the urgent ticket"
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_ticket_priority_digest": payload})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_ticket_priority_digest")
+
+    assert evaluation["status"] == "succeeded"
+    assert summary["status"] == "succeeded"
+    assert summary["validation_status"] == "accepted"
+    assert summary["dry_run_status"] == "accepted"
+    assert summary["fixture_execution_status"] == "succeeded"
+
+
+def test_fact_value_mismatch_diagnostics_include_span_context(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    payload = _output_copy("stateful_ticket_priority_digest")
+    payload["facts"][1]["value"] = "Wrong topic"
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_ticket_priority_digest": payload})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_ticket_priority_digest")
+    diagnostics = summary["diagnostics"]
+
+    assert evaluation["status"] == "completed_with_failures"
+    assert evaluation["error_code"] == "fact_value_mismatch"
+    assert summary["status"] == "failed"
+    assert summary["failure_class"] == "model_failed_task"
+    fact_diag = diagnostics["fixture"]["fact_value_mismatch"]
+    assert fact_diag["scenario_id"] == "stateful_ticket_priority_digest"
+    assert fact_diag["trial_label"] == "stateful_ticket_priority_digest"
+    assert fact_diag["key"] == "ticket_7_topic"
+    assert fact_diag["expected_value"] == "Escalation Review"
+    assert fact_diag["model_value"] == "Wrong topic"
+    assert fact_diag["normalized_expected_value"] == "Escalation Review"
+    assert fact_diag["normalized_model_value"] == "Wrong topic"
+    assert fact_diag["source_fact_id"] == "ticket_priority_fact_2"
+    assert fact_diag["source_step_id"] == "inspect_ticket_7"
+    assert fact_diag["source_output_path"].endswith("stateful_ticket_priority_digest/raw_planner_output.txt")
+    assert "fixture evidence" in fact_diag["hint"]
+
+
 def test_fixture_execution_succeeds_for_valid_outputs(tmp_path: Path) -> None:
     packet_summary, packet_dir = _build_packet(tmp_path)
     _write_valid_outputs(packet_summary, tmp_path)
@@ -897,6 +941,28 @@ def test_final_answer_missing_citations_has_clear_diagnostics(tmp_path: Path) ->
     assert summary["failure_class"] == "model_failed_task"
     assert diagnostics[0]["finding_type"] == "invalid_final_answer_citations"
     assert diagnostics[0]["missing_fields"] == ["cited_fact_ids", "cited_evidence_item_ids"]
+    assert diagnostics[0]["scenario_id"] == "stateful_ticket_priority_digest"
+    assert diagnostics[0]["trial_label"] == "stateful_ticket_priority_digest"
+    assert diagnostics[0]["path"] == "final_answer"
+    assert diagnostics[0]["available_fact_ids"] == [
+        "ticket_priority_fact_1",
+        "ticket_priority_fact_2",
+        "ticket_priority_fact_3",
+        "ticket_priority_fact_4",
+        "ticket_priority_fact_5",
+        "ticket_priority_fact_6",
+        "ticket_priority_fact_7",
+        "ticket_priority_fact_8",
+        "ticket_priority_fact_9",
+        "ticket_priority_fact_10",
+    ]
+    assert diagnostics[0]["available_evidence_item_ids"] == [
+        "stateful_ticket_priority_digest-evidence-1",
+        "stateful_ticket_priority_digest-evidence-2",
+    ]
+    assert diagnostics[0]["missing_cited_fact_ids"] == diagnostics[0]["available_fact_ids"]
+    assert diagnostics[0]["missing_cited_evidence_item_ids"] == diagnostics[0]["available_evidence_item_ids"]
+    assert diagnostics[0]["hint"] == "include cited_fact_ids and cited_evidence_item_ids that reference existing facts and evidence items"
 
 
 def test_missing_captured_output_returns_safe_failure(tmp_path: Path) -> None:

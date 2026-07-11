@@ -15,6 +15,7 @@ from .autonomous_browser_runtime import (
     BrowserRuntimeSession,
     BrowserRuntimeVerifier,
     FixtureBackedBrowserRuntimeExecutor,
+    _extract_links,
 )
 
 
@@ -510,6 +511,7 @@ def run_autonomous_browser_stateful_readonly_workflow(
     playwright_execution = False
     browser_opened = False
     real_network_traffic = False
+    prior_successful_step_id: str | None = None
 
     for index, step in enumerate(scenario.steps, start=1):
         state.step_index = index
@@ -577,6 +579,15 @@ def run_autonomous_browser_stateful_readonly_workflow(
             stop_reason = "fixture_error"
             failure_class = _failure_class_from_error_code(error_code, step=step, result=result)
             state.final_status = status
+            failure_diagnostics: dict[str, Any] | None = None
+            if error_code == "browser_click_target_not_found" and step.action_name == "browser_click":
+                failure_diagnostics = _click_target_failure_diagnostics(
+                    executor=executor,
+                    session=session,
+                    step=step,
+                    scenario_id=scenario.scenario_id,
+                    prior_successful_step_id=prior_successful_step_id,
+                )
             state.trace_entries.append(
                 _trace_entry(
                     step_index=index,
@@ -587,6 +598,7 @@ def run_autonomous_browser_stateful_readonly_workflow(
                     observed_url=session.current_url,
                     result=result,
                     verification=verification,
+                    diagnostics=failure_diagnostics,
                 )
             )
             steps_failed += 1
@@ -622,6 +634,7 @@ def run_autonomous_browser_stateful_readonly_workflow(
                 state.visited_urls.append(observation.current_url)
             if step.action_name == "browser_open_url":
                 browser_opened = True
+            prior_successful_step_id = step.step_id
         state.trace_entries.append(
             _trace_entry(
                 step_index=index,
@@ -751,6 +764,7 @@ def _trace_entry(
     verification: Any | None = None,
     fact_keys: tuple[str, ...] = (),
     evidence_item_ids: tuple[str, ...] = (),
+    diagnostics: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "step_index": step_index,
@@ -770,7 +784,45 @@ def _trace_entry(
         entry["expected_result"] = verification.to_dict() if hasattr(verification, "to_dict") else None
     if result is not None and hasattr(result, "to_dict"):
         entry["action_result"] = result.to_dict()
+    if diagnostics:
+        entry["diagnostics"] = dict(diagnostics)
     return entry
+
+
+def _click_target_failure_diagnostics(
+    *,
+    executor: FixtureBackedBrowserRuntimeExecutor,
+    session: BrowserRuntimeSession,
+    step: StatefulReadonlyWorkflowStep,
+    scenario_id: str,
+    prior_successful_step_id: str | None,
+) -> dict[str, Any]:
+    target_text = str(step.parameters.get("target_text") or step.parameters.get("text") or "").strip() or None
+    available_visible_targets: list[str] = []
+    current_url = session.current_url
+    try:
+        resolution = executor._resolve(current_url, session)  # noqa: SLF001 - guarded fixture-backed runtime helper.
+        html = resolution.fixture_path.read_text(encoding="utf-8")
+        available_visible_targets = sorted(
+            {
+                link["text"]
+                for link in _extract_links(html)
+                if isinstance(link.get("text"), str) and link["text"].strip()
+            }
+        )
+    except Exception:  # noqa: BLE001 - diagnostics should remain best-effort.
+        available_visible_targets = []
+    return {
+        "finding_type": "browser_click_target_not_found",
+        "scenario_id": scenario_id,
+        "step_id": step.step_id,
+        "current_url": current_url,
+        "observed_url": current_url,
+        "target_text": target_text,
+        "available_visible_targets": available_visible_targets,
+        "prior_successful_step_id": prior_successful_step_id,
+        "hint": "target is not visible on the current page; navigate Home or open the target page directly",
+    }
 
 
 def _sanitize_action_parameters(parameters: Mapping[str, Any]) -> dict[str, Any]:

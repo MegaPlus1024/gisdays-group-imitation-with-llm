@@ -37,3 +37,10 @@ This phase adds a repeated stateful read-only planner variance packet for `third
 
 - The variance packet reuses the strict stateful planner packet/evaluator/materializer stack.
 - It is a repeated-trials packaging layer, not a new runtime backend.
+
+## Phase 13E4c guidance
+
+- If the replay reports schema acceptance without workflow success, check whether the prompt is steering the model to the wrong fixture branch or whether the replay trace needs richer click-target diagnostics.
+- Ticket-priority trials should point at the hardboard fixture route, not the ordinary ticket board page.
+- Overview trials should use the ticket board page for navigation, then open the policy and team-status pages directly.
+- Fact comparisons now accept a literal fixture span as long as the visible text still contains the expected evidence anchor.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -638,6 +639,9 @@ def _evaluate_output_record(
         candidate_output,
         scenario=scenario,
         scenario_hints=scenario_hints,
+        scenario_id=scenario.scenario_id,
+        trial_label=trial_label,
+        source_output_path=source_output_path,
     )
     if validation["status"] != "accepted":
         failure_class = _failure_class_from_error_code(str(validation.get("error_code") or "model_failed_task"))
@@ -719,6 +723,8 @@ def _evaluate_output_record(
         facts=facts,
         evidence_items=evidence_items,
         final_answer=final_answer,
+        trial_label=trial_label,
+        source_output_path=source_output_path,
     )
     if fixture["status"] != "succeeded":
         failure_class = fixture.get("failure_class") or _failure_class_from_error_code(str(fixture.get("error_code") or "fixture_error"))
@@ -798,6 +804,9 @@ def _validate_stateful_output(
     *,
     scenario,
     scenario_hints: Mapping[str, tuple[str, ...]],
+    scenario_id: str | None = None,
+    trial_label: str | None = None,
+    source_output_path: str | None = None,
 ) -> dict[str, Any]:
     diagnostics: list[dict[str, Any]] = []
     required_keys = (
@@ -1136,11 +1145,21 @@ def _validate_stateful_output(
     if not isinstance(cited_evidence_ids_payload, list) or not cited_evidence_ids_payload:
         missing_fields.append("cited_evidence_item_ids")
     if missing_fields:
+        available_fact_ids = [str(item["fact_id"]) for item in normalized_facts]
+        available_evidence_item_ids = [str(item["evidence_item_id"]) for item in normalized_evidence]
         diagnostics.append(
             {
                 "finding_type": "invalid_final_answer_citations",
                 "path": "final_answer",
                 "missing_fields": missing_fields,
+                "missing_cited_fact_ids": [] if "cited_fact_ids" not in missing_fields else available_fact_ids,
+                "missing_cited_evidence_item_ids": [] if "cited_evidence_item_ids" not in missing_fields else available_evidence_item_ids,
+                "available_fact_ids": available_fact_ids,
+                "available_evidence_item_ids": available_evidence_item_ids,
+                **({"scenario_id": scenario_id} if scenario_id is not None else {}),
+                **({"trial_label": trial_label} if trial_label is not None else {}),
+                **({"source_output_path": source_output_path} if source_output_path is not None else {}),
+                "hint": "include cited_fact_ids and cited_evidence_item_ids that reference existing facts and evidence items",
             }
         )
         return _validation_failure("invalid_final_answer_citations", diagnostics, len(normalized_actions))
@@ -1228,6 +1247,8 @@ def _execute_fixture_plan(
     facts: tuple[dict[str, Any], ...],
     evidence_items: tuple[dict[str, Any], ...],
     final_answer: Mapping[str, Any],
+    trial_label: str | None = None,
+    source_output_path: str | None = None,
 ) -> dict[str, Any]:
     state_facts: dict[str, Any] = {}
     state_evidence_items: list[dict[str, Any]] = []
@@ -1354,6 +1375,7 @@ def _execute_fixture_plan(
                     state_facts[key] = value
 
     provided_fact_map = {str(item["key"]): item["value"] for item in facts}
+    provided_fact_by_key = {str(item["key"]): item for item in facts}
     expected_fact_keys = set(_scenario_prompt_hints()[scenario.scenario_id]["required_fact_keys"])
     missing_required = sorted(key for key in expected_fact_keys if key not in provided_fact_map)
     if missing_required:
@@ -1376,7 +1398,8 @@ def _execute_fixture_plan(
         }
 
     for key in expected_fact_keys:
-        if key in state_facts and provided_fact_map.get(key) != state_facts.get(key):
+        if key in state_facts and not _fixture_text_values_match(state_facts.get(key), provided_fact_map.get(key)):
+            source_fact = provided_fact_by_key.get(key, {})
             return {
                 "status": "failed",
                 "error_code": "fact_value_mismatch",
@@ -1391,7 +1414,19 @@ def _execute_fixture_plan(
                 "final_url": final_url,
                 "diagnostics": {
                     **diagnostics,
-                    "fact_value_mismatch": {"key": key},
+                    "fact_value_mismatch": {
+                        "scenario_id": scenario.scenario_id,
+                        "trial_label": trial_label,
+                        "key": key,
+                        "expected_value": state_facts.get(key),
+                        "model_value": provided_fact_map.get(key),
+                        "normalized_expected_value": _normalize_fixture_text_value(state_facts.get(key)),
+                        "normalized_model_value": _normalize_fixture_text_value(provided_fact_map.get(key)),
+                        "source_fact_id": source_fact.get("fact_id"),
+                        "source_step_id": source_fact.get("source_step_id"),
+                        "source_output_path": source_output_path,
+                        "hint": "keep the provided fact value aligned with the fixture evidence or a visible text span from it",
+                    },
                 },
             }
 
@@ -1400,6 +1435,7 @@ def _execute_fixture_plan(
     cited_fact_ids = {str(item) for item in final_answer.get("cited_fact_ids", [])}
     cited_evidence_item_ids = {str(item) for item in final_answer.get("cited_evidence_item_ids", [])}
     if not cited_fact_ids or not cited_fact_ids.issubset(fact_ids):
+        missing_cited_fact_ids = sorted(cited_fact_ids - fact_ids)
         return {
             "status": "failed",
             "error_code": "final_answer_citation_missing",
@@ -1412,9 +1448,23 @@ def _execute_fixture_plan(
             "expected_results_failed": expected_results_failed,
             "matched_url": matched_url,
             "final_url": final_url,
-            "diagnostics": diagnostics,
+            "diagnostics": {
+                **diagnostics,
+                "final_answer_citation_missing": {
+                    "scenario_id": scenario.scenario_id,
+                    "trial_label": trial_label,
+                    "path": "final_answer",
+                    "missing_cited_fact_ids": missing_cited_fact_ids,
+                    "missing_cited_evidence_item_ids": sorted(cited_evidence_item_ids - evidence_ids),
+                    "available_fact_ids": sorted(fact_ids),
+                    "available_evidence_item_ids": sorted(evidence_ids),
+                    "source_output_path": source_output_path,
+                    "hint": "cite only fact ids and evidence item ids that exist in the replayed fixture workflow",
+                }
+            },
         }
     if not cited_evidence_item_ids or not cited_evidence_item_ids.issubset(evidence_ids):
+        missing_cited_evidence_item_ids = sorted(cited_evidence_item_ids - evidence_ids)
         return {
             "status": "failed",
             "error_code": "final_answer_citation_missing",
@@ -1427,7 +1477,20 @@ def _execute_fixture_plan(
             "expected_results_failed": expected_results_failed,
             "matched_url": matched_url,
             "final_url": final_url,
-            "diagnostics": diagnostics,
+            "diagnostics": {
+                **diagnostics,
+                "final_answer_citation_missing": {
+                    "scenario_id": scenario.scenario_id,
+                    "trial_label": trial_label,
+                    "path": "final_answer",
+                    "missing_cited_fact_ids": sorted(cited_fact_ids - fact_ids),
+                    "missing_cited_evidence_item_ids": missing_cited_evidence_item_ids,
+                    "available_fact_ids": sorted(fact_ids),
+                    "available_evidence_item_ids": sorted(evidence_ids),
+                    "source_output_path": source_output_path,
+                    "hint": "cite only fact ids and evidence item ids that exist in the replayed fixture workflow",
+                }
+            },
         }
 
     diagnostics["actual_facts"] = [
@@ -1776,6 +1839,24 @@ def _safe_text(value: Any) -> str | None:
         return None
     text = value.strip()
     return text or None
+
+
+def _normalize_fixture_text_value(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    text = re.sub(r"\s+", " ", value.strip())
+    return text.rstrip(".,;:!?")
+
+
+def _fixture_text_values_match(expected_value: Any, model_value: Any) -> bool:
+    if isinstance(expected_value, str) and isinstance(model_value, str):
+        normalized_expected = _normalize_fixture_text_value(expected_value)
+        normalized_model = _normalize_fixture_text_value(model_value)
+        if normalized_expected == normalized_model:
+            return True
+        if isinstance(normalized_expected, str) and isinstance(normalized_model, str):
+            return normalized_expected in normalized_model or normalized_model in normalized_expected
+    return expected_value == model_value
 
 
 def _normalize_value(value: Any, path: str) -> tuple[Any, dict[str, Any] | None]:

@@ -176,3 +176,57 @@ def test_failure_class_distinguishes_script_error() -> None:
     finally:
         _cleanup()
 
+
+def test_click_target_not_found_trace_includes_current_url_and_visible_targets() -> None:
+    scenario = StatefulReadonlyWorkflowScenarioDefinition(
+        scenario_id="stateful_policy_search_marker_review",
+        workflow_id="wf_click_missing",
+        start_url="https://local.intranet/",
+        objective="Trigger a click target failure.",
+        steps=(
+            StatefulReadonlyWorkflowStep(
+                step_id="open_home",
+                action_name="browser_open_url",
+                parameters={"url": "https://local.intranet/"},
+                expected_text="Office Intranet",
+            ),
+            StatefulReadonlyWorkflowStep(
+                step_id="click_missing",
+                action_name="browser_click",
+                parameters={"target_text": "Definitely not visible"},
+                expected_text="Office Intranet",
+            ),
+        ),
+        final_answer_builder=lambda state: "unreachable",  # pragma: no cover - not reached on failure.
+        fact_extractor=_no_facts,  # pragma: no cover - not reached on failure.
+    )
+    try:
+        summary = run_autonomous_browser_stateful_readonly_workflow(
+            scenario,
+            repo_root=PROJECT_ROOT,
+            output_dir=TEST_OUTPUT_DIR,
+        )
+
+        assert summary["status"] == "failed"
+        assert summary["error_code"] == "browser_click_target_not_found"
+        assert summary["failure_class"] == "fixture_error"
+        assert summary["steps_attempted"] == 2
+        assert summary["steps_succeeded"] == 1
+        assert summary["steps_failed"] == 1
+        assert summary["actions_attempted"] == 2
+        assert summary["browser_opened"] is True
+
+        trace_entry = summary["trace_entries"][1]
+        diagnostics = trace_entry["diagnostics"]
+        assert diagnostics["finding_type"] == "browser_click_target_not_found"
+        assert diagnostics["scenario_id"] == "stateful_policy_search_marker_review"
+        assert diagnostics["step_id"] == "click_missing"
+        assert diagnostics["current_url"] == "https://local.intranet/"
+        assert diagnostics["observed_url"] == "https://local.intranet/"
+        assert diagnostics["target_text"] == "Definitely not visible"
+        assert "Ticket board" in diagnostics["available_visible_targets"]
+        assert "Workspace policy" in diagnostics["available_visible_targets"]
+        assert diagnostics["prior_successful_step_id"] == "open_home"
+        assert "navigate Home or open the target page directly" in diagnostics["hint"]
+    finally:
+        _cleanup()

@@ -973,6 +973,7 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
             "final_answer_requirements": (
                 "Mention the ticket evidence and the policy evidence together.",
                 "Explain the risk conclusion in one short sentence.",
+                "Cite the collected fact ids and evidence item ids.",
             ),
         },
         "stateful_approval_policy_crosscheck": {
@@ -1004,13 +1005,14 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
                 "Do not omit approval_decision_note.",
                 "Cite all four fact ids: approval_request, approval_policy_anchor, approval_policy_marker, and approval_decision_note.",
                 "State the local decision in one short sentence.",
+                "Cite the collected fact ids and evidence item ids.",
             ),
         },
         "stateful_intranet_overview_digest": {
             "route_hints": (
                 "Home -> Ticket board.",
-                "Ticket board -> Workspace policy.",
-                "Workspace policy -> Team status.",
+                "From Ticket board, use browser_open_url to open https://local.intranet/docs/policy.",
+                "From Ticket board, use browser_open_url to open https://local.intranet/team/status.",
             ),
             "click_targets": (
                 "Ticket board",
@@ -1026,25 +1028,26 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
             "expected_evidence_anchors": (
                 "Office Intranet",
                 "Ticket Board",
+                "Priority cross-check board",
                 "Workspace Policy",
                 "Team Status",
             ),
             "final_answer_requirements": (
                 "Summarize the home, ticket board, policy, and team status pages.",
                 "Keep the digest compact and local-fixture specific.",
+                "Cite the collected fact ids and evidence item ids.",
             ),
         },
         "stateful_ticket_priority_digest": {
             "route_hints": (
                 "Home -> Ticket board.",
-                "Ticket board -> Ticket 7.",
-                "Ticket 7 -> Ticket board.",
-                "Ticket board -> Ticket 8.",
+                "Use browser_open_url to open https://local.intranet/tickets/hardboard.",
+                "Priority cross-check board -> Ticket 7.",
+                "Ticket 7 -> Priority cross-check board.",
+                "Priority cross-check board -> Ticket 8.",
             ),
             "click_targets": (
-                "Ticket board",
                 "Ticket 7",
-                "Ticket board",
                 "Ticket 8",
             ),
             "required_fact_keys": (
@@ -1060,15 +1063,18 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
                 "ticket_8_marker",
             ),
             "expected_evidence_anchors": (
-                "Ticket Board",
+                "Priority cross-check board",
                 "Ticket 7 - Escalation Review",
                 "Priority: urgent.",
+                "Requester tier: facilities.",
                 "Ticket 8 - Follow-up Note",
                 "Priority: low.",
+                "Search marker: the escalation ticket is the urgent one.",
             ),
             "final_answer_requirements": (
                 "Identify the most important ticket and explain why it outranks the decoy.",
                 "Mention the requester tier and priority evidence.",
+                "Cite the collected fact ids and evidence item ids.",
             ),
         },
         "stateful_policy_search_marker_review": {
@@ -1088,6 +1094,7 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
             ),
             "final_answer_requirements": (
                 "Return the workspace policy search marker and keep the answer short.",
+                "Cite the policy anchor and policy marker fact ids.",
             ),
         },
     }
