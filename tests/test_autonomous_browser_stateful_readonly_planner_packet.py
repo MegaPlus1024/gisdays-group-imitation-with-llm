@@ -123,6 +123,7 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert "https://local.intranet/tickets/hardboard" in ticket_priority_prompt_text
     assert "Priority cross-check board" in ticket_priority_prompt_text
     assert "Requester tier: facilities." in ticket_priority_prompt_text
+    assert "After Ticket 7, reopen the hardboard with browser_open_url before continuing to Ticket 8." in ticket_priority_prompt_text
     assert "Cite the collected fact ids and evidence item ids." in ticket_priority_prompt_text
 
     assert "Approval required facts" in approval_prompt_text

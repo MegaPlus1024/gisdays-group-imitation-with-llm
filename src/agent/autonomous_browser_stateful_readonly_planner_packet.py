@@ -1043,7 +1043,7 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
                 "Home -> Ticket board.",
                 "Use browser_open_url to open https://local.intranet/tickets/hardboard.",
                 "Priority cross-check board -> Ticket 7.",
-                "Ticket 7 -> Priority cross-check board.",
+                "After Ticket 7, use browser_open_url to return to https://local.intranet/tickets/hardboard before inspecting Ticket 8.",
                 "Priority cross-check board -> Ticket 8.",
             ),
             "click_targets": (
@@ -1074,6 +1074,7 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
             "final_answer_requirements": (
                 "Identify the most important ticket and explain why it outranks the decoy.",
                 "Mention the requester tier and priority evidence.",
+                "After Ticket 7, reopen the hardboard with browser_open_url before continuing to Ticket 8.",
                 "Cite the collected fact ids and evidence item ids.",
             ),
         },

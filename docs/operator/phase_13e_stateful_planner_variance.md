@@ -44,3 +44,9 @@ This phase adds a repeated stateful read-only planner variance packet for `third
 - Ticket-priority trials should point at the hardboard fixture route, not the ordinary ticket board page.
 - Overview trials should use the ticket board page for navigation, then open the policy and team-status pages directly.
 - Fact comparisons now accept a literal fixture span as long as the visible text still contains the expected evidence anchor.
+
+## Phase 13E4d guidance
+
+- Ticket-priority fact comparison now accepts case variations after punctuation trimming, so `urgent` and `Urgent` should compare equal when the visible fixture span matches.
+- Final-answer citation diagnostics should keep the model-output `evidence_item_id` values visible when they are available, so the output ids can be checked directly alongside replay ids in deeper diagnostics.
+- The ticket-priority prompt explicitly says to reopen the hardboard after Ticket 7 before continuing to Ticket 8; if a replay still walks straight from Ticket 7 to Ticket 8, the prompt is not yet aligned.

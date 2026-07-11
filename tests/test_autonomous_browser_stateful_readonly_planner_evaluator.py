@@ -730,6 +730,7 @@ def test_text_span_fact_values_are_accepted(tmp_path: Path) -> None:
     packet_summary, packet_dir = _build_packet(tmp_path)
     payload = _output_copy("stateful_ticket_priority_digest")
     payload["facts"][1]["value"] = "Escalation Review for the urgent ticket"
+    payload["facts"][2]["value"] = "Urgent"
     _write_outputs(packet_summary, tmp_path, overrides={"stateful_ticket_priority_digest": payload})
 
     evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
@@ -762,8 +763,8 @@ def test_fact_value_mismatch_diagnostics_include_span_context(tmp_path: Path) ->
     assert fact_diag["key"] == "ticket_7_topic"
     assert fact_diag["expected_value"] == "Escalation Review"
     assert fact_diag["model_value"] == "Wrong topic"
-    assert fact_diag["normalized_expected_value"] == "Escalation Review"
-    assert fact_diag["normalized_model_value"] == "Wrong topic"
+    assert fact_diag["normalized_expected_value"] == "escalation review"
+    assert fact_diag["normalized_model_value"] == "wrong topic"
     assert fact_diag["source_fact_id"] == "ticket_priority_fact_2"
     assert fact_diag["source_step_id"] == "inspect_ticket_7"
     assert fact_diag["source_output_path"].endswith("stateful_ticket_priority_digest/raw_planner_output.txt")

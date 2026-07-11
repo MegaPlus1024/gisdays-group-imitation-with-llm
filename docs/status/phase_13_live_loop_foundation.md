@@ -225,3 +225,8 @@
 - The stateful packet now separates overview, hardboard, and policy citation guidance more clearly, and the evaluator/workflow traces keep the source-output and visible-target context attached to failures.
 - the new suite prepares three trials for each of the five stateful scenarios under `third_model`, then reuses the offline evaluator and materializer paths
 - the commands and runtime config stay fixture-backed, read-only, and safe for BOM-prefixed JSON inputs
+
+## Phase 13E4d note
+
+- Phase 13E4d narrows the remaining alignment gap after the E4c diagnostics: fixture-span comparison is now case-folded, the evaluator preserves model-output citation ids in diagnostics, and the ticket-priority prompt explicitly tells the model to reopen the hardboard before Ticket 8.
+- this is still fixture-backed, read-only, and does not add browser/Playwright execution from Codex

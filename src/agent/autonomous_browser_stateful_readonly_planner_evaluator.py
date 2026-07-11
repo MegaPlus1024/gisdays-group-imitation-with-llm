@@ -1144,23 +1144,23 @@ def _validate_stateful_output(
         missing_fields.append("cited_fact_ids")
     if not isinstance(cited_evidence_ids_payload, list) or not cited_evidence_ids_payload:
         missing_fields.append("cited_evidence_item_ids")
-    if missing_fields:
-        available_fact_ids = [str(item["fact_id"]) for item in normalized_facts]
-        available_evidence_item_ids = [str(item["evidence_item_id"]) for item in normalized_evidence]
-        diagnostics.append(
-            {
+        if missing_fields:
+            available_fact_ids = [str(item["fact_id"]) for item in normalized_facts]
+            available_evidence_item_ids = [str(item["evidence_item_id"]) for item in normalized_evidence]
+            diagnostics.append(
+                {
                 "finding_type": "invalid_final_answer_citations",
                 "path": "final_answer",
                 "missing_fields": missing_fields,
                 "missing_cited_fact_ids": [] if "cited_fact_ids" not in missing_fields else available_fact_ids,
-                "missing_cited_evidence_item_ids": [] if "cited_evidence_item_ids" not in missing_fields else available_evidence_item_ids,
-                "available_fact_ids": available_fact_ids,
-                "available_evidence_item_ids": available_evidence_item_ids,
-                **({"scenario_id": scenario_id} if scenario_id is not None else {}),
-                **({"trial_label": trial_label} if trial_label is not None else {}),
-                **({"source_output_path": source_output_path} if source_output_path is not None else {}),
-                "hint": "include cited_fact_ids and cited_evidence_item_ids that reference existing facts and evidence items",
-            }
+                    "missing_cited_evidence_item_ids": [] if "cited_evidence_item_ids" not in missing_fields else available_evidence_item_ids,
+                    "available_fact_ids": available_fact_ids,
+                    "available_evidence_item_ids": available_evidence_item_ids,
+                    **({"scenario_id": scenario_id} if scenario_id is not None else {}),
+                    **({"trial_label": trial_label} if trial_label is not None else {}),
+                    **({"source_output_path": source_output_path} if source_output_path is not None else {}),
+                    "hint": "include cited_fact_ids and cited_evidence_item_ids that reference existing facts and evidence items",
+                }
         )
         return _validation_failure("invalid_final_answer_citations", diagnostics, len(normalized_actions))
     cited_fact_ids: list[str] = []
@@ -1430,7 +1430,8 @@ def _execute_fixture_plan(
                 },
             }
 
-    evidence_ids = {item["evidence_item_id"] for item in state_evidence_items}
+    evidence_ids = {str(item["evidence_item_id"]) for item in evidence_items}
+    replay_evidence_ids = {str(item["evidence_item_id"]) for item in state_evidence_items}
     fact_ids = {item["fact_id"] for item in facts}
     cited_fact_ids = {str(item) for item in final_answer.get("cited_fact_ids", [])}
     cited_evidence_item_ids = {str(item) for item in final_answer.get("cited_evidence_item_ids", [])}
@@ -1487,6 +1488,7 @@ def _execute_fixture_plan(
                     "missing_cited_evidence_item_ids": missing_cited_evidence_item_ids,
                     "available_fact_ids": sorted(fact_ids),
                     "available_evidence_item_ids": sorted(evidence_ids),
+                    "replay_evidence_item_ids": sorted(replay_evidence_ids),
                     "source_output_path": source_output_path,
                     "hint": "cite only fact ids and evidence item ids that exist in the replayed fixture workflow",
                 }
@@ -1845,7 +1847,7 @@ def _normalize_fixture_text_value(value: Any) -> Any:
     if not isinstance(value, str):
         return value
     text = re.sub(r"\s+", " ", value.strip())
-    return text.rstrip(".,;:!?")
+    return text.rstrip(".,;:!?").casefold()
 
 
 def _fixture_text_values_match(expected_value: Any, model_value: Any) -> bool:
