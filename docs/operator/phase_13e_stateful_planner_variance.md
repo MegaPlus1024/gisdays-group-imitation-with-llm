@@ -1,0 +1,39 @@
+# Phase 13E4 Stateful Planner Variance
+
+This phase adds a repeated stateful read-only planner variance packet for `third_model`.
+
+## What it does
+
+- prepares three trials per stateful workflow scenario
+- writes request records, request paths, output paths, and a local runtime config
+- keeps the packet/evaluator/materializer flow offline and fixture-backed
+- documents the manual `third_model` command flow without launching a model from Codex
+
+## Suggested local commands
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_autonomous_browser_stateful_readonly_planner_variance.py
+.\.venv\Scripts\python.exe scripts\build_autonomous_browser_stateful_readonly_planner_variance_packet.py --config configs\autonomous_runtime\browser_stateful_readonly_planner_variance.example.json
+.\.venv\Scripts\python.exe scripts\run_autonomous_browser_stateful_readonly_planner_variance_evaluator.py --config artifacts\autonomous_runtime_planner_packets\stateful_readonly_planner_variance\variance_config.local.json
+.\.venv\Scripts\python.exe scripts\materialize_autonomous_browser_stateful_readonly_planner_variance_outputs.py --config artifacts\autonomous_runtime_planner_packets\stateful_readonly_planner_variance\variance_config.local.json
+```
+
+## Troubleshooting
+
+- If the config file was written by PowerShell with a BOM, the loader should still accept it via `utf-8-sig`.
+- Missing captured outputs remain a handled failure mode in the evaluator and materializer.
+- The command markdown should mention `planner_prompt.compact.txt` as the prompt source for each trial.
+- The packet stays limited to `third_model` and the five stateful scenarios.
+
+## Safety boundaries
+
+- no model calls by Codex
+- no browser or Playwright execution
+- no external network access
+- no GGUF modification
+- no generated artifacts committed
+
+## Notes
+
+- The variance packet reuses the strict stateful planner packet/evaluator/materializer stack.
+- It is a repeated-trials packaging layer, not a new runtime backend.

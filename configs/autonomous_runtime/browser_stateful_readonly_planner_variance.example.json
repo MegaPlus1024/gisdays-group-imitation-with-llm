@@ -1,0 +1,32 @@
+{
+  "schema_version": "autonomous_browser_stateful_readonly_planner_variance_config_v1",
+  "packet_id": "phase_13e4_stateful_readonly_planner_variance",
+  "base_packet_config": "configs/autonomous_runtime/browser_stateful_readonly_planner_packet.example.json",
+  "model_aliases": ["third_model"],
+  "scenarios": [
+    "stateful_policy_ticket_crosscheck",
+    "stateful_approval_policy_crosscheck",
+    "stateful_intranet_overview_digest",
+    "stateful_ticket_priority_digest",
+    "stateful_policy_search_marker_review"
+  ],
+  "trials_per_scenario": 3,
+  "output_dir": "artifacts/autonomous_runtime_planner_packets/stateful_readonly_planner_variance",
+  "captured_output_dir": "artifacts/autonomous_runtime_planner_outputs/stateful_readonly_planner_variance",
+  "materialized_output_dir": "artifacts/autonomous_runtime_summaries/stateful_readonly_planner_variance_materialized",
+  "fixture_only": true,
+  "external_network_allowed": false,
+  "writes_allowed": false,
+  "model_execution": false,
+  "real_browser_execution": false,
+  "playwright_execution": false,
+  "browser_opened": false,
+  "limitations": [
+    "offline repeated stateful planner variance only",
+    "manual third_model runs only",
+    "no model calls by Codex",
+    "no real browser execution",
+    "fixture-backed replay remains offline only",
+    "not production browser automation"
+  ]
+}

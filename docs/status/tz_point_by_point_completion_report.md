@@ -107,6 +107,7 @@
 - Phase 13E2c: tightens the approval required-fact prompt and missing-key diagnostics after the follow-up `third_model` run reached 4/5 accepted workflows and failed only on the approval required-fact omission; it keeps validation strict and does not normalize aliases.
 - Phase 13E2 final success: `third_model` accepted 5/5 stateful read-only planner outputs and 5/5 workflows in the fixture-only evaluator, with no browser or Playwright execution.
 - Phase 13E3 materializes accepted stateful read-only planner outputs into workflow state, trace, and workflow-summary artifacts in `docs/status/phase_13e_stateful_planner_materialization.md`; it reuses the strict evaluator path and stays offline/fixture-backed.
+- Phase 13E4 adds the repeated stateful read-only planner variance suite in `docs/status/phase_13e_stateful_planner_variance.md`; it prepares three trials for each of the five stateful scenarios under `third_model` and keeps the evaluator/materializer flow offline and fixture-backed.
 - Final Phase 10 consolidation: `docs/status/final_consolidated_status_after_phase_10.md`.
 
 ## 2. Краткая сводка выполнения

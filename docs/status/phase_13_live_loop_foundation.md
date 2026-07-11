@@ -214,3 +214,9 @@
 - Phase 13E3 materializes the accepted stateful planner outputs into workflow state, trace, and workflow-summary artifacts in `docs/status/phase_13e_stateful_planner_materialization.md`.
 - the materializer reuses the strict packet/evaluator parsing and validation path, and it stays offline and fixture-backed
 - missing captured outputs remain a handled failure mode, not a crash path
+
+## Phase 13E4 note
+
+- Phase 13E4 adds a repeated stateful read-only planner variance suite in `docs/status/phase_13e_stateful_planner_variance.md` and `docs/operator/phase_13e_stateful_planner_variance.md`
+- the new suite prepares three trials for each of the five stateful scenarios under `third_model`, then reuses the offline evaluator and materializer paths
+- the commands and runtime config stay fixture-backed, read-only, and safe for BOM-prefixed JSON inputs
