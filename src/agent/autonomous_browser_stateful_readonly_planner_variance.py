@@ -1087,15 +1087,21 @@ def run_autonomous_browser_stateful_readonly_planner_variance_evaluator(
             if trial_result["validation_status"] == "accepted":
                 validation_accepted += 1
                 outputs_ingested += 1
-                workflows_succeeded += 1
                 scenario_summary["validation_accepted"] += 1
                 scenario_summary["outputs_ingested"] += 1
-                scenario_summary["workflows_succeeded"] += 1
                 scenario_summary["action_count_values"].add(actions_total_value)
                 scenario_summary["facts_count_values"].add(facts_total_value)
                 scenario_summary["evidence_count_values"].add(evidence_items_total_value)
                 if final_answer_present_value:
                     scenario_summary["final_answer_present_count"] += 1
+                if trial_result["workflow_status"] == "succeeded":
+                    workflows_succeeded += 1
+                    scenario_summary["workflows_succeeded"] += 1
+                else:
+                    workflows_failed += 1
+                    scenario_summary["workflows_failed"] += 1
+                    if first_issue_code is None:
+                        first_issue_code = str(trial_result.get("error_code") or "variance_output_failed")
             else:
                 validation_rejected += 1
                 outputs_rejected += 1
@@ -1128,7 +1134,7 @@ def run_autonomous_browser_stateful_readonly_planner_variance_evaluator(
     if outputs_missing > 0:
         status = "completed_with_missing_outputs"
         error_code = "missing_captured_outputs"
-    elif outputs_rejected > 0:
+    elif workflows_failed > 0:
         status = "completed_with_failures"
         error_code = first_issue_code or "variance_output_failed"
     else:
@@ -1314,9 +1320,13 @@ def run_autonomous_browser_stateful_readonly_planner_variance_materializer(
                 scenario_summary["evidence_items_total"] += evidence_items_total_value
                 scenario_summary["final_answers_total"] += 1 if final_answer_present_value else 0
             else:
-                outputs_rejected += 1
+                if trial_result["validation_status"] == "accepted":
+                    outputs_accepted += 1
+                    scenario_summary["outputs_accepted"] += 1
+                else:
+                    outputs_rejected += 1
+                    scenario_summary["outputs_rejected"] += 1
                 workflows_failed += 1
-                scenario_summary["outputs_rejected"] += 1
                 scenario_summary["workflows_failed"] += 1
                 if first_issue_code is None:
                     first_issue_code = str(trial_result.get("error_code") or "variance_materialization_failed")
@@ -1334,12 +1344,12 @@ def run_autonomous_browser_stateful_readonly_planner_variance_materializer(
         summary["pass_rate"] = _safe_ratio(summary["workflows_materialized"], summary["outputs_total"])
         scenario_summaries.append(summary)
 
-    if outputs_rejected:
-        status = "completed_with_failures"
-        error_code = first_issue_code or "variance_materialization_failed"
-    elif outputs_missing:
+    if outputs_missing:
         status = "completed_with_missing_outputs"
         error_code = "missing_captured_outputs"
+    elif workflows_failed:
+        status = "completed_with_failures"
+        error_code = first_issue_code or "variance_materialization_failed"
     else:
         status = "succeeded"
         error_code = None

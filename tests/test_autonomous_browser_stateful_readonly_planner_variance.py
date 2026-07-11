@@ -6,10 +6,11 @@ import json
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import pytest
 
+import src.agent.autonomous_browser_stateful_readonly_planner_variance as variance_module
 from src.agent.autonomous_browser_stateful_readonly_planner_variance import (
     EVALUATOR_SUMMARY_SCHEMA_VERSION,
     MATERIALIZER_SUMMARY_SCHEMA_VERSION,
@@ -34,6 +35,13 @@ PACKET_OUTPUT_DIR = "artifacts/autonomous_runtime_planner_packets/stateful_reado
 MATERIALIZED_OUTPUT_DIR = "artifacts/autonomous_runtime_summaries/stateful_readonly_planner_variance_materialized"
 BASE_PACKET_CONFIG_RELATIVE = Path("configs/autonomous_runtime/browser_stateful_readonly_planner_packet.example.json")
 VARIANCE_CONFIG_RELATIVE = Path("configs/autonomous_runtime/browser_stateful_readonly_planner_variance.example.json")
+VARIANCE_SCENARIO_IDS = [
+    "stateful_policy_ticket_crosscheck",
+    "stateful_approval_policy_crosscheck",
+    "stateful_intranet_overview_digest",
+    "stateful_ticket_priority_digest",
+    "stateful_policy_search_marker_review",
+]
 
 
 def _config() -> dict[str, Any]:
@@ -95,6 +103,174 @@ def _write_outputs(packet_summary: dict[str, Any], repo_root: Path) -> None:
                 "usage": {"prompt_tokens": 312, "completion_tokens": 185, "total_tokens": 497},
             },
         )
+
+
+def _fake_variance_request_records(
+    scenario_ids: list[str],
+    *,
+    trial_labels: tuple[str, ...] = ("trial_01", "trial_02", "trial_03"),
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for scenario_id in scenario_ids:
+        for index, trial_label in enumerate(trial_labels, start=1):
+            trial_id = f"{scenario_id}__{trial_label}"
+            records.append(
+                {
+                    "model_alias": "third_model",
+                    "scenario_id": scenario_id,
+                    "trial_id": trial_id,
+                    "trial_label": trial_label,
+                    "workflow_id": scenario_id,
+                    "raw_output_path": f"artifacts/autonomous_runtime_planner_outputs/stateful_readonly_planner_variance/third_model/{scenario_id}/{trial_label}/raw_planner_output.txt",
+                    "response_path": f"artifacts/autonomous_runtime_planner_outputs/stateful_readonly_planner_variance/third_model/{scenario_id}/{trial_label}/response.json",
+                    "request_path": f"artifacts/autonomous_runtime_planner_packets/stateful_readonly_planner_variance/third_model/{scenario_id}/{trial_label}/request.json",
+                    "output_path": f"artifacts/autonomous_runtime_planner_outputs/stateful_readonly_planner_variance/third_model/{scenario_id}/{trial_label}/raw_planner_output.txt",
+                    "trial_index": index,
+                }
+            )
+    return records
+
+
+def _fake_variance_packet_context(
+    records: list[dict[str, Any]],
+    *,
+    scenario_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "packet_id": "phase_13e4_stateful_readonly_planner_variance",
+        "packet_output_dir": PACKET_OUTPUT_DIR,
+        "materialized_output_dir": MATERIALIZED_OUTPUT_DIR,
+        "model_aliases": ["third_model"],
+        "scenario_ids": scenario_ids or VARIANCE_SCENARIO_IDS,
+        "trial_ids": ["trial_01", "trial_02", "trial_03"],
+        "request_records": records,
+        "limitations": [
+            "offline repeated stateful planner variance only",
+            "manual third_model runs only",
+            "no model calls by Codex",
+            "no real browser execution",
+            "fixture-backed replay remains offline only",
+            "not production browser automation",
+        ],
+    }
+
+
+def _fake_variance_trial_result(
+    record: Mapping[str, Any],
+    *,
+    status: str,
+    validation_status: str,
+    workflow_status: str,
+    error_code: str | None,
+    failure_class: str,
+    actions_total: int,
+    facts_total: int,
+    evidence_items_total: int,
+    final_answer_present: bool,
+    finish_reason: str = "stop",
+) -> dict[str, Any]:
+    scenario_id = str(record["scenario_id"])
+    trial_id = str(record["trial_id"])
+    trial_label = str(record.get("trial_label") or trial_id.split("__")[-1])
+    base_output_path = f"artifacts/autonomous_runtime_planner_outputs/stateful_readonly_planner_variance/third_model/{scenario_id}/{trial_label}/raw_planner_output.txt"
+    base_materialized_dir = f"artifacts/autonomous_runtime_summaries/stateful_readonly_planner_variance_materialized/third_model/{scenario_id}/{trial_label}"
+    return {
+        "model_alias": "third_model",
+        "scenario_id": scenario_id,
+        "trial_id": trial_id,
+        "trial_label": trial_label,
+        "status": status,
+        "error_code": error_code,
+        "failure_class": failure_class,
+        "finish_reason": finish_reason,
+        "validation_status": validation_status,
+        "workflow_status": workflow_status,
+        "actions_total": actions_total,
+        "facts_total": facts_total,
+        "evidence_items_total": evidence_items_total,
+        "final_answer_present": final_answer_present,
+        "source_output_path": base_output_path,
+        "captured_output_present": True,
+        "no_runtime_execution": True,
+        "model_execution": False,
+        "real_browser_execution": False,
+        "playwright_execution": False,
+        "browser_opened": False,
+        "state_path": f"{base_materialized_dir}/materialized_state.json" if status == "succeeded" else None,
+        "trace_path": f"{base_materialized_dir}/materialized_trace.json" if status == "succeeded" else None,
+        "workflow_summary_path": f"{base_materialized_dir}/materialized_workflow_summary.json",
+    }
+
+
+def _fake_variance_failure_result(record: Mapping[str, Any]) -> dict[str, Any]:
+    scenario_id = str(record["scenario_id"])
+    if scenario_id in {"stateful_policy_ticket_crosscheck", "stateful_approval_policy_crosscheck"}:
+        error_code = "fact_value_mismatch"
+        actions_total = 7 if scenario_id == "stateful_approval_policy_crosscheck" else 4
+        facts_total = 4 if scenario_id == "stateful_approval_policy_crosscheck" else 6
+        evidence_items_total = 4 if scenario_id == "stateful_approval_policy_crosscheck" else 2
+    elif scenario_id == "stateful_intranet_overview_digest":
+        error_code = "browser_click_target_not_found"
+        actions_total = 4
+        facts_total = 4
+        evidence_items_total = 4
+    elif scenario_id == "stateful_ticket_priority_digest":
+        error_code = "browser_click_target_not_found"
+        actions_total = 5
+        facts_total = 10
+        evidence_items_total = 2
+    else:
+        error_code = "final_answer_citation_missing"
+        actions_total = 2
+        facts_total = 2
+        evidence_items_total = 2
+    return _fake_variance_trial_result(
+        record,
+        status="failed",
+        validation_status="accepted",
+        workflow_status="failed",
+        error_code=error_code,
+        failure_class="model_failed_task",
+        actions_total=actions_total,
+        facts_total=facts_total,
+        evidence_items_total=evidence_items_total,
+        final_answer_present=True,
+    )
+
+
+def _fake_variance_success_result(record: Mapping[str, Any]) -> dict[str, Any]:
+    return _fake_variance_trial_result(
+        record,
+        status="succeeded",
+        validation_status="accepted",
+        workflow_status="succeeded",
+        error_code=None,
+        failure_class="none",
+        actions_total=4,
+        facts_total=6,
+        evidence_items_total=2,
+        final_answer_present=True,
+    )
+
+
+def _fake_variance_rejected_result(record: Mapping[str, Any]) -> dict[str, Any]:
+    return _fake_variance_trial_result(
+        record,
+        status="failed",
+        validation_status="rejected",
+        workflow_status="failed",
+        error_code="output_schema_invalid",
+        failure_class="validation_error",
+        actions_total=0,
+        facts_total=0,
+        evidence_items_total=0,
+        final_answer_present=False,
+    )
+
+
+def _patch_fake_packet_context(monkeypatch: pytest.MonkeyPatch, context: dict[str, Any]) -> None:
+    monkeypatch.setattr(variance_module, "_load_packet_context", lambda packet_dir, *, repo_root: context)
 
 
 def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> None:
@@ -246,8 +422,13 @@ def test_evaluator_and_materializer_accept_packet_dir_and_replay() -> None:
         assert evaluation["outputs_missing"] == 0
         assert evaluation["outputs_ingested"] == 15
         assert evaluation["outputs_rejected"] == 0
+        assert evaluation["validation_accepted"] == 15
+        assert evaluation["validation_rejected"] == 0
         assert evaluation["workflows_succeeded"] == 15
         assert evaluation["workflows_failed"] == 0
+        assert evaluation["pass_rate_overall"] == 1.0
+        assert evaluation["validation_acceptance_rate"] == 1.0
+        assert evaluation["failure_class_counts"] == {"none": 15}
         assert evaluation["finish_reason_counts"] == {"stop": 15}
         assert evaluation["no_runtime_execution"] is True
         assert evaluation["model_execution"] is False
@@ -257,6 +438,10 @@ def test_evaluator_and_materializer_accept_packet_dir_and_replay() -> None:
         assert evaluation["real_network_traffic"] is False
         assert evaluation["fixture_only"] is True
         assert len(evaluation["scenario_summaries"]) == 5
+        assert all(item["pass_rate"] == 1.0 for item in evaluation["scenario_summaries"])
+        assert all(item["validation_acceptance_rate"] == 1.0 for item in evaluation["scenario_summaries"])
+        assert all(item["workflows_succeeded"] == 3 for item in evaluation["scenario_summaries"])
+        assert all(item["workflows_failed"] == 0 for item in evaluation["scenario_summaries"])
         assert len(evaluation["trial_summaries"]) == 15
         assert len(evaluation["output_summaries"]) == 15
 
@@ -282,6 +467,7 @@ def test_evaluator_and_materializer_accept_packet_dir_and_replay() -> None:
         assert materialized["real_network_traffic"] is False
         assert materialized["fixture_only"] is True
         assert len(materialized["scenario_summaries"]) == 5
+        assert all(item["pass_rate"] == 1.0 for item in materialized["scenario_summaries"])
         assert len(materialized["trial_summaries"]) == 15
         assert len(materialized["output_summaries"]) == 15
 
@@ -310,8 +496,188 @@ def test_evaluator_and_materializer_accept_config_and_replay(tmp_path: Path) -> 
 
         assert evaluation["status"] == "succeeded"
         assert evaluation["outputs_total"] == 15
+        assert evaluation["validation_accepted"] == 15
+        assert evaluation["workflows_succeeded"] == 15
+        assert evaluation["workflows_failed"] == 0
+        assert evaluation["pass_rate_overall"] == 1.0
         assert materialized["status"] == "succeeded"
         assert materialized["outputs_accepted"] == 15
+        assert materialized["outputs_rejected"] == 0
+        assert materialized["workflows_materialized"] == 15
+        assert materialized["workflows_failed"] == 0
+
+
+def test_evaluator_aggregates_validation_and_workflow_failures(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    records = _fake_variance_request_records(VARIANCE_SCENARIO_IDS)
+    packet_context = _fake_variance_packet_context(records)
+    _patch_fake_packet_context(monkeypatch, packet_context)
+    fake_results = {str(record["trial_id"]): _fake_variance_failure_result(record) for record in records}
+    monkeypatch.setattr(
+        variance_module,
+        "_evaluate_trial_record",
+        lambda **kwargs: fake_results[str(kwargs["record"]["trial_id"])],
+    )
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_variance_evaluator(packet_dir=Path("packet-dir"), repo_root=tmp_path)
+
+    assert evaluation["status"] == "completed_with_failures"
+    assert evaluation["error_code"] in {"fact_value_mismatch", "browser_click_target_not_found", "final_answer_citation_missing"}
+    assert evaluation["outputs_total"] == 15
+    assert evaluation["outputs_present"] == 15
+    assert evaluation["outputs_missing"] == 0
+    assert evaluation["outputs_ingested"] == 15
+    assert evaluation["outputs_rejected"] == 0
+    assert evaluation["validation_accepted"] == 15
+    assert evaluation["validation_rejected"] == 0
+    assert evaluation["workflows_succeeded"] == 0
+    assert evaluation["workflows_failed"] == 15
+    assert evaluation["pass_rate_overall"] == 0.0
+    assert evaluation["validation_acceptance_rate"] == 1.0
+    assert evaluation["failure_class_counts"] == {"model_failed_task": 15}
+    assert len(evaluation["scenario_summaries"]) == 5
+    assert all(item["pass_rate"] == 0.0 for item in evaluation["scenario_summaries"])
+    assert all(item["validation_acceptance_rate"] == 1.0 for item in evaluation["scenario_summaries"])
+    assert all(item["workflows_succeeded"] == 0 for item in evaluation["scenario_summaries"])
+    assert all(item["workflows_failed"] == 3 for item in evaluation["scenario_summaries"])
+
+
+def test_evaluator_aggregates_mixed_validation_and_workflow_outcomes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    records = _fake_variance_request_records(["stateful_policy_ticket_crosscheck"], trial_labels=("trial_01", "trial_02", "trial_03"))
+    packet_context = _fake_variance_packet_context(records, scenario_ids=["stateful_policy_ticket_crosscheck"])
+    _patch_fake_packet_context(monkeypatch, packet_context)
+    mixed_results = {
+        "stateful_policy_ticket_crosscheck__trial_01": _fake_variance_rejected_result(records[0]),
+        "stateful_policy_ticket_crosscheck__trial_02": _fake_variance_trial_result(
+            records[1],
+            status="failed",
+            validation_status="accepted",
+            workflow_status="failed",
+            error_code="fact_value_mismatch",
+            failure_class="model_failed_task",
+            actions_total=4,
+            facts_total=6,
+            evidence_items_total=2,
+            final_answer_present=True,
+        ),
+        "stateful_policy_ticket_crosscheck__trial_03": _fake_variance_success_result(records[2]),
+    }
+    monkeypatch.setattr(
+        variance_module,
+        "_evaluate_trial_record",
+        lambda **kwargs: mixed_results[str(kwargs["record"]["trial_id"])],
+    )
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_variance_evaluator(packet_dir=Path("packet-dir"), repo_root=tmp_path)
+
+    assert evaluation["status"] == "completed_with_failures"
+    assert evaluation["outputs_total"] == 3
+    assert evaluation["outputs_present"] == 3
+    assert evaluation["outputs_missing"] == 0
+    assert evaluation["outputs_ingested"] == 2
+    assert evaluation["outputs_rejected"] == 1
+    assert evaluation["validation_accepted"] == 2
+    assert evaluation["validation_rejected"] == 1
+    assert evaluation["workflows_succeeded"] == 1
+    assert evaluation["workflows_failed"] == 2
+    assert evaluation["pass_rate_overall"] == pytest.approx(1 / 3, abs=0.001)
+    assert evaluation["validation_acceptance_rate"] == pytest.approx(2 / 3, abs=0.001)
+    assert evaluation["failure_class_counts"] == {"model_failed_task": 1, "none": 1, "validation_error": 1}
+    assert evaluation["scenario_summaries"][0]["pass_rate"] == pytest.approx(1 / 3, abs=0.001)
+    assert evaluation["scenario_summaries"][0]["validation_acceptance_rate"] == pytest.approx(2 / 3, abs=0.001)
+    assert evaluation["scenario_summaries"][0]["workflows_succeeded"] == 1
+    assert evaluation["scenario_summaries"][0]["workflows_failed"] == 2
+
+
+def test_materializer_counts_only_successful_materializations_for_accepted_outputs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    records = _fake_variance_request_records(["stateful_policy_ticket_crosscheck"], trial_labels=("trial_01", "trial_02", "trial_03"))
+    packet_context = _fake_variance_packet_context(records, scenario_ids=["stateful_policy_ticket_crosscheck"])
+    _patch_fake_packet_context(monkeypatch, packet_context)
+    mixed_results = {
+        "stateful_policy_ticket_crosscheck__trial_01": _fake_variance_trial_result(
+            records[0],
+            status="failed",
+            validation_status="accepted",
+            workflow_status="failed",
+            error_code="fact_value_mismatch",
+            failure_class="model_failed_task",
+            actions_total=4,
+            facts_total=6,
+            evidence_items_total=2,
+            final_answer_present=True,
+        ),
+        "stateful_policy_ticket_crosscheck__trial_02": _fake_variance_trial_result(
+            records[1],
+            status="failed",
+            validation_status="accepted",
+            workflow_status="failed",
+            error_code="browser_click_target_not_found",
+            failure_class="model_failed_task",
+            actions_total=4,
+            facts_total=6,
+            evidence_items_total=2,
+            final_answer_present=True,
+        ),
+        "stateful_policy_ticket_crosscheck__trial_03": _fake_variance_success_result(records[2]),
+    }
+    monkeypatch.setattr(
+        variance_module,
+        "_materialize_trial_record",
+        lambda **kwargs: mixed_results[str(kwargs["record"]["trial_id"])],
+    )
+
+    materialized = run_autonomous_browser_stateful_readonly_planner_variance_materializer(
+        packet_dir=Path("packet-dir"),
+        output_dir=tmp_path / MATERIALIZED_OUTPUT_DIR,
+        repo_root=tmp_path,
+    )
+
+    assert materialized["status"] == "completed_with_failures"
+    assert materialized["outputs_total"] == 3
+    assert materialized["outputs_present"] == 3
+    assert materialized["outputs_missing"] == 0
+    assert materialized["outputs_accepted"] == 3
+    assert materialized["outputs_rejected"] == 0
+    assert materialized["workflows_materialized"] == 1
+    assert materialized["workflows_failed"] == 2
+    assert materialized["actions_total"] == 4
+    assert materialized["facts_total"] == 6
+    assert materialized["evidence_items_total"] == 2
+    assert materialized["final_answers_total"] == 1
+    assert materialized["scenario_summaries"][0]["pass_rate"] == pytest.approx(1 / 3, abs=0.001)
+    assert materialized["failure_class_counts"] == {"model_failed_task": 2, "none": 1}
+
+
+def test_fake_variance_all_success_still_succeeds(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    records = _fake_variance_request_records(["stateful_policy_ticket_crosscheck"], trial_labels=("trial_01", "trial_02", "trial_03"))
+    packet_context = _fake_variance_packet_context(records, scenario_ids=["stateful_policy_ticket_crosscheck"])
+    _patch_fake_packet_context(monkeypatch, packet_context)
+    success_results = {str(record["trial_id"]): _fake_variance_success_result(record) for record in records}
+    monkeypatch.setattr(
+        variance_module,
+        "_evaluate_trial_record",
+        lambda **kwargs: success_results[str(kwargs["record"]["trial_id"])],
+    )
+    monkeypatch.setattr(
+        variance_module,
+        "_materialize_trial_record",
+        lambda **kwargs: success_results[str(kwargs["record"]["trial_id"])],
+    )
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_variance_evaluator(packet_dir=Path("packet-dir"), repo_root=tmp_path)
+    materialized = run_autonomous_browser_stateful_readonly_planner_variance_materializer(
+        packet_dir=Path("packet-dir"),
+        output_dir=tmp_path / MATERIALIZED_OUTPUT_DIR,
+        repo_root=tmp_path,
+    )
+
+    assert evaluation["status"] == "succeeded"
+    assert evaluation["workflows_succeeded"] == 3
+    assert evaluation["workflows_failed"] == 0
+    assert evaluation["validation_accepted"] == 3
+    assert materialized["status"] == "succeeded"
+    assert materialized["workflows_materialized"] == 3
+    assert materialized["workflows_failed"] == 0
+    assert materialized["outputs_accepted"] == 3
 
 
 def test_evaluator_config_loads_generated_packet_and_reports_missing_packet(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
