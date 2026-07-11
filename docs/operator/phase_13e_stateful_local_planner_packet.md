@@ -43,3 +43,23 @@ If you want to recheck the offline evaluator shape, use:
 - the approval prompt now includes an explicit required-facts skeleton and says not to omit `approval_decision_note`
 - `missing_required_fact_keys` diagnostics now include required, present, and missing key lists plus a hint
 - strict validation still stays strict and does not repair missing facts
+
+## Final success expectations
+
+- the final evaluator summary should show `status: succeeded` and `error_code: null`
+- `model_execution: false` in the evaluator summary is expected because the evaluator does not call the model
+- `real_browser_execution: false`, `playwright_execution: false`, and `browser_opened: false` are expected for the offline evaluator path
+- `actions_succeeded` may remain `0` when no real executor or browser is run; the important values are the packet outputs, validation, dry-run, fixture replay, and workflow counts
+
+## How to inspect the final accepted summaries
+
+- open the packet output directory and review the generated request/response summaries for the five scenarios
+- confirm each scenario shows `validation_accepted`, `dry_runs_succeeded`, `fixture_runs_succeeded`, and `workflows_succeeded`
+- confirm the approval scenario includes `approval_decision_note` in the accepted facts and no `missing_required_fact_keys`
+
+## Troubleshooting notes
+
+- the initial strict-schema failure was `missing_action_field`
+- the intermediate hardening pass exposed `invalid_confidence` and truncation handling
+- the approval-specific omission was `approval_decision_note`; once that prompt was tightened, the evaluator accepted all five outputs
+- strict validation remains strict and should not be relaxed for missing facts or aliases
