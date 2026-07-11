@@ -1135,7 +1135,14 @@ def _validate_stateful_output(
 
     answer_text = _optional_safe_text(final_answer_payload.get("answer_text"), "final_answer.answer_text")
     if answer_text is False or answer_text is None:
-        diagnostics.append({"finding_type": "missing_final_answer_text", "path": "final_answer.answer_text"})
+        diagnostics.append(
+            {
+                "finding_type": "missing_final_answer_text",
+                "path": "final_answer.answer_text",
+                "final_answer_type": type(final_answer_payload).__name__,
+                "final_answer_keys": sorted(str(key) for key in final_answer_payload.keys()),
+            }
+        )
         return _validation_failure("missing_final_answer_text", diagnostics, len(normalized_actions))
     cited_fact_ids_payload = final_answer_payload.get("cited_fact_ids")
     cited_evidence_ids_payload = final_answer_payload.get("cited_evidence_item_ids")

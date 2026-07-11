@@ -235,3 +235,8 @@
 
 - Phase 13E4e tightens the remaining stateful variance fact anchoring after the E4d diagnostics: the policy-ticket prompt now says to copy the exact workspace policy marker without inventing admin approval language, and the ticket-priority prompt now says to copy Ticket 8 requester tier exactly as `office worker`.
 - this is still fixture-backed, read-only, and does not add browser/Playwright execution from Codex
+
+## Phase 13E4f note
+
+- Phase 13E4f adds safe `missing_final_answer_text` diagnostic context and an explicit Ticket 8 marker anchor so the variance suite can distinguish a truly missing final answer from a present one and keep `ticket_8_marker` grounded in the visible decoy phrase.
+- this is still fixture-backed, read-only, and does not add browser/Playwright execution from Codex

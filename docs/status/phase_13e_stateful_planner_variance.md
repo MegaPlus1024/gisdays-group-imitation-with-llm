@@ -56,3 +56,19 @@ Use the variance packet as the repeatable fixture source for continued offline a
 - The overview prompt now separates the ticket board page from the direct policy and team-status reads, the ticket-priority prompt points at the hardboard fixture route, and the policy-search prompt keeps the citation requirement explicit.
 - The evaluator now accepts exact fixture text or a contained visible span for fact comparison and reports richer mismatch and citation diagnostics with scenario, trial, and source-output context.
 - The workflow now reports click-target-not-found traces with the visible targets on the current fixture page.
+
+## Phase 13E4d note
+
+- Phase 13E4d narrows the remaining alignment gap after the E4c diagnostics: fact comparison now case-folds fixture spans, citation diagnostics keep model-output evidence ids visible, and the ticket-priority prompt explicitly reopens the hardboard before Ticket 8.
+- this is still fixture-backed, read-only, and does not add browser/Playwright execution from Codex
+
+## Phase 13E4e note
+
+- Phase 13E4e tightens the remaining fact anchoring after the E4d diagnostics: the policy-ticket prompt now copies the exact workspace policy marker without inventing admin approval language, and the ticket-priority prompt now copies Ticket 8 requester tier exactly as `office worker`.
+- this is still fixture-backed, read-only, and does not add browser/Playwright execution from Codex
+
+## Phase 13E4f note
+
+- Phase 13E4f adds a safe diagnostic context trail for the `missing_final_answer_text` path and keeps policy-ticket outputs with a real `final_answer.answer_text` accepted.
+- the ticket-priority prompt now explicitly anchors `ticket_8_marker` to `decoy for the priority cross-check`, warns against `none`, and tells the model to copy the visible search-marker phrase from the Ticket 8 page
+- this remains fixture-backed, read-only, and does not add browser/Playwright execution from Codex

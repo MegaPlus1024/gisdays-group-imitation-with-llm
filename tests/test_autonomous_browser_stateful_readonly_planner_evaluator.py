@@ -763,6 +763,45 @@ def test_policy_ticket_prompt_hallucinated_policy_marker_is_rejected(tmp_path: P
     assert fact_diag["model_value"] == "High priority tickets require admin approval"
 
 
+def test_policy_ticket_output_with_final_answer_text_passes(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    payload = _output_copy("stateful_policy_ticket_crosscheck")
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_policy_ticket_crosscheck": payload})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_policy_ticket_crosscheck")
+
+    assert evaluation["status"] == "succeeded"
+    assert summary["status"] == "succeeded"
+    assert summary["validation_status"] == "accepted"
+    assert summary["dry_run_status"] == "accepted"
+    assert summary["fixture_execution_status"] == "succeeded"
+
+
+def test_policy_ticket_missing_final_answer_text_is_rejected_with_safe_diagnostics(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    payload = _output_copy("stateful_policy_ticket_crosscheck")
+    del payload["final_answer"]["answer_text"]
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_policy_ticket_crosscheck": payload})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_policy_ticket_crosscheck")
+    diagnostics = summary["diagnostics"]
+
+    assert evaluation["status"] == "completed_with_failures"
+    assert evaluation["error_code"] == "missing_final_answer_text"
+    assert summary["status"] == "rejected"
+    assert summary["failure_class"] == "model_failed_task"
+    assert diagnostics[0]["finding_type"] == "missing_final_answer_text"
+    assert diagnostics[0]["path"] == "final_answer.answer_text"
+    assert diagnostics[0]["final_answer_type"] == "dict"
+    assert diagnostics[0]["final_answer_keys"] == [
+        "cited_evidence_item_ids",
+        "cited_fact_ids",
+        "confidence",
+    ]
+
+
 def test_text_span_fact_values_are_accepted(tmp_path: Path) -> None:
     packet_summary, packet_dir = _build_packet(tmp_path)
     payload = _output_copy("stateful_ticket_priority_digest")
@@ -796,6 +835,22 @@ def test_ticket_priority_digest_ticket_8_requester_tier_exact_value_passes(tmp_p
     assert summary["fixture_execution_status"] == "succeeded"
 
 
+def test_ticket_priority_digest_ticket_8_marker_exact_value_passes(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    payload = _output_copy("stateful_ticket_priority_digest")
+    payload["facts"][9]["value"] = "decoy for the priority cross-check"
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_ticket_priority_digest": payload})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_ticket_priority_digest")
+
+    assert evaluation["status"] == "succeeded"
+    assert summary["status"] == "succeeded"
+    assert summary["validation_status"] == "accepted"
+    assert summary["dry_run_status"] == "accepted"
+    assert summary["fixture_execution_status"] == "succeeded"
+
+
 def test_ticket_priority_digest_ticket_8_requester_tier_hallucinated_general_is_rejected(tmp_path: Path) -> None:
     packet_summary, packet_dir = _build_packet(tmp_path)
     payload = _output_copy("stateful_ticket_priority_digest")
@@ -815,6 +870,26 @@ def test_ticket_priority_digest_ticket_8_requester_tier_hallucinated_general_is_
     assert fact_diag["key"] == "ticket_8_requester_tier"
     assert fact_diag["expected_value"] == "office worker"
     assert fact_diag["model_value"] == "general"
+
+
+def test_ticket_priority_digest_ticket_8_marker_hallucinated_none_is_rejected(tmp_path: Path) -> None:
+    packet_summary, packet_dir = _build_packet(tmp_path)
+    payload = _output_copy("stateful_ticket_priority_digest")
+    payload["facts"][9]["value"] = "none"
+    _write_outputs(packet_summary, tmp_path, overrides={"stateful_ticket_priority_digest": payload})
+
+    evaluation = run_autonomous_browser_stateful_readonly_planner_evaluator(packet_dir, repo_root=tmp_path, execute_fixture=True)
+    summary = next(item for item in evaluation["output_summaries"] if item["scenario_id"] == "stateful_ticket_priority_digest")
+    diagnostics = summary["diagnostics"]
+
+    assert evaluation["status"] == "completed_with_failures"
+    assert evaluation["error_code"] == "fact_value_mismatch"
+    assert summary["status"] == "failed"
+    assert summary["failure_class"] == "model_failed_task"
+    fact_diag = diagnostics["fixture"]["fact_value_mismatch"]
+    assert fact_diag["key"] == "ticket_8_marker"
+    assert fact_diag["expected_value"] == "decoy for the priority cross-check"
+    assert fact_diag["model_value"] == "none"
 
 
 def test_fact_value_mismatch_diagnostics_include_span_context(tmp_path: Path) -> None:

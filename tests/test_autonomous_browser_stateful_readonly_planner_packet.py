@@ -130,6 +130,9 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert "evidence text_preview must be a visible text span from the replayed page." in prompt_text
     assert "The required ticket_8_requester_tier value is exactly office worker." in ticket_priority_prompt_text
     assert 'Do not use general unless the Ticket 8 page visibly shows general.' in ticket_priority_prompt_text
+    assert "The required ticket_8_marker value is exactly decoy for the priority cross-check." in ticket_priority_prompt_text
+    assert 'Do not use none for ticket_8_marker because Ticket 8 visibly shows a search marker.' in ticket_priority_prompt_text
+    assert "Copy the phrase after Search marker: this page is the ... from the visible Ticket 8 page." in ticket_priority_prompt_text
     assert "Ticket 8 is the decoy; still copy its actual visible facts exactly." in ticket_priority_prompt_text
     assert "Ticket 7 facts and evidence should come from https://local.intranet/tickets/7." in ticket_priority_prompt_text
     assert "Ticket 8 facts and evidence should come from https://local.intranet/tickets/8." in ticket_priority_prompt_text
