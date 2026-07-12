@@ -12,6 +12,8 @@ This is a controlled fixture-only research prototype. It is not production-ready
 
 Phase 14 adds an optional multi-model benchmark layer for the completed controlled read-only prototype. It reuses the five stateful read-only scenarios to prepare repeated packet paths for multiple configured model aliases and to classify captured outputs per model offline. This expansion does not change the original TZ completion claim in this report.
 
+The first real Phase 14B benchmark result separates the final stronger planner candidate from the weaker baseline without changing prompts or evaluator rules: `third_model` reached `15/15` validation acceptance and `15/15` workflow success, while `second_model` reached `12/15` validation acceptance and `0/15` workflow success. The evaluator stayed offline, fixture-only, and performed no model, browser, or Playwright execution.
+
 ## A. Analysis of implementation means
 
 - Local small/medium LLMs were used through GGUF-backed local model aliases `first_model`, `second_model`, and `third_model`.

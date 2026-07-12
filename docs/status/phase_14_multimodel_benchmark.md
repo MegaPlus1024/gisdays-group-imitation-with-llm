@@ -8,6 +8,8 @@ It adds a reusable multi-model benchmark packet/evaluator for the existing five 
 
 By default, the example benchmark config targets `second_model` and `third_model`.
 
+Phase 14B records the first real operator-run result from that benchmark infrastructure. The model calls were manual operator runs against local endpoints for `second_model` and `third_model`. After capture, the evaluator remained offline, fixture-only, and read-only.
+
 ## What was added
 
 - `src/agent/autonomous_browser_stateful_readonly_planner_multimodel_benchmark.py`
@@ -41,6 +43,102 @@ The evaluator keeps per-model and combined metrics separate:
 - `missing_output_models`
 
 Missing outputs are reported as structured benchmark results, not tracebacks.
+
+## Phase 14B first real result
+
+### Top-level result
+
+- `status: completed_with_failures`
+- `error_code: fixture_resolution_failed`
+- `models_total: 2`
+- `best_model_by_pass_rate: third_model`
+- `fully_successful_models: ["third_model"]`
+- `missing_output_models: {}`
+- `no_runtime_execution: true`
+- `fixture_only: true`
+- `model_execution: false`
+- `real_browser_execution: false`
+- `playwright_execution: false`
+- `browser_opened: false`
+
+This is the first real captured benchmark result for the optional Phase 14 comparison layer. It shows a clear separation between the stronger final planner candidate and the weaker baseline without changing prompts or relaxing the evaluator.
+
+### Per-model metrics
+
+#### `second_model`
+
+- `model_path: models/gguf/second_model.gguf`
+- `outputs_total: 15`
+- `outputs_present: 15`
+- `outputs_missing: 0`
+- `outputs_ingested: 12`
+- `outputs_rejected: 3`
+- `validation_accepted: 12`
+- `validation_rejected: 3`
+- `workflows_succeeded: 0`
+- `workflows_failed: 15`
+- `pass_rate_overall: 0.0`
+- `validation_acceptance_rate: 0.8`
+- `finish_reason_counts: {"stop": 15}`
+- `failure_class_counts: {"model_failed_task": 15}`
+
+#### `third_model`
+
+- `model_path: models/gguf/third_model.gguf`
+- `outputs_total: 15`
+- `outputs_present: 15`
+- `outputs_missing: 0`
+- `outputs_ingested: 15`
+- `outputs_rejected: 0`
+- `validation_accepted: 15`
+- `validation_rejected: 0`
+- `workflows_succeeded: 15`
+- `workflows_failed: 0`
+- `pass_rate_overall: 1.0`
+- `validation_acceptance_rate: 1.0`
+- `finish_reason_counts: {"stop": 15}`
+- `failure_class_counts: {"none": 15}`
+
+## Qualitative interpretation
+
+### `second_model`
+
+`second_model` remains a useful baseline, but this first real Phase 14B benchmark shows that it is not reliable enough for the final stateful read-only planner role.
+
+Observed weaknesses from the captured outputs:
+
+- it often emits schema-shaped JSON without preserving the full required route/action structure
+- `stateful_approval_policy_crosscheck` outputs sometimes collapsed to a single action where the workflow expected a multi-step route
+- `stateful_policy_search_marker_review` used placeholder-like fact values such as `workspace_policy_anchor` and `workspace_policy_marker` instead of visible fixture text
+- `stateful_ticket_priority_digest` sometimes produced incomplete facts or wrong marker/source-step assignments
+- `stateful_policy_ticket_crosscheck` was closer after previous prompt hardening, but it still did not complete the full workflow set successfully
+
+This note is comparative only. Phase 14B does not tune prompts to make `second_model` pass, and it does not relax the evaluator.
+
+### `third_model`
+
+`third_model` produced the first fully successful real benchmark result for this post-completion comparison layer:
+
+- all 15 captured outputs were present
+- all 15 were validation-accepted
+- all 15 workflows succeeded
+- pass rate was `1.0`
+
+That result is still controlled, fixture-only, and offline after capture. It is evidence of stronger repeated read-only planning in this bounded benchmark, not a production-readiness claim.
+
+## Operator note
+
+- In PowerShell, per-model summaries use the field name `alias`, not `model_alias`.
+- Example inspection command:
+
+```powershell
+Get-Content artifacts\autonomous_runtime_planner_summaries\stateful_readonly_planner_multimodel_benchmark\benchmark_evaluator_summary.json -Raw |
+  ConvertFrom-Json |
+  Select-Object -ExpandProperty model_summaries |
+  Select-Object alias, outputs_total, outputs_present, validation_accepted, workflows_succeeded, pass_rate_overall
+```
+
+- This is a docs note only. The evaluator schema is not changed here.
 
 ## Scope and limits
 
