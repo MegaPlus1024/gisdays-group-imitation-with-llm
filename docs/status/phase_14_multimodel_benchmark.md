@@ -10,12 +10,32 @@ By default, the example benchmark config targets `second_model` and `third_model
 
 Phase 14B records the first real operator-run result from that benchmark infrastructure. The model calls were manual operator runs against local endpoints for `second_model` and `third_model`. After capture, the evaluator remained offline, fixture-only, and read-only.
 
+Phase 14C extends the optional benchmark registry/config layer so future post-completion comparisons can also include `fourth_model` and `fifth_model` without changing the original TZ completion status.
+
 ## What was added
 
 - `src/agent/autonomous_browser_stateful_readonly_planner_multimodel_benchmark.py`
 - `scripts/build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_packet.py`
 - `scripts/run_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_evaluator.py`
 - `configs/autonomous_runtime/browser_stateful_readonly_planner_multimodel_benchmark.example.json`
+- `configs/autonomous_runtime/browser_stateful_readonly_planner_multimodel_benchmark_extended.example.json`
+
+## Optional benchmark candidates
+
+- `fourth_model`
+  - intended family: Mistral Small 3.2 24B Instruct 2506
+  - quantization: `Q4_K_M`
+  - local path: `models/gguf/fourth_model.gguf`
+  - suggested local port: `8083`
+  - role: strong non-Qwen challenger
+- `fifth_model`
+  - intended family: Gemma 3 27B IT
+  - quantization: `Q4_K_M`
+  - local path: `models/gguf/fifth_model.gguf`
+  - suggested local port: `8084`
+  - role: large non-Qwen and non-Mistral challenger
+
+These are optional post-completion benchmark candidates only. No Phase 14 benchmark result is claimed for them yet.
 
 ## Packet behavior
 
@@ -28,6 +48,7 @@ Phase 14B records the first real operator-run result from that benchmark infrast
   - `real_browser_execution`
   - `playwright_execution`
   - `browser_opened`
+- the extended example config uses 4 aliases over 5 scenarios x 3 trials = `60` packet requests
 
 ## Evaluator behavior
 
@@ -148,8 +169,11 @@ Get-Content artifacts\autonomous_runtime_planner_summaries\stateful_readonly_pla
 - does not execute browser actions
 - does not add new real browser or Playwright evidence
 - does not claim production readiness
+- GGUF files are local-only artifacts and must not be committed
 - generated packet/output artifacts remain operator evidence and must not be committed
 
 ## Recommended use
 
 Use this benchmark layer when comparing repeated captured stateful planner outputs across multiple local aliases while keeping the workflow offline, fixture-backed, and read-only.
+
+If resource pressure is high, run the larger benchmark candidates one at a time and compare them through the Phase 14 harness rather than trying to keep all local model servers active simultaneously.

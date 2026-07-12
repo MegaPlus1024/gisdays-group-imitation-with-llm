@@ -14,6 +14,8 @@ Phase 14 adds an optional multi-model benchmark layer for the completed controll
 
 The first real Phase 14B benchmark result separates the final stronger planner candidate from the weaker baseline without changing prompts or evaluator rules: `third_model` reached `15/15` validation acceptance and `15/15` workflow success, while `second_model` reached `12/15` validation acceptance and `0/15` workflow success. The evaluator stayed offline, fixture-only, and performed no model, browser, or Playwright execution.
 
+Phase 14C extends that optional benchmark registry/config path with `fourth_model` and `fifth_model` as future local benchmark candidates only. Their GGUF paths stay local-only, they are not required for the original TZ completion, and no benchmark result is claimed for them in this report.
+
 ## A. Analysis of implementation means
 
 - Local small/medium LLMs were used through GGUF-backed local model aliases `first_model`, `second_model`, and `third_model`.

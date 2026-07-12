@@ -30,6 +30,12 @@ CONFIG_PATH = (
     / "autonomous_runtime"
     / "browser_stateful_readonly_planner_multimodel_benchmark.example.json"
 )
+EXTENDED_CONFIG_PATH = (
+    PROJECT_ROOT
+    / "configs"
+    / "autonomous_runtime"
+    / "browser_stateful_readonly_planner_multimodel_benchmark_extended.example.json"
+)
 BASE_PACKET_CONFIG = (
     PROJECT_ROOT
     / "configs"
@@ -56,6 +62,10 @@ def _config() -> dict[str, Any]:
     return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
 
 
+def _extended_config() -> dict[str, Any]:
+    return json.loads(EXTENDED_CONFIG_PATH.read_text(encoding="utf-8"))
+
+
 def _load_cli_module(path: Path):
     spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec is not None and spec.loader is not None
@@ -64,7 +74,12 @@ def _load_cli_module(path: Path):
     return module
 
 
-def _stage_support_files(repo_root: Path, *, bom: bool = False) -> Path:
+def _stage_support_files(
+    repo_root: Path,
+    *,
+    bom: bool = False,
+    config_path: Path = CONFIG_PATH,
+) -> Path:
     packet_destination = repo_root / "configs" / "autonomous_runtime" / BASE_PACKET_CONFIG.name
     packet_destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(BASE_PACKET_CONFIG, packet_destination)
@@ -73,20 +88,25 @@ def _stage_support_files(repo_root: Path, *, bom: bool = False) -> Path:
     eval_destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(EVALUATION_MODELS_CONFIG, eval_destination)
 
-    config_destination = repo_root / "configs" / "autonomous_runtime" / CONFIG_PATH.name
+    config_destination = repo_root / "configs" / "autonomous_runtime" / config_path.name
     config_destination.parent.mkdir(parents=True, exist_ok=True)
-    config_text = CONFIG_PATH.read_text(encoding="utf-8")
+    config_text = config_path.read_text(encoding="utf-8")
     config_destination.write_text(config_text, encoding="utf-8-sig" if bom else "utf-8")
     return config_destination
 
 
-def _build_packet(repo_root: Path, config: dict[str, Any] | None = None) -> tuple[dict[str, Any], Path]:
-    _stage_support_files(repo_root)
+def _build_packet(
+    repo_root: Path,
+    config: dict[str, Any] | None = None,
+    *,
+    config_path: Path = CONFIG_PATH,
+) -> tuple[dict[str, Any], Path]:
+    _stage_support_files(repo_root, config_path=config_path)
     summary = build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_packet(
-        config or _config(),
+        config or json.loads(config_path.read_text(encoding="utf-8")),
         repo_root=repo_root,
     )
-    return summary, repo_root / PACKET_OUTPUT_DIR
+    return summary, repo_root / str(summary["output_dir"])
 
 
 def _write_outputs(packet_summary: dict[str, Any], repo_root: Path, *, model_aliases: set[str]) -> None:
@@ -134,7 +154,7 @@ def test_packet_builder_writes_expected_files_and_summary(tmp_path: Path) -> Non
     assert summary["browser_opened"] is False
     assert len(summary["request_records"]) == 30
 
-    manifest_path = output_dir / "autonomous_browser_stateful_readonly_planner_multimodel_benchmark_packet.json"
+    manifest_path = output_dir / "benchmark_packet.json"
     summary_path = output_dir / "benchmark_packet_summary.json"
     commands_md_path = output_dir / "commands.md"
     request_paths_path = output_dir / "request_paths.json"
@@ -311,3 +331,66 @@ def test_evaluator_cli_reports_missing_outputs_without_traceback(
     assert payload["best_model_by_pass_rate"] == "second_model"
     assert payload["no_runtime_execution"] is True
     assert payload["model_execution"] is False
+
+
+def test_extended_config_includes_four_model_aliases() -> None:
+    config = _extended_config()
+
+    assert config["schema_version"] == BUILD_CONFIG_SCHEMA_VERSION
+    assert config["model_aliases"] == ["second_model", "third_model", "fourth_model", "fifth_model"]
+    assert config["trials_per_scenario"] == 3
+
+
+def test_extended_packet_builder_creates_sixty_requests_without_model_calls(tmp_path: Path) -> None:
+    summary, output_dir = _build_packet(tmp_path, _extended_config(), config_path=EXTENDED_CONFIG_PATH)
+
+    assert summary["status"] == "succeeded"
+    assert summary["models_total"] == 4
+    assert summary["model_aliases"] == ["second_model", "third_model", "fourth_model", "fifth_model"]
+    assert summary["scenarios_total"] == 5
+    assert summary["trials_per_scenario"] == 3
+    assert summary["requests_total"] == 60
+    assert summary["model_execution"] is False
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["fixture_only"] is True
+    assert output_dir.name == "stateful_readonly_planner_multimodel_benchmark_extended"
+
+    manifest = json.loads(
+        (output_dir / "benchmark_packet.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert manifest["requests_total"] == 60
+    assert manifest["model_aliases"] == ["second_model", "third_model", "fourth_model", "fifth_model"]
+
+
+def test_extended_evaluator_classifies_missing_outputs_for_all_aliases(tmp_path: Path) -> None:
+    _, packet_dir = _build_packet(tmp_path, _extended_config(), config_path=EXTENDED_CONFIG_PATH)
+
+    summary = run_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_evaluator(
+        packet_dir=packet_dir,
+        repo_root=tmp_path,
+    )
+
+    aliases = [item["alias"] for item in summary["model_summaries"]]
+    assert summary["status"] == "completed_with_missing_outputs"
+    assert summary["error_code"] == "missing_captured_outputs"
+    assert summary["models_total"] == 4
+    assert summary["outputs_total"] == 60
+    assert summary["outputs_present"] == 0
+    assert summary["outputs_missing"] == 60
+    assert summary["outputs_ingested"] == 0
+    assert summary["outputs_rejected"] == 0
+    assert aliases == ["second_model", "third_model", "fourth_model", "fifth_model"]
+    assert summary["missing_output_models"] == ["second_model", "third_model", "fourth_model", "fifth_model"]
+    assert summary["best_model_by_pass_rate"] == "fifth_model"
+    assert summary["model_execution"] is False
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["real_network_traffic"] is False
+    assert summary["fixture_only"] is True
+    assert all(item["outputs_total"] == 15 for item in summary["model_summaries"])
+    assert all(item["outputs_missing"] == 15 for item in summary["model_summaries"])

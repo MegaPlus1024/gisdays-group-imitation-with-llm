@@ -51,6 +51,8 @@ def test_evaluation_models_config_loads() -> None:
     assert "first_model" in ids
     assert "second_model" in ids
     assert "third_model" in ids
+    assert "fourth_model" in ids
+    assert "fifth_model" in ids
     assert "qwen2_5_3b_instruct_q4_k_m" not in ids
 
 
@@ -64,6 +66,23 @@ def test_third_model_registry_entry_uses_relative_gguf_path() -> None:
     assert third_model.api_model == "third_model"
     assert third_model.enabled is True
     assert any("local GGUF file" in note for note in third_model.notes)
+
+
+def test_fourth_and_fifth_model_registry_entries_use_relative_gguf_paths() -> None:
+    config = load_evaluation_models_config(MODELS_CONFIG)
+    fourth_model = next(model for model in config.models if model.model_id == "fourth_model")
+    fifth_model = next(model for model in config.models if model.model_id == "fifth_model")
+
+    assert fourth_model.gguf_path == "models/gguf/fourth_model.gguf"
+    assert fifth_model.gguf_path == "models/gguf/fifth_model.gguf"
+    assert not Path(fourth_model.gguf_path).is_absolute()
+    assert not Path(fifth_model.gguf_path).is_absolute()
+    assert fourth_model.api_model == "fourth_model"
+    assert fifth_model.api_model == "fifth_model"
+    assert fourth_model.base_url == "http://127.0.0.1:8083/v1"
+    assert fifth_model.base_url == "http://127.0.0.1:8084/v1"
+    assert any("must not be committed" in note for note in fourth_model.notes)
+    assert any("must not be committed" in note for note in fifth_model.notes)
 
 
 def test_duplicate_model_id_rejected() -> None:

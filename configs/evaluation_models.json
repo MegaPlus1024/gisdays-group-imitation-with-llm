@@ -75,6 +75,54 @@
         "Local alias mapping documented in docs/ai/model_registry.md: third_model.gguf -> qwen3-14b-q5_k_m.gguf.",
         "Do not claim behavior quality improvement until real scenario trajectories are evaluated."
       ]
+    },
+    {
+      "model_id": "fourth_model",
+      "display_name": "Fourth Model",
+      "model_name": "fourth_model.gguf",
+      "api_model": "fourth_model",
+      "upstream_model_name": "mistral-small-3.2-24b-instruct-2506.gguf",
+      "gguf_path": "models/gguf/fourth_model.gguf",
+      "quantization": "Q4_K_M",
+      "parameter_size": "24B",
+      "runtime": "llama.cpp / llama-server",
+      "base_url": "http://127.0.0.1:8083/v1",
+      "api_style": "openai_compatible",
+      "expected_cpu_only": true,
+      "ctx_size": 12288,
+      "timeout_seconds": 120.0,
+      "temperature": 0.0,
+      "max_tokens": 512,
+      "enabled": true,
+      "notes": [
+        "Optional post-completion strong non-Qwen challenger for the Phase 14 benchmark harness.",
+        "Operator-provided local GGUF path only; the file must not be committed.",
+        "Suggested local benchmark endpoint port is 8083."
+      ]
+    },
+    {
+      "model_id": "fifth_model",
+      "display_name": "Fifth Model",
+      "model_name": "fifth_model.gguf",
+      "api_model": "fifth_model",
+      "upstream_model_name": "gemma-3-27b-it.gguf",
+      "gguf_path": "models/gguf/fifth_model.gguf",
+      "quantization": "Q4_K_M",
+      "parameter_size": "27B",
+      "runtime": "llama.cpp / llama-server",
+      "base_url": "http://127.0.0.1:8084/v1",
+      "api_style": "openai_compatible",
+      "expected_cpu_only": true,
+      "ctx_size": 12288,
+      "timeout_seconds": 120.0,
+      "temperature": 0.0,
+      "max_tokens": 512,
+      "enabled": true,
+      "notes": [
+        "Optional post-completion large non-Qwen and non-Mistral challenger for the Phase 14 benchmark harness.",
+        "Operator-provided local GGUF path only; the file must not be committed.",
+        "Suggested local benchmark endpoint port is 8084."
+      ]
     }
   ]
 }
