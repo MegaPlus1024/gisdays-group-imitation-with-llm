@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import importlib.util
 import json
 from pathlib import Path
@@ -98,6 +99,58 @@ def test_prompt_contains_task_observation_allowed_actions_and_one_action_instruc
     assert "Do not invent external URLs." in user
     assert "Visible text:" in user
     assert "The harbor office opens at 06:30" in user
+
+
+def test_prompt_includes_redundant_action_feedback_and_progress_guidance() -> None:
+    observation = replace(
+        OBSERVATION,
+        scenario_id="article_medium_two_fact_cross_section",
+        task="State the workspace policy version and the escalation owner.",
+        current_url="https://local.article/office-access-update",
+        allowed_urls=("https://local.article/office-access-update",),
+        recommended_start_url="https://local.article/office-access-update",
+        article_title_hint="Office Access Update",
+        article_title="Office Access Update",
+        visible_section_id="policy_scope",
+        visible_section_title="Policy Scope",
+        visible_text="Policy Scope\nWorkspace policy version 2026 applies to office access reviews.",
+        sections_total=2,
+        sections_read_count=1,
+        sections_read_ids=("policy_scope",),
+        sections_read_progress="1/2",
+        sections_unread_count=1,
+        unread_section_ids=("escalation_owner",),
+        last_action_name="browser_extract_section",
+        last_action_status="succeeded",
+        last_action_redundant=True,
+        last_newly_observed_section_ids=(),
+        last_action_message=(
+            "Last action succeeded but was redundant. No new section was observed. "
+            "Sections read: 1/2. Unread sections remain. "
+            "Do not repeat the same action with the same parameters."
+        ),
+        repeated_action_count=3,
+        repeated_redundant_action_count=2,
+    )
+
+    messages = build_stepwise_article_prompt(observation.task, observation)
+    user = messages[1]["content"]
+
+    assert "Sections read progress: 1/2" in user
+    assert "Sections unread count: 1" in user
+    assert "Unread section ids: escalation_owner" in user
+    assert "Last action status: succeeded" in user
+    assert "Last action redundant: true" in user
+    assert "Last newly observed section ids: none" in user
+    assert "Last action succeeded but was redundant" in user
+    assert "Repeated action count: 3" in user
+    assert "Repeated redundant action count: 2" in user
+    assert "do not repeat the same action with the same parameters" in user
+    assert "browser_scroll_down" in user
+    assert "browser_find_text" in user
+    assert "extract a different unread section" in user
+    assert "If all required facts are found, use final_answer." in user
+    assert "browser_click" not in observation.available_actions
 
 
 def test_disable_thinking_prepends_prefix_without_changing_prompt_body() -> None:

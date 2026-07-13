@@ -133,6 +133,41 @@ def test_unknown_open_url_failure_includes_allowed_urls_in_observation() -> None
     assert observation.last_error_message
 
 
+def test_redundant_extract_observation_includes_progress_feedback() -> None:
+    scenarios = build_default_stepwise_article_scenarios()
+    scenario = scenarios["article_medium_two_fact_cross_section"]
+    env = FixtureArticleEnvironment(build_default_article_fixture_catalog())
+
+    env.execute_action(
+        StepwiseArticleAction("browser_open_url", {"url": scenario.start_url}),
+        scenario,
+    )
+    env.execute_action(
+        StepwiseArticleAction("browser_extract_section", {"section_id": "policy_scope"}),
+        scenario,
+    )
+    status, error_code, action_valid, details, observation = env.execute_action(
+        StepwiseArticleAction("browser_extract_section", {"section_id": "policy_scope"}),
+        scenario,
+    )
+
+    assert status == "succeeded"
+    assert error_code is None
+    assert action_valid is True
+    assert details["redundant"] is True
+    assert details["newly_observed_section_ids"] == []
+    assert observation.last_action_status == "succeeded"
+    assert observation.last_action_redundant is True
+    assert observation.last_newly_observed_section_ids == ()
+    assert observation.sections_read_progress == "1/2"
+    assert observation.sections_unread_count == 1
+    assert observation.unread_section_ids == ("escalation_owner",)
+    assert observation.last_action_message
+    assert "Last action succeeded but was redundant" in observation.last_action_message
+    assert "Sections read: 1/2" in observation.last_action_message
+    assert "Do not repeat the same action with the same parameters" in observation.last_action_message
+
+
 def test_repeated_invalid_open_url_loop_stops_early() -> None:
     scenarios = build_default_stepwise_article_scenarios()
 
@@ -157,6 +192,44 @@ def test_repeated_invalid_open_url_loop_stops_early() -> None:
     assert result.evaluation.max_steps_exceeded is False
     assert result.evaluation.invalid_action_count == 3
     assert len(result.steps) == 3
+
+
+class RepeatingRedundantExtractFakeModel:
+    model_name = "repeating_redundant_extract_model"
+
+    def next_action(self, task, observation, memory):  # type: ignore[no-untyped-def]
+        scenario = memory["scenario"]
+        if not observation.page_opened:
+            return StepwiseArticleAction("browser_open_url", {"url": scenario.start_url})
+        return StepwiseArticleAction("browser_extract_section", {"section_id": "policy_scope"})
+
+
+def test_repeated_valid_redundant_extract_loop_stops_before_max_steps() -> None:
+    scenarios = build_default_stepwise_article_scenarios()
+    result = run_stepwise_article_scenario(
+        scenarios["article_medium_two_fact_cross_section"],
+        RepeatingRedundantExtractFakeModel(),
+        max_steps=12,
+    )
+
+    assert result.status == "failed"
+    assert result.stop_reason == "repeated_redundant_action_loop"
+    assert result.error_code == "repeated_redundant_action_loop"
+    assert len(result.steps) == 5
+    assert result.evaluation.max_steps_exceeded is False
+    assert result.evaluation.invalid_action_count == 0
+    assert result.evaluation.workflow_action_valid is True
+    assert result.evaluation.unnecessary_action_count == 3
+    assert result.evaluation.repeated_redundant_action_count == 3
+    assert result.evaluation.repeated_redundant_action_loop_detected is True
+    assert result.evaluation.sections_unread_count_at_stop == 1
+    assert result.evaluation.sections_read_progress_at_stop == "1/2"
+
+    last_observation = result.steps[-1].observation_after
+    assert last_observation.last_action_redundant is True
+    assert last_observation.repeated_redundant_action_count == 3
+    assert last_observation.repeated_action_count == 4
+    assert last_observation.sections_unread_count == 1
 
 
 class FinalAnswerAfterReadModel:

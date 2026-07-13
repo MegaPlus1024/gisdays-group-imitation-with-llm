@@ -4,7 +4,7 @@ import json
 import re
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -42,6 +42,39 @@ def _coerce_string_list(value: Any) -> tuple[str, ...]:
                 result.append(stripped)
         return tuple(result)
     return ()
+
+
+def _build_last_action_message(
+    *,
+    status: str | None,
+    redundant: bool,
+    newly_observed_section_ids: tuple[str, ...],
+    sections_read_progress: str,
+    sections_unread_count: int,
+    error_message: str | None,
+) -> str | None:
+    if status is None:
+        return None
+    if status != "succeeded":
+        return error_message or f"Last action status: {status}."
+    if redundant:
+        unread_note = "Unread sections remain." if sections_unread_count > 0 else "No unread sections remain."
+        return (
+            "Last action succeeded but was redundant. "
+            "No new section was observed. "
+            f"Sections read: {sections_read_progress}. "
+            f"{unread_note} "
+            "Do not repeat the same action with the same parameters. "
+            "Use browser_scroll_down, browser_find_text, or extract a different unread section."
+        )
+    if not newly_observed_section_ids:
+        return (
+            "Last action succeeded but observed no new section. "
+            f"Sections read: {sections_read_progress}. "
+            "If more information is needed, use browser_scroll_down, browser_find_text, "
+            "or extract a different unread section."
+        )
+    return f"Last action succeeded and observed new sections: {', '.join(newly_observed_section_ids)}."
 
 
 @dataclass(frozen=True)
@@ -144,9 +177,18 @@ class StepwiseArticleObservation:
     sections_read_count: int
     sections_read_ids: tuple[str, ...]
     last_action_name: str | None = None
+    last_action_status: str | None = None
+    last_action_redundant: bool = False
+    last_newly_observed_section_ids: tuple[str, ...] = ()
+    last_action_message: str | None = None
     last_find_result: dict[str, Any] | None = None
     last_error_code: str | None = None
     last_error_message: str | None = None
+    sections_unread_count: int = 0
+    sections_read_progress: str = "0/0"
+    unread_section_ids: tuple[str, ...] = ()
+    repeated_action_count: int = 0
+    repeated_redundant_action_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -166,9 +208,18 @@ class StepwiseArticleObservation:
             "sections_read_count": self.sections_read_count,
             "sections_read_ids": list(self.sections_read_ids),
             "last_action_name": self.last_action_name,
+            "last_action_status": self.last_action_status,
+            "last_action_redundant": self.last_action_redundant,
+            "last_newly_observed_section_ids": list(self.last_newly_observed_section_ids),
+            "last_action_message": self.last_action_message,
             "last_find_result": dict(self.last_find_result) if isinstance(self.last_find_result, dict) else self.last_find_result,
             "last_error_code": self.last_error_code,
             "last_error_message": self.last_error_message,
+            "sections_unread_count": self.sections_unread_count,
+            "sections_read_progress": self.sections_read_progress,
+            "unread_section_ids": list(self.unread_section_ids),
+            "repeated_action_count": self.repeated_action_count,
+            "repeated_redundant_action_count": self.repeated_redundant_action_count,
         }
 
 
@@ -223,6 +274,10 @@ class StepwiseArticleEvaluation:
     steps_used: int
     sections_read: int
     unnecessary_action_count: int
+    repeated_redundant_action_count: int
+    repeated_redundant_action_loop_detected: bool
+    sections_unread_count_at_stop: int
+    sections_read_progress_at_stop: str
     stopped_too_early: bool
     hallucinated_fact: bool
     missing_required_fact: bool
@@ -244,6 +299,10 @@ class StepwiseArticleEvaluation:
             "steps_used": self.steps_used,
             "sections_read": self.sections_read,
             "unnecessary_action_count": self.unnecessary_action_count,
+            "repeated_redundant_action_count": self.repeated_redundant_action_count,
+            "repeated_redundant_action_loop_detected": self.repeated_redundant_action_loop_detected,
+            "sections_unread_count_at_stop": self.sections_unread_count_at_stop,
+            "sections_read_progress_at_stop": self.sections_read_progress_at_stop,
             "stopped_too_early": self.stopped_too_early,
             "hallucinated_fact": self.hallucinated_fact,
             "missing_required_fact": self.missing_required_fact,
@@ -321,11 +380,26 @@ class FixtureArticleEnvironment:
         scenario: StepwiseArticleScenario,
         *,
         last_action_name: str | None = None,
+        last_action_status: str | None = None,
+        last_action_redundant: bool = False,
+        last_newly_observed_section_ids: Iterable[str] = (),
         last_find_result: Mapping[str, Any] | None = None,
         last_error_code: str | None = None,
         last_error_message: str | None = None,
+        repeated_action_count: int = 0,
+        repeated_redundant_action_count: int = 0,
     ) -> StepwiseArticleObservation:
+        newly_observed_ids = tuple(str(item) for item in last_newly_observed_section_ids if isinstance(item, str))
         if self.current_document is None:
+            progress = f"{len(self.observed_section_ids)}/0"
+            action_message = _build_last_action_message(
+                status=last_action_status,
+                redundant=last_action_redundant,
+                newly_observed_section_ids=newly_observed_ids,
+                sections_read_progress=progress,
+                sections_unread_count=0,
+                error_message=last_error_message,
+            )
             return StepwiseArticleObservation(
                 scenario_id=scenario.scenario_id,
                 task=scenario.task,
@@ -343,11 +417,32 @@ class FixtureArticleEnvironment:
                 sections_read_count=len(self.observed_section_ids),
                 sections_read_ids=tuple(sorted(self.observed_section_ids)),
                 last_action_name=last_action_name,
+                last_action_status=last_action_status,
+                last_action_redundant=last_action_redundant,
+                last_newly_observed_section_ids=newly_observed_ids,
+                last_action_message=action_message,
                 last_find_result=dict(last_find_result) if isinstance(last_find_result, Mapping) else None,
                 last_error_code=last_error_code,
                 last_error_message=last_error_message,
+                sections_unread_count=0,
+                sections_read_progress=progress,
+                unread_section_ids=(),
+                repeated_action_count=repeated_action_count,
+                repeated_redundant_action_count=repeated_redundant_action_count,
             )
         section = self.current_document.sections[self.visible_index]
+        all_section_ids = tuple(section.section_id for section in self.current_document.sections)
+        read_ids = tuple(sorted(self.observed_section_ids))
+        unread_ids = tuple(section_id for section_id in all_section_ids if section_id not in self.observed_section_ids)
+        progress = f"{len(read_ids)}/{len(all_section_ids)}"
+        action_message = _build_last_action_message(
+            status=last_action_status,
+            redundant=last_action_redundant,
+            newly_observed_section_ids=newly_observed_ids,
+            sections_read_progress=progress,
+            sections_unread_count=len(unread_ids),
+            error_message=last_error_message,
+        )
         return StepwiseArticleObservation(
             scenario_id=scenario.scenario_id,
             task=scenario.task,
@@ -362,12 +457,21 @@ class FixtureArticleEnvironment:
             visible_text=section.combined_text(),
             available_actions=DEFAULT_STEPWISE_ARTICLE_ACTIONS,
             sections_total=len(self.current_document.sections),
-            sections_read_count=len(self.observed_section_ids),
-            sections_read_ids=tuple(sorted(self.observed_section_ids)),
+            sections_read_count=len(read_ids),
+            sections_read_ids=read_ids,
             last_action_name=last_action_name,
+            last_action_status=last_action_status,
+            last_action_redundant=last_action_redundant,
+            last_newly_observed_section_ids=newly_observed_ids,
+            last_action_message=action_message,
             last_find_result=dict(last_find_result) if isinstance(last_find_result, Mapping) else dict(self._last_find_result) if isinstance(self._last_find_result, dict) else None,
             last_error_code=last_error_code,
             last_error_message=last_error_message,
+            sections_unread_count=len(unread_ids),
+            sections_read_progress=progress,
+            unread_section_ids=unread_ids,
+            repeated_action_count=repeated_action_count,
+            repeated_redundant_action_count=repeated_redundant_action_count,
         )
 
     def open_url(self, url: str, scenario: StepwiseArticleScenario) -> dict[str, Any]:
@@ -518,7 +622,13 @@ class FixtureArticleEnvironment:
         scenario: StepwiseArticleScenario,
     ) -> tuple[str, str | None, bool, dict[str, Any], StepwiseArticleObservation]:
         if action.action_name not in DEFAULT_STEPWISE_ARTICLE_ACTIONS:
-            observation = self.observe(scenario, last_action_name=action.action_name)
+            observation = self.observe(
+                scenario,
+                last_action_name=action.action_name,
+                last_action_status="rejected",
+                last_error_code="invalid_action",
+                last_error_message="Action is not allowed in the stepwise article benchmark.",
+            )
             return (
                 "rejected",
                 "invalid_action",
@@ -527,7 +637,11 @@ class FixtureArticleEnvironment:
                 observation,
             )
         if action.action_name == "final_answer":
-            observation = self.observe(scenario, last_action_name=action.action_name)
+            observation = self.observe(
+                scenario,
+                last_action_name=action.action_name,
+                last_action_status="succeeded",
+            )
             return ("succeeded", None, True, {}, observation)
 
         if action.action_name == "browser_open_url":
@@ -550,6 +664,9 @@ class FixtureArticleEnvironment:
         observation = self.observe(
             scenario,
             last_action_name=action.action_name,
+            last_action_status=status,
+            last_action_redundant=bool(result.get("redundant")),
+            last_newly_observed_section_ids=_coerce_string_list(result.get("newly_observed_section_ids")),
             last_find_result=result if action.action_name == "browser_find_text" else self._last_find_result,
             last_error_code=error_code,
             last_error_message=None if result.get("success") else str(result.get("error_message") or error_code or "action_failed"),
@@ -940,6 +1057,7 @@ def run_stepwise_article_scenario(
             observation_after = environment.observe(
                 scenario,
                 last_action_name=action.action_name,
+                last_action_status="succeeded",
                 last_find_result=observation.last_find_result,
             )
             step_result = StepwiseArticleStepResult(
@@ -955,8 +1073,10 @@ def run_stepwise_article_scenario(
                 },
             )
             steps.append(step_result)
+            step_result = _attach_repetition_counts(step_result, steps)
+            steps[-1] = step_result
             memory["step_results"].append(step_result.to_dict())
-            observation = observation_after
+            observation = step_result.observation_after
             stop_reason = "final_answer"
             break
 
@@ -978,8 +1098,10 @@ def run_stepwise_article_scenario(
             details=details,
         )
         steps.append(step_result)
+        step_result = _attach_repetition_counts(step_result, steps)
+        steps[-1] = step_result
         memory["step_results"].append(step_result.to_dict())
-        observation = observation_after
+        observation = step_result.observation_after
         if _is_repeated_invalid_action_loop(steps):
             stop_reason = "repeated_invalid_action_loop"
             error_code = "repeated_invalid_action_loop"
@@ -989,6 +1111,18 @@ def run_stepwise_article_scenario(
                 "repeat_count": 3,
             }
             break
+        if _is_repeated_redundant_action_loop(steps):
+            stop_reason = "repeated_redundant_action_loop"
+            error_code = "repeated_redundant_action_loop"
+            diagnostics = {
+                "repeated_action_name": action.action_name,
+                "repeated_action_parameters": dict(action.parameters),
+                "repeat_count": 3,
+                "rejected_reason": "valid_action_repeated_without_new_observation",
+                "sections_read_progress": observation.sections_read_progress,
+                "sections_unread_count": observation.sections_unread_count,
+            }
+            break
     evaluation = _evaluate_run(
         scenario=scenario,
         steps=steps,
@@ -996,6 +1130,8 @@ def run_stepwise_article_scenario(
         final_citation_ids=final_citation_ids,
         max_steps=max_steps,
         sections_read_ids=tuple(sorted(environment.observed_section_ids)),
+        sections_unread_count_at_stop=observation.sections_unread_count,
+        sections_read_progress_at_stop=observation.sections_read_progress,
         stop_reason=stop_reason,
     )
     model_execution_attempted = model_execution_attempted or bool(
@@ -1124,6 +1260,61 @@ def _is_repeated_invalid_action_loop(steps: list[StepwiseArticleStepResult], *, 
     )
 
 
+def _is_repeated_redundant_action_loop(steps: list[StepwiseArticleStepResult], *, threshold: int = 3) -> bool:
+    return _count_consecutive_redundant_action_repeats(steps) >= threshold
+
+
+def _count_consecutive_action_repeats(steps: list[StepwiseArticleStepResult]) -> int:
+    if not steps:
+        return 0
+    latest = steps[-1]
+    count = 0
+    for step in reversed(steps):
+        if step.action.action_name != latest.action.action_name:
+            break
+        if step.action.parameters != latest.action.parameters:
+            break
+        count += 1
+    return count
+
+
+def _count_consecutive_redundant_action_repeats(steps: list[StepwiseArticleStepResult]) -> int:
+    if not steps:
+        return 0
+    latest = steps[-1]
+    if not latest.action_valid or not bool(latest.details.get("redundant")):
+        return 0
+    count = 0
+    for step in reversed(steps):
+        if not step.action_valid or not bool(step.details.get("redundant")):
+            break
+        if step.action.action_name != latest.action.action_name:
+            break
+        if step.action.parameters != latest.action.parameters:
+            break
+        count += 1
+    return count
+
+
+def _max_consecutive_redundant_action_repeat_count(steps: list[StepwiseArticleStepResult]) -> int:
+    max_count = 0
+    for index in range(1, len(steps) + 1):
+        max_count = max(max_count, _count_consecutive_redundant_action_repeats(steps[:index]))
+    return max_count
+
+
+def _attach_repetition_counts(
+    step_result: StepwiseArticleStepResult,
+    steps: list[StepwiseArticleStepResult],
+) -> StepwiseArticleStepResult:
+    updated_observation = replace(
+        step_result.observation_after,
+        repeated_action_count=_count_consecutive_action_repeats(steps),
+        repeated_redundant_action_count=_count_consecutive_redundant_action_repeats(steps),
+    )
+    return replace(step_result, observation_after=updated_observation)
+
+
 def write_stepwise_article_benchmark_summary(
     summary: Mapping[str, Any],
     output_path: str | Path = DEFAULT_OUTPUT_JSON,
@@ -1145,6 +1336,8 @@ def _evaluate_run(
     final_citation_ids: tuple[str, ...],
     max_steps: int,
     sections_read_ids: tuple[str, ...],
+    sections_unread_count_at_stop: int,
+    sections_read_progress_at_stop: str,
     stop_reason: str,
 ) -> StepwiseArticleEvaluation:
     normalized_answer = _normalize_text(final_answer_text or "")
@@ -1182,6 +1375,8 @@ def _evaluate_run(
         for step in steps
         if bool(step.details.get("redundant"))
     )
+    repeated_redundant_action_count = _max_consecutive_redundant_action_repeat_count(steps)
+    repeated_redundant_action_loop_detected = stop_reason == "repeated_redundant_action_loop"
     passed = (
         completed
         and citation_correct
@@ -1192,6 +1387,7 @@ def _evaluate_run(
         and not missing_required_fact
         and not max_steps_exceeded
         and not stopped_too_early
+        and not repeated_redundant_action_loop_detected
     )
     pass_used_semantic_answer = passed and not answer_exact_match and semantic_answer_correct
     answer_match_note = None
@@ -1211,6 +1407,10 @@ def _evaluate_run(
         steps_used=len(steps),
         sections_read=sections_read_count,
         unnecessary_action_count=unnecessary_action_count,
+        repeated_redundant_action_count=repeated_redundant_action_count,
+        repeated_redundant_action_loop_detected=repeated_redundant_action_loop_detected,
+        sections_unread_count_at_stop=sections_unread_count_at_stop,
+        sections_read_progress_at_stop=sections_read_progress_at_stop,
         stopped_too_early=stopped_too_early,
         hallucinated_fact=hallucinated_fact,
         missing_required_fact=missing_required_fact,
