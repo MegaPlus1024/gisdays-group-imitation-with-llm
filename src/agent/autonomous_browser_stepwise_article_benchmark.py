@@ -78,9 +78,11 @@ class ArticleDocument:
 @dataclass(frozen=True)
 class StepwiseArticleScenario:
     scenario_id: str
-    article_url: str
+    start_url: str
     task: str
     expected_answer_text: str
+    allowed_urls: tuple[str, ...] = ()
+    article_title_hint: str | None = None
     accepted_answer_texts: tuple[str, ...] = ()
     required_answer_fragments: tuple[str, ...] = ()
     forbidden_answer_fragments: tuple[str, ...] = ()
@@ -88,11 +90,32 @@ class StepwiseArticleScenario:
     required_section_ids: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        allowed_urls = _coerce_string_list(self.allowed_urls)
+        if not self.start_url.strip():
+            raise ValueError("start_url must be non-empty")
+        if not allowed_urls:
+            allowed_urls = (self.start_url,)
+        elif self.start_url not in allowed_urls:
+            allowed_urls = (self.start_url, *tuple(url for url in allowed_urls if url != self.start_url))
+        object.__setattr__(self, "start_url", self.start_url.strip())
+        object.__setattr__(self, "allowed_urls", allowed_urls)
+        if isinstance(self.article_title_hint, str):
+            stripped = self.article_title_hint.strip()
+            object.__setattr__(self, "article_title_hint", stripped or None)
+
+    @property
+    def article_url(self) -> str:
+        return self.start_url
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "scenario_id": self.scenario_id,
+            "start_url": self.start_url,
             "article_url": self.article_url,
             "task": self.task,
+            "allowed_urls": list(self.allowed_urls),
+            "article_title_hint": self.article_title_hint,
             "expected_answer_text": self.expected_answer_text,
             "accepted_answer_texts": list(self.accepted_answer_texts),
             "required_answer_fragments": list(self.required_answer_fragments),
@@ -109,6 +132,9 @@ class StepwiseArticleObservation:
     task: str
     page_opened: bool
     current_url: str | None
+    allowed_urls: tuple[str, ...]
+    recommended_start_url: str | None
+    article_title_hint: str | None
     article_title: str | None
     visible_section_id: str | None
     visible_section_title: str | None
@@ -119,6 +145,8 @@ class StepwiseArticleObservation:
     sections_read_ids: tuple[str, ...]
     last_action_name: str | None = None
     last_find_result: dict[str, Any] | None = None
+    last_error_code: str | None = None
+    last_error_message: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -126,6 +154,9 @@ class StepwiseArticleObservation:
             "task": self.task,
             "page_opened": self.page_opened,
             "current_url": self.current_url,
+            "allowed_urls": list(self.allowed_urls),
+            "recommended_start_url": self.recommended_start_url,
+            "article_title_hint": self.article_title_hint,
             "article_title": self.article_title,
             "visible_section_id": self.visible_section_id,
             "visible_section_title": self.visible_section_title,
@@ -136,6 +167,8 @@ class StepwiseArticleObservation:
             "sections_read_ids": list(self.sections_read_ids),
             "last_action_name": self.last_action_name,
             "last_find_result": dict(self.last_find_result) if isinstance(self.last_find_result, dict) else self.last_find_result,
+            "last_error_code": self.last_error_code,
+            "last_error_message": self.last_error_message,
         }
 
 
@@ -281,6 +314,8 @@ class FixtureArticleEnvironment:
         *,
         last_action_name: str | None = None,
         last_find_result: Mapping[str, Any] | None = None,
+        last_error_code: str | None = None,
+        last_error_message: str | None = None,
     ) -> StepwiseArticleObservation:
         if self.current_document is None:
             return StepwiseArticleObservation(
@@ -288,6 +323,9 @@ class FixtureArticleEnvironment:
                 task=scenario.task,
                 page_opened=False,
                 current_url=None,
+                allowed_urls=scenario.allowed_urls,
+                recommended_start_url=scenario.start_url if len(scenario.allowed_urls) == 1 else None,
+                article_title_hint=scenario.article_title_hint,
                 article_title=None,
                 visible_section_id=None,
                 visible_section_title=None,
@@ -298,6 +336,8 @@ class FixtureArticleEnvironment:
                 sections_read_ids=tuple(sorted(self.observed_section_ids)),
                 last_action_name=last_action_name,
                 last_find_result=dict(last_find_result) if isinstance(last_find_result, Mapping) else None,
+                last_error_code=last_error_code,
+                last_error_message=last_error_message,
             )
         section = self.current_document.sections[self.visible_index]
         return StepwiseArticleObservation(
@@ -305,6 +345,9 @@ class FixtureArticleEnvironment:
             task=scenario.task,
             page_opened=True,
             current_url=self.current_document.logical_url,
+            allowed_urls=scenario.allowed_urls,
+            recommended_start_url=scenario.start_url if len(scenario.allowed_urls) == 1 else None,
+            article_title_hint=scenario.article_title_hint,
             article_title=self.current_document.title,
             visible_section_id=section.section_id,
             visible_section_title=section.title,
@@ -315,14 +358,30 @@ class FixtureArticleEnvironment:
             sections_read_ids=tuple(sorted(self.observed_section_ids)),
             last_action_name=last_action_name,
             last_find_result=dict(last_find_result) if isinstance(last_find_result, Mapping) else dict(self._last_find_result) if isinstance(self._last_find_result, dict) else None,
+            last_error_code=last_error_code,
+            last_error_message=last_error_message,
         )
 
-    def open_url(self, url: str) -> dict[str, Any]:
-        document = self.catalog.get(url)
+    def open_url(self, url: str, scenario: StepwiseArticleScenario) -> dict[str, Any]:
+        normalized_url = url.strip()
+        if normalized_url not in scenario.allowed_urls:
+            return {
+                "success": False,
+                "error_code": "unknown_article_url",
+                "error_message": "browser_open_url must use one of the allowed fixture article URLs.",
+                "allowed_urls": list(scenario.allowed_urls),
+                "recommended_start_url": scenario.start_url if len(scenario.allowed_urls) == 1 else None,
+                "requested_url": normalized_url,
+            }
+        document = self.catalog.get(normalized_url)
         if document is None:
             return {
                 "success": False,
                 "error_code": "unknown_article_url",
+                "error_message": "Requested fixture article URL is not present in the local article catalog.",
+                "allowed_urls": list(scenario.allowed_urls),
+                "recommended_start_url": scenario.start_url if len(scenario.allowed_urls) == 1 else None,
+                "requested_url": normalized_url,
             }
         self.current_document = document
         self.visible_index = 0
@@ -464,7 +523,7 @@ class FixtureArticleEnvironment:
             return ("succeeded", None, True, {}, observation)
 
         if action.action_name == "browser_open_url":
-            result = self.open_url(str(action.parameters.get("url", "")).strip())
+            result = self.open_url(str(action.parameters.get("url", "")).strip(), scenario)
         elif action.action_name == "browser_read_visible_text":
             result = self.read_visible_text()
         elif action.action_name == "browser_scroll_down":
@@ -484,6 +543,8 @@ class FixtureArticleEnvironment:
             scenario,
             last_action_name=action.action_name,
             last_find_result=result if action.action_name == "browser_find_text" else self._last_find_result,
+            last_error_code=error_code,
+            last_error_message=None if result.get("success") else str(result.get("error_message") or error_code or "action_failed"),
         )
         return (status, error_code, action_valid, result, observation)
 
@@ -634,8 +695,8 @@ class InvalidActionFakeModel(_BaseFakeArticleModel):
 
 def build_default_article_fixture_catalog() -> dict[str, ArticleDocument]:
     return {
-        "https://articles.local/harbor-bulletin": ArticleDocument(
-            logical_url="https://articles.local/harbor-bulletin",
+        "https://local.article/harbor-office-hours": ArticleDocument(
+            logical_url="https://local.article/harbor-office-hours",
             title="Harbor Bulletin",
             sections=(
                 ArticleSection(
@@ -645,8 +706,8 @@ def build_default_article_fixture_catalog() -> dict[str, ArticleDocument]:
                 ),
             ),
         ),
-        "https://articles.local/workspace-policy-memo": ArticleDocument(
-            logical_url="https://articles.local/workspace-policy-memo",
+        "https://local.article/office-access-update": ArticleDocument(
+            logical_url="https://local.article/office-access-update",
             title="Workspace Policy Memo",
             sections=(
                 ArticleSection(
@@ -661,8 +722,8 @@ def build_default_article_fixture_catalog() -> dict[str, ArticleDocument]:
                 ),
             ),
         ),
-        "https://articles.local/expedition-update": ArticleDocument(
-            logical_url="https://articles.local/expedition-update",
+        "https://local.article/research-station-briefing": ArticleDocument(
+            logical_url="https://local.article/research-station-briefing",
             title="Expedition Update",
             sections=(
                 ArticleSection(
@@ -682,8 +743,8 @@ def build_default_article_fixture_catalog() -> dict[str, ArticleDocument]:
                 ),
             ),
         ),
-        "https://articles.local/tooling-note": ArticleDocument(
-            logical_url="https://articles.local/tooling-note",
+        "https://local.article/maintenance-window": ArticleDocument(
+            logical_url="https://local.article/maintenance-window",
             title="Tooling Note",
             sections=(
                 ArticleSection(
@@ -693,8 +754,8 @@ def build_default_article_fixture_catalog() -> dict[str, ArticleDocument]:
                 ),
             ),
         ),
-        "https://articles.local/approval-reference": ArticleDocument(
-            logical_url="https://articles.local/approval-reference",
+        "https://local.article/project-codenames": ArticleDocument(
+            logical_url="https://local.article/project-codenames",
             title="Approval Reference",
             sections=(
                 ArticleSection(
@@ -716,8 +777,9 @@ def build_default_stepwise_article_scenarios() -> dict[str, StepwiseArticleScena
     return {
         "article_short_single_fact": StepwiseArticleScenario(
             scenario_id="article_short_single_fact",
-            article_url="https://articles.local/harbor-bulletin",
+            start_url="https://local.article/harbor-office-hours",
             task="What time does the harbor office open?",
+            article_title_hint="Harbor Bulletin",
             expected_answer_text="The harbor office opens at 06:30.",
             required_answer_fragments=("06:30", "harbor office opens"),
             required_citation_ids=("harbor_hours",),
@@ -733,8 +795,9 @@ def build_default_stepwise_article_scenarios() -> dict[str, StepwiseArticleScena
         ),
         "article_medium_two_fact_cross_section": StepwiseArticleScenario(
             scenario_id="article_medium_two_fact_cross_section",
-            article_url="https://articles.local/workspace-policy-memo",
+            start_url="https://local.article/office-access-update",
             task="State the workspace policy version and the escalation owner.",
+            article_title_hint="Workspace Policy Memo",
             expected_answer_text="Workspace policy version 2026 and escalation owner Mira Chen.",
             required_answer_fragments=("workspace policy version 2026", "mira chen"),
             required_citation_ids=("policy_scope", "escalation_owner"),
@@ -750,8 +813,9 @@ def build_default_stepwise_article_scenarios() -> dict[str, StepwiseArticleScena
         ),
         "article_long_multi_section_summary": StepwiseArticleScenario(
             scenario_id="article_long_multi_section_summary",
-            article_url="https://articles.local/expedition-update",
+            start_url="https://local.article/research-station-briefing",
             task="Summarize the route change, supply status, and checkpoint cadence.",
+            article_title_hint="Expedition Update",
             expected_answer_text="The route moved to the North Pass, supplies cover four days of water, and checkpoints are due every two hours.",
             required_answer_fragments=("north pass", "four days", "every two hours"),
             required_citation_ids=("route_shift", "supplies_status", "safety_checkpoint"),
@@ -767,8 +831,9 @@ def build_default_stepwise_article_scenarios() -> dict[str, StepwiseArticleScena
         ),
         "article_negative_absence_check": StepwiseArticleScenario(
             scenario_id="article_negative_absence_check",
-            article_url="https://articles.local/tooling-note",
+            start_url="https://local.article/maintenance-window",
             task="Does the tooling note mention Playwright?",
+            article_title_hint="Tooling Note",
             expected_answer_text="No, the tooling note does not mention Playwright.",
             accepted_answer_texts=("Playwright is not mentioned in the tooling note.",),
             required_answer_fragments=("does not mention playwright",),
@@ -787,8 +852,9 @@ def build_default_stepwise_article_scenarios() -> dict[str, StepwiseArticleScena
         ),
         "article_similar_terms_disambiguation": StepwiseArticleScenario(
             scenario_id="article_similar_terms_disambiguation",
-            article_url="https://articles.local/approval-reference",
+            start_url="https://local.article/project-codenames",
             task="Which review confirms manual approval for APR-42?",
+            article_title_hint="Approval Reference",
             expected_answer_text="Policy Match Review confirms manual approval for APR-42.",
             accepted_answer_texts=("The confirming review is Policy Match Review.",),
             required_answer_fragments=("policy match review", "manual approval", "apr 42"),
@@ -906,6 +972,15 @@ def run_stepwise_article_scenario(
         steps.append(step_result)
         memory["step_results"].append(step_result.to_dict())
         observation = observation_after
+        if _is_repeated_invalid_action_loop(steps):
+            stop_reason = "repeated_invalid_action_loop"
+            error_code = "repeated_invalid_action_loop"
+            diagnostics = {
+                "repeated_action_name": action.action_name,
+                "repeated_action_parameters": dict(action.parameters),
+                "repeat_count": 3,
+            }
+            break
     evaluation = _evaluate_run(
         scenario=scenario,
         steps=steps,
@@ -1022,6 +1097,23 @@ def run_stepwise_article_benchmark(
         "browser_opened": False,
         "fixture_only": True,
     }
+
+
+def _is_repeated_invalid_action_loop(steps: list[StepwiseArticleStepResult], *, threshold: int = 3) -> bool:
+    if len(steps) < threshold:
+        return False
+    recent_steps = steps[-threshold:]
+    first = recent_steps[0]
+    if first.action_valid:
+        return False
+    reference_name = first.action.action_name
+    reference_parameters = first.action.parameters
+    return all(
+        not step.action_valid
+        and step.action.action_name == reference_name
+        and step.action.parameters == reference_parameters
+        for step in recent_steps
+    )
 
 
 def write_stepwise_article_benchmark_summary(

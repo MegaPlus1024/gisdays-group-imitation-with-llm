@@ -304,6 +304,9 @@ def build_stepwise_article_prompt(
         f"Scenario ID: {observation.scenario_id}\n"
         f"Page opened: {json.dumps(observation.page_opened)}\n"
         f"Current URL: {observation.current_url or 'null'}\n"
+        f"Allowed fixture article URLs: {json.dumps(list(observation.allowed_urls), ensure_ascii=False)}\n"
+        f"Recommended start URL: {observation.recommended_start_url or 'null'}\n"
+        f"Article title hint: {observation.article_title_hint or 'null'}\n"
         f"Article title: {observation.article_title or 'null'}\n"
         f"Visible section id: {observation.visible_section_id or 'null'}\n"
         f"Visible section title: {observation.visible_section_title or 'null'}\n"
@@ -312,7 +315,19 @@ def build_stepwise_article_prompt(
         f"Sections read ids: {', '.join(observation.sections_read_ids) if observation.sections_read_ids else 'none'}\n"
         f"Last action name: {observation.last_action_name or 'null'}\n"
         f"Last find result: {json.dumps(observation.last_find_result or {}, ensure_ascii=False, sort_keys=True)}\n"
+        f"Last error code: {observation.last_error_code or 'null'}\n"
+        f"Last error message: {observation.last_error_message or 'null'}\n"
         f"Visible text:\n{observation.visible_text or '[no page content visible yet]'}\n\n"
+        "Available fixture article URLs:\n"
+        + (
+            "\n".join(f"- {url}" for url in observation.allowed_urls)
+            if observation.allowed_urls
+            else "- [none]"
+        )
+        + "\n\n"
+        "Important:\n"
+        "Use only these fixture URLs with browser_open_url.\n"
+        "Do not invent external URLs.\n\n"
         "Reply with exactly one JSON object using this schema:\n"
         '{\n'
         '  "action_name": "...",\n'

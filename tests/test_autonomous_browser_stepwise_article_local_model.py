@@ -27,7 +27,10 @@ OBSERVATION = StepwiseArticleObservation(
     scenario_id="article_short_single_fact",
     task="What time does the harbor office open?",
     page_opened=True,
-    current_url="https://articles.local/harbor-bulletin",
+    current_url="https://local.article/harbor-office-hours",
+    allowed_urls=("https://local.article/harbor-office-hours",),
+    recommended_start_url="https://local.article/harbor-office-hours",
+    article_title_hint="Harbor Bulletin",
     article_title="Harbor Bulletin",
     visible_section_id="harbor_hours",
     visible_section_title="Harbor Office Hours",
@@ -43,6 +46,8 @@ OBSERVATION = StepwiseArticleObservation(
     sections_total=1,
     sections_read_count=1,
     sections_read_ids=("harbor_hours",),
+    last_error_code=None,
+    last_error_message=None,
 )
 
 
@@ -86,7 +91,11 @@ def test_prompt_contains_task_observation_allowed_actions_and_one_action_instruc
     assert "Allowed action names exactly: browser_open_url, browser_read_visible_text, browser_scroll_down, browser_find_text, browser_extract_section, final_answer." in system
     assert "Do not use browser_click" in system
     assert "Task: What time does the harbor office open?" in user
-    assert "Current URL: https://articles.local/harbor-bulletin" in user
+    assert "Current URL: https://local.article/harbor-office-hours" in user
+    assert "Allowed fixture article URLs:" in user
+    assert "- https://local.article/harbor-office-hours" in user
+    assert "Use only these fixture URLs with browser_open_url." in user
+    assert "Do not invent external URLs." in user
     assert "Visible text:" in user
     assert "The harbor office opens at 06:30" in user
 

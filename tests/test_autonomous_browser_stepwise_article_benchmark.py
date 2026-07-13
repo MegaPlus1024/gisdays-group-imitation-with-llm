@@ -13,6 +13,7 @@ from src.agent.autonomous_browser_stepwise_article_benchmark import (
     HallucinatingFakeModel,
     InvalidActionFakeModel,
     PerfectArticleFakeModel,
+    StepwiseArticleAction,
     build_default_article_fixture_catalog,
     build_default_stepwise_article_scenarios,
     run_stepwise_article_benchmark,
@@ -26,16 +27,19 @@ SCRIPT_PATH = PROJECT_ROOT / "scripts" / "run_autonomous_browser_stepwise_articl
 
 def test_open_article_url_without_network() -> None:
     env = FixtureArticleEnvironment(build_default_article_fixture_catalog())
-    result = env.open_url("https://articles.local/harbor-bulletin")
+    scenarios = build_default_stepwise_article_scenarios()
+    scenario = scenarios["article_short_single_fact"]
+    result = env.open_url(scenario.start_url, scenario)
 
     assert result["success"] is True
-    assert result["logical_url"] == "https://articles.local/harbor-bulletin"
+    assert result["logical_url"] == "https://local.article/harbor-office-hours"
     assert result["article_title"] == "Harbor Bulletin"
 
 
 def test_read_visible_text_returns_section_text() -> None:
     env = FixtureArticleEnvironment(build_default_article_fixture_catalog())
-    env.open_url("https://articles.local/workspace-policy-memo")
+    scenarios = build_default_stepwise_article_scenarios()
+    env.open_url(scenarios["article_medium_two_fact_cross_section"].start_url, scenarios["article_medium_two_fact_cross_section"])
 
     result = env.read_visible_text()
 
@@ -46,7 +50,8 @@ def test_read_visible_text_returns_section_text() -> None:
 
 def test_scroll_down_changes_visible_window() -> None:
     env = FixtureArticleEnvironment(build_default_article_fixture_catalog())
-    env.open_url("https://articles.local/workspace-policy-memo")
+    scenarios = build_default_stepwise_article_scenarios()
+    env.open_url(scenarios["article_medium_two_fact_cross_section"].start_url, scenarios["article_medium_two_fact_cross_section"])
 
     result = env.scroll_down()
 
@@ -58,7 +63,8 @@ def test_scroll_down_changes_visible_window() -> None:
 
 def test_find_text_finds_matching_section() -> None:
     env = FixtureArticleEnvironment(build_default_article_fixture_catalog())
-    env.open_url("https://articles.local/approval-reference")
+    scenarios = build_default_stepwise_article_scenarios()
+    env.open_url(scenarios["article_similar_terms_disambiguation"].start_url, scenarios["article_similar_terms_disambiguation"])
 
     result = env.find_text("manual approval")
 
@@ -70,13 +76,87 @@ def test_find_text_finds_matching_section() -> None:
 
 def test_extract_section_is_deterministic() -> None:
     env = FixtureArticleEnvironment(build_default_article_fixture_catalog())
-    env.open_url("https://articles.local/expedition-update")
+    scenarios = build_default_stepwise_article_scenarios()
+    env.open_url(scenarios["article_long_multi_section_summary"].start_url, scenarios["article_long_multi_section_summary"])
 
     result = env.extract_section(section_id="safety_checkpoint")
 
     assert result["success"] is True
     assert result["section_id"] == "safety_checkpoint"
     assert "every two hours" in result["section_text"]
+
+
+def test_built_in_scenarios_define_start_urls_present_in_catalog() -> None:
+    catalog = build_default_article_fixture_catalog()
+    scenarios = build_default_stepwise_article_scenarios()
+
+    for scenario in scenarios.values():
+        assert scenario.start_url
+        assert scenario.start_url in scenario.allowed_urls
+        assert scenario.start_url in catalog
+
+
+def test_initial_observation_exposes_allowed_urls_and_recommended_start_url() -> None:
+    scenarios = build_default_stepwise_article_scenarios()
+    scenario = scenarios["article_short_single_fact"]
+    env = FixtureArticleEnvironment(build_default_article_fixture_catalog())
+
+    observation = env.observe(scenario)
+
+    assert observation.page_opened is False
+    assert observation.current_url is None
+    assert observation.allowed_urls == (scenario.start_url,)
+    assert observation.recommended_start_url == scenario.start_url
+    assert observation.article_title_hint == "Harbor Bulletin"
+
+
+def test_unknown_open_url_failure_includes_allowed_urls_in_observation() -> None:
+    scenarios = build_default_stepwise_article_scenarios()
+    scenario = scenarios["article_short_single_fact"]
+    env = FixtureArticleEnvironment(build_default_article_fixture_catalog())
+
+    status, error_code, action_valid, details, observation = env.execute_action(
+        action=StepwiseArticleAction(
+            "browser_open_url",
+            {"url": "https://example.com/harbor-office-hours"},
+        ),
+        scenario=scenario,
+    )
+
+    assert status == "failed"
+    assert error_code == "unknown_article_url"
+    assert action_valid is False
+    assert details["allowed_urls"] == [scenario.start_url]
+    assert observation.allowed_urls == (scenario.start_url,)
+    assert observation.recommended_start_url == scenario.start_url
+    assert observation.last_error_code == "unknown_article_url"
+    assert observation.last_error_message
+
+
+def test_repeated_invalid_open_url_loop_stops_early() -> None:
+    scenarios = build_default_stepwise_article_scenarios()
+
+    class RepeatingInvalidUrlModel:
+        model_name = "repeating_invalid_url_model"
+
+        def next_action(self, task, observation, memory):  # type: ignore[no-untyped-def]
+            return StepwiseArticleAction(
+                "browser_open_url",
+                {"url": "https://example.com/harbor-office-hours"},
+            )
+
+    result = run_stepwise_article_scenario(
+        scenarios["article_short_single_fact"],
+        RepeatingInvalidUrlModel(),
+        max_steps=12,
+    )
+
+    assert result.status == "failed"
+    assert result.stop_reason == "repeated_invalid_action_loop"
+    assert result.error_code == "repeated_invalid_action_loop"
+    assert result.evaluation.max_steps_exceeded is False
+    assert result.evaluation.invalid_action_count == 3
+    assert len(result.steps) == 3
 
 
 def test_correct_final_answer_and_citation_can_pass() -> None:
