@@ -316,6 +316,8 @@ def build_stepwise_article_prompt(
         f"Sections unread count: {observation.sections_unread_count}\n"
         f"Sections read ids: {', '.join(observation.sections_read_ids) if observation.sections_read_ids else 'none'}\n"
         f"Unread section ids: {', '.join(observation.unread_section_ids) if observation.unread_section_ids else 'none'}\n"
+        f"Observed evidence count: {observation.observed_evidence_count}\n"
+        f"Observed section ids: {', '.join(observation.observed_section_ids) if observation.observed_section_ids else 'none'}\n"
         f"Last action name: {observation.last_action_name or 'null'}\n"
         f"Last action status: {observation.last_action_status or 'null'}\n"
         f"Last action redundant: {json.dumps(observation.last_action_redundant)}\n"
@@ -327,6 +329,7 @@ def build_stepwise_article_prompt(
         f"Last error code: {observation.last_error_code or 'null'}\n"
         f"Last error message: {observation.last_error_message or 'null'}\n"
         f"Visible text:\n{observation.visible_text or '[no page content visible yet]'}\n\n"
+        f"{observation.observed_evidence_text or 'Observed evidence so far: none.'}\n\n"
         "Available fixture article URLs:\n"
         + (
             "\n".join(f"- {url}" for url in observation.allowed_urls)
@@ -340,6 +343,11 @@ def build_stepwise_article_prompt(
         "If your last action was redundant or observed no new text, do not repeat the same action with the same parameters. "
         "If more information is needed, use browser_scroll_down, browser_find_text, or extract a different unread section. "
         "If all required facts are found, use final_answer.\n\n"
+        "Use observed evidence when forming final_answer. "
+        "If the task asks for multiple facts, ensure each required fact is supported by observed evidence. "
+        "Include citation_ids for all sections that support the final answer. "
+        "If required facts are missing and unread sections remain, keep reading. "
+        "If all sections are read but a required fact is missing, say it is not found only after checking observed evidence.\n\n"
         "Reply with exactly one JSON object using this schema:\n"
         '{\n'
         '  "action_name": "...",\n'

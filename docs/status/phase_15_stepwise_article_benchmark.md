@@ -30,6 +30,7 @@ Phase 15B adds a guarded local-model adapter for that same stepwise benchmark:
 - the benchmark now tests reading a provided fixture article rather than guessing a hidden URL
 - final-answer scoring now separates exact answer matching from semantic factual correctness: a full-sentence answer can pass when it contains the required fact and cites the correct fixture section
 - redundant valid actions now produce explicit observation feedback with section-read progress, unread-section counts, and generic anti-loop guidance
+- observations now include an observed evidence ledger for sections already read or extracted, so stateless local-model calls can synthesize answers across multiple prior sections
 
 ## Why it exists
 
@@ -54,6 +55,8 @@ The medium two-fact smoke exposed a different long-horizon control issue: a mode
 
 This repair is generic control-loop feedback. It reports progress such as sections read, unread section count, and whether the last action observed new text; it does not reveal answer facts, add scenario-specific answer hints, or tune behavior for one model.
 
+Another medium two-fact smoke exposed an evidence-memory gap. The model opened the article, extracted both `escalation_owner` and `policy_scope`, and had valid workflow progress with all sections read, but its final answer only used the current visible evidence and claimed the escalation owner was not mentioned. Phase 15 now treats local-model calls as stateless action decisions and carries an observed evidence ledger in each observation. That ledger includes only section text already observed through read/extract/find behavior; it does not reveal unread section contents or add answer-specific hints before the model has read the relevant section.
+
 ## Safety boundaries
 
 - fixture-only article environment
@@ -67,6 +70,7 @@ This repair is generic control-loop feedback. It reports progress such as sectio
 - benchmark reports should state whether `disable_thinking` was enabled, because it is part of the response protocol setup
 - benchmark prompts now instruct `browser_open_url` to use only the exposed fixture article URLs and not invent external URLs
 - redundant-action diagnostics are fixture-only progress signals and do not require a browser, Playwright, Chromium, or local server
+- observed evidence memory is limited to already-read or extracted fixture sections and is intended for multi-section synthesis, not scenario-specific answer tuning
 
 ## Current scope
 
@@ -98,3 +102,4 @@ Default deterministic scenarios:
 - `disable_thinking` is a protocol setting for stepwise control, not per-scenario prompt tuning and not a production-readiness claim
 - unknown fixture URL failures are classified as environment/action failures even when the rest of the stepwise protocol is working
 - repeated redundant valid actions are classified as control-loop failures, not evidence of real-browser behavior
+- observed evidence memory is still fixture-only and does not make the benchmark a general web-browsing or production automation system

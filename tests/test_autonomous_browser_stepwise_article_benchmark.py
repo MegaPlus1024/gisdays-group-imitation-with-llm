@@ -108,6 +108,54 @@ def test_initial_observation_exposes_allowed_urls_and_recommended_start_url() ->
     assert observation.allowed_urls == (scenario.start_url,)
     assert observation.recommended_start_url == scenario.start_url
     assert observation.article_title_hint == "Harbor Bulletin"
+    assert observation.observed_sections == ()
+    assert observation.observed_section_ids == ()
+    assert observation.observed_evidence_count == 0
+    assert observation.observed_evidence_text == "Observed evidence so far: none."
+
+
+def test_observed_evidence_memory_tracks_extracted_sections_without_duplicates() -> None:
+    scenarios = build_default_stepwise_article_scenarios()
+    scenario = scenarios["article_medium_two_fact_cross_section"]
+    env = FixtureArticleEnvironment(build_default_article_fixture_catalog())
+
+    env.execute_action(
+        StepwiseArticleAction("browser_open_url", {"url": scenario.start_url}),
+        scenario,
+    )
+    status, _, _, _, observation = env.execute_action(
+        StepwiseArticleAction("browser_extract_section", {"section_id": "escalation_owner"}),
+        scenario,
+    )
+
+    assert status == "succeeded"
+    assert observation.observed_evidence_count == 1
+    assert observation.observed_section_ids == ("escalation_owner",)
+    assert observation.observed_sections[0].section_id == "escalation_owner"
+    assert "Escalation owner Mira Chen approves exceptions" in observation.observed_sections[0].section_text
+    assert "[escalation_owner] Escalation Owner:" in observation.observed_evidence_text
+
+    _, _, _, _, observation = env.execute_action(
+        StepwiseArticleAction("browser_extract_section", {"section_id": "policy_scope"}),
+        scenario,
+    )
+
+    assert observation.observed_evidence_count == 2
+    assert observation.observed_section_ids == ("escalation_owner", "policy_scope")
+    assert "Workspace policy version 2026" in observation.observed_evidence_text
+    assert "Escalation owner Mira Chen" in observation.observed_evidence_text
+
+    _, _, _, _, observation = env.execute_action(
+        StepwiseArticleAction("browser_extract_section", {"section_id": "policy_scope"}),
+        scenario,
+    )
+
+    assert observation.observed_evidence_count == 2
+    assert observation.observed_section_ids == ("escalation_owner", "policy_scope")
+    assert [section.section_id for section in observation.observed_sections] == [
+        "escalation_owner",
+        "policy_scope",
+    ]
 
 
 def test_unknown_open_url_failure_includes_allowed_urls_in_observation() -> None:
@@ -230,6 +278,85 @@ def test_repeated_valid_redundant_extract_loop_stops_before_max_steps() -> None:
     assert last_observation.repeated_redundant_action_count == 3
     assert last_observation.repeated_action_count == 4
     assert last_observation.sections_unread_count == 1
+
+
+class EvidenceMemoryFakeModel:
+    model_name = "evidence_memory_fake_model"
+
+    def next_action(self, task, observation, memory):  # type: ignore[no-untyped-def]
+        scenario = memory["scenario"]
+        observed_ids = set(observation.observed_section_ids)
+        if not observation.page_opened:
+            return StepwiseArticleAction("browser_open_url", {"url": scenario.start_url})
+        if "escalation_owner" not in observed_ids:
+            return StepwiseArticleAction("browser_extract_section", {"section_id": "escalation_owner"})
+        if "policy_scope" not in observed_ids:
+            return StepwiseArticleAction("browser_extract_section", {"section_id": "policy_scope"})
+        evidence_text = "\n".join(section.section_text for section in observation.observed_sections)
+        assert "Escalation owner Mira Chen approves exceptions" in evidence_text
+        assert "Workspace policy version 2026" in evidence_text
+        return StepwiseArticleAction(
+            "final_answer",
+            {
+                "answer_text": "Workspace policy version 2026 and escalation owner Mira Chen.",
+                "citation_ids": ["policy_scope", "escalation_owner"],
+            },
+        )
+
+
+class MissingOwnerAfterReadingFakeModel:
+    model_name = "missing_owner_after_reading_fake_model"
+
+    def next_action(self, task, observation, memory):  # type: ignore[no-untyped-def]
+        scenario = memory["scenario"]
+        observed_ids = set(observation.observed_section_ids)
+        if not observation.page_opened:
+            return StepwiseArticleAction("browser_open_url", {"url": scenario.start_url})
+        if "escalation_owner" not in observed_ids:
+            return StepwiseArticleAction("browser_extract_section", {"section_id": "escalation_owner"})
+        if "policy_scope" not in observed_ids:
+            return StepwiseArticleAction("browser_extract_section", {"section_id": "policy_scope"})
+        return StepwiseArticleAction(
+            "final_answer",
+            {
+                "answer_text": "The workspace policy version is 2026, and the escalation owner is not mentioned in the provided text.",
+                "citation_ids": ["policy_scope"],
+            },
+        )
+
+
+def test_evidence_memory_fake_model_passes_medium_multi_section_answer() -> None:
+    scenarios = build_default_stepwise_article_scenarios()
+    result = run_stepwise_article_scenario(
+        scenarios["article_medium_two_fact_cross_section"],
+        EvidenceMemoryFakeModel(),
+        max_steps=6,
+    )
+
+    assert result.status == "succeeded"
+    assert result.evaluation.passed is True
+    assert result.evaluation.sections_read == 2
+    assert result.evaluation.observed_evidence_count_at_stop == 2
+    assert result.evaluation.observed_section_ids_at_stop == ("escalation_owner", "policy_scope")
+    assert result.evaluation.final_answer_supported_citation_ids == ("policy_scope", "escalation_owner")
+    assert result.evaluation.missing_citation_ids == ()
+
+
+def test_answer_claiming_owner_missing_fails_after_owner_evidence_was_read() -> None:
+    scenarios = build_default_stepwise_article_scenarios()
+    result = run_stepwise_article_scenario(
+        scenarios["article_medium_two_fact_cross_section"],
+        MissingOwnerAfterReadingFakeModel(),
+        max_steps=6,
+    )
+
+    assert result.status == "failed"
+    assert result.evaluation.sections_read == 2
+    assert result.evaluation.observed_evidence_count_at_stop == 2
+    assert result.evaluation.semantic_answer_correct is False
+    assert result.evaluation.missing_required_fact is True
+    assert result.evaluation.citation_correct is False
+    assert result.evaluation.missing_citation_ids == ("escalation_owner",)
 
 
 class FinalAnswerAfterReadModel:

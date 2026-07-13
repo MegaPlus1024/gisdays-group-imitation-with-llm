@@ -77,6 +77,16 @@ def _build_last_action_message(
     return f"Last action succeeded and observed new sections: {', '.join(newly_observed_section_ids)}."
 
 
+def _build_observed_evidence_text(sections: tuple["StepwiseArticleObservedSection", ...]) -> str:
+    if not sections:
+        return "Observed evidence so far: none."
+    lines = ["Observed evidence so far:"]
+    for section in sections:
+        combined = f"{section.section_title}: {section.section_text}"
+        lines.append(f"- [{section.section_id}] {combined}")
+    return "\n".join(lines)
+
+
 @dataclass(frozen=True)
 class ArticleSection:
     section_id: str
@@ -105,6 +115,24 @@ class ArticleDocument:
             "logical_url": self.logical_url,
             "title": self.title,
             "sections": [section.to_dict() for section in self.sections],
+        }
+
+
+@dataclass(frozen=True)
+class StepwiseArticleObservedSection:
+    section_id: str
+    section_title: str
+    section_text: str
+    first_observed_step: int
+    last_observed_step: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "section_id": self.section_id,
+            "section_title": self.section_title,
+            "section_text": self.section_text,
+            "first_observed_step": self.first_observed_step,
+            "last_observed_step": self.last_observed_step,
         }
 
 
@@ -187,6 +215,11 @@ class StepwiseArticleObservation:
     sections_unread_count: int = 0
     sections_read_progress: str = "0/0"
     unread_section_ids: tuple[str, ...] = ()
+    observed_sections: tuple[StepwiseArticleObservedSection, ...] = ()
+    observed_section_ids: tuple[str, ...] = ()
+    observed_evidence_count: int = 0
+    observed_evidence_summary: str = ""
+    observed_evidence_text: str = ""
     repeated_action_count: int = 0
     repeated_redundant_action_count: int = 0
 
@@ -218,6 +251,11 @@ class StepwiseArticleObservation:
             "sections_unread_count": self.sections_unread_count,
             "sections_read_progress": self.sections_read_progress,
             "unread_section_ids": list(self.unread_section_ids),
+            "observed_sections": [section.to_dict() for section in self.observed_sections],
+            "observed_section_ids": list(self.observed_section_ids),
+            "observed_evidence_count": self.observed_evidence_count,
+            "observed_evidence_summary": self.observed_evidence_summary,
+            "observed_evidence_text": self.observed_evidence_text,
             "repeated_action_count": self.repeated_action_count,
             "repeated_redundant_action_count": self.repeated_redundant_action_count,
         }
@@ -278,6 +316,10 @@ class StepwiseArticleEvaluation:
     repeated_redundant_action_loop_detected: bool
     sections_unread_count_at_stop: int
     sections_read_progress_at_stop: str
+    observed_evidence_count_at_stop: int
+    observed_section_ids_at_stop: tuple[str, ...]
+    final_answer_supported_citation_ids: tuple[str, ...]
+    missing_citation_ids: tuple[str, ...]
     stopped_too_early: bool
     hallucinated_fact: bool
     missing_required_fact: bool
@@ -303,6 +345,10 @@ class StepwiseArticleEvaluation:
             "repeated_redundant_action_loop_detected": self.repeated_redundant_action_loop_detected,
             "sections_unread_count_at_stop": self.sections_unread_count_at_stop,
             "sections_read_progress_at_stop": self.sections_read_progress_at_stop,
+            "observed_evidence_count_at_stop": self.observed_evidence_count_at_stop,
+            "observed_section_ids_at_stop": list(self.observed_section_ids_at_stop),
+            "final_answer_supported_citation_ids": list(self.final_answer_supported_citation_ids),
+            "missing_citation_ids": list(self.missing_citation_ids),
             "stopped_too_early": self.stopped_too_early,
             "hallucinated_fact": self.hallucinated_fact,
             "missing_required_fact": self.missing_required_fact,
@@ -373,7 +419,37 @@ class FixtureArticleEnvironment:
         self.current_document: ArticleDocument | None = None
         self.visible_index = 0
         self.observed_section_ids: set[str] = set()
+        self._observed_sections: dict[str, StepwiseArticleObservedSection] = {}
+        self._observed_event_index = 0
         self._last_find_result: dict[str, Any] | None = None
+
+    def _observed_sections_tuple(self) -> tuple[StepwiseArticleObservedSection, ...]:
+        return tuple(
+            sorted(
+                self._observed_sections.values(),
+                key=lambda section: (section.first_observed_step, section.section_id),
+            )
+        )
+
+    def _record_observed_section(self, section: ArticleSection) -> None:
+        self._observed_event_index += 1
+        existing = self._observed_sections.get(section.section_id)
+        if existing is None:
+            self._observed_sections[section.section_id] = StepwiseArticleObservedSection(
+                section_id=section.section_id,
+                section_title=section.title,
+                section_text=section.text,
+                first_observed_step=self._observed_event_index,
+                last_observed_step=self._observed_event_index,
+            )
+            return
+        self._observed_sections[section.section_id] = StepwiseArticleObservedSection(
+            section_id=existing.section_id,
+            section_title=existing.section_title,
+            section_text=existing.section_text,
+            first_observed_step=existing.first_observed_step,
+            last_observed_step=self._observed_event_index,
+        )
 
     def observe(
         self,
@@ -390,6 +466,9 @@ class FixtureArticleEnvironment:
         repeated_redundant_action_count: int = 0,
     ) -> StepwiseArticleObservation:
         newly_observed_ids = tuple(str(item) for item in last_newly_observed_section_ids if isinstance(item, str))
+        observed_sections = self._observed_sections_tuple()
+        observed_section_ids = tuple(section.section_id for section in observed_sections)
+        observed_evidence_text = _build_observed_evidence_text(observed_sections)
         if self.current_document is None:
             progress = f"{len(self.observed_section_ids)}/0"
             action_message = _build_last_action_message(
@@ -427,6 +506,11 @@ class FixtureArticleEnvironment:
                 sections_unread_count=0,
                 sections_read_progress=progress,
                 unread_section_ids=(),
+                observed_sections=observed_sections,
+                observed_section_ids=observed_section_ids,
+                observed_evidence_count=len(observed_sections),
+                observed_evidence_summary=observed_evidence_text,
+                observed_evidence_text=observed_evidence_text,
                 repeated_action_count=repeated_action_count,
                 repeated_redundant_action_count=repeated_redundant_action_count,
             )
@@ -470,6 +554,11 @@ class FixtureArticleEnvironment:
             sections_unread_count=len(unread_ids),
             sections_read_progress=progress,
             unread_section_ids=unread_ids,
+            observed_sections=observed_sections,
+            observed_section_ids=observed_section_ids,
+            observed_evidence_count=len(observed_sections),
+            observed_evidence_summary=observed_evidence_text,
+            observed_evidence_text=observed_evidence_text,
             repeated_action_count=repeated_action_count,
             repeated_redundant_action_count=repeated_redundant_action_count,
         )
@@ -497,6 +586,9 @@ class FixtureArticleEnvironment:
             }
         self.current_document = document
         self.visible_index = 0
+        self.observed_section_ids.clear()
+        self._observed_sections.clear()
+        self._observed_event_index = 0
         self._last_find_result = None
         visible_section = document.sections[0]
         return {
@@ -516,6 +608,7 @@ class FixtureArticleEnvironment:
         section = self.current_document.sections[self.visible_index]
         redundant = section.section_id in self.observed_section_ids
         self.observed_section_ids.add(section.section_id)
+        self._record_observed_section(section)
         return {
             "success": True,
             "section_id": section.section_id,
@@ -560,6 +653,8 @@ class FixtureArticleEnvironment:
             if normalized_query and normalized_query in combined:
                 self.visible_index = index
                 self.observed_section_ids.update(scanned_section_ids)
+                for scanned_section in self.current_document.sections[: index + 1]:
+                    self._record_observed_section(scanned_section)
                 result = {
                     "success": True,
                     "found": True,
@@ -573,6 +668,8 @@ class FixtureArticleEnvironment:
                 self._last_find_result = result
                 return result
         self.observed_section_ids.update(scanned_section_ids)
+        for scanned_section in self.current_document.sections:
+            self._record_observed_section(scanned_section)
         result = {
             "success": True,
             "found": False,
@@ -603,6 +700,7 @@ class FixtureArticleEnvironment:
                 self.visible_index = index
                 redundant = section.section_id in self.observed_section_ids
                 self.observed_section_ids.add(section.section_id)
+                self._record_observed_section(section)
                 return {
                     "success": True,
                     "section_id": section.section_id,
@@ -1132,6 +1230,8 @@ def run_stepwise_article_scenario(
         sections_read_ids=tuple(sorted(environment.observed_section_ids)),
         sections_unread_count_at_stop=observation.sections_unread_count,
         sections_read_progress_at_stop=observation.sections_read_progress,
+        observed_evidence_count_at_stop=observation.observed_evidence_count,
+        observed_section_ids_at_stop=observation.observed_section_ids,
         stop_reason=stop_reason,
     )
     model_execution_attempted = model_execution_attempted or bool(
@@ -1338,6 +1438,8 @@ def _evaluate_run(
     sections_read_ids: tuple[str, ...],
     sections_unread_count_at_stop: int,
     sections_read_progress_at_stop: str,
+    observed_evidence_count_at_stop: int,
+    observed_section_ids_at_stop: tuple[str, ...],
     stop_reason: str,
 ) -> StepwiseArticleEvaluation:
     normalized_answer = _normalize_text(final_answer_text or "")
@@ -1359,7 +1461,14 @@ def _evaluate_run(
             hallucinated_fact = True
             semantic_answer_correct = False
             break
+    observed_section_id_set = set(observed_section_ids_at_stop)
     citation_correct = set(scenario.required_citation_ids).issubset(set(final_citation_ids))
+    final_answer_supported_citation_ids = tuple(
+        citation_id for citation_id in final_citation_ids if citation_id in observed_section_id_set
+    )
+    missing_citation_ids = tuple(
+        citation_id for citation_id in scenario.required_citation_ids if citation_id not in final_citation_ids
+    )
     invalid_action_count = sum(1 for step in steps if not step.action_valid)
     workflow_action_valid = invalid_action_count == 0 and all(
         step.status in {"succeeded"} for step in steps if step.action.action_name != "final_answer"
@@ -1411,6 +1520,10 @@ def _evaluate_run(
         repeated_redundant_action_loop_detected=repeated_redundant_action_loop_detected,
         sections_unread_count_at_stop=sections_unread_count_at_stop,
         sections_read_progress_at_stop=sections_read_progress_at_stop,
+        observed_evidence_count_at_stop=observed_evidence_count_at_stop,
+        observed_section_ids_at_stop=observed_section_ids_at_stop,
+        final_answer_supported_citation_ids=final_answer_supported_citation_ids,
+        missing_citation_ids=missing_citation_ids,
         stopped_too_early=stopped_too_early,
         hallucinated_fact=hallucinated_fact,
         missing_required_fact=missing_required_fact,

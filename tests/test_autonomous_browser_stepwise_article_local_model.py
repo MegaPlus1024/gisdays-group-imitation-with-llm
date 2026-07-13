@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from src.agent.autonomous_browser_stepwise_article_benchmark import (
+    StepwiseArticleObservedSection,
     StepwiseArticleObservation,
 )
 from src.agent.autonomous_browser_stepwise_article_local_model import (
@@ -151,6 +152,94 @@ def test_prompt_includes_redundant_action_feedback_and_progress_guidance() -> No
     assert "extract a different unread section" in user
     assert "If all required facts are found, use final_answer." in user
     assert "browser_click" not in observation.available_actions
+
+
+def test_prompt_includes_observed_evidence_ledger_without_unread_text() -> None:
+    observation = replace(
+        OBSERVATION,
+        scenario_id="article_medium_two_fact_cross_section",
+        task="State the workspace policy version and the escalation owner.",
+        current_url="https://local.article/office-access-update",
+        allowed_urls=("https://local.article/office-access-update",),
+        recommended_start_url="https://local.article/office-access-update",
+        article_title_hint="Workspace Policy Memo",
+        article_title="Workspace Policy Memo",
+        visible_section_id="policy_scope",
+        visible_section_title="Policy Scope",
+        visible_text="Policy Scope\nWorkspace policy version 2026 allows read-only fixture review for planning checks.",
+        sections_total=2,
+        sections_read_count=1,
+        sections_read_ids=("escalation_owner",),
+        sections_read_progress="1/2",
+        sections_unread_count=1,
+        unread_section_ids=("policy_scope",),
+        observed_sections=(
+            StepwiseArticleObservedSection(
+                section_id="escalation_owner",
+                section_title="Escalation Owner",
+                section_text="Escalation owner Mira Chen approves exceptions for this memo.",
+                first_observed_step=1,
+                last_observed_step=1,
+            ),
+        ),
+        observed_section_ids=("escalation_owner",),
+        observed_evidence_count=1,
+        observed_evidence_summary=(
+            "Observed evidence so far:\n"
+            "- [escalation_owner] Escalation Owner: Escalation owner Mira Chen approves exceptions for this memo."
+        ),
+        observed_evidence_text=(
+            "Observed evidence so far:\n"
+            "- [escalation_owner] Escalation Owner: Escalation owner Mira Chen approves exceptions for this memo."
+        ),
+    )
+
+    messages = build_stepwise_article_prompt(observation.task, observation)
+    user = messages[1]["content"]
+
+    assert "Observed evidence so far:" in user
+    assert "[escalation_owner] Escalation Owner" in user
+    assert "Escalation owner Mira Chen approves exceptions" in user
+    assert "Observed evidence count: 1" in user
+    assert "Observed section ids: escalation_owner" in user
+    assert "Use observed evidence when forming final_answer." in user
+    assert "ensure each required fact is supported by observed evidence" in user
+    assert "Include citation_ids for all sections that support the final answer" in user
+    assert "If required facts are missing and unread sections remain, keep reading." in user
+    assert "If all sections are read but a required fact is missing" in user
+
+
+def test_prompt_does_not_include_unread_section_text_before_observation() -> None:
+    observation = replace(
+        OBSERVATION,
+        scenario_id="article_medium_two_fact_cross_section",
+        task="State the workspace policy version and the escalation owner.",
+        current_url="https://local.article/office-access-update",
+        allowed_urls=("https://local.article/office-access-update",),
+        recommended_start_url="https://local.article/office-access-update",
+        article_title_hint="Workspace Policy Memo",
+        article_title="Workspace Policy Memo",
+        visible_section_id="policy_scope",
+        visible_section_title="Policy Scope",
+        visible_text="Policy Scope\nWorkspace policy version 2026 allows read-only fixture review for planning checks.",
+        sections_total=2,
+        sections_read_count=0,
+        sections_read_ids=(),
+        sections_read_progress="0/2",
+        sections_unread_count=2,
+        unread_section_ids=("policy_scope", "escalation_owner"),
+        observed_sections=(),
+        observed_section_ids=(),
+        observed_evidence_count=0,
+        observed_evidence_summary="Observed evidence so far: none.",
+        observed_evidence_text="Observed evidence so far: none.",
+    )
+
+    messages = build_stepwise_article_prompt(observation.task, observation)
+    user = messages[1]["content"]
+
+    assert "Observed evidence so far: none." in user
+    assert "Escalation owner Mira Chen approves exceptions" not in user
 
 
 def test_disable_thinking_prepends_prefix_without_changing_prompt_body() -> None:
