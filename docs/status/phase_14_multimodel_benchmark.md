@@ -41,6 +41,17 @@ Phase 14F prepares the final presentation benchmark layer on top of that frozen 
 
 The operator has now completed that final presentation run. The result is presentation-grade benchmark evidence for this specific local fixture-only frozen raw setup, not a production-readiness claim.
 
+Important framing for later phases: the Phase 14E/14F line is a frozen raw one-shot workflow-JSON planner benchmark. It is useful for controlled model comparison, but it is not the same thing as a high-confidence long-horizon interactive browser-agent benchmark.
+
+In Phase 14, a single PASS/FAIL can mix several layers at once:
+
+- raw JSON/schema validity
+- action selection validity
+- workflow materialization or evaluator checks
+- final-answer correctness
+
+That means a semantically reasonable answer can still miss a workflow PASS because the plan contains an invalid action such as clicking non-clickable text. Phase 15 therefore introduces a separate stepwise observation-action benchmark so semantic answer quality and interactive action validity can be measured more directly without changing the frozen raw Phase 14 methodology.
+
 ## What was added
 
 - `src/agent/autonomous_browser_stateful_readonly_planner_multimodel_benchmark.py`
@@ -285,6 +296,8 @@ The final presentation benchmark used:
 - `11` deterministic scenarios
 - one mixed difficulty ladder: `ultra_easy`, `easy`, `medium`, `hard`, `very_hard`
 
+This final presentation table should still be read as a frozen raw one-shot planner benchmark. It does not by itself establish long-horizon interactive browser-agent competence.
+
 ### Top-level evaluator summary
 
 - `status: completed_with_failures`
@@ -345,6 +358,7 @@ The evaluator remained offline after capture, so this result adds no browser or 
 - The result stays bounded by the shared prompt/schema/evaluator contract and shared `max_tokens: 4096`.
 - No model-specific prompt tuning was introduced.
 - The final evaluator `error_code` remained `browser_click_target_not_found`, so the run is still recorded as `completed_with_failures`.
+- That failure mode matters for interpretation: this benchmark line mixes semantic-answer quality with action-validity and workflow-evaluator outcomes, so a model can be partly right on task semantics and still miss a workflow PASS because of an invalid action step.
 - Generated summary tables and captured outputs are operator evidence only and must not be committed.
 
 ## Clean Phase 14E frozen raw result

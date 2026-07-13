@@ -20,6 +20,8 @@ After the Phase 14E frozen-raw runner repair, a clean runner-owned rerun was com
 
 Phase 14F adds the final presentation benchmark result above that repaired methodology. It uses a presentation-oriented 11-scenario frozen raw packet, a five-profile sequential run config, and a Markdown/CSV/JSON summary tool over five local aliases. In that presentation layer, `first_model` points to IBM Granite 3.3 8B Instruct Q4_K_M as the small/medium non-Qwen baseline; the earlier Phi-4-mini local file was archived locally and was not committed.
 
+Important framing: that Phase 14F line is a frozen raw one-shot workflow-JSON planner benchmark, not a high-confidence long-horizon interactive browser-agent benchmark. A single PASS/FAIL there can mix schema validity, action validity, workflow materialization, and final-answer quality. A model can therefore be semantically close to the task intent and still fail because the workflow proposes an invalid action such as clicking non-clickable text.
+
 The final Phase 14F evaluator summary remained offline and fixture-only after capture:
 
 - `status: completed_with_failures`
@@ -41,6 +43,8 @@ Final bounded outcome for that specific benchmark:
 - `second_model`: `1/11` workflows succeeded
 
 This does not change the core project closure basis, which still rests on the stronger repeated `third_model` Phase 13E stateful variance evidence. It records one presentation-grade, fixture-only, frozen raw comparison table with no model-specific prompt tuning and no production-readiness claim.
+
+Phase 15 begins a separate fixture-only stepwise observation-action benchmark for article/browser-style tasks so that long-horizon interactive behavior can be measured more directly than in the frozen raw one-shot Phase 14F table.
 
 ## A. Analysis of implementation means
 
