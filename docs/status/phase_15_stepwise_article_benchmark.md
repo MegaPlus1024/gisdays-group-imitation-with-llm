@@ -24,6 +24,8 @@ Phase 15B adds a guarded local-model adapter for that same stepwise benchmark:
 - failure artifacts now write to `--output-json` even for refusal and parse-failure outcomes
 - runtime flags now distinguish refused/offline runs from real model-call attempts that fail during parsing
 - parse failures now carry bounded diagnostics such as scenario/trial/step identifiers, parse error class, finish reason, response id, and a capped safe response preview
+- some thinking-model adapters need an explicit no-think action-json protocol mode so the next-step action lands in `message.content`
+- Phase 15B now supports `disable_thinking` plus a configurable `/no_think`-style prefix as protocol control rather than scenario-specific answer tuning
 
 ## Why it exists
 
@@ -38,6 +40,8 @@ Phase 15 separates those layers more clearly by measuring one interactive step a
 
 That separation matters for guarded local-model smoke runs: a run can fail before any scenario-level correctness judgment if the model does not return one valid step JSON object. Those are protocol/format failures, not article-reading failures, and should be diagnosed separately.
 
+For Qwen3-style thinking models in particular, `message.reasoning_content` may hold chain-of-thought while `message.content` stays empty unless thinking is disabled. The stepwise adapter now supports an explicit no-think/action-json mode for these control loops, but it still parses actions only from `message.content`, not from `reasoning_content`.
+
 ## Safety boundaries
 
 - fixture-only article environment
@@ -48,6 +52,7 @@ That separation matters for guarded local-model smoke runs: a run can fail befor
 - no `browser_click` in the default article action set
 - local model execution is guarded and opt-in only
 - safe diagnostics redact obvious authorization/token-like material from failure previews
+- benchmark reports should state whether `disable_thinking` was enabled, because it is part of the response protocol setup
 
 ## Current scope
 
@@ -76,3 +81,4 @@ Default deterministic scenarios:
 - local model calls remain operator-gated
 - still a controlled research prototype
 - real Phase 15B smoke attempts can still fail at the one-action JSON protocol layer before scenario evaluation completes
+- `disable_thinking` is a protocol setting for stepwise control, not per-scenario prompt tuning and not a production-readiness claim

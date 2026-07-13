@@ -91,6 +91,22 @@ def test_prompt_contains_task_observation_allowed_actions_and_one_action_instruc
     assert "The harbor office opens at 06:30" in user
 
 
+def test_disable_thinking_prepends_prefix_without_changing_prompt_body() -> None:
+    regular_messages = build_stepwise_article_prompt(OBSERVATION.task, OBSERVATION)
+    prefixed_messages = build_stepwise_article_prompt(
+        OBSERVATION.task,
+        OBSERVATION,
+        disable_thinking=True,
+        no_think_prefix="/no_think",
+    )
+
+    regular_user = regular_messages[1]["content"]
+    prefixed_user = prefixed_messages[1]["content"]
+
+    assert prefixed_user.startswith("/no_think\n")
+    assert prefixed_user[len("/no_think\n") :] == regular_user
+
+
 def test_parser_accepts_plain_json_action() -> None:
     action = parse_stepwise_article_action_response(
         '{"action_name":"browser_find_text","parameters":{"query":"06:30"},"reason":"find the hour"}'
@@ -183,6 +199,8 @@ def test_local_client_uses_injected_fake_transport_and_does_not_perform_real_htt
             model_alias="third_model",
             base_url="http://127.0.0.1:8082/v1",
             allow_model_execution=True,
+            response_max_tokens=512,
+            temperature=0.25,
         ),
         transport=transport,
     )
@@ -192,8 +210,58 @@ def test_local_client_uses_injected_fake_transport_and_does_not_perform_real_htt
     assert action.action_name == "browser_read_visible_text"
     assert transport.calls[0]["url"] == "http://127.0.0.1:8082/v1/chat/completions"
     assert transport.calls[0]["json"]["model"] == "third_model"
+    assert transport.calls[0]["json"]["max_tokens"] == 512
+    assert transport.calls[0]["json"]["temperature"] == 0.25
     assert client.model_execution_attempted is True
     assert client.model_execution_completed is True
+
+
+def test_config_defaults_include_nonzero_response_max_tokens() -> None:
+    config = StepwiseArticleLocalModelConfig(
+        model_alias="third_model",
+        base_url="http://127.0.0.1:8082/v1",
+        allow_model_execution=True,
+    )
+
+    assert config.response_max_tokens > 0
+    assert config.temperature == 0.0
+    assert config.disable_thinking is False
+    assert config.no_think_prefix == "/no_think"
+
+
+def test_disable_thinking_prefix_is_sent_in_user_prompt() -> None:
+    transport = FakeTransport(
+        [
+            FakeTransportResponse(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": '{"action_name":"browser_read_visible_text","parameters":{},"reason":"read visible text"}'
+                            },
+                            "finish_reason": "stop",
+                        }
+                    ]
+                }
+            )
+        ]
+    )
+    client = StepwiseArticleLocalModelClient(
+        config=StepwiseArticleLocalModelConfig(
+            model_alias="third_model",
+            base_url="http://127.0.0.1:8082/v1",
+            allow_model_execution=True,
+            disable_thinking=True,
+            no_think_prefix="/no_think",
+        ),
+        transport=transport,
+    )
+
+    client.next_action(OBSERVATION.task, OBSERVATION, memory={})
+
+    user_message = transport.calls[0]["json"]["messages"][1]["content"]
+    assert user_message.startswith("/no_think\n")
+    assert "Task: What time does the harbor office open?" in user_message
 
 
 def test_guarded_cli_refuses_to_run_without_allow_model_execution(
@@ -230,6 +298,9 @@ def test_guarded_cli_writes_output_json_on_refusal(
             "http://127.0.0.1:8082/v1",
             "--model-alias",
             "third_model",
+            "--disable-thinking",
+            "--response-max-tokens",
+            "512",
             "--output-json",
             str(output_path),
         ]
@@ -243,6 +314,9 @@ def test_guarded_cli_writes_output_json_on_refusal(
     assert file_payload["error_code"] == "allow_model_execution_required"
     assert file_payload["model_execution"] is False
     assert file_payload["no_runtime_execution"] is True
+    assert file_payload["disable_thinking"] is True
+    assert file_payload["response_max_tokens"] == 512
+    assert file_payload["no_think_prefix_used"] == "/no_think"
 
 
 def test_parse_failure_after_fake_transport_sets_truthful_runtime_flags_and_diagnostics() -> None:
@@ -291,9 +365,61 @@ def test_parse_failure_after_fake_transport_sets_truthful_runtime_flags_and_diag
     assert diagnostics["finish_reason"] == "stop"
     assert diagnostics["response_id"] == "resp_stepwise_001"
     assert diagnostics["raw_model_response_length"] > 0
+    assert diagnostics["content_length"] == diagnostics["raw_model_response_length"]
+    assert diagnostics["reasoning_content_length"] == 0
+    assert diagnostics["response_max_tokens"] == 512
+    assert diagnostics["temperature"] == 0.0
+    assert diagnostics["disable_thinking"] is False
+    assert diagnostics["no_think_prefix_used"] is None
     assert "browser_open_url" in diagnostics["allowed_actions"]
     assert "[redacted authorization header]" in diagnostics["raw_model_response_preview"]
     assert "supersecret-token" not in diagnostics["raw_model_response_preview"]
+
+
+def test_parser_uses_message_content_not_reasoning_content() -> None:
+    transport = FakeTransport(
+        [
+            FakeTransportResponse(
+                {
+                    "id": "resp_stepwise_003",
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "",
+                                "reasoning_content": '{"action_name":"browser_read_visible_text","parameters":{},"reason":"hidden in reasoning"}',
+                            },
+                            "finish_reason": "length",
+                        }
+                    ]
+                }
+            )
+        ]
+    )
+    client = StepwiseArticleLocalModelClient(
+        config=StepwiseArticleLocalModelConfig(
+            model_alias="third_model",
+            base_url="http://127.0.0.1:8082/v1",
+            allow_model_execution=True,
+            disable_thinking=True,
+        ),
+        transport=transport,
+    )
+
+    with pytest.raises(StepwiseArticleLocalModelError) as exc:
+        client.next_action(
+            OBSERVATION.task,
+            OBSERVATION,
+            memory={"trial_index": 1, "step_results": []},
+        )
+
+    diagnostics = exc.value.diagnostics
+    assert exc.value.error_code == "model_output_parse_failed"
+    assert diagnostics["parse_error_code"] == "no_json_object_found"
+    assert diagnostics["content_length"] == 0
+    assert diagnostics["reasoning_content_length"] > 0
+    assert diagnostics["finish_reason"] == "length"
+    assert diagnostics["disable_thinking"] is True
+    assert diagnostics["no_think_prefix_used"] == "/no_think"
 
 
 def test_cli_writes_output_json_on_model_parse_failure(
@@ -355,6 +481,9 @@ def test_cli_writes_output_json_on_model_parse_failure(
             "--max-steps",
             "4",
             "--allow-model-execution",
+            "--disable-thinking",
+            "--response-max-tokens",
+            "512",
             "--output-json",
             str(output_path),
         ]
@@ -373,6 +502,9 @@ def test_cli_writes_output_json_on_model_parse_failure(
     assert file_payload["playwright_execution"] is False
     assert file_payload["browser_opened"] is False
     assert file_payload["fixture_only"] is True
+    assert file_payload["disable_thinking"] is True
+    assert file_payload["response_max_tokens"] == 512
+    assert file_payload["no_think_prefix_used"] == "/no_think"
     diagnostics = file_payload["diagnostics"]
     assert diagnostics["parse_error_code"] == "full_workflow_json_rejected"
     assert diagnostics["scenario_id"] == "article_short_single_fact"

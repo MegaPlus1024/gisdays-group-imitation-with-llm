@@ -33,6 +33,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--trials-per-scenario", type=int, default=1)
     parser.add_argument("--max-steps", type=int, default=12)
     parser.add_argument("--request-timeout-sec", type=float, default=600.0)
+    parser.add_argument("--response-max-tokens", type=int, default=512)
+    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--disable-thinking", action="store_true", default=False)
+    parser.add_argument("--no-think-prefix", default="/no_think")
     parser.add_argument("--output-json", default=None)
     parser.add_argument("--allow-model-execution", action="store_true", default=False)
     return parser.parse_args(argv)
@@ -53,6 +57,7 @@ def main(argv: list[str] | None = None) -> int:
             "fixture_only": True,
             "no_runtime_execution": True,
         }
+        payload.update(_protocol_metadata_from_args(args))
         _emit_and_write(
             payload,
             output_json=args.output_json,
@@ -71,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
             "fixture_only": True,
             "no_runtime_execution": True,
         }
+        payload.update(_protocol_metadata_from_args(args))
         _emit_and_write(
             payload,
             output_json=args.output_json,
@@ -82,6 +88,10 @@ def main(argv: list[str] | None = None) -> int:
             model_alias=args.model_alias,
             base_url=args.base_url,
             allow_model_execution=True,
+            response_max_tokens=args.response_max_tokens,
+            temperature=args.temperature,
+            disable_thinking=args.disable_thinking,
+            no_think_prefix=args.no_think_prefix,
             request_timeout_seconds=args.request_timeout_sec,
         )
         scenarios = _selected_scenarios(args.scenario_id)
@@ -94,6 +104,7 @@ def main(argv: list[str] | None = None) -> int:
             max_steps=args.max_steps,
         )
         payload = _benchmark_cli_payload(summary)
+        payload.update(_protocol_metadata_from_config(config))
         _emit_and_write(payload, output_json=args.output_json)
         return 0 if payload.get("status") == "succeeded" else 1
     except (StepwiseArticleLocalModelError, ValueError) as exc:
@@ -111,6 +122,7 @@ def main(argv: list[str] | None = None) -> int:
             "fixture_only": True,
             "no_runtime_execution": not model_execution,
         }
+        payload.update(_protocol_metadata_from_args(args))
         _emit_and_write(payload, output_json=args.output_json)
         return 2
 
@@ -155,6 +167,24 @@ def _benchmark_cli_payload(summary: dict[str, object]) -> dict[str, object]:
     payload["status"] = "succeeded"
     payload["error_code"] = None
     return payload
+
+
+def _protocol_metadata_from_args(args: argparse.Namespace) -> dict[str, object]:
+    return {
+        "response_max_tokens": int(args.response_max_tokens),
+        "temperature": float(args.temperature),
+        "disable_thinking": bool(args.disable_thinking),
+        "no_think_prefix_used": str(args.no_think_prefix).strip() if args.disable_thinking else None,
+    }
+
+
+def _protocol_metadata_from_config(config: StepwiseArticleLocalModelConfig) -> dict[str, object]:
+    return {
+        "response_max_tokens": config.response_max_tokens,
+        "temperature": config.temperature,
+        "disable_thinking": config.disable_thinking,
+        "no_think_prefix_used": config.no_think_prefix if config.disable_thinking else None,
+    }
 
 
 def _emit_and_write(payload: dict[str, object], *, output_json: str | None) -> None:

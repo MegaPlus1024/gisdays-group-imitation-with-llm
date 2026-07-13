@@ -18,8 +18,9 @@ from .autonomous_browser_stepwise_article_benchmark import (
 
 STEPWISE_ARTICLE_LOCAL_MODEL_SCHEMA_VERSION = "autonomous_browser_stepwise_article_local_model_v1"
 DEFAULT_STEPWISE_ARTICLE_MODEL_TEMPERATURE = 0.0
-DEFAULT_STEPWISE_ARTICLE_MODEL_MAX_TOKENS = 256
+DEFAULT_STEPWISE_ARTICLE_RESPONSE_MAX_TOKENS = 512
 DEFAULT_STEPWISE_ARTICLE_MODEL_TIMEOUT_SECONDS = 600.0
+DEFAULT_STEPWISE_ARTICLE_NO_THINK_PREFIX = "/no_think"
 ALLOWED_LOCAL_MODEL_HOSTS = {"127.0.0.1", "localhost"}
 ALLOWED_STEPWISE_ARTICLE_ACTION_NAMES = frozenset(DEFAULT_STEPWISE_ARTICLE_ACTIONS)
 
@@ -38,6 +39,7 @@ class StepwiseArticleChatCompletionRequest:
 class StepwiseArticleChatCompletionResponse:
     content: str
     finish_reason: str | None = None
+    reasoning_content_length: int = 0
     raw_response: dict[str, Any] | None = None
 
 
@@ -73,7 +75,9 @@ class StepwiseArticleLocalModelConfig:
     base_url: str
     allow_model_execution: bool = False
     temperature: float = DEFAULT_STEPWISE_ARTICLE_MODEL_TEMPERATURE
-    max_tokens: int = DEFAULT_STEPWISE_ARTICLE_MODEL_MAX_TOKENS
+    response_max_tokens: int = DEFAULT_STEPWISE_ARTICLE_RESPONSE_MAX_TOKENS
+    disable_thinking: bool = False
+    no_think_prefix: str = DEFAULT_STEPWISE_ARTICLE_NO_THINK_PREFIX
     request_timeout_seconds: float = DEFAULT_STEPWISE_ARTICLE_MODEL_TIMEOUT_SECONDS
 
     def __post_init__(self) -> None:
@@ -89,10 +93,10 @@ class StepwiseArticleLocalModelConfig:
                 "model_alias must be a safe identifier.",
                 "model_alias_invalid",
             )
-        if self.max_tokens <= 0:
+        if self.response_max_tokens <= 0:
             raise StepwiseArticleLocalModelError(
-                "max_tokens must be positive.",
-                "max_tokens_invalid",
+                "response_max_tokens must be positive.",
+                "response_max_tokens_invalid",
             )
         if self.request_timeout_seconds <= 0:
             raise StepwiseArticleLocalModelError(
@@ -104,7 +108,18 @@ class StepwiseArticleLocalModelConfig:
                 "temperature must be non-negative.",
                 "temperature_invalid",
             )
+        if not isinstance(self.disable_thinking, bool):
+            raise StepwiseArticleLocalModelError(
+                "disable_thinking must be a boolean.",
+                "disable_thinking_invalid",
+            )
+        if not isinstance(self.no_think_prefix, str) or not self.no_think_prefix.strip():
+            raise StepwiseArticleLocalModelError(
+                "no_think_prefix must be a non-empty string.",
+                "no_think_prefix_invalid",
+            )
         object.__setattr__(self, "base_url", normalized_base_url)
+        object.__setattr__(self, "no_think_prefix", self.no_think_prefix.strip())
 
     @property
     def endpoint_url(self) -> str:
@@ -118,7 +133,9 @@ class StepwiseArticleLocalModelConfig:
             "endpoint_url": self.endpoint_url,
             "allow_model_execution": self.allow_model_execution,
             "temperature": self.temperature,
-            "max_tokens": self.max_tokens,
+            "response_max_tokens": self.response_max_tokens,
+            "disable_thinking": self.disable_thinking,
+            "no_think_prefix": self.no_think_prefix,
             "request_timeout_seconds": self.request_timeout_seconds,
         }
 
@@ -152,7 +169,12 @@ class StepwiseArticleLocalModelClient:
                 "allow_model_execution_required",
                 {"model_execution": False},
             )
-        prompt_messages = build_stepwise_article_prompt(task, observation)
+        prompt_messages = build_stepwise_article_prompt(
+            task,
+            observation,
+            disable_thinking=self.config.disable_thinking,
+            no_think_prefix=self.config.no_think_prefix,
+        )
         self.last_action_prompt_preview = _preview_for_diagnostics(
             prompt_messages[-1]["content"],
             limit=400,
@@ -162,7 +184,7 @@ class StepwiseArticleLocalModelClient:
             model_alias=self.config.model_alias,
             messages=prompt_messages,
             temperature=self.config.temperature,
-            max_tokens=self.config.max_tokens,
+            max_tokens=self.config.response_max_tokens,
             timeout_seconds=self.config.request_timeout_seconds,
         )
         response = self._complete(request)
@@ -181,10 +203,17 @@ class StepwiseArticleLocalModelClient:
                 "parse_error_message": str(exc),
                 "raw_model_response_preview": _preview_for_diagnostics(response.content, limit=1000),
                 "raw_model_response_length": len(response.content),
+                "content_length": len(response.content),
+                "reasoning_content_length": response.reasoning_content_length,
                 "finish_reason": response.finish_reason,
                 "response_id": self.last_response_id,
                 "action_prompt_preview": self.last_action_prompt_preview,
                 "allowed_actions": list(DEFAULT_STEPWISE_ARTICLE_ACTIONS),
+                "response_max_tokens": self.config.response_max_tokens,
+                "temperature": self.config.temperature,
+                "disable_thinking": self.config.disable_thinking,
+                "no_think_prefix_used": self.config.no_think_prefix if self.config.disable_thinking else None,
+                "model_execution": True,
             }
             raise StepwiseArticleLocalModelError(
                 "Model response could not be parsed into a single allowed action.",
@@ -247,6 +276,7 @@ class StepwiseArticleLocalModelClient:
         return StepwiseArticleChatCompletionResponse(
             content=content,
             finish_reason=_finish_reason(response_json),
+            reasoning_content_length=_reasoning_content_length(response_json),
             raw_response=response_json if isinstance(response_json, dict) else None,
         )
 
@@ -256,6 +286,8 @@ def build_stepwise_article_prompt(
     observation: StepwiseArticleObservation,
     *,
     allowed_actions: Sequence[str] = DEFAULT_STEPWISE_ARTICLE_ACTIONS,
+    disable_thinking: bool = False,
+    no_think_prefix: str = DEFAULT_STEPWISE_ARTICLE_NO_THINK_PREFIX,
 ) -> tuple[dict[str, str], ...]:
     allowed_actions_text = ", ".join(allowed_actions)
     system = (
@@ -267,7 +299,7 @@ def build_stepwise_article_prompt(
         "If you choose final_answer, return parameters with answer_text, citations, and confidence.\n"
         'Confidence must be one of: "low", "medium", "high".'
     )
-    user = (
+    user_body = (
         f"Task: {task}\n"
         f"Scenario ID: {observation.scenario_id}\n"
         f"Page opened: {json.dumps(observation.page_opened)}\n"
@@ -298,6 +330,9 @@ def build_stepwise_article_prompt(
         "}\n"
         "Return no prose before or after the JSON."
     )
+    user = user_body
+    if disable_thinking:
+        user = f"{no_think_prefix.strip()}\n{user_body}"
     return (
         {"role": "system", "content": system},
         {"role": "user", "content": user},
@@ -426,6 +461,31 @@ def _finish_reason(response_json: Any) -> str | None:
         return None
     finish_reason = first.get("finish_reason")
     return finish_reason if isinstance(finish_reason, str) else None
+
+
+def _reasoning_content_length(response_json: Any) -> int:
+    if not isinstance(response_json, Mapping):
+        return 0
+    choices = response_json.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return 0
+    first = choices[0]
+    if not isinstance(first, Mapping):
+        return 0
+    message = first.get("message")
+    if not isinstance(message, Mapping):
+        return 0
+    return _content_like_length(message.get("reasoning_content"))
+
+
+def _content_like_length(value: Any) -> int:
+    if isinstance(value, str):
+        return len(value)
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return len(json.dumps(list(value), ensure_ascii=False))
+    if isinstance(value, Mapping):
+        return len(json.dumps(dict(value), ensure_ascii=False, sort_keys=True))
+    return 0
 
 
 def _extract_single_json_payload(raw_text: str) -> Any | None:
