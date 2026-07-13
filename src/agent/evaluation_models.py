@@ -17,6 +17,7 @@ class EvaluationModelSpec(BaseModel):
     model_id: str
     aliases: list[str] = Field(default_factory=list)
     display_name: str
+    role: str | None = None
     model_name: str
     api_model: str | None = None
     upstream_model_name: str | None = None
@@ -51,7 +52,7 @@ class EvaluationModelSpec(BaseModel):
             raise ValueError("Evaluation model string fields must be non-empty.")
         return value
 
-    @field_validator("api_model", "upstream_model_name")
+    @field_validator("role", "api_model", "upstream_model_name")
     @classmethod
     def validate_optional_non_empty(cls, value: str | None) -> str | None:
         if value is not None and not value.strip():

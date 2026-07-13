@@ -32,8 +32,10 @@ from .autonomous_browser_stateful_readonly_planner_variance import (
 )
 from .autonomous_browser_stateful_readonly_workflow import (
     DEFAULT_STATEFUL_READONLY_SCENARIO_IDS,
+    FINAL_PRESENTATION_STATEFUL_READONLY_SCENARIO_IDS,
     FROZEN_RAW_STATEFUL_READONLY_SCENARIO_IDS,
     build_default_stateful_readonly_workflow_scenarios,
+    build_final_presentation_stateful_readonly_workflow_scenarios,
     build_frozen_raw_stateful_readonly_workflow_scenarios,
 )
 from .evaluation_models import EvaluationModelRegistry, load_evaluation_models_config
@@ -67,6 +69,7 @@ DEFAULT_PROMPT_CONTRACT_MODE = "historical_default"
 ALLOWED_SCENARIO_CATALOGS = {
     "legacy_stateful_v1": DEFAULT_STATEFUL_READONLY_SCENARIO_IDS,
     "frozen_raw_v1": FROZEN_RAW_STATEFUL_READONLY_SCENARIO_IDS,
+    "final_presentation_v1": FINAL_PRESENTATION_STATEFUL_READONLY_SCENARIO_IDS,
 }
 ALLOWED_PROMPT_CONTRACT_MODES = {"historical_default", "frozen_raw"}
 DEFAULT_LIMITATIONS = (
@@ -423,6 +426,8 @@ def _scenario_definitions_for_catalog(
         return build_default_stateful_readonly_workflow_scenarios()
     if scenario_catalog == "frozen_raw_v1":
         return build_frozen_raw_stateful_readonly_workflow_scenarios()
+    if scenario_catalog == "final_presentation_v1":
+        return build_final_presentation_stateful_readonly_workflow_scenarios()
     raise ValueError("unsupported scenario catalog")
 
 
@@ -636,6 +641,9 @@ def build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_pack
         trial_ids=trial_ids,
         prompt_filename=prompt_filename,
         routine_config_path=(
+            "configs/autonomous_runtime/browser_stateful_readonly_planner_final_presentation_benchmark.example.json"
+            if build_config.scenario_catalog == "final_presentation_v1"
+            else
             "configs/autonomous_runtime/browser_stateful_readonly_planner_frozen_raw_benchmark.example.json"
             if build_config.scenario_catalog == "frozen_raw_v1"
             else "configs/autonomous_runtime/browser_stateful_readonly_planner_multimodel_benchmark.example.json"

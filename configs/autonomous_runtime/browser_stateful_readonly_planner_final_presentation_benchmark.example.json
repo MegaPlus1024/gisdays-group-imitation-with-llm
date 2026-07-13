@@ -1,0 +1,49 @@
+{
+  "schema_version": "autonomous_browser_stateful_readonly_planner_multimodel_benchmark_config_v1",
+  "packet_id": "phase_14_stateful_readonly_planner_final_presentation_benchmark",
+  "base_packet_config": "configs/autonomous_runtime/browser_stateful_readonly_planner_packet.example.json",
+  "evaluation_models_config": "configs/evaluation_models.json",
+  "scenario_catalog": "final_presentation_v1",
+  "prompt_contract_mode": "frozen_raw",
+  "max_tokens": 4096,
+  "model_aliases": [
+    "first_model",
+    "second_model",
+    "third_model",
+    "fourth_model",
+    "fifth_model"
+  ],
+  "scenarios": [
+    "stateful_policy_search_marker_review",
+    "stateful_policy_allowed_activity",
+    "stateful_policy_ticket_crosscheck",
+    "stateful_approval_queue_absence_review",
+    "stateful_ticket_priority_digest",
+    "stateful_approval_id_review",
+    "stateful_policy_source_disambiguation",
+    "stateful_policy_trap_review",
+    "stateful_priority_exception_rule_review",
+    "stateful_approval_policy_crosscheck"
+  ],
+  "trials_per_scenario": 1,
+  "output_dir": "artifacts/autonomous_runtime_planner_packets/stateful_readonly_planner_final_presentation_benchmark",
+  "captured_output_dir": "artifacts/autonomous_runtime_planner_outputs/stateful_readonly_planner_final_presentation_benchmark",
+  "evaluator_output_dir": "artifacts/autonomous_runtime_planner_summaries/stateful_readonly_planner_final_presentation_benchmark",
+  "fixture_only": true,
+  "external_network_allowed": false,
+  "writes_allowed": false,
+  "model_execution": false,
+  "real_browser_execution": false,
+  "playwright_execution": false,
+  "browser_opened": false,
+  "limitations": [
+    "optional post-completion final presentation benchmark only",
+    "one shared frozen raw task contract across all five aliases",
+    "manual operator model runs only",
+    "no model calls by Codex",
+    "offline fixture-backed evaluation only",
+    "no real browser execution",
+    "no Playwright execution",
+    "not production browser automation"
+  ]
+}

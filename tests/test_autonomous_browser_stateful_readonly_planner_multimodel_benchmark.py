@@ -17,8 +17,10 @@ from src.agent.autonomous_browser_stateful_readonly_planner_multimodel_benchmark
     run_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_evaluator,
 )
 from src.agent.autonomous_browser_stateful_readonly_workflow import (
+    FINAL_PRESENTATION_STATEFUL_READONLY_SCENARIO_IDS,
     FROZEN_RAW_STATEFUL_READONLY_SCENARIO_IDS,
     build_default_stateful_readonly_workflow_scenarios,
+    build_final_presentation_stateful_readonly_workflow_scenarios,
     build_frozen_raw_stateful_readonly_workflow_scenarios,
 )
 
@@ -43,6 +45,12 @@ FROZEN_RAW_CONFIG_PATH = (
     / "configs"
     / "autonomous_runtime"
     / "browser_stateful_readonly_planner_frozen_raw_benchmark.example.json"
+)
+FINAL_PRESENTATION_CONFIG_PATH = (
+    PROJECT_ROOT
+    / "configs"
+    / "autonomous_runtime"
+    / "browser_stateful_readonly_planner_final_presentation_benchmark.example.json"
 )
 BASE_PACKET_CONFIG = (
     PROJECT_ROOT
@@ -76,6 +84,10 @@ def _extended_config() -> dict[str, Any]:
 
 def _frozen_raw_config() -> dict[str, Any]:
     return json.loads(FROZEN_RAW_CONFIG_PATH.read_text(encoding="utf-8"))
+
+
+def _final_presentation_config() -> dict[str, Any]:
+    return json.loads(FINAL_PRESENTATION_CONFIG_PATH.read_text(encoding="utf-8"))
 
 
 def _load_cli_module(path: Path):
@@ -500,3 +512,110 @@ def test_frozen_raw_evaluator_reports_missing_outputs_for_selected_models(tmp_pa
     assert summary["outputs_missing"] == 16
     assert summary["missing_output_models"] == ["third_model", "fourth_model"]
     assert [item["alias"] for item in summary["model_summaries"]] == ["third_model", "fourth_model"]
+
+
+def test_final_presentation_config_loads_for_five_aliases() -> None:
+    config = _final_presentation_config()
+
+    assert config["schema_version"] == BUILD_CONFIG_SCHEMA_VERSION
+    assert config["scenario_catalog"] == "final_presentation_v1"
+    assert config["prompt_contract_mode"] == "frozen_raw"
+    assert config["max_tokens"] == 4096
+    assert config["model_aliases"] == [
+        "first_model",
+        "second_model",
+        "third_model",
+        "fourth_model",
+        "fifth_model",
+    ]
+    assert config["trials_per_scenario"] == 1
+    assert len(config["scenarios"]) == 10
+
+
+def test_final_presentation_scenarios_cover_difficulty_ladder_and_are_deterministic() -> None:
+    scenarios = build_final_presentation_stateful_readonly_workflow_scenarios()
+
+    assert tuple(scenarios) == FINAL_PRESENTATION_STATEFUL_READONLY_SCENARIO_IDS
+    assert len(scenarios) == 10
+    difficulties = {scenario.difficulty for scenario in scenarios.values()}
+    assert difficulties == {"easy", "medium", "hard", "very_hard"}
+    assert any(scenario.difficulty == "easy" for scenario in scenarios.values())
+    assert any(scenario.difficulty == "very_hard" for scenario in scenarios.values())
+    for scenario in scenarios.values():
+        assert scenario.fixture_only is True
+        assert scenario.deterministic is True
+        assert scenario.read_only_policy.external_network_allowed is False
+        assert scenario.read_only_policy.writes_allowed is False
+        assert all(
+            step.action_name in {"browser_open_url", "browser_click", "browser_extract_text", "browser_snapshot"}
+            for step in scenario.steps
+        )
+
+
+def test_final_presentation_packet_builder_creates_fifty_shared_requests(tmp_path: Path) -> None:
+    summary, output_dir = _build_packet(
+        tmp_path,
+        _final_presentation_config(),
+        config_path=FINAL_PRESENTATION_CONFIG_PATH,
+    )
+
+    assert summary["status"] == "succeeded"
+    assert summary["packet_id"] == "phase_14_stateful_readonly_planner_final_presentation_benchmark"
+    assert summary["scenario_catalog"] == "final_presentation_v1"
+    assert summary["prompt_contract_mode"] == "frozen_raw"
+    assert summary["max_tokens"] == 4096
+    assert summary["models_total"] == 5
+    assert summary["scenarios_total"] == 10
+    assert summary["trials_per_scenario"] == 1
+    assert summary["requests_total"] == 50
+    assert summary["fixture_only"] is True
+    assert summary["no_runtime_execution"] is True
+    assert summary["model_execution"] is False
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+
+    manifest = json.loads((output_dir / "benchmark_packet.json").read_text(encoding="utf-8"))
+    assert manifest["model_aliases"] == [
+        "first_model",
+        "second_model",
+        "third_model",
+        "fourth_model",
+        "fifth_model",
+    ]
+    assert manifest["requests_total"] == 50
+    assert manifest["max_tokens"] == 4096
+
+    first_request = json.loads(
+        (
+            output_dir
+            / "first_model"
+            / "stateful_policy_search_marker_review"
+            / "trial_01"
+            / "request.json"
+        ).read_text(encoding="utf-8")
+    )
+    fifth_request = json.loads(
+        (
+            output_dir
+            / "fifth_model"
+            / "stateful_policy_search_marker_review"
+            / "trial_01"
+            / "request.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert first_request["messages"][0]["content"] == fifth_request["messages"][0]["content"]
+    assert first_request["messages"][1]["content"] == fifth_request["messages"][1]["content"]
+    assert first_request["messages"][1]["content"]
+    for forbidden in ("first_model", "second_model", "third_model", "fourth_model", "fifth_model", "Qwen", "Mistral", "Phi", "Gemma"):
+        assert forbidden not in first_request["messages"][1]["content"]
+
+
+def test_final_presentation_request_count_matches_models_times_scenarios(tmp_path: Path) -> None:
+    summary, _ = _build_packet(
+        tmp_path,
+        _final_presentation_config(),
+        config_path=FINAL_PRESENTATION_CONFIG_PATH,
+    )
+
+    assert summary["requests_total"] == summary["models_total"] * summary["scenarios_total"] * summary["trials_per_scenario"]

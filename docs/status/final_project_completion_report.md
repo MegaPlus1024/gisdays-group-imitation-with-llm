@@ -18,6 +18,8 @@ Phase 14C extends that optional benchmark registry/config path with `fourth_mode
 
 After the Phase 14E frozen-raw runner repair, a clean runner-owned rerun was completed as a separate post-completion benchmark line. Under that bounded fixture-only raw benchmark, `fourth_model` led `third_model` at `6/8` versus `5/8` workflow success with a shared prompt/schema/evaluator contract and shared `max_tokens: 4096`. That result supersedes the earlier polluted Phase 14E preliminary run, but it remains a narrow fixture-only comparison and does not replace the stronger final `third_model` repeated-variance evidence used for the core project closure.
 
+Phase 14F prepares a final-presentation benchmark layer above that repaired methodology. It adds a five-model registry/update path, a presentation-oriented 10-scenario frozen raw packet, a five-profile sequential run config, and a Markdown/CSV/JSON summary tool. This is still preparation only: no final five-model presentation result is claimed here until the operator performs that separate run.
+
 ## A. Analysis of implementation means
 
 - Local small/medium LLMs were used through GGUF-backed local model aliases `first_model`, `second_model`, and `third_model`.

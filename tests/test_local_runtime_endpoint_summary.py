@@ -302,5 +302,5 @@ def test_existing_first_run_packet_config_can_be_summarized() -> None:
     assert summary["orchestrator_model_id"] == "second_model"
     assert summary["executor_model_id"] == "first_model"
     assert summary["orchestrator_endpoint"] == "http://127.0.0.1:8080/v1"
-    assert summary["executor_endpoint"] == "http://127.0.0.1:8080/v1"
-    assert summary["shared_endpoint"] is True
+    assert summary["executor_endpoint"] == "http://127.0.0.1:8081/v1"
+    assert summary["shared_endpoint"] is False

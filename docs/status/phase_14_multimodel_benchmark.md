@@ -30,6 +30,14 @@ Phase 14E repair hardens that sequential runner for a clean rerun:
 - a shared larger output budget is applied equally across enabled models
 - request failures are recorded as structured results instead of crashing the run
 
+Phase 14F prepares the final presentation benchmark layer on top of that frozen raw methodology:
+
+- five local aliases are registered for the presentation table
+- the task contract remains frozen raw and model-neutral
+- a 10-scenario difficulty ladder is added for a readable final comparison
+- a dedicated summarizer can turn evaluator and sequential-run summaries into Markdown/CSV/JSON presentation tables
+- no final presentation result is claimed until the operator performs the real model run
+
 ## What was added
 
 - `src/agent/autonomous_browser_stateful_readonly_planner_multimodel_benchmark.py`
@@ -41,6 +49,10 @@ Phase 14E repair hardens that sequential runner for a clean rerun:
 - `configs/autonomous_runtime/browser_stateful_readonly_planner_multimodel_benchmark_extended.example.json`
 - `configs/autonomous_runtime/browser_stateful_readonly_planner_frozen_raw_benchmark.example.json`
 - `configs/autonomous_runtime/browser_stateful_readonly_planner_sequential_run.example.json`
+- `configs/autonomous_runtime/browser_stateful_readonly_planner_final_presentation_benchmark.example.json`
+- `configs/autonomous_runtime/browser_stateful_readonly_planner_final_presentation_sequential_run.example.json`
+- `scripts/summarize_autonomous_browser_stateful_readonly_planner_final_benchmark.py`
+- `src/agent/autonomous_browser_stateful_readonly_planner_final_summary.py`
 
 ## Optional benchmark candidates
 
@@ -50,16 +62,24 @@ Phase 14E repair hardens that sequential runner for a clean rerun:
   - local path: `models/gguf/fourth_model.gguf`
   - suggested local port: `8083`
   - role: strong non-Qwen challenger
+- `first_model`
+  - intended family: Microsoft Phi-4-mini-instruct
+  - quantization: `Q4_K_M`
+  - local path: `models/gguf/first_model.gguf`
+  - suggested local port: `8081`
+  - role: small fast non-Qwen baseline
 - `fifth_model`
-  - intended family: Gemma 3 27B IT
+  - intended family: Qwen3-30B-A3B-Instruct-2507
   - quantization: `Q4_K_M`
   - local path: `models/gguf/fifth_model.gguf`
   - suggested local port: `8084`
-  - role: large non-Qwen and non-Mistral challenger
+  - role: strong efficient MoE challenger
 
 These are optional post-completion benchmark candidates only. No Phase 14 benchmark result is claimed for them yet.
 
 `fifth_model` is kept in the registry for optional manual or slow-lane runs, but it is excluded from the default Phase 14E frozen raw benchmark config.
+
+For Phase 14F final-presentation preparation, `first_model` and `fifth_model` are also included in a separate five-model presentation packet and sequential run config. Their GGUF paths remain local-only and must not be committed.
 
 ## Frozen raw protocol
 
@@ -116,6 +136,31 @@ Those additions broaden the benchmark toward:
 - two-page fact digestion
 
 The frozen raw request contract is shared across enabled aliases; only model alias selection and runtime metadata differ.
+
+## Final presentation scenario ladder
+
+Phase 14F adds a separate `final_presentation_v1` catalog for a bounded presentation table:
+
+- `10` deterministic fixture-only scenarios
+- `5` model aliases
+- `1` trial per scenario by default
+- `50` total requests in the packet
+
+The ladder is intentionally mixed rather than uniformly hard:
+
+- easy exact-fact and single-page policy lookups
+- medium digest, absence, numeric-comparison, and repeated-id tasks
+- hard conflicting-source, trap-text, and exception-rule tasks
+- one very hard composite approval workflow
+
+This presentation ladder still uses:
+
+- one shared prompt contract
+- one shared schema
+- one shared offline evaluator path
+- no model-specific prompt tuning
+
+It exists to make the final table interpretable, not to hide weak models. If a model fails every scenario, that should be reported honestly.
 
 ## Sequential runner
 
@@ -207,6 +252,17 @@ After the Phase 14E repair, a clean rerun should use:
 - structured timeout/connection/response failures
 
 Only a rerun under that cleaner protocol should be used as the routine frozen raw benchmark reference.
+
+## Final presentation summary tooling
+
+Phase 14F also adds a bounded summarizer for the future five-model operator run:
+
+- input: evaluator summary, optional sequential runner summary, and optional packet manifest
+- output: Markdown, CSV, and JSON under `artifacts/autonomous_runtime_planner_summaries/final_presentation_benchmark_tables`
+- table columns include validation/workflow counts, finish/failure counters, elapsed timing when available, and compact model-role notes
+- the Markdown output also includes a scenario matrix with `PASS`, `FAIL`, `REJECTED`, and `MISSING`
+
+That summarizer remains offline and does not launch models, browser automation, Playwright, Chromium, or local servers.
 
 ## Clean Phase 14E frozen raw result
 

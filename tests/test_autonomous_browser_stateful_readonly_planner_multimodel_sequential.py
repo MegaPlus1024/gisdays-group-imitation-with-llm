@@ -29,6 +29,12 @@ RUN_CONFIG_PATH = (
     / "autonomous_runtime"
     / "browser_stateful_readonly_planner_sequential_run.example.json"
 )
+FINAL_PRESENTATION_RUN_CONFIG_PATH = (
+    PROJECT_ROOT
+    / "configs"
+    / "autonomous_runtime"
+    / "browser_stateful_readonly_planner_final_presentation_sequential_run.example.json"
+)
 BASE_PACKET_CONFIG = (
     PROJECT_ROOT
     / "configs"
@@ -44,6 +50,10 @@ def _benchmark_config() -> dict[str, Any]:
 
 def _run_config() -> dict[str, Any]:
     return json.loads(RUN_CONFIG_PATH.read_text(encoding="utf-8"))
+
+
+def _final_presentation_run_config() -> dict[str, Any]:
+    return json.loads(FINAL_PRESENTATION_RUN_CONFIG_PATH.read_text(encoding="utf-8"))
 
 
 def _stage_support_files(repo_root: Path) -> None:
@@ -122,6 +132,27 @@ def test_run_config_loads_with_disabled_fifth_model() -> None:
     assert enabled["third_model"] is True
     assert enabled["fourth_model"] is True
     assert enabled["fifth_model"] is False
+
+
+def test_final_presentation_run_config_loads_with_all_five_models_enabled() -> None:
+    config = _final_presentation_run_config()
+
+    aliases = [item["model_alias"] for item in config["model_profiles"]]
+    enabled = {item["model_alias"]: item["enabled"] for item in config["model_profiles"]}
+    ports = {item["model_alias"]: item["port"] for item in config["model_profiles"]}
+    cpu_only = {item["model_alias"]: item["cpu_only"] for item in config["model_profiles"]}
+
+    assert config["schema_version"] == CONFIG_SCHEMA_VERSION
+    assert aliases == ["first_model", "second_model", "third_model", "fourth_model", "fifth_model"]
+    assert all(enabled[alias] is True for alias in aliases)
+    assert ports == {
+        "first_model": 8081,
+        "second_model": 8080,
+        "third_model": 8082,
+        "fourth_model": 8083,
+        "fifth_model": 8084,
+    }
+    assert all(cpu_only[alias] is False for alias in aliases)
 
 
 def test_sequential_runner_dry_run_reports_selected_models_and_request_count(tmp_path: Path) -> None:

@@ -25,6 +25,7 @@ def _first_model_payload(**overrides: object) -> dict[str, object]:
     payload: dict[str, object] = {
         "model_id": "temp_model",
         "display_name": "Temp model",
+        "role": "temporary baseline",
         "model_name": "temp_model.gguf",
         "gguf_path": "models/gguf/missing_temp_model.gguf",
         "quantization": "Q4_K_M",
@@ -62,10 +63,24 @@ def test_third_model_registry_entry_uses_relative_gguf_path() -> None:
 
     assert third_model.gguf_path == "models/gguf/third_model.gguf"
     assert not Path(third_model.gguf_path).is_absolute()
-    assert third_model.display_name == "Third Model"
+    assert third_model.display_name == "Qwen3-14B Q5_K_M"
+    assert third_model.role == "strong historical Qwen planner"
     assert third_model.api_model == "third_model"
     assert third_model.enabled is True
     assert any("local GGUF file" in note for note in third_model.notes)
+
+
+def test_first_model_registry_entry_reflects_phi_alias_metadata() -> None:
+    config = load_evaluation_models_config(MODELS_CONFIG)
+    first_model = next(model for model in config.models if model.model_id == "first_model")
+
+    assert first_model.gguf_path == "models/gguf/first_model.gguf"
+    assert not Path(first_model.gguf_path).is_absolute()
+    assert first_model.display_name == "Microsoft Phi-4-mini-instruct Q4_K_M"
+    assert first_model.role == "small fast non-Qwen baseline"
+    assert first_model.base_url == "http://127.0.0.1:8081/v1"
+    assert first_model.upstream_model_name == "phi-4-mini-instruct-q4_k_m.gguf"
+    assert any("must not be committed" in note for note in first_model.notes)
 
 
 def test_fourth_and_fifth_model_registry_entries_use_relative_gguf_paths() -> None:
@@ -81,6 +96,11 @@ def test_fourth_and_fifth_model_registry_entries_use_relative_gguf_paths() -> No
     assert fifth_model.api_model == "fifth_model"
     assert fourth_model.base_url == "http://127.0.0.1:8083/v1"
     assert fifth_model.base_url == "http://127.0.0.1:8084/v1"
+    assert fourth_model.display_name == "Mistral Small 3.2 24B Instruct Q4_K_M"
+    assert fourth_model.role == "strong non-Qwen challenger"
+    assert fifth_model.display_name == "Qwen3-30B-A3B-Instruct-2507 Q4_K_M"
+    assert fifth_model.role == "strong efficient MoE challenger"
+    assert fifth_model.upstream_model_name == "qwen3-30b-a3b-instruct-2507-q4_k_m.gguf"
     assert any("must not be committed" in note for note in fourth_model.notes)
     assert any("must not be committed" in note for note in fifth_model.notes)
 

@@ -3,25 +3,27 @@
   "models": [
     {
       "model_id": "first_model",
-      "display_name": "Qwen2.5 1.5B Instruct Q4_K_M local alias",
+      "display_name": "Microsoft Phi-4-mini-instruct Q4_K_M",
+      "role": "small fast non-Qwen baseline",
       "model_name": "first_model.gguf",
       "api_model": "first_model",
-      "upstream_model_name": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+      "upstream_model_name": "phi-4-mini-instruct-q4_k_m.gguf",
       "gguf_path": "models/gguf/first_model.gguf",
       "quantization": "Q4_K_M",
-      "parameter_size": "1.5B",
+      "parameter_size": "3.8B",
       "runtime": "llama.cpp / llama-server",
-      "base_url": "http://127.0.0.1:8080/v1",
+      "base_url": "http://127.0.0.1:8081/v1",
       "api_style": "openai_compatible",
       "expected_cpu_only": true,
-      "ctx_size": 4096,
+      "ctx_size": 8192,
       "timeout_seconds": 120.0,
       "temperature": 0.0,
       "max_tokens": 512,
       "enabled": true,
       "notes": [
-        "Stable experiment id for the first local smoke/baseline model.",
-        "Local alias mapping documented in docs/ai/model_registry.md: first_model.gguf -> qwen2.5-1.5b-instruct-q4_k_m.gguf."
+        "Stable experiment id for the first local smoke and final-presentation baseline model.",
+        "Local alias mapping documented in docs/ai/model_registry.md: first_model.gguf -> phi-4-mini-instruct-q4_k_m.gguf.",
+        "Operator-provided local GGUF path only; the file must not be committed."
       ]
     },
     {
@@ -29,7 +31,8 @@
       "aliases": [
         "qwen2_5_3b_instruct_q4_k_m"
       ],
-      "display_name": "Second Model",
+      "display_name": "Qwen2.5-3B-Instruct Q4_K_M",
+      "role": "weak Qwen baseline",
       "model_name": "second_model.gguf",
       "api_model": "second_model",
       "upstream_model_name": "qwen2.5-3b-instruct-q4_k_m.gguf",
@@ -40,7 +43,7 @@
       "base_url": "http://127.0.0.1:8080/v1",
       "api_style": "openai_compatible",
       "expected_cpu_only": true,
-      "ctx_size": 4096,
+      "ctx_size": 8192,
       "timeout_seconds": 120.0,
       "temperature": 0.0,
       "max_tokens": 512,
@@ -54,7 +57,8 @@
     },
     {
       "model_id": "third_model",
-      "display_name": "Third Model",
+      "display_name": "Qwen3-14B Q5_K_M",
+      "role": "strong historical Qwen planner",
       "model_name": "third_model.gguf",
       "api_model": "third_model",
       "upstream_model_name": "qwen3-14b-q5_k_m.gguf",
@@ -78,7 +82,8 @@
     },
     {
       "model_id": "fourth_model",
-      "display_name": "Fourth Model",
+      "display_name": "Mistral Small 3.2 24B Instruct Q4_K_M",
+      "role": "strong non-Qwen challenger",
       "model_name": "fourth_model.gguf",
       "api_model": "fourth_model",
       "upstream_model_name": "mistral-small-3.2-24b-instruct-2506.gguf",
@@ -89,7 +94,7 @@
       "base_url": "http://127.0.0.1:8083/v1",
       "api_style": "openai_compatible",
       "expected_cpu_only": true,
-      "ctx_size": 12288,
+      "ctx_size": 8192,
       "timeout_seconds": 120.0,
       "temperature": 0.0,
       "max_tokens": 512,
@@ -102,26 +107,28 @@
     },
     {
       "model_id": "fifth_model",
-      "display_name": "Fifth Model",
+      "display_name": "Qwen3-30B-A3B-Instruct-2507 Q4_K_M",
+      "role": "strong efficient MoE challenger",
       "model_name": "fifth_model.gguf",
       "api_model": "fifth_model",
-      "upstream_model_name": "gemma-3-27b-it.gguf",
+      "upstream_model_name": "qwen3-30b-a3b-instruct-2507-q4_k_m.gguf",
       "gguf_path": "models/gguf/fifth_model.gguf",
       "quantization": "Q4_K_M",
-      "parameter_size": "27B",
+      "parameter_size": "30B-A3B",
       "runtime": "llama.cpp / llama-server",
       "base_url": "http://127.0.0.1:8084/v1",
       "api_style": "openai_compatible",
       "expected_cpu_only": true,
-      "ctx_size": 12288,
+      "ctx_size": 8192,
       "timeout_seconds": 120.0,
       "temperature": 0.0,
       "max_tokens": 512,
       "enabled": true,
       "notes": [
-        "Optional post-completion large non-Qwen and non-Mistral challenger for the Phase 14 benchmark harness.",
+        "Optional post-completion strong efficient MoE challenger for the Phase 14 benchmark harness.",
         "Operator-provided local GGUF path only; the file must not be committed.",
-        "Suggested local benchmark endpoint port is 8084."
+        "Suggested local benchmark endpoint port is 8084.",
+        "Replaces the earlier slow Gemma-based fifth-model benchmark slot for final-presentation comparisons."
       ]
     }
   ]

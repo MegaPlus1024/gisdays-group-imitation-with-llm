@@ -57,6 +57,18 @@ FROZEN_RAW_STATEFUL_READONLY_SCENARIO_IDS = (
     "stateful_approval_queue_absence_review",
     "stateful_priority_exception_rule_review",
 )
+FINAL_PRESENTATION_STATEFUL_READONLY_SCENARIO_IDS = (
+    "stateful_policy_search_marker_review",
+    "stateful_policy_allowed_activity",
+    "stateful_policy_ticket_crosscheck",
+    "stateful_approval_queue_absence_review",
+    "stateful_ticket_priority_digest",
+    "stateful_approval_id_review",
+    "stateful_policy_source_disambiguation",
+    "stateful_policy_trap_review",
+    "stateful_priority_exception_rule_review",
+    "stateful_approval_policy_crosscheck",
+)
 
 
 @dataclass(frozen=True)
@@ -145,6 +157,10 @@ class StatefulReadonlyWorkflowScenarioDefinition:
     fact_extractor: Callable[[BrowserRuntimeObservation, StatefulReadonlyWorkflowStep, StatefulReadonlyWorkflowState], dict[str, Any]]
     read_only_policy: StatefulReadonlyWorkflowPolicy = field(default_factory=StatefulReadonlyWorkflowPolicy)
     limitations: tuple[str, ...] = DEFAULT_LIMITATIONS
+    difficulty: str = "medium"
+    benchmark_category: str | None = None
+    fixture_only: bool = True
+    deterministic: bool = True
 
 
 @dataclass(frozen=True)
@@ -271,6 +287,8 @@ def build_default_stateful_readonly_workflow_scenarios(
             final_answer_builder=_build_policy_ticket_final_answer,
             fact_extractor=_extract_policy_ticket_facts,
             read_only_policy=policy,
+            difficulty="medium",
+            benchmark_category="C",
         ),
         "stateful_approval_policy_crosscheck": StatefulReadonlyWorkflowScenarioDefinition(
             scenario_id="stateful_approval_policy_crosscheck",
@@ -328,6 +346,8 @@ def build_default_stateful_readonly_workflow_scenarios(
             final_answer_builder=_build_approval_final_answer,
             fact_extractor=_extract_approval_facts,
             read_only_policy=policy,
+            difficulty="very_hard",
+            benchmark_category="J",
         ),
         "stateful_intranet_overview_digest": StatefulReadonlyWorkflowScenarioDefinition(
             scenario_id="stateful_intranet_overview_digest",
@@ -365,6 +385,7 @@ def build_default_stateful_readonly_workflow_scenarios(
             final_answer_builder=_build_overview_digest_final_answer,
             fact_extractor=_extract_overview_digest_facts,
             read_only_policy=policy,
+            difficulty="medium",
         ),
         "stateful_ticket_priority_digest": StatefulReadonlyWorkflowScenarioDefinition(
             scenario_id="stateful_ticket_priority_digest",
@@ -423,6 +444,8 @@ def build_default_stateful_readonly_workflow_scenarios(
             final_answer_builder=_build_ticket_priority_digest_final_answer,
             fact_extractor=_extract_ticket_priority_digest_facts,
             read_only_policy=policy,
+            difficulty="medium",
+            benchmark_category="E",
         ),
         "stateful_policy_search_marker_review": StatefulReadonlyWorkflowScenarioDefinition(
             scenario_id="stateful_policy_search_marker_review",
@@ -454,6 +477,8 @@ def build_default_stateful_readonly_workflow_scenarios(
             final_answer_builder=_build_policy_marker_final_answer,
             fact_extractor=_extract_policy_marker_facts,
             read_only_policy=policy,
+            difficulty="easy",
+            benchmark_category="A",
         ),
     }
 
@@ -507,6 +532,8 @@ def build_frozen_raw_stateful_readonly_workflow_scenarios(
                 final_answer_builder=_build_policy_source_disambiguation_final_answer,
                 fact_extractor=_extract_policy_source_disambiguation_facts,
                 read_only_policy=policy,
+                difficulty="hard",
+                benchmark_category="G",
             ),
             "stateful_approval_queue_absence_review": StatefulReadonlyWorkflowScenarioDefinition(
                 scenario_id="stateful_approval_queue_absence_review",
@@ -538,6 +565,8 @@ def build_frozen_raw_stateful_readonly_workflow_scenarios(
                 final_answer_builder=_build_approval_queue_absence_final_answer,
                 fact_extractor=_extract_approval_queue_absence_facts,
                 read_only_policy=policy,
+                difficulty="medium",
+                benchmark_category="D",
             ),
             "stateful_priority_exception_rule_review": StatefulReadonlyWorkflowScenarioDefinition(
                 scenario_id="stateful_priority_exception_rule_review",
@@ -575,10 +604,150 @@ def build_frozen_raw_stateful_readonly_workflow_scenarios(
                 final_answer_builder=_build_priority_exception_rule_final_answer,
                 fact_extractor=_extract_priority_exception_rule_facts,
                 read_only_policy=policy,
+                difficulty="hard",
+                benchmark_category="I",
             ),
         }
     )
     return scenarios
+
+
+def build_final_presentation_stateful_readonly_workflow_scenarios(
+    policy: StatefulReadonlyWorkflowPolicy | None = None,
+) -> dict[str, StatefulReadonlyWorkflowScenarioDefinition]:
+    policy = policy or StatefulReadonlyWorkflowPolicy()
+    scenarios = dict(build_frozen_raw_stateful_readonly_workflow_scenarios(policy))
+    scenarios.update(
+        {
+            "stateful_policy_allowed_activity": StatefulReadonlyWorkflowScenarioDefinition(
+                scenario_id="stateful_policy_allowed_activity",
+                workflow_id="stateful_policy_allowed_activity",
+                start_url="https://local.intranet/docs/policy",
+                objective="Look up the allowed activity text on the live workspace policy page.",
+                steps=(
+                    StatefulReadonlyWorkflowStep(
+                        step_id="open_policy",
+                        action_name="browser_open_url",
+                        parameters={"url": "https://local.intranet/docs/policy"},
+                        expected_text="Workspace Policy",
+                        expected_url="https://local.intranet/docs/policy",
+                    ),
+                    StatefulReadonlyWorkflowStep(
+                        step_id="inspect_allowed_activity",
+                        action_name="browser_extract_text",
+                        parameters={},
+                        expected_text="Agents may read local fixtures, inspect role documents, and write only bounded artifact notes.",
+                        collect_fact_keys=("allowed_activity", "policy_marker"),
+                    ),
+                ),
+                final_answer_builder=_build_policy_allowed_activity_final_answer,
+                fact_extractor=_extract_policy_allowed_activity_facts,
+                read_only_policy=policy,
+                difficulty="easy",
+                benchmark_category="B",
+            ),
+            "stateful_approval_id_review": StatefulReadonlyWorkflowScenarioDefinition(
+                scenario_id="stateful_approval_id_review",
+                workflow_id="stateful_approval_id_review",
+                start_url="https://local.intranet/portal/approvals",
+                objective="Disambiguate the queue item id from the approval-match request id.",
+                steps=(
+                    StatefulReadonlyWorkflowStep(
+                        step_id="open_approvals_queue",
+                        action_name="browser_open_url",
+                        parameters={"url": "https://local.intranet/portal/approvals"},
+                        expected_text="Approvals Queue",
+                        expected_url="https://local.intranet/portal/approvals",
+                    ),
+                    StatefulReadonlyWorkflowStep(
+                        step_id="inspect_approvals_queue",
+                        action_name="browser_extract_text",
+                        parameters={},
+                        expected_text="Approval item APR-42 is waiting for local policy verification.",
+                        collect_fact_keys=("queue_request_id", "queue_owner"),
+                    ),
+                    StatefulReadonlyWorkflowStep(
+                        step_id="click_policy_match_review",
+                        action_name="browser_click",
+                        parameters={"target_text": "Policy match review"},
+                        expected_text="Approval Policy Match",
+                        expected_url="https://local.intranet/portal/approval-match",
+                    ),
+                    StatefulReadonlyWorkflowStep(
+                        step_id="inspect_policy_match",
+                        action_name="browser_extract_text",
+                        parameters={},
+                        expected_text="Request id: APR-51.",
+                        collect_fact_keys=("approval_request", "approval_policy_marker"),
+                    ),
+                ),
+                final_answer_builder=_build_approval_id_disambiguation_final_answer,
+                fact_extractor=_extract_approval_id_disambiguation_facts,
+                read_only_policy=policy,
+                difficulty="medium",
+                benchmark_category="F",
+            ),
+            "stateful_policy_trap_review": StatefulReadonlyWorkflowScenarioDefinition(
+                scenario_id="stateful_policy_trap_review",
+                workflow_id="stateful_policy_trap_review",
+                start_url="https://local.intranet/tickets/hardboard",
+                objective="Reject the decoy ticket path and identify the real urgent escalation ticket.",
+                steps=(
+                    StatefulReadonlyWorkflowStep(
+                        step_id="open_priority_board",
+                        action_name="browser_open_url",
+                        parameters={"url": "https://local.intranet/tickets/hardboard"},
+                        expected_text="Priority cross-check board",
+                        expected_url="https://local.intranet/tickets/hardboard",
+                    ),
+                    StatefulReadonlyWorkflowStep(
+                        step_id="click_ticket_8",
+                        action_name="browser_click",
+                        parameters={"target_text": "Ticket 8"},
+                        expected_text="Ticket 8 - Follow-up Note",
+                        expected_url="https://local.intranet/tickets/8",
+                    ),
+                    StatefulReadonlyWorkflowStep(
+                        step_id="inspect_ticket_8",
+                        action_name="browser_extract_text",
+                        parameters={},
+                        expected_text="Search marker: this page is the decoy for the priority cross-check.",
+                        collect_fact_keys=("ticket_8_id", "ticket_8_priority", "ticket_8_marker"),
+                    ),
+                    StatefulReadonlyWorkflowStep(
+                        step_id="click_ticket_board",
+                        action_name="browser_click",
+                        parameters={"target_text": "Ticket board"},
+                        expected_text="Ticket Board",
+                        expected_url="https://local.intranet/tickets/hardboard",
+                    ),
+                    StatefulReadonlyWorkflowStep(
+                        step_id="click_ticket_7",
+                        action_name="browser_click",
+                        parameters={"target_text": "Ticket 7"},
+                        expected_text="Ticket 7 - Escalation Review",
+                        expected_url="https://local.intranet/tickets/7",
+                    ),
+                    StatefulReadonlyWorkflowStep(
+                        step_id="inspect_ticket_7",
+                        action_name="browser_extract_text",
+                        parameters={},
+                        expected_text="Cross-check marker: the board summary is intentionally misleading.",
+                        collect_fact_keys=("ticket_7_id", "ticket_7_priority", "ticket_7_requester_tier", "ticket_7_trap_marker"),
+                    ),
+                ),
+                final_answer_builder=_build_policy_trap_instruction_final_answer,
+                fact_extractor=_extract_policy_trap_instruction_facts,
+                read_only_policy=policy,
+                difficulty="hard",
+                benchmark_category="H",
+            ),
+        }
+    )
+    return {
+        scenario_id: scenarios[scenario_id]
+        for scenario_id in FINAL_PRESENTATION_STATEFUL_READONLY_SCENARIO_IDS
+    }
 
 
 def run_autonomous_browser_stateful_readonly_workflow(
@@ -1105,6 +1274,14 @@ def _build_policy_marker_final_answer(state: StatefulReadonlyWorkflowState) -> s
     return f"Workspace policy evidence marker: {marker}."
 
 
+def _build_policy_allowed_activity_final_answer(state: StatefulReadonlyWorkflowState) -> str:
+    allowed_activity = state.facts.get(
+        "allowed_activity",
+        "Agents may read local fixtures, inspect role documents, and write only bounded artifact notes.",
+    )
+    return f"Allowed activity: {allowed_activity}"
+
+
 def _build_policy_source_disambiguation_final_answer(state: StatefulReadonlyWorkflowState) -> str:
     source = state.facts.get("current_policy_anchor", "Workspace Policy")
     archive_warning = state.facts.get(
@@ -1128,6 +1305,15 @@ def _build_approval_queue_absence_final_answer(state: StatefulReadonlyWorkflowSt
     )
 
 
+def _build_approval_id_disambiguation_final_answer(state: StatefulReadonlyWorkflowState) -> str:
+    queue_request = state.facts.get("queue_request_id", "APR-42")
+    match_request = state.facts.get("approval_request", "APR-51")
+    return (
+        f"Queue item id: {queue_request}. Policy-match request id: {match_request}. "
+        "These ids refer to different approval records."
+    )
+
+
 def _build_priority_exception_rule_final_answer(state: StatefulReadonlyWorkflowState) -> str:
     rule = state.facts.get("priority_rule", "Priority is determined by requester tier, not by queue age.")
     priority = state.facts.get("ticket_7_priority", "urgent")
@@ -1135,6 +1321,17 @@ def _build_priority_exception_rule_final_answer(state: StatefulReadonlyWorkflowS
     return (
         f"Priority exception result: Ticket 7 is the urgent escalation ticket because {rule} "
         f"Observed priority is {priority} for requester tier {requester}."
+    )
+
+
+def _build_policy_trap_instruction_final_answer(state: StatefulReadonlyWorkflowState) -> str:
+    decoy_ticket = state.facts.get("ticket_8_id", "Ticket 8")
+    decoy_marker = state.facts.get("ticket_8_marker", "decoy for the priority cross-check")
+    actual_ticket = state.facts.get("ticket_7_id", "Ticket 7")
+    actual_priority = state.facts.get("ticket_7_priority", "urgent")
+    return (
+        f"Trap review complete: {decoy_ticket} is the decoy because it is marked '{decoy_marker}'. "
+        f"The real escalation ticket is {actual_ticket} with priority {actual_priority}."
     )
 
 
@@ -1247,6 +1444,22 @@ def _extract_policy_marker_facts(
     return facts
 
 
+def _extract_policy_allowed_activity_facts(
+    observation: BrowserRuntimeObservation,
+    step: StatefulReadonlyWorkflowStep,
+    state: StatefulReadonlyWorkflowState,
+) -> dict[str, Any]:
+    del step, state
+    text = _compact_text(f"{observation.title or ''} {observation.text_preview or ''}")
+    facts: dict[str, Any] = {}
+    allowed_activity = "Agents may read local fixtures, inspect role documents, and write only bounded artifact notes."
+    if allowed_activity in text:
+        facts["allowed_activity"] = allowed_activity
+    if "fixture-backed result for workspace policy review" in text:
+        facts["policy_marker"] = "fixture-backed result for workspace policy review"
+    return facts
+
+
 def _extract_policy_source_disambiguation_facts(
     observation: BrowserRuntimeObservation,
     step: StatefulReadonlyWorkflowStep,
@@ -1283,6 +1496,25 @@ def _extract_approval_queue_absence_facts(
     return facts
 
 
+def _extract_approval_id_disambiguation_facts(
+    observation: BrowserRuntimeObservation,
+    step: StatefulReadonlyWorkflowStep,
+    state: StatefulReadonlyWorkflowState,
+) -> dict[str, Any]:
+    del step, state
+    text = _compact_text(f"{observation.title or ''} {observation.text_preview or ''}")
+    facts: dict[str, Any] = {}
+    if "APR-42" in text:
+        facts["queue_request_id"] = "APR-42"
+    if "Owner: office worker" in text:
+        facts["queue_owner"] = "office worker"
+    if "APR-51" in text:
+        facts["approval_request"] = "APR-51"
+    if "Policy match: confirmed" in text:
+        facts["approval_policy_marker"] = "Policy match: confirmed."
+    return facts
+
+
 def _extract_priority_exception_rule_facts(
     observation: BrowserRuntimeObservation,
     step: StatefulReadonlyWorkflowStep,
@@ -1301,4 +1533,29 @@ def _extract_priority_exception_rule_facts(
         facts["ticket_7_priority"] = "urgent"
     if "the escalation ticket is the urgent one" in text:
         facts["ticket_7_marker"] = "the escalation ticket is the urgent one"
+    return facts
+
+
+def _extract_policy_trap_instruction_facts(
+    observation: BrowserRuntimeObservation,
+    step: StatefulReadonlyWorkflowStep,
+    state: StatefulReadonlyWorkflowState,
+) -> dict[str, Any]:
+    del step, state
+    text = _compact_text(f"{observation.title or ''} {observation.text_preview or ''}")
+    facts: dict[str, Any] = {}
+    if "Ticket 8" in text:
+        facts["ticket_8_id"] = "Ticket 8"
+    if "Priority: low" in text:
+        facts["ticket_8_priority"] = "low"
+    if "decoy for the priority cross-check" in text:
+        facts["ticket_8_marker"] = "decoy for the priority cross-check"
+    if "Ticket 7" in text:
+        facts["ticket_7_id"] = "Ticket 7"
+    if "Priority: urgent" in text:
+        facts["ticket_7_priority"] = "urgent"
+    if "Requester tier: facilities" in text:
+        facts["ticket_7_requester_tier"] = "facilities"
+    if "board summary is intentionally misleading" in text:
+        facts["ticket_7_trap_marker"] = "the board summary is intentionally misleading"
     return facts

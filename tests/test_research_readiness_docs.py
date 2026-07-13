@@ -54,7 +54,7 @@ def test_evaluation_model_registry_has_current_models_and_legacy_alias() -> None
 
     assert "first_model" in models
     assert "second_model" in models
-    assert models["first_model"]["upstream_model_name"] == "qwen2.5-1.5b-instruct-q4_k_m.gguf"
+    assert models["first_model"]["upstream_model_name"] == "phi-4-mini-instruct-q4_k_m.gguf"
     assert models["second_model"]["upstream_model_name"] == "qwen2.5-3b-instruct-q4_k_m.gguf"
     assert "qwen2_5_3b_instruct_q4_k_m" in models["second_model"].get("aliases", [])
 

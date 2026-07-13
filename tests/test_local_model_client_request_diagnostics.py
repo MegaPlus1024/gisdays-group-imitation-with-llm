@@ -195,7 +195,9 @@ def test_registry_api_model_maps_phase_8_slots_to_payload_aliases() -> None:
     assert executor.api_model == "first_model"
     assert pipeline.build_local_chat_completion_request_preview(orchestrator)["api_model"] == "second_model"
     assert pipeline.build_local_chat_completion_request_preview(executor)["api_model"] == "first_model"
+    assert orchestrator.base_url == "http://127.0.0.1:8080/v1"
+    assert executor.base_url == "http://127.0.0.1:8081/v1"
     assert (
         "local_mode_uses_same_base_url_for_orchestrator_and_executor; manual runtime coordination may be required"
-        in pipeline._runtime_warnings("local", orchestrator, executor)
+        not in pipeline._runtime_warnings("local", orchestrator, executor)
     )

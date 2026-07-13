@@ -1148,6 +1148,29 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
                 "Cite the policy anchor and policy marker fact ids.",
             ),
         },
+        "stateful_policy_allowed_activity": {
+            "route_hints": (
+                "Open the live Workspace Policy page directly.",
+                "Inspect the Allowed activity section and stop there.",
+            ),
+            "click_targets": (
+                "Workspace Policy",
+            ),
+            "required_fact_keys": (
+                "allowed_activity",
+                "policy_marker",
+            ),
+            "expected_evidence_anchors": (
+                "Workspace Policy",
+                "Allowed activity",
+                "Agents may read local fixtures, inspect role documents, and write only bounded artifact notes.",
+            ),
+            "final_answer_requirements": (
+                "Return the allowed activity text exactly as shown on the policy page.",
+                "Keep the answer short and policy-specific.",
+                "Cite the collected fact ids and evidence item ids.",
+            ),
+        },
         "stateful_policy_source_disambiguation": {
             "route_hints": (
                 "Policy Disambiguation -> Archived policy.",
@@ -1203,6 +1226,70 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
                 "Report that APR-51 is not found in the approvals queue.",
                 "Also mention the visible queue item APR-42 and the owner office worker.",
                 "Keep the answer short and queue-specific.",
+                "Cite the collected fact ids and evidence item ids.",
+            ),
+        },
+        "stateful_approval_id_review": {
+            "route_hints": (
+                "Open the Approvals Queue page directly.",
+                "Inspect the queue item APR-42 first.",
+                "Approvals queue -> Policy match review.",
+                "Inspect the approval-match page and distinguish APR-51 from APR-42.",
+            ),
+            "click_targets": (
+                "Approvals queue",
+                "Policy match review",
+            ),
+            "required_fact_keys": (
+                "queue_request_id",
+                "queue_owner",
+                "approval_request",
+                "approval_policy_marker",
+            ),
+            "expected_evidence_anchors": (
+                "Approvals Queue",
+                "Approval item APR-42 is waiting for local policy verification.",
+                "Approval Policy Match",
+                "Request id: APR-51.",
+            ),
+            "final_answer_requirements": (
+                "Clearly state that APR-42 is the queue item and APR-51 is the policy-match request.",
+                "Do not collapse the two approval ids into one record.",
+                "Cite the collected fact ids and evidence item ids.",
+            ),
+        },
+        "stateful_policy_trap_review": {
+            "route_hints": (
+                "Open the priority cross-check board directly.",
+                "Priority cross-check board -> Ticket 8 first to capture the decoy marker.",
+                "Return to Ticket board.",
+                "Ticket board -> Ticket 7 to capture the real urgent escalation evidence.",
+                "Reject the decoy path in the final answer.",
+            ),
+            "click_targets": (
+                "Ticket 8",
+                "Ticket board",
+                "Ticket 7",
+            ),
+            "required_fact_keys": (
+                "ticket_8_id",
+                "ticket_8_priority",
+                "ticket_8_marker",
+                "ticket_7_id",
+                "ticket_7_priority",
+                "ticket_7_requester_tier",
+                "ticket_7_trap_marker",
+            ),
+            "expected_evidence_anchors": (
+                "Priority cross-check board",
+                "Ticket 8 - Follow-up Note",
+                "Search marker: this page is the decoy for the priority cross-check.",
+                "Ticket 7 - Escalation Review",
+                "Cross-check marker: the board summary is intentionally misleading.",
+            ),
+            "final_answer_requirements": (
+                "Explain that Ticket 8 is the decoy and Ticket 7 is the real urgent escalation ticket.",
+                "Mention the visible urgent priority on Ticket 7.",
                 "Cite the collected fact ids and evidence item ids.",
             ),
         },
