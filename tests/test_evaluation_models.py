@@ -70,16 +70,17 @@ def test_third_model_registry_entry_uses_relative_gguf_path() -> None:
     assert any("local GGUF file" in note for note in third_model.notes)
 
 
-def test_first_model_registry_entry_reflects_phi_alias_metadata() -> None:
+def test_first_model_registry_entry_reflects_granite_alias_metadata() -> None:
     config = load_evaluation_models_config(MODELS_CONFIG)
     first_model = next(model for model in config.models if model.model_id == "first_model")
 
     assert first_model.gguf_path == "models/gguf/first_model.gguf"
     assert not Path(first_model.gguf_path).is_absolute()
-    assert first_model.display_name == "Microsoft Phi-4-mini-instruct Q4_K_M"
-    assert first_model.role == "small fast non-Qwen baseline"
+    assert first_model.display_name == "IBM Granite 3.3 8B Instruct Q4_K_M"
+    assert first_model.role == "small/medium non-Qwen baseline"
     assert first_model.base_url == "http://127.0.0.1:8081/v1"
-    assert first_model.upstream_model_name == "phi-4-mini-instruct-q4_k_m.gguf"
+    assert first_model.upstream_model_name == "granite-3.3-8b-instruct-q4_k_m.gguf"
+    assert first_model.parameter_size == "8B"
     assert any("must not be committed" in note for note in first_model.notes)
 
 

@@ -18,7 +18,7 @@ Phase 14C extends that optional benchmark registry/config path with `fourth_mode
 
 After the Phase 14E frozen-raw runner repair, a clean runner-owned rerun was completed as a separate post-completion benchmark line. Under that bounded fixture-only raw benchmark, `fourth_model` led `third_model` at `6/8` versus `5/8` workflow success with a shared prompt/schema/evaluator contract and shared `max_tokens: 4096`. That result supersedes the earlier polluted Phase 14E preliminary run, but it remains a narrow fixture-only comparison and does not replace the stronger final `third_model` repeated-variance evidence used for the core project closure.
 
-Phase 14F prepares a final-presentation benchmark layer above that repaired methodology. It adds a five-model registry/update path, a presentation-oriented 10-scenario frozen raw packet, a five-profile sequential run config, and a Markdown/CSV/JSON summary tool. This is still preparation only: no final five-model presentation result is claimed here until the operator performs that separate run.
+Phase 14F prepares a final-presentation benchmark layer above that repaired methodology. It adds a five-model registry/update path, a presentation-oriented 11-scenario frozen raw packet, a five-profile sequential run config, and a Markdown/CSV/JSON summary tool. The `first_model` alias in that presentation layer now points to IBM Granite 3.3 8B Instruct Q4_K_M as the small/medium non-Qwen baseline; the earlier Phi-4-mini local file was archived locally and was not committed. This is still preparation only: no final five-model presentation result is claimed here until the operator performs that separate run, and the presentation table should be regenerated after the `first_model` replacement.
 
 ## A. Analysis of implementation means
 
@@ -53,7 +53,7 @@ Phase 14F prepares a final-presentation benchmark layer above that repaired meth
 
 ### first_model
 
-- `first_model` exists as the smallest documented local candidate.
+- `first_model` now serves as the small/medium non-Qwen baseline slot for the optional Phase 14F presentation benchmark.
 - Evidence across orchestrator/executor work shows it is weak as orchestrator and repeatedly failed at orchestrator plan parsing.
 - It may remain a bounded executor candidate in limited scenarios, but it is not the preferred planner/orchestrator path.
 

@@ -187,8 +187,11 @@ def test_summary_writer_produces_markdown_csv_and_json(tmp_path: Path) -> None:
     assert "FAIL" in markdown
     assert "REJECTED" in markdown
     assert "MISSING" in markdown
+    assert "IBM Granite 3.3 8B Instruct Q4_K_M" in markdown
+    assert "small/medium non-Qwen baseline" in markdown
     assert "| stateful_single_fact_sanity_check | ultra_easy | sanity | PASS | PASS |" in markdown
     assert "fourth_model" in csv_text
+    assert "IBM Granite 3.3 8B Instruct Q4_K_M" in csv_text
     assert payload["schema_version"] == SUMMARY_SCHEMA_VERSION
     assert payload["winner_by_pass_rate"] == "fourth_model"
     matrix_rows = {item["scenario_id"]: item for item in payload["scenario_matrix_rows"]}

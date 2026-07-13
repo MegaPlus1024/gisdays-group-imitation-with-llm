@@ -3,14 +3,14 @@
   "models": [
     {
       "model_id": "first_model",
-      "display_name": "Microsoft Phi-4-mini-instruct Q4_K_M",
-      "role": "small fast non-Qwen baseline",
+      "display_name": "IBM Granite 3.3 8B Instruct Q4_K_M",
+      "role": "small/medium non-Qwen baseline",
       "model_name": "first_model.gguf",
       "api_model": "first_model",
-      "upstream_model_name": "phi-4-mini-instruct-q4_k_m.gguf",
+      "upstream_model_name": "granite-3.3-8b-instruct-q4_k_m.gguf",
       "gguf_path": "models/gguf/first_model.gguf",
       "quantization": "Q4_K_M",
-      "parameter_size": "3.8B",
+      "parameter_size": "8B",
       "runtime": "llama.cpp / llama-server",
       "base_url": "http://127.0.0.1:8081/v1",
       "api_style": "openai_compatible",
@@ -21,8 +21,10 @@
       "max_tokens": 512,
       "enabled": true,
       "notes": [
-        "Stable experiment id for the first local smoke and final-presentation baseline model.",
-        "Local alias mapping documented in docs/ai/model_registry.md: first_model.gguf -> phi-4-mini-instruct-q4_k_m.gguf.",
+        "Stable experiment id for the first local smoke and final-presentation baseline model slot.",
+        "Phase 14F replacement: first_model now represents IBM Granite 3.3 8B Instruct Q4_K_M for the final-presentation benchmark.",
+        "The earlier Phi-4-mini local file was archived locally and was not committed.",
+        "Local alias mapping documented in docs/ai/model_registry.md: first_model.gguf -> granite-3.3-8b-instruct-q4_k_m.gguf.",
         "Operator-provided local GGUF path only; the file must not be committed."
       ]
     },

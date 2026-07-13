@@ -64,11 +64,11 @@ Phase 14F prepares the final presentation benchmark layer on top of that frozen 
   - suggested local port: `8083`
   - role: strong non-Qwen challenger
 - `first_model`
-  - intended family: Microsoft Phi-4-mini-instruct
+  - intended family: IBM Granite 3.3 8B Instruct
   - quantization: `Q4_K_M`
   - local path: `models/gguf/first_model.gguf`
   - suggested local port: `8081`
-  - role: small fast non-Qwen baseline
+  - role: small/medium non-Qwen baseline
 - `fifth_model`
   - intended family: Qwen3-30B-A3B-Instruct-2507
   - quantization: `Q4_K_M`
@@ -80,7 +80,7 @@ These are optional post-completion benchmark candidates only. No Phase 14 benchm
 
 `fifth_model` is kept in the registry for optional manual or slow-lane runs, but it is excluded from the default Phase 14E frozen raw benchmark config.
 
-For Phase 14F final-presentation preparation, `first_model` and `fifth_model` are also included in a separate five-model presentation packet and sequential run config. Their GGUF paths remain local-only and must not be committed.
+For Phase 14F final-presentation preparation, `first_model` and `fifth_model` are also included in a separate five-model presentation packet and sequential run config. `first_model` now represents IBM Granite 3.3 8B Instruct Q4_K_M for that presentation line; the earlier Phi-4-mini file was archived locally and was not committed. Their GGUF paths remain local-only and must not be committed.
 
 ## Frozen raw protocol
 
@@ -163,6 +163,8 @@ This presentation ladder still uses:
 - no model-specific prompt tuning
 
 The ultra-easy sanity scenario is intentionally model-neutral. It does not add model-specific prompt tuning; it only establishes the lower bound for whether an alias can follow the frozen raw contract, open one fixture page, and return one exact visible fact.
+
+The `first_model` replacement from Phi-4-mini to Granite 3.3 8B Instruct is also not prompt tuning. The packet, scenario catalog, evaluator, and frozen raw methodology remain unchanged; only the local baseline model identity for the `first_model` alias changed. Because of that replacement, the final five-model presentation benchmark should be rerun before treating the presentation table as current.
 
 It exists to make the final table interpretable, not to hide weak models. If a model fails every scenario, that should be reported honestly.
 
