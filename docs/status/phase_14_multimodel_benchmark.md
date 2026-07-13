@@ -208,6 +208,107 @@ After the Phase 14E repair, a clean rerun should use:
 
 Only a rerun under that cleaner protocol should be used as the routine frozen raw benchmark reference.
 
+## Clean Phase 14E frozen raw result
+
+After the Phase 14E runner repair, the operator completed a clean frozen raw rerun with:
+
+- old `llama-server` processes stopped before the benchmark
+- packet rebuilt with shared `max_tokens: 4096`
+- runner-owned lifecycle
+- no `--dry-run`
+- no `--no-start-servers`
+- `fifth_model` still excluded from the default frozen raw config
+
+### Clean sequential runner summary
+
+- `status: succeeded`
+- `server_mode: started_by_runner`
+- `start_servers: true`
+- `dry_run: false`
+- `model_execution: true`
+- `models_total: 2`
+- `models_attempted: 2`
+- `models_completed: 2`
+- `models_failed: 0`
+- `requests_total: 16`
+- `requests_completed: 16`
+- `requests_failed: 0`
+
+This confirms that the clean routine Phase 14E runner path completed end to end for the default frozen raw packet with one benchmark model active at a time.
+
+### Clean evaluator summary
+
+- `status: completed_with_failures`
+- `error_code: truncated_model_output`
+- `models_total: 2`
+- `best_model_by_pass_rate: fourth_model`
+- `fully_successful_models: []`
+- `missing_output_models: []`
+- `model_execution: false`
+- `real_browser_execution: false`
+- `playwright_execution: false`
+- `browser_opened: false`
+- `no_runtime_execution: true`
+- `fixture_only: true`
+
+The evaluator remains offline and fixture-only after capture, so the clean rerun does not add browser or Playwright evidence.
+
+### Clean per-model metrics
+
+#### `third_model`
+
+- `outputs_total: 8`
+- `outputs_present: 8`
+- `outputs_missing: 0`
+- `outputs_ingested: 7`
+- `outputs_rejected: 1`
+- `validation_accepted: 7`
+- `validation_rejected: 1`
+- `workflows_succeeded: 5`
+- `workflows_failed: 3`
+- `pass_rate_overall: 0.625`
+- `validation_acceptance_rate: 0.875`
+- `finish_reason_counts: {"length": 1, "stop": 7}`
+- `failure_class_counts: {"model_failed_task": 3, "none": 5}`
+
+#### `fourth_model`
+
+- `outputs_total: 8`
+- `outputs_present: 8`
+- `outputs_missing: 0`
+- `outputs_ingested: 8`
+- `outputs_rejected: 0`
+- `validation_accepted: 8`
+- `validation_rejected: 0`
+- `workflows_succeeded: 6`
+- `workflows_failed: 2`
+- `pass_rate_overall: 0.750`
+- `validation_acceptance_rate: 1.0`
+- `finish_reason_counts: {"stop": 8}`
+- `failure_class_counts: {"model_failed_task": 2, "none": 6}`
+
+## Clean-result interpretation
+
+In the clean Phase 14E frozen raw benchmark, `fourth_model` led `third_model` on this bounded fixture-only benchmark:
+
+- `fourth_model`: `6/8` workflows succeeded
+- `third_model`: `5/8` workflows succeeded
+
+That is not a universal model-quality claim. It means `fourth_model` performed better under this specific frozen raw benchmark:
+
+- shared prompt contract
+- shared planner schema
+- shared evaluator
+- shared `max_tokens: 4096`
+- no model-specific prompt tuning
+
+The evaluator still reports `completed_with_failures` because:
+
+- `third_model` had one length-limited output
+- both models still had workflow failures
+
+This clean result supersedes the earlier polluted Phase 14E preliminary run. It does not supersede the earlier Phase 14B or later compatibility-oriented post-completion evidence; it is a separate frozen raw benchmark line.
+
 ### Per-model metrics
 
 #### `second_model`
@@ -291,7 +392,7 @@ Get-Content artifacts\autonomous_runtime_planner_summaries\stateful_readonly_pla
 - does not change the final TZ completion claim
 - does not launch models from Codex
 - routine Phase 14E comparisons prefer the frozen raw shared-contract benchmark
-- the next meaningful Phase 14E comparison requires a clean runner-owned rerun
+- the clean runner-owned rerun is now the meaningful Phase 14E reference point
 - does not execute browser actions
 - does not add new real browser or Playwright evidence
 - does not claim production readiness
