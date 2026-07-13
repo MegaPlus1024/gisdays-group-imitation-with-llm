@@ -827,6 +827,8 @@ def run_stepwise_article_scenario(
     browser_opened = False
     final_answer_text: str | None = None
     final_citation_ids: tuple[str, ...] = ()
+    model_execution_attempted = False
+    model_execution_completed = False
     memory: dict[str, Any] = {
         "scenario": scenario,
         "step_results": [],
@@ -866,6 +868,12 @@ def run_stepwise_article_scenario(
             break
 
         status, error_code, action_valid, details, observation_after = environment.execute_action(action, scenario)
+        model_execution_attempted = model_execution_attempted or bool(
+            getattr(model, "model_execution_attempted", False)
+        )
+        model_execution_completed = model_execution_completed or bool(
+            getattr(model, "model_execution_completed", False)
+        )
         browser_opened = browser_opened or (action.action_name == "browser_open_url" and status == "succeeded")
         step_result = StepwiseArticleStepResult(
             step_index=step_index,
@@ -888,6 +896,13 @@ def run_stepwise_article_scenario(
         max_steps=max_steps,
         sections_read_ids=tuple(sorted(environment.observed_section_ids)),
     )
+    model_execution_attempted = model_execution_attempted or bool(
+        getattr(model, "model_execution_attempted", False)
+    )
+    model_execution_completed = model_execution_completed or bool(
+        getattr(model, "model_execution_completed", False)
+    )
+    model_execution = model_execution_attempted and model_execution_completed
     status = "succeeded" if evaluation.passed else "failed"
     return StepwiseArticleRunResult(
         schema_version=STEPWISE_ARTICLE_RUN_SCHEMA_VERSION,
@@ -900,6 +915,8 @@ def run_stepwise_article_scenario(
         final_citation_ids=final_citation_ids,
         steps=tuple(steps),
         evaluation=evaluation,
+        no_runtime_execution=not model_execution,
+        model_execution=model_execution,
         browser_opened=browser_opened,
     )
 
@@ -959,6 +976,14 @@ def run_stepwise_article_benchmark(
         _summarize_scenario_trials(scenario, grouped_scenario_trials[scenario.scenario_id], trials_per_scenario)
         for scenario in scenario_list
     ]
+    any_model_execution = any(
+        bool(trial["result"].get("model_execution"))
+        for trial in per_trial_results
+    )
+    any_browser_opened = any(
+        bool(trial["result"].get("browser_opened"))
+        for trial in per_trial_results
+    )
     return {
         "schema_version": STEPWISE_ARTICLE_BENCHMARK_SCHEMA_VERSION,
         "status": "succeeded",
@@ -970,11 +995,11 @@ def run_stepwise_article_benchmark(
         "per_trial_results": per_trial_results,
         "per_model_summary": per_model_summary,
         "per_scenario_summary": per_scenario_summary,
-        "no_runtime_execution": True,
-        "model_execution": False,
+        "no_runtime_execution": not any_model_execution,
+        "model_execution": any_model_execution,
         "real_browser_execution": False,
         "playwright_execution": False,
-        "browser_opened": False,
+        "browser_opened": any_browser_opened,
         "fixture_only": True,
     }
 

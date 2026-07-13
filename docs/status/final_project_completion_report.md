@@ -46,6 +46,8 @@ This does not change the core project closure basis, which still rests on the st
 
 Phase 15 begins a separate fixture-only stepwise observation-action benchmark for article/browser-style tasks so that long-horizon interactive behavior can be measured more directly than in the frozen raw one-shot Phase 14F table.
 
+Phase 15B extends that post-completion line with a guarded local-model adapter for the stepwise article benchmark. It still stays fixture-only on the benchmark side, does not add real browser or Playwright evidence, and requires explicit operator opt-in before any local model endpoint call.
+
 ## A. Analysis of implementation means
 
 - Local small/medium LLMs were used through GGUF-backed local model aliases `first_model`, `second_model`, and `third_model`.
