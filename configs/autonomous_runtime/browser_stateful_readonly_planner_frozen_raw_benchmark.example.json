@@ -5,6 +5,7 @@
   "evaluation_models_config": "configs/evaluation_models.json",
   "scenario_catalog": "frozen_raw_v1",
   "prompt_contract_mode": "frozen_raw",
+  "max_tokens": 4096,
   "model_aliases": ["third_model", "fourth_model"],
   "scenarios": [
     "stateful_policy_ticket_crosscheck",

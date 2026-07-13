@@ -414,6 +414,7 @@ def test_frozen_raw_config_loads_and_excludes_fifth_model() -> None:
     assert config["schema_version"] == BUILD_CONFIG_SCHEMA_VERSION
     assert config["scenario_catalog"] == "frozen_raw_v1"
     assert config["prompt_contract_mode"] == "frozen_raw"
+    assert config["max_tokens"] == 4096
     assert config["model_aliases"] == ["third_model", "fourth_model"]
     assert "fifth_model" not in config["model_aliases"]
     assert config["trials_per_scenario"] == 1
@@ -443,6 +444,7 @@ def test_frozen_raw_packet_builder_uses_model_neutral_prompt_contract(tmp_path: 
     assert summary["packet_id"] == "phase_14_stateful_readonly_planner_frozen_raw_benchmark"
     assert summary["scenario_catalog"] == "frozen_raw_v1"
     assert summary["prompt_contract_mode"] == "frozen_raw"
+    assert summary["max_tokens"] == 4096
     assert summary["models_total"] == 2
     assert summary["scenarios_total"] == 8
     assert summary["trials_per_scenario"] == 1
@@ -456,6 +458,7 @@ def test_frozen_raw_packet_builder_uses_model_neutral_prompt_contract(tmp_path: 
     manifest = json.loads((output_dir / "benchmark_packet.json").read_text(encoding="utf-8"))
     assert manifest["scenario_catalog"] == "frozen_raw_v1"
     assert manifest["prompt_contract_mode"] == "frozen_raw"
+    assert manifest["max_tokens"] == 4096
     assert manifest["model_aliases"] == ["third_model", "fourth_model"]
     assert manifest["requests_total"] == 16
 
@@ -466,10 +469,14 @@ def test_frozen_raw_packet_builder_uses_model_neutral_prompt_contract(tmp_path: 
 
     assert third_request["messages"][0]["content"] == fourth_request["messages"][0]["content"]
     assert third_request["messages"][1]["content"] == fourth_request["messages"][1]["content"]
+    assert third_request["max_tokens"] == 4096
+    assert fourth_request["max_tokens"] == 4096
     assert "/no_think" not in third_request["messages"][1]["content"]
     assert "/no_think" not in fourth_request["messages"][1]["content"]
     assert "third_model" not in third_request["messages"][1]["content"]
     assert "third_model" not in fourth_request["messages"][1]["content"]
+    assert "fourth_model" not in third_request["messages"][1]["content"]
+    assert "fourth_model" not in fourth_request["messages"][1]["content"]
     assert third_request["metadata"]["prompt_prefix"] is None
     assert fourth_request["metadata"]["prompt_prefix"] is None
     assert third_request["model"] == "third_model"

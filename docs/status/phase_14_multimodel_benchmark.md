@@ -22,6 +22,14 @@ Phase 14C extends the optional benchmark registry/config layer so future post-co
 
 Phase 14E adds a frozen raw benchmark config, a broader model-neutral scenario set, and a sequential multi-model runner. The routine default frozen raw config compares `third_model` and `fourth_model`; `fifth_model` remains registered but is disabled by default because its observed runtime is too slow for routine benchmark runs.
 
+Phase 14E repair hardens that sequential runner for a clean rerun:
+
+- runner-owned start/stop is the default real-run mode
+- exactly one large local model server should be active at a time
+- benchmark-port preflight detects polluted benchmark ports before launch
+- a shared larger output budget is applied equally across enabled models
+- request failures are recorded as structured results instead of crashing the run
+
 ## What was added
 
 - `src/agent/autonomous_browser_stateful_readonly_planner_multimodel_benchmark.py`
@@ -70,6 +78,8 @@ Out of scope for Phase 14E:
 - profile-specific task wording changes intended to improve one model over another
 
 If future work explores adapted prompts, that should be documented as a separate adapted/system benchmark rather than folded into the raw benchmark numbers.
+
+Shared technical settings such as `max_tokens` are allowed in the frozen raw benchmark only when they are applied equally across enabled models. Phase 14E repair raises that shared output budget to `4096` for the default frozen raw packet so longer valid plans are not cut off asymmetrically.
 
 ## Packet behavior
 
@@ -122,9 +132,30 @@ The sequential runner:
 - supports `--skip-existing`
 - supports `--no-start-servers`
 - supports `--models third_model,fourth_model`
+- supports `--allow-existing-benchmark-servers`
+- supports `--stop-existing-benchmark-servers`
 - emits a structured run summary
 
+Runner server semantics are now explicit:
+
+- `dry_run` => `server_mode: dry_run`
+- `--no-start-servers` => `server_mode: existing_servers`
+- default real run => `server_mode: started_by_runner`
+
 The runner does not launch browser automation, Playwright, Chromium, or local fixture servers. In dry-run mode it also avoids model calls and server startup.
+
+If a request times out, the endpoint is unavailable, or the response shape is malformed, the runner now records a structured failed request and continues by default. `fail_fast` is optional and off by default.
+
+Before a real runner-owned start, the benchmark-port preflight checks configured benchmark ports. The safe default is:
+
+- do not kill anything automatically
+- fail cleanly if selected benchmark ports are already occupied
+- fail cleanly if other configured benchmark ports are occupied and could pollute resource conditions
+
+Operators can override that deliberately with:
+
+- `--allow-existing-benchmark-servers`
+- `--stop-existing-benchmark-servers`
 
 ## Evaluator behavior
 
@@ -159,6 +190,23 @@ Missing outputs are reported as structured benchmark results, not tracebacks.
 - `browser_opened: false`
 
 This is the first real captured benchmark result for the optional Phase 14 comparison layer. It shows a clear separation between the stronger final planner candidate and the weaker baseline without changing prompts or relaxing the evaluator.
+
+## Preliminary Phase 14E note
+
+An early frozen raw Phase 14E operator run produced a preliminary comparative signal with `fourth_model` leading that particular run. That result is intentionally not treated as final benchmark evidence because the runtime state was polluted:
+
+- multiple manually started `llama-server` processes were active across benchmark ports
+- the sequential runner did not own the server lifecycle in that run
+- output truncation was visible through frequent `finish_reason: length`, especially for `third_model`
+
+After the Phase 14E repair, a clean rerun should use:
+
+- one large model server at a time
+- runner-owned start/stop by default
+- shared `max_tokens: 4096`
+- structured timeout/connection/response failures
+
+Only a rerun under that cleaner protocol should be used as the routine frozen raw benchmark reference.
 
 ### Per-model metrics
 
@@ -243,6 +291,7 @@ Get-Content artifacts\autonomous_runtime_planner_summaries\stateful_readonly_pla
 - does not change the final TZ completion claim
 - does not launch models from Codex
 - routine Phase 14E comparisons prefer the frozen raw shared-contract benchmark
+- the next meaningful Phase 14E comparison requires a clean runner-owned rerun
 - does not execute browser actions
 - does not add new real browser or Playwright evidence
 - does not claim production readiness

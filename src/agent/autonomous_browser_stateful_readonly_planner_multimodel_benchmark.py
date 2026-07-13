@@ -88,6 +88,7 @@ class StatefulReadonlyPlannerMultimodelBenchmarkBuildConfig:
     evaluation_models_config: str
     scenario_catalog: str
     prompt_contract_mode: str
+    max_tokens: int | None
     model_aliases: tuple[str, ...]
     scenarios: tuple[str, ...]
     trials_per_scenario: int
@@ -122,6 +123,10 @@ class StatefulReadonlyPlannerMultimodelBenchmarkBuildConfig:
         prompt_contract_mode = str(
             payload.get("prompt_contract_mode", DEFAULT_PROMPT_CONTRACT_MODE)
         ).strip()
+        max_tokens_value = payload.get("max_tokens")
+        max_tokens = None
+        if max_tokens_value is not None:
+            max_tokens = _required_int(max_tokens_value, "max_tokens")
         model_aliases = tuple(_required_identifier_list(payload.get("model_aliases"), "model_aliases"))
         scenarios = tuple(_required_identifier_list(payload.get("scenarios"), "scenarios"))
         trials_per_scenario = _required_int(
@@ -173,6 +178,8 @@ class StatefulReadonlyPlannerMultimodelBenchmarkBuildConfig:
             raise ValueError("scenario_catalog must be a supported stateful read-only scenario catalog.")
         if prompt_contract_mode not in ALLOWED_PROMPT_CONTRACT_MODES:
             raise ValueError("prompt_contract_mode must be a supported frozen/historical prompt mode.")
+        if max_tokens is not None and max_tokens <= 0:
+            raise ValueError("max_tokens must be a positive integer when provided.")
         if not model_aliases:
             raise ValueError("model_aliases must not be empty.")
         if len(set(model_aliases)) != len(model_aliases):
@@ -212,6 +219,7 @@ class StatefulReadonlyPlannerMultimodelBenchmarkBuildConfig:
             evaluation_models_config=evaluation_models_config,
             scenario_catalog=scenario_catalog,
             prompt_contract_mode=prompt_contract_mode,
+            max_tokens=max_tokens,
             model_aliases=model_aliases,
             scenarios=scenarios,
             trials_per_scenario=trials_per_scenario,
@@ -236,6 +244,7 @@ class StatefulReadonlyPlannerMultimodelBenchmarkBuildConfig:
             "evaluation_models_config": self.evaluation_models_config,
             "scenario_catalog": self.scenario_catalog,
             "prompt_contract_mode": self.prompt_contract_mode,
+            "max_tokens": self.max_tokens,
             "model_aliases": list(self.model_aliases),
             "scenarios": list(self.scenarios),
             "trials_per_scenario": self.trials_per_scenario,
@@ -453,7 +462,11 @@ def build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_pack
 
     base_config = base_packet["config"]
     prompt_filename = str(base_config.get("prompt_filename", DEFAULT_PROMPT_FILENAME))
-    max_tokens = int(base_config.get("max_tokens", DEFAULT_MAX_TOKENS))
+    max_tokens = (
+        build_config.max_tokens
+        if build_config.max_tokens is not None
+        else int(base_config.get("max_tokens", DEFAULT_MAX_TOKENS))
+    )
     temperature = float(base_config.get("temperature", DEFAULT_TEMPERATURE))
 
     try:
@@ -662,6 +675,7 @@ def build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_pack
         "packet_id": build_config.packet_id,
         "scenario_catalog": build_config.scenario_catalog,
         "prompt_contract_mode": build_config.prompt_contract_mode,
+        "max_tokens": max_tokens,
         "base_packet_config": build_config.base_packet_config,
         "evaluation_models_config": build_config.evaluation_models_config,
         "model_aliases": list(build_config.model_aliases),
@@ -716,6 +730,7 @@ def build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_pack
         commands_count=len(commands),
         limitations=build_config.limitations,
     ).to_dict()
+    summary["max_tokens"] = max_tokens
     _write_json(packet_dir / DEFAULT_PACKET_SUMMARY_FILENAME, summary)
     packet_files.append(f"{build_config.output_dir}/{DEFAULT_PACKET_SUMMARY_FILENAME}")
     return summary

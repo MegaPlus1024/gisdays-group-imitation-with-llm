@@ -22,10 +22,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--packet-dir", required=True)
     parser.add_argument("--run-config", required=True)
     parser.add_argument("--models", default="")
-    parser.add_argument("--start-servers", dest="start_servers", action="store_true", default=False)
+    parser.add_argument("--start-servers", dest="start_servers", action="store_true", default=True)
     parser.add_argument("--no-start-servers", dest="start_servers", action="store_false")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--skip-existing", action="store_true")
+    parser.add_argument("--fail-fast", action="store_true")
+    parser.add_argument("--allow-existing-benchmark-servers", action="store_true")
+    parser.add_argument("--stop-existing-benchmark-servers", action="store_true")
     return parser
 
 
@@ -41,6 +44,9 @@ def main(argv: list[str] | None = None) -> int:
         start_servers=args.start_servers,
         dry_run=args.dry_run,
         skip_existing=args.skip_existing,
+        fail_fast=args.fail_fast,
+        allow_existing_benchmark_servers=args.allow_existing_benchmark_servers,
+        stop_existing_benchmark_servers=args.stop_existing_benchmark_servers,
     )
     print(json.dumps(summary, ensure_ascii=False, separators=(",", ":")))
     return 0 if summary.get("status") in {"succeeded", "completed_with_failures"} else 1
