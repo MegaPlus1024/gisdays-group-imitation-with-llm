@@ -17,7 +17,9 @@ from src.agent.autonomous_browser_stateful_readonly_planner_multimodel_benchmark
     run_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_evaluator,
 )
 from src.agent.autonomous_browser_stateful_readonly_workflow import (
+    FROZEN_RAW_STATEFUL_READONLY_SCENARIO_IDS,
     build_default_stateful_readonly_workflow_scenarios,
+    build_frozen_raw_stateful_readonly_workflow_scenarios,
 )
 
 from tests import test_autonomous_browser_stateful_readonly_planner_evaluator as planner_evaluator_tests
@@ -35,6 +37,12 @@ EXTENDED_CONFIG_PATH = (
     / "configs"
     / "autonomous_runtime"
     / "browser_stateful_readonly_planner_multimodel_benchmark_extended.example.json"
+)
+FROZEN_RAW_CONFIG_PATH = (
+    PROJECT_ROOT
+    / "configs"
+    / "autonomous_runtime"
+    / "browser_stateful_readonly_planner_frozen_raw_benchmark.example.json"
 )
 BASE_PACKET_CONFIG = (
     PROJECT_ROOT
@@ -64,6 +72,10 @@ def _config() -> dict[str, Any]:
 
 def _extended_config() -> dict[str, Any]:
     return json.loads(EXTENDED_CONFIG_PATH.read_text(encoding="utf-8"))
+
+
+def _frozen_raw_config() -> dict[str, Any]:
+    return json.loads(FROZEN_RAW_CONFIG_PATH.read_text(encoding="utf-8"))
 
 
 def _load_cli_module(path: Path):
@@ -394,3 +406,90 @@ def test_extended_evaluator_classifies_missing_outputs_for_all_aliases(tmp_path:
     assert summary["fixture_only"] is True
     assert all(item["outputs_total"] == 15 for item in summary["model_summaries"])
     assert all(item["outputs_missing"] == 15 for item in summary["model_summaries"])
+
+
+def test_frozen_raw_config_loads_and_excludes_fifth_model() -> None:
+    config = _frozen_raw_config()
+
+    assert config["schema_version"] == BUILD_CONFIG_SCHEMA_VERSION
+    assert config["scenario_catalog"] == "frozen_raw_v1"
+    assert config["prompt_contract_mode"] == "frozen_raw"
+    assert config["model_aliases"] == ["third_model", "fourth_model"]
+    assert "fifth_model" not in config["model_aliases"]
+    assert config["trials_per_scenario"] == 1
+    assert len(config["scenarios"]) == 8
+
+
+def test_frozen_raw_scenarios_are_fixture_only_and_deterministic() -> None:
+    scenarios = build_frozen_raw_stateful_readonly_workflow_scenarios()
+
+    assert tuple(scenarios) == FROZEN_RAW_STATEFUL_READONLY_SCENARIO_IDS
+    assert len(scenarios) == 8
+    for scenario in scenarios.values():
+        assert scenario.read_only_policy.external_network_allowed is False
+        assert scenario.read_only_policy.writes_allowed is False
+        assert scenario.start_url.startswith("https://local.intranet/")
+        assert all(step.action_name in {"browser_open_url", "browser_click", "browser_extract_text", "browser_snapshot"} for step in scenario.steps)
+        assert all(
+            step.expected_url is None or step.expected_url.startswith("https://local.intranet/")
+            for step in scenario.steps
+        )
+
+
+def test_frozen_raw_packet_builder_uses_model_neutral_prompt_contract(tmp_path: Path) -> None:
+    summary, output_dir = _build_packet(tmp_path, _frozen_raw_config(), config_path=FROZEN_RAW_CONFIG_PATH)
+
+    assert summary["status"] == "succeeded"
+    assert summary["packet_id"] == "phase_14_stateful_readonly_planner_frozen_raw_benchmark"
+    assert summary["scenario_catalog"] == "frozen_raw_v1"
+    assert summary["prompt_contract_mode"] == "frozen_raw"
+    assert summary["models_total"] == 2
+    assert summary["scenarios_total"] == 8
+    assert summary["trials_per_scenario"] == 1
+    assert summary["requests_total"] == 16
+    assert summary["model_execution"] is False
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["fixture_only"] is True
+
+    manifest = json.loads((output_dir / "benchmark_packet.json").read_text(encoding="utf-8"))
+    assert manifest["scenario_catalog"] == "frozen_raw_v1"
+    assert manifest["prompt_contract_mode"] == "frozen_raw"
+    assert manifest["model_aliases"] == ["third_model", "fourth_model"]
+    assert manifest["requests_total"] == 16
+
+    third_request_path = output_dir / "third_model" / "stateful_policy_ticket_crosscheck" / "trial_01" / "request.json"
+    fourth_request_path = output_dir / "fourth_model" / "stateful_policy_ticket_crosscheck" / "trial_01" / "request.json"
+    third_request = json.loads(third_request_path.read_text(encoding="utf-8"))
+    fourth_request = json.loads(fourth_request_path.read_text(encoding="utf-8"))
+
+    assert third_request["messages"][0]["content"] == fourth_request["messages"][0]["content"]
+    assert third_request["messages"][1]["content"] == fourth_request["messages"][1]["content"]
+    assert "/no_think" not in third_request["messages"][1]["content"]
+    assert "/no_think" not in fourth_request["messages"][1]["content"]
+    assert "third_model" not in third_request["messages"][1]["content"]
+    assert "third_model" not in fourth_request["messages"][1]["content"]
+    assert third_request["metadata"]["prompt_prefix"] is None
+    assert fourth_request["metadata"]["prompt_prefix"] is None
+    assert third_request["model"] == "third_model"
+    assert fourth_request["model"] == "fourth_model"
+
+
+def test_frozen_raw_evaluator_reports_missing_outputs_for_selected_models(tmp_path: Path) -> None:
+    _, packet_dir = _build_packet(tmp_path, _frozen_raw_config(), config_path=FROZEN_RAW_CONFIG_PATH)
+
+    summary = run_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_evaluator(
+        packet_dir=packet_dir,
+        repo_root=tmp_path,
+    )
+
+    assert summary["status"] == "completed_with_missing_outputs"
+    assert summary["error_code"] == "missing_captured_outputs"
+    assert summary["scenario_catalog"] == "frozen_raw_v1"
+    assert summary["prompt_contract_mode"] == "frozen_raw"
+    assert summary["models_total"] == 2
+    assert summary["outputs_total"] == 16
+    assert summary["outputs_missing"] == 16
+    assert summary["missing_output_models"] == ["third_model", "fourth_model"]
+    assert [item["alias"] for item in summary["model_summaries"]] == ["third_model", "fourth_model"]

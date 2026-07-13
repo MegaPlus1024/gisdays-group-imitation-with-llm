@@ -1,0 +1,40 @@
+{
+  "schema_version": "autonomous_browser_stateful_readonly_planner_multimodel_benchmark_config_v1",
+  "packet_id": "phase_14_stateful_readonly_planner_frozen_raw_benchmark",
+  "base_packet_config": "configs/autonomous_runtime/browser_stateful_readonly_planner_packet.example.json",
+  "evaluation_models_config": "configs/evaluation_models.json",
+  "scenario_catalog": "frozen_raw_v1",
+  "prompt_contract_mode": "frozen_raw",
+  "model_aliases": ["third_model", "fourth_model"],
+  "scenarios": [
+    "stateful_policy_ticket_crosscheck",
+    "stateful_approval_policy_crosscheck",
+    "stateful_intranet_overview_digest",
+    "stateful_ticket_priority_digest",
+    "stateful_policy_search_marker_review",
+    "stateful_policy_source_disambiguation",
+    "stateful_approval_queue_absence_review",
+    "stateful_priority_exception_rule_review"
+  ],
+  "trials_per_scenario": 1,
+  "output_dir": "artifacts/autonomous_runtime_planner_packets/stateful_readonly_planner_frozen_raw_benchmark",
+  "captured_output_dir": "artifacts/autonomous_runtime_planner_outputs/stateful_readonly_planner_frozen_raw_benchmark",
+  "evaluator_output_dir": "artifacts/autonomous_runtime_planner_summaries/stateful_readonly_planner_frozen_raw_benchmark",
+  "fixture_only": true,
+  "external_network_allowed": false,
+  "writes_allowed": false,
+  "model_execution": false,
+  "real_browser_execution": false,
+  "playwright_execution": false,
+  "browser_opened": false,
+  "limitations": [
+    "optional post-completion frozen raw benchmark only",
+    "one shared task contract across enabled models",
+    "manual operator model runs only",
+    "no model calls by Codex",
+    "offline fixture-backed evaluation only",
+    "no real browser execution",
+    "no Playwright execution",
+    "not production browser automation"
+  ]
+}

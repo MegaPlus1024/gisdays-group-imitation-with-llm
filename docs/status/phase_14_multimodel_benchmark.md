@@ -4,21 +4,35 @@
 
 Phase 14 is an optional post-completion expansion for the already completed controlled read-only prototype.
 
-It adds a reusable multi-model benchmark packet/evaluator for the existing five stateful read-only planner scenarios. The packet prepares repeated request files for multiple configured model aliases, and the evaluator classifies captured outputs per model without launching models, browser, Playwright, Chromium, or a local server.
+It adds a reusable multi-model benchmark packet/evaluator for controlled stateful read-only planner scenarios. The packet prepares repeated request files for multiple configured model aliases, and the evaluator classifies captured outputs per model without launching models, browser, Playwright, Chromium, or a local server.
 
-By default, the example benchmark config targets `second_model` and `third_model`.
+Phase 14E freezes the benchmark contract for broader raw comparisons:
+
+- one shared task prompt per scenario
+- one shared planner schema
+- one shared offline evaluator/materializer path
+- no model-specific prompt tuning
+- no model-family adapters in the raw benchmark
+
+Only technical runtime settings may vary per model alias, such as endpoint, port, context size, CPU/GPU launch mode, timeout, and whether the alias is enabled for a particular run.
 
 Phase 14B records the first real operator-run result from that benchmark infrastructure. The model calls were manual operator runs against local endpoints for `second_model` and `third_model`. After capture, the evaluator remained offline, fixture-only, and read-only.
 
 Phase 14C extends the optional benchmark registry/config layer so future post-completion comparisons can also include `fourth_model` and `fifth_model` without changing the original TZ completion status.
 
+Phase 14E adds a frozen raw benchmark config, a broader model-neutral scenario set, and a sequential multi-model runner. The routine default frozen raw config compares `third_model` and `fourth_model`; `fifth_model` remains registered but is disabled by default because its observed runtime is too slow for routine benchmark runs.
+
 ## What was added
 
 - `src/agent/autonomous_browser_stateful_readonly_planner_multimodel_benchmark.py`
+- `src/agent/autonomous_browser_stateful_readonly_planner_multimodel_sequential.py`
 - `scripts/build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_packet.py`
 - `scripts/run_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_evaluator.py`
+- `scripts/run_autonomous_browser_stateful_readonly_planner_multimodel_sequential.py`
 - `configs/autonomous_runtime/browser_stateful_readonly_planner_multimodel_benchmark.example.json`
 - `configs/autonomous_runtime/browser_stateful_readonly_planner_multimodel_benchmark_extended.example.json`
+- `configs/autonomous_runtime/browser_stateful_readonly_planner_frozen_raw_benchmark.example.json`
+- `configs/autonomous_runtime/browser_stateful_readonly_planner_sequential_run.example.json`
 
 ## Optional benchmark candidates
 
@@ -37,6 +51,26 @@ Phase 14C extends the optional benchmark registry/config layer so future post-co
 
 These are optional post-completion benchmark candidates only. No Phase 14 benchmark result is claimed for them yet.
 
+`fifth_model` is kept in the registry for optional manual or slow-lane runs, but it is excluded from the default Phase 14E frozen raw benchmark config.
+
+## Frozen raw protocol
+
+Phase 14E defines the preferred model-comparison protocol for this repository:
+
+- compare models under one frozen task contract
+- keep prompts model-neutral
+- keep the planner schema fixed
+- keep workflow evaluation fixed
+- record technical launch/runtime differences separately
+
+Out of scope for Phase 14E:
+
+- prompt tuning for `fourth_model`, `fifth_model`, Mistral, Gemma, Qwen, or any other family
+- adapter-specific system prompts
+- profile-specific task wording changes intended to improve one model over another
+
+If future work explores adapted prompts, that should be documented as a separate adapted/system benchmark rather than folded into the raw benchmark numbers.
+
 ## Packet behavior
 
 - request layout is nested by `model_alias / scenario_id / trial_label`
@@ -49,6 +83,48 @@ These are optional post-completion benchmark candidates only. No Phase 14 benchm
   - `playwright_execution`
   - `browser_opened`
 - the extended example config uses 4 aliases over 5 scenarios x 3 trials = `60` packet requests
+- the frozen raw example config uses 2 aliases over 8 broader fixture scenarios = `16` packet requests
+
+## Frozen raw scenario set
+
+The broader Phase 14E frozen raw scenario catalog keeps the benchmark fixture-only and deterministic while covering more task shapes than the original five-scenario stateful suite.
+
+The current frozen raw catalog includes:
+
+- the original five stateful read-only scenarios
+- a policy-source disambiguation scenario
+- an approval-queue absence review scenario
+- a priority exception-rule review scenario
+
+Those additions broaden the benchmark toward:
+
+- multi-source cross-checking
+- negative or absence-based answers
+- repeated-ID disambiguation
+- exact anchor/rule citation
+- read-only trap rejection through workflow validation
+- two-page fact digestion
+
+The frozen raw request contract is shared across enabled aliases; only model alias selection and runtime metadata differ.
+
+## Sequential runner
+
+Phase 14E also adds a sequential runner for captured packet execution against local model endpoints without manual alias switching.
+
+The sequential runner:
+
+- reads an existing packet directory
+- reads model runtime profiles from config
+- can run only enabled aliases
+- can optionally start one local server at a time
+- waits for `/v1/models` readiness
+- saves `response.json`, `raw_planner_output.txt`, and `per_request_timing.json`
+- supports `--skip-existing`
+- supports `--no-start-servers`
+- supports `--models third_model,fourth_model`
+- emits a structured run summary
+
+The runner does not launch browser automation, Playwright, Chromium, or local fixture servers. In dry-run mode it also avoids model calls and server startup.
 
 ## Evaluator behavior
 
@@ -166,9 +242,11 @@ Get-Content artifacts\autonomous_runtime_planner_summaries\stateful_readonly_pla
 - optional post-completion research expansion only
 - does not change the final TZ completion claim
 - does not launch models from Codex
+- routine Phase 14E comparisons prefer the frozen raw shared-contract benchmark
 - does not execute browser actions
 - does not add new real browser or Playwright evidence
 - does not claim production readiness
+- `fifth_model` remains optional/manual and is excluded from the routine frozen raw default because of observed slowness
 - GGUF files are local-only artifacts and must not be committed
 - generated packet/output artifacts remain operator evidence and must not be committed
 

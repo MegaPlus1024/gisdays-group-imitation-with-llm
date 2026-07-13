@@ -44,6 +44,19 @@ DEFAULT_LIMITATIONS = (
     "not production browser automation",
 )
 DEFAULT_WORKFLOW_OUTPUT_DIR = "artifacts/autonomous_runtime_summaries/stateful_readonly_workflows"
+DEFAULT_STATEFUL_READONLY_SCENARIO_IDS = (
+    "stateful_policy_ticket_crosscheck",
+    "stateful_approval_policy_crosscheck",
+    "stateful_intranet_overview_digest",
+    "stateful_ticket_priority_digest",
+    "stateful_policy_search_marker_review",
+)
+FROZEN_RAW_STATEFUL_READONLY_SCENARIO_IDS = (
+    *DEFAULT_STATEFUL_READONLY_SCENARIO_IDS,
+    "stateful_policy_source_disambiguation",
+    "stateful_approval_queue_absence_review",
+    "stateful_priority_exception_rule_review",
+)
 
 
 @dataclass(frozen=True)
@@ -443,6 +456,129 @@ def build_default_stateful_readonly_workflow_scenarios(
             read_only_policy=policy,
         ),
     }
+
+
+def build_frozen_raw_stateful_readonly_workflow_scenarios(
+    policy: StatefulReadonlyWorkflowPolicy | None = None,
+) -> dict[str, StatefulReadonlyWorkflowScenarioDefinition]:
+    policy = policy or StatefulReadonlyWorkflowPolicy()
+    scenarios = dict(build_default_stateful_readonly_workflow_scenarios(policy))
+    scenarios.update(
+        {
+            "stateful_policy_source_disambiguation": StatefulReadonlyWorkflowScenarioDefinition(
+                scenario_id="stateful_policy_source_disambiguation",
+                workflow_id="stateful_policy_source_disambiguation",
+                start_url="https://local.intranet/docs/policy-disambiguation",
+                objective="Identify the live workspace policy source and reject the archive copy.",
+                steps=(
+                    StatefulReadonlyWorkflowStep(
+                        step_id="open_policy_disambiguation",
+                        action_name="browser_open_url",
+                        parameters={"url": "https://local.intranet/docs/policy-disambiguation"},
+                        expected_text="Policy Disambiguation",
+                    ),
+                    StatefulReadonlyWorkflowStep(
+                        step_id="click_archived_policy",
+                        action_name="browser_click",
+                        parameters={"target_text": "Archived policy"},
+                        expected_text="Archived Policy",
+                        expected_url="https://local.intranet/docs/policy-archive",
+                    ),
+                    StatefulReadonlyWorkflowStep(
+                        step_id="click_current_policy",
+                        action_name="browser_click",
+                        parameters={"target_text": "Current policy"},
+                        expected_text="Workspace Policy",
+                        expected_url="https://local.intranet/docs/policy",
+                    ),
+                    StatefulReadonlyWorkflowStep(
+                        step_id="inspect_current_policy",
+                        action_name="browser_extract_text",
+                        parameters={},
+                        expected_text="fixture-backed result for workspace policy review",
+                        collect_fact_keys=(
+                            "live_policy_source",
+                            "archive_warning",
+                            "current_policy_anchor",
+                            "current_policy_marker",
+                        ),
+                    ),
+                ),
+                final_answer_builder=_build_policy_source_disambiguation_final_answer,
+                fact_extractor=_extract_policy_source_disambiguation_facts,
+                read_only_policy=policy,
+            ),
+            "stateful_approval_queue_absence_review": StatefulReadonlyWorkflowScenarioDefinition(
+                scenario_id="stateful_approval_queue_absence_review",
+                workflow_id="stateful_approval_queue_absence_review",
+                start_url="https://local.intranet/",
+                objective="Verify whether request APR-51 appears in the approvals queue.",
+                steps=(
+                    StatefulReadonlyWorkflowStep(
+                        step_id="open_home",
+                        action_name="browser_open_url",
+                        parameters={"url": "https://local.intranet/"},
+                        expected_text="Office Intranet",
+                    ),
+                    StatefulReadonlyWorkflowStep(
+                        step_id="click_approvals_queue",
+                        action_name="browser_click",
+                        parameters={"target_text": "Approvals queue"},
+                        expected_text="Approvals Queue",
+                        expected_url="https://local.intranet/portal/approvals",
+                    ),
+                    StatefulReadonlyWorkflowStep(
+                        step_id="inspect_approvals_queue",
+                        action_name="browser_extract_text",
+                        parameters={},
+                        expected_text="Approval item APR-42 is waiting for local policy verification.",
+                        collect_fact_keys=("queue_request_id", "queue_owner", "target_request_presence"),
+                    ),
+                ),
+                final_answer_builder=_build_approval_queue_absence_final_answer,
+                fact_extractor=_extract_approval_queue_absence_facts,
+                read_only_policy=policy,
+            ),
+            "stateful_priority_exception_rule_review": StatefulReadonlyWorkflowScenarioDefinition(
+                scenario_id="stateful_priority_exception_rule_review",
+                workflow_id="stateful_priority_exception_rule_review",
+                start_url="https://local.intranet/tickets/hardboard",
+                objective="Apply the priority exception rule to identify the urgent escalation ticket.",
+                steps=(
+                    StatefulReadonlyWorkflowStep(
+                        step_id="open_priority_board",
+                        action_name="browser_open_url",
+                        parameters={"url": "https://local.intranet/tickets/hardboard"},
+                        expected_text="Priority cross-check board",
+                    ),
+                    StatefulReadonlyWorkflowStep(
+                        step_id="click_ticket_7",
+                        action_name="browser_click",
+                        parameters={"target_text": "Ticket 7"},
+                        expected_text="Ticket 7 - Escalation Review",
+                        expected_url="https://local.intranet/tickets/7",
+                    ),
+                    StatefulReadonlyWorkflowStep(
+                        step_id="inspect_ticket_7",
+                        action_name="browser_extract_text",
+                        parameters={},
+                        expected_text="Priority: urgent.",
+                        collect_fact_keys=(
+                            "priority_rule",
+                            "ticket_7_id",
+                            "ticket_7_requester_tier",
+                            "ticket_7_priority",
+                            "ticket_7_marker",
+                        ),
+                    ),
+                ),
+                final_answer_builder=_build_priority_exception_rule_final_answer,
+                fact_extractor=_extract_priority_exception_rule_facts,
+                read_only_policy=policy,
+            ),
+        }
+    )
+    return scenarios
 
 
 def run_autonomous_browser_stateful_readonly_workflow(
@@ -969,6 +1105,39 @@ def _build_policy_marker_final_answer(state: StatefulReadonlyWorkflowState) -> s
     return f"Workspace policy evidence marker: {marker}."
 
 
+def _build_policy_source_disambiguation_final_answer(state: StatefulReadonlyWorkflowState) -> str:
+    source = state.facts.get("current_policy_anchor", "Workspace Policy")
+    archive_warning = state.facts.get(
+        "archive_warning",
+        "Do not use this page as the current policy source.",
+    )
+    marker = state.facts.get("current_policy_marker", "fixture-backed result for workspace policy review")
+    return (
+        f"Live policy source: {source}. Archive note: {archive_warning} "
+        f"Current marker: {marker}."
+    )
+
+
+def _build_approval_queue_absence_final_answer(state: StatefulReadonlyWorkflowState) -> str:
+    queue_request = state.facts.get("queue_request_id", "APR-42")
+    queue_owner = state.facts.get("queue_owner", "office worker")
+    presence = state.facts.get("target_request_presence", "not found")
+    return (
+        f"Approvals queue review: APR-51 is {presence}; "
+        f"the visible queue item is {queue_request} owned by {queue_owner}."
+    )
+
+
+def _build_priority_exception_rule_final_answer(state: StatefulReadonlyWorkflowState) -> str:
+    rule = state.facts.get("priority_rule", "Priority is determined by requester tier, not by queue age.")
+    priority = state.facts.get("ticket_7_priority", "urgent")
+    requester = state.facts.get("ticket_7_requester_tier", "facilities")
+    return (
+        f"Priority exception result: Ticket 7 is the urgent escalation ticket because {rule} "
+        f"Observed priority is {priority} for requester tier {requester}."
+    )
+
+
 def _extract_policy_ticket_facts(
     observation: BrowserRuntimeObservation,
     step: StatefulReadonlyWorkflowStep,
@@ -1075,4 +1244,61 @@ def _extract_policy_marker_facts(
         facts["policy_anchor"] = "Workspace Policy"
     if "fixture-backed result for workspace policy review" in text:
         facts["policy_marker"] = "fixture-backed result for workspace policy review"
+    return facts
+
+
+def _extract_policy_source_disambiguation_facts(
+    observation: BrowserRuntimeObservation,
+    step: StatefulReadonlyWorkflowStep,
+    state: StatefulReadonlyWorkflowState,
+) -> dict[str, Any]:
+    del step, state
+    text = _compact_text(f"{observation.title or ''} {observation.text_preview or ''}")
+    facts: dict[str, Any] = {}
+    if "current policy link is the active guidance" in text:
+        facts["live_policy_source"] = "Current policy"
+    if "Do not use this page as the current policy source" in text:
+        facts["archive_warning"] = "Do not use this page as the current policy source."
+    if "Workspace Policy" in text:
+        facts["current_policy_anchor"] = "Workspace Policy"
+    if "fixture-backed result for workspace policy review" in text:
+        facts["current_policy_marker"] = "fixture-backed result for workspace policy review"
+    return facts
+
+
+def _extract_approval_queue_absence_facts(
+    observation: BrowserRuntimeObservation,
+    step: StatefulReadonlyWorkflowStep,
+    state: StatefulReadonlyWorkflowState,
+) -> dict[str, Any]:
+    del step, state
+    text = _compact_text(f"{observation.title or ''} {observation.text_preview or ''}")
+    facts: dict[str, Any] = {}
+    if "APR-42" in text:
+        facts["queue_request_id"] = "APR-42"
+    if "Owner: office worker" in text:
+        facts["queue_owner"] = "office worker"
+    if "APR-51" not in text and "Approvals Queue" in text:
+        facts["target_request_presence"] = "not found"
+    return facts
+
+
+def _extract_priority_exception_rule_facts(
+    observation: BrowserRuntimeObservation,
+    step: StatefulReadonlyWorkflowStep,
+    state: StatefulReadonlyWorkflowState,
+) -> dict[str, Any]:
+    del step, state
+    text = _compact_text(f"{observation.title or ''} {observation.text_preview or ''}")
+    facts: dict[str, Any] = {}
+    if "Priority is determined by requester tier, not by queue age" in text:
+        facts["priority_rule"] = "Priority is determined by requester tier, not by queue age."
+    if "Ticket 7" in text:
+        facts["ticket_7_id"] = "Ticket 7"
+    if "Requester tier: facilities" in text:
+        facts["ticket_7_requester_tier"] = "facilities"
+    if "Priority: urgent" in text:
+        facts["ticket_7_priority"] = "urgent"
+    if "the escalation ticket is the urgent one" in text:
+        facts["ticket_7_marker"] = "the escalation ticket is the urgent one"
     return facts

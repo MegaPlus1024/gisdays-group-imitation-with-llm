@@ -14,7 +14,6 @@ from .autonomous_browser_stateful_readonly_planner_packet import (
     DEFAULT_RAW_OUTPUT_FILENAME,
     DEFAULT_REQUEST_FILENAME,
     DEFAULT_RESPONSE_FILENAME,
-    DEFAULT_SCENARIO_IDS,
     DEFAULT_TEMPERATURE,
     _build_expected_output_schema_doc,
     _build_request_payload,
@@ -32,7 +31,10 @@ from .autonomous_browser_stateful_readonly_planner_variance import (
     _write_text,
 )
 from .autonomous_browser_stateful_readonly_workflow import (
+    DEFAULT_STATEFUL_READONLY_SCENARIO_IDS,
+    FROZEN_RAW_STATEFUL_READONLY_SCENARIO_IDS,
     build_default_stateful_readonly_workflow_scenarios,
+    build_frozen_raw_stateful_readonly_workflow_scenarios,
 )
 from .evaluation_models import EvaluationModelRegistry, load_evaluation_models_config
 
@@ -59,8 +61,14 @@ DEFAULT_COMMANDS_MD_FILENAME = "commands.md"
 DEFAULT_EXPECTED_OUTPUT_SCHEMA_FILENAME = "expected_output_schema.md"
 DEFAULT_README_FILENAME = "README.md"
 DEFAULT_TRIAL_COUNT = 3
-DEFAULT_TRIAL_IDS = tuple(f"trial_{index:02d}" for index in range(1, DEFAULT_TRIAL_COUNT + 1))
 DEFAULT_MODEL_ALIASES = ("second_model", "third_model")
+DEFAULT_SCENARIO_CATALOG = "legacy_stateful_v1"
+DEFAULT_PROMPT_CONTRACT_MODE = "historical_default"
+ALLOWED_SCENARIO_CATALOGS = {
+    "legacy_stateful_v1": DEFAULT_STATEFUL_READONLY_SCENARIO_IDS,
+    "frozen_raw_v1": FROZEN_RAW_STATEFUL_READONLY_SCENARIO_IDS,
+}
+ALLOWED_PROMPT_CONTRACT_MODES = {"historical_default", "frozen_raw"}
 DEFAULT_LIMITATIONS = (
     "optional post-completion multi-model benchmark only",
     "manual operator model runs only",
@@ -78,6 +86,8 @@ class StatefulReadonlyPlannerMultimodelBenchmarkBuildConfig:
     packet_id: str
     base_packet_config: str
     evaluation_models_config: str
+    scenario_catalog: str
+    prompt_contract_mode: str
     model_aliases: tuple[str, ...]
     scenarios: tuple[str, ...]
     trials_per_scenario: int
@@ -108,6 +118,10 @@ class StatefulReadonlyPlannerMultimodelBenchmarkBuildConfig:
             payload.get("evaluation_models_config", DEFAULT_EVALUATION_MODELS_CONFIG),
             "evaluation_models_config",
         )
+        scenario_catalog = str(payload.get("scenario_catalog", DEFAULT_SCENARIO_CATALOG)).strip()
+        prompt_contract_mode = str(
+            payload.get("prompt_contract_mode", DEFAULT_PROMPT_CONTRACT_MODE)
+        ).strip()
         model_aliases = tuple(_required_identifier_list(payload.get("model_aliases"), "model_aliases"))
         scenarios = tuple(_required_identifier_list(payload.get("scenarios"), "scenarios"))
         trials_per_scenario = _required_int(
@@ -155,14 +169,23 @@ class StatefulReadonlyPlannerMultimodelBenchmarkBuildConfig:
             raise ValueError(
                 "base_packet_config and evaluation_models_config must be safe relative paths."
             )
+        if scenario_catalog not in ALLOWED_SCENARIO_CATALOGS:
+            raise ValueError("scenario_catalog must be a supported stateful read-only scenario catalog.")
+        if prompt_contract_mode not in ALLOWED_PROMPT_CONTRACT_MODES:
+            raise ValueError("prompt_contract_mode must be a supported frozen/historical prompt mode.")
         if not model_aliases:
             raise ValueError("model_aliases must not be empty.")
         if len(set(model_aliases)) != len(model_aliases):
             raise ValueError("model_aliases must be unique.")
-        if list(scenarios) != list(DEFAULT_SCENARIO_IDS):
-            raise ValueError("scenarios must match the five controlled stateful read-only scenarios.")
-        if trials_per_scenario != DEFAULT_TRIAL_COUNT:
-            raise ValueError("trials_per_scenario must be exactly 3.")
+        allowed_scenarios = ALLOWED_SCENARIO_CATALOGS[scenario_catalog]
+        if not scenarios:
+            raise ValueError("scenarios must not be empty.")
+        if len(set(scenarios)) != len(scenarios):
+            raise ValueError("scenarios must be unique.")
+        if any(item not in allowed_scenarios for item in scenarios):
+            raise ValueError("scenarios must belong to the configured stateful read-only scenario catalog.")
+        if trials_per_scenario <= 0:
+            raise ValueError("trials_per_scenario must be a positive integer.")
         if output_dir is None or captured_output_dir is None or evaluator_output_dir is None:
             raise ValueError(
                 "output_dir, captured_output_dir, and evaluator_output_dir must be safe relative paths."
@@ -187,6 +210,8 @@ class StatefulReadonlyPlannerMultimodelBenchmarkBuildConfig:
             packet_id=packet_id,
             base_packet_config=base_packet_config,
             evaluation_models_config=evaluation_models_config,
+            scenario_catalog=scenario_catalog,
+            prompt_contract_mode=prompt_contract_mode,
             model_aliases=model_aliases,
             scenarios=scenarios,
             trials_per_scenario=trials_per_scenario,
@@ -209,6 +234,8 @@ class StatefulReadonlyPlannerMultimodelBenchmarkBuildConfig:
             "packet_id": self.packet_id,
             "base_packet_config": self.base_packet_config,
             "evaluation_models_config": self.evaluation_models_config,
+            "scenario_catalog": self.scenario_catalog,
+            "prompt_contract_mode": self.prompt_contract_mode,
             "model_aliases": list(self.model_aliases),
             "scenarios": list(self.scenarios),
             "trials_per_scenario": self.trials_per_scenario,
@@ -232,6 +259,8 @@ class StatefulReadonlyPlannerMultimodelBenchmarkPacketSummary:
     status: str
     error_code: str | None
     packet_id: str | None
+    scenario_catalog: str | None
+    prompt_contract_mode: str | None
     models_total: int
     model_aliases: tuple[str, ...]
     scenarios_total: int
@@ -263,6 +292,8 @@ class StatefulReadonlyPlannerMultimodelBenchmarkPacketSummary:
             "status": self.status,
             "error_code": self.error_code,
             "packet_id": self.packet_id,
+            "scenario_catalog": self.scenario_catalog,
+            "prompt_contract_mode": self.prompt_contract_mode,
             "models_total": self.models_total,
             "model_aliases": list(self.model_aliases),
             "scenarios_total": self.scenarios_total,
@@ -298,6 +329,8 @@ class StatefulReadonlyPlannerMultimodelBenchmarkEvaluatorSummary:
     packet_id: str | None
     packet_output_dir: str | None
     output_dir: str | None
+    scenario_catalog: str | None
+    prompt_contract_mode: str | None
     models_total: int
     model_aliases: tuple[str, ...]
     scenarios_total: int
@@ -338,6 +371,8 @@ class StatefulReadonlyPlannerMultimodelBenchmarkEvaluatorSummary:
             "packet_id": self.packet_id,
             "packet_output_dir": self.packet_output_dir,
             "output_dir": self.output_dir,
+            "scenario_catalog": self.scenario_catalog,
+            "prompt_contract_mode": self.prompt_contract_mode,
             "models_total": self.models_total,
             "model_aliases": list(self.model_aliases),
             "scenarios_total": self.scenarios_total,
@@ -370,6 +405,20 @@ class StatefulReadonlyPlannerMultimodelBenchmarkEvaluatorSummary:
             "fixture_only": self.fixture_only,
             "limitations": list(self.limitations),
         }
+
+
+def _scenario_definitions_for_catalog(
+    scenario_catalog: str,
+) -> dict[str, Any]:
+    if scenario_catalog == "legacy_stateful_v1":
+        return build_default_stateful_readonly_workflow_scenarios()
+    if scenario_catalog == "frozen_raw_v1":
+        return build_frozen_raw_stateful_readonly_workflow_scenarios()
+    raise ValueError("unsupported scenario catalog")
+
+
+def _trial_labels_for_count(count: int) -> tuple[str, ...]:
+    return tuple(f"trial_{index:02d}" for index in range(1, count + 1))
 
 
 def build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_packet(
@@ -422,7 +471,7 @@ def build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_pack
             diagnostics={"error_message": str(exc)},
         )
 
-    scenarios = build_default_stateful_readonly_workflow_scenarios()
+    scenarios = _scenario_definitions_for_catalog(build_config.scenario_catalog)
     packet_dir = repo / build_config.output_dir
     captured_output_root = repo / build_config.captured_output_dir
     evaluator_output_root = repo / build_config.evaluator_output_dir
@@ -435,7 +484,7 @@ def build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_pack
     request_records: list[dict[str, Any]] = []
     packet_files: list[str] = []
     scenario_ids = list(build_config.scenarios)
-    trial_ids = list(DEFAULT_TRIAL_IDS)
+    trial_ids = list(_trial_labels_for_count(build_config.trials_per_scenario))
 
     expected_output_schema_rel = f"{build_config.output_dir}/{DEFAULT_EXPECTED_OUTPUT_SCHEMA_FILENAME}"
     _write_text(packet_dir / DEFAULT_EXPECTED_OUTPUT_SCHEMA_FILENAME, _build_expected_output_schema_doc())
@@ -447,7 +496,11 @@ def build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_pack
         prompt_dir = packet_dir / "prompts" / scenario_id
         prompt_dir.mkdir(parents=True, exist_ok=True)
         prompt_path = prompt_dir / prompt_filename
-        prompt_text = _build_prompt_text_for_scenario(scenario_id)
+        prompt_text = _build_prompt_text_for_scenario(
+            scenario_id,
+            scenario=scenario,
+            model_neutral_prompt=(build_config.prompt_contract_mode == "frozen_raw"),
+        )
         _write_text(prompt_path, prompt_text)
         prompt_rel = f"{build_config.output_dir}/prompts/{scenario_id}/{prompt_filename}"
         prompt_paths[scenario_id] = prompt_rel
@@ -468,7 +521,9 @@ def build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_pack
                 diagnostics={"model_alias": requested_alias},
             )
 
-        prompt_prefix = DEFAULT_PROMPT_PREFIXES.get(model_spec.model_id)
+        prompt_prefix = None
+        if build_config.prompt_contract_mode == "historical_default":
+            prompt_prefix = DEFAULT_PROMPT_PREFIXES.get(model_spec.model_id)
         model_specs.append(
             {
                 "alias": requested_alias,
@@ -512,6 +567,7 @@ def build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_pack
                     max_tokens=max_tokens,
                     temperature=temperature,
                     prompt_filename=prompt_filename,
+                    model_neutral_prompt=(build_config.prompt_contract_mode == "frozen_raw"),
                 )
                 request_payload["model"] = str(model_spec["api_model"])
                 request_payload["metadata"]["model_path_expected"] = str(model_spec["model_path"])
@@ -566,6 +622,11 @@ def build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_pack
         scenario_ids=scenario_ids,
         trial_ids=trial_ids,
         prompt_filename=prompt_filename,
+        routine_config_path=(
+            "configs/autonomous_runtime/browser_stateful_readonly_planner_frozen_raw_benchmark.example.json"
+            if build_config.scenario_catalog == "frozen_raw_v1"
+            else "configs/autonomous_runtime/browser_stateful_readonly_planner_multimodel_benchmark.example.json"
+        ),
     )
     _write_json(packet_dir / DEFAULT_COMMANDS_FILENAME, {"commands": commands})
     packet_files.append(f"{build_config.output_dir}/{DEFAULT_COMMANDS_FILENAME}")
@@ -587,6 +648,8 @@ def build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_pack
         output_dir=build_config.output_dir,
         captured_output_dir=build_config.captured_output_dir,
         evaluator_output_dir=build_config.evaluator_output_dir,
+        scenario_catalog=build_config.scenario_catalog,
+        prompt_contract_mode=build_config.prompt_contract_mode,
         model_specs=model_specs,
         scenario_ids=scenario_ids,
         trial_ids=trial_ids,
@@ -597,6 +660,8 @@ def build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_pack
     manifest = {
         "schema_version": PACKET_SCHEMA_VERSION,
         "packet_id": build_config.packet_id,
+        "scenario_catalog": build_config.scenario_catalog,
+        "prompt_contract_mode": build_config.prompt_contract_mode,
         "base_packet_config": build_config.base_packet_config,
         "evaluation_models_config": build_config.evaluation_models_config,
         "model_aliases": list(build_config.model_aliases),
@@ -629,6 +694,8 @@ def build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_pack
         status="succeeded",
         error_code=None,
         packet_id=build_config.packet_id,
+        scenario_catalog=build_config.scenario_catalog,
+        prompt_contract_mode=build_config.prompt_contract_mode,
         models_total=len(build_config.model_aliases),
         model_aliases=build_config.model_aliases,
         scenarios_total=len(scenario_ids),
@@ -676,6 +743,10 @@ def run_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_evalua
     packet_id = str(manifest["packet_id"])
     packet_output_dir = str(manifest["output_dir"])
     captured_output_dir = str(manifest["captured_output_dir"])
+    scenario_catalog = str(manifest.get("scenario_catalog") or DEFAULT_SCENARIO_CATALOG)
+    prompt_contract_mode = str(
+        manifest.get("prompt_contract_mode") or DEFAULT_PROMPT_CONTRACT_MODE
+    )
     model_aliases = tuple(str(item) for item in manifest["model_aliases"])
     scenario_ids = tuple(str(item) for item in manifest["scenario_ids"])
     trial_ids = tuple(str(item) for item in manifest["trial_ids"])
@@ -699,7 +770,7 @@ def run_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_evalua
     output_root = repo / output_dir_value
     output_root.mkdir(parents=True, exist_ok=True)
 
-    scenario_defs = build_default_stateful_readonly_workflow_scenarios()
+    scenario_defs = _scenario_definitions_for_catalog(scenario_catalog)
     model_path_map = {
         str(item["alias"]): str(item["model_path"])
         for item in model_specs
@@ -845,6 +916,8 @@ def run_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_evalua
         packet_id=packet_id,
         packet_output_dir=packet_output_dir,
         output_dir=output_dir_value,
+        scenario_catalog=scenario_catalog,
+        prompt_contract_mode=prompt_contract_mode,
         models_total=len(model_aliases),
         model_aliases=model_aliases,
         scenarios_total=len(scenario_ids),
@@ -890,13 +963,17 @@ def _build_commands(
     scenario_ids: list[str],
     trial_ids: list[str],
     prompt_filename: str,
+    routine_config_path: str,
 ) -> list[dict[str, Any]]:
     commands: list[dict[str, Any]] = [
         {
             "id": "build_stateful_readonly_multimodel_benchmark_packet",
             "manual_only": False,
             "description": "Build the optional stateful read-only multi-model benchmark packet.",
-            "command": r".\.venv\Scripts\python.exe scripts/build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_packet.py --config configs\autonomous_runtime\browser_stateful_readonly_planner_multimodel_benchmark.example.json",
+            "command": (
+                ".\\.venv\\Scripts\\python.exe scripts/build_autonomous_browser_stateful_readonly_planner_multimodel_benchmark_packet.py "
+                f"--config {_windows_path(routine_config_path)}"
+            ),
         }
     ]
     for scenario_id in scenario_ids:
@@ -1067,6 +1144,8 @@ def _build_readme(
     model_specs: list[dict[str, Any]],
     scenario_ids: list[str],
     trial_ids: list[str],
+    scenario_catalog: str,
+    prompt_contract_mode: str,
 ) -> str:
     model_lines = "\n".join(
         f"- `{item['alias']}` -> `{item['model_path']}`" for item in model_specs
@@ -1084,13 +1163,19 @@ def _build_readme(
         f"- packet dir: `{output_dir}`\n"
         f"- captured outputs dir: `{captured_output_dir}`\n"
         f"- evaluator output dir: `{evaluator_output_dir}`\n"
+        f"- scenario catalog: `{scenario_catalog}`\n"
+        f"- prompt contract mode: `{prompt_contract_mode}`\n"
         f"- trials per scenario: `{len(trial_ids)}`\n\n"
         "This packet does not execute models, browser actions, Playwright, or external network traffic.\n"
     )
 
 
-def _build_prompt_text_for_scenario(scenario_id: str) -> str:
-    scenario = build_default_stateful_readonly_workflow_scenarios()[scenario_id]
+def _build_prompt_text_for_scenario(
+    scenario_id: str,
+    *,
+    scenario: Any,
+    model_neutral_prompt: bool,
+) -> str:
     prompt_text = _build_request_payload(
         packet_id="preview_only",
         model_alias="preview_only",
@@ -1104,6 +1189,7 @@ def _build_prompt_text_for_scenario(scenario_id: str) -> str:
         max_tokens=DEFAULT_MAX_TOKENS,
         temperature=DEFAULT_TEMPERATURE,
         prompt_filename=DEFAULT_PROMPT_FILENAME,
+        model_neutral_prompt=model_neutral_prompt,
     )["messages"][1]["content"]
     return prompt_text.rstrip() + "\n"
 
@@ -1219,6 +1305,8 @@ def _packet_failure_summary(
         status="failed",
         error_code=error_code,
         packet_id=packet_id,
+        scenario_catalog=None,
+        prompt_contract_mode=None,
         models_total=0,
         model_aliases=(),
         scenarios_total=0,
@@ -1250,6 +1338,8 @@ def _evaluator_failure_summary(
         packet_id=packet_id,
         packet_output_dir=packet_output_dir,
         output_dir=output_dir,
+        scenario_catalog=None,
+        prompt_contract_mode=None,
         models_total=0,
         model_aliases=(),
         scenarios_total=0,

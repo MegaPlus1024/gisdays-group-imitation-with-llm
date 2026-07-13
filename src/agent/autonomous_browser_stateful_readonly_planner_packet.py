@@ -506,10 +506,12 @@ def _build_request_payload(
     max_tokens: int,
     temperature: float,
     prompt_filename: str,
+    model_neutral_prompt: bool = False,
 ) -> dict[str, Any]:
-    prompt_text = _build_scenario_prompt_text(
+    prompt_text = _build_scenario_prompt_text_with_mode(
         scenario_id=scenario.scenario_id,
         scenario=scenario,
+        model_neutral_prompt=model_neutral_prompt,
     )
     user_content = f"{prompt_prefix}\n{prompt_text}" if prompt_prefix else prompt_text
     return {
@@ -803,6 +805,19 @@ def _build_expected_output_schema_doc() -> str:
 
 
 def _build_scenario_prompt_text(*, scenario_id: str, scenario) -> str:
+    return _build_scenario_prompt_text_with_mode(
+        scenario_id=scenario_id,
+        scenario=scenario,
+        model_neutral_prompt=False,
+    )
+
+
+def _build_scenario_prompt_text_with_mode(
+    *,
+    scenario_id: str,
+    scenario,
+    model_neutral_prompt: bool,
+) -> str:
     hints = _scenario_prompt_hints()[scenario_id]
     route_hints = "\n".join(f"- {item}" for item in hints["route_hints"])
     click_hints = "\n".join(
@@ -861,6 +876,12 @@ def _build_scenario_prompt_text(*, scenario_id: str, scenario) -> str:
             """
         ).strip()
 
+    model_specific_prompt_note = (
+        "- If you are `third_model`, keep `/no_think` at the start of the request content."
+        if not model_neutral_prompt
+        else "- Use the same frozen task prompt for every enabled model alias. Do not add model-family-specific tuning."
+    )
+
     return dedent(
         f"""
         # Stateful Read-Only Planner Prompt
@@ -889,7 +910,7 @@ def _build_scenario_prompt_text(*, scenario_id: str, scenario) -> str:
         - Use only local fixture URLs.
         - No external URLs, writes, submits, typing, upload, or download actions.
         - Cite facts and evidence from visited fixture pages.
-        - If you are `third_model`, keep `/no_think` at the start of the request content.
+        {model_specific_prompt_note}
         - Do NOT use the field name `action`.
         - Do NOT use the field name `name` for actions.
         - Do NOT use the field name `tool`.
@@ -1125,6 +1146,95 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
             "final_answer_requirements": (
                 "Return the workspace policy search marker and keep the answer short.",
                 "Cite the policy anchor and policy marker fact ids.",
+            ),
+        },
+        "stateful_policy_source_disambiguation": {
+            "route_hints": (
+                "Policy Disambiguation -> Archived policy.",
+                "Archived policy -> Current policy.",
+                "Use the archive page only to confirm it is not the live source.",
+                "Finish on Workspace Policy, not on Archived Policy.",
+            ),
+            "click_targets": (
+                "Archived policy",
+                "Current policy",
+            ),
+            "required_fact_keys": (
+                "live_policy_source",
+                "archive_warning",
+                "current_policy_anchor",
+                "current_policy_marker",
+            ),
+            "expected_evidence_anchors": (
+                "Policy Disambiguation",
+                "Archived Policy",
+                "Do not use this page as the current policy source.",
+                "Workspace Policy",
+                "fixture-backed result for workspace policy review",
+            ),
+            "final_answer_requirements": (
+                "State that the current policy is the live source and the archive is not.",
+                "Use current_policy_anchor exactly as Workspace Policy.",
+                "Copy archive_warning from the visible archive page text.",
+                "Cite the collected fact ids and evidence item ids.",
+            ),
+        },
+        "stateful_approval_queue_absence_review": {
+            "route_hints": (
+                "Home -> Approvals queue.",
+                "Inspect the queue page and stop there.",
+                "Do not open Policy match review for this scenario because the task is an absence check on the queue itself.",
+            ),
+            "click_targets": (
+                "Approvals queue",
+            ),
+            "required_fact_keys": (
+                "queue_request_id",
+                "queue_owner",
+                "target_request_presence",
+            ),
+            "expected_evidence_anchors": (
+                "Office Intranet",
+                "Approvals Queue",
+                "Approval item APR-42 is waiting for local policy verification.",
+                "Owner: office worker.",
+            ),
+            "final_answer_requirements": (
+                "Report that APR-51 is not found in the approvals queue.",
+                "Also mention the visible queue item APR-42 and the owner office worker.",
+                "Keep the answer short and queue-specific.",
+                "Cite the collected fact ids and evidence item ids.",
+            ),
+        },
+        "stateful_priority_exception_rule_review": {
+            "route_hints": (
+                "Open the priority cross-check board directly.",
+                "Priority cross-check board -> Ticket 7.",
+                "Use the board rule together with the Ticket 7 detail page.",
+                "Do not visit Ticket 8 in this scenario.",
+            ),
+            "click_targets": (
+                "Ticket 7",
+            ),
+            "required_fact_keys": (
+                "priority_rule",
+                "ticket_7_id",
+                "ticket_7_requester_tier",
+                "ticket_7_priority",
+                "ticket_7_marker",
+            ),
+            "expected_evidence_anchors": (
+                "Priority cross-check board",
+                "Priority is determined by requester tier, not by queue age.",
+                "Ticket 7 - Escalation Review",
+                "Requester tier: facilities.",
+                "Priority: urgent.",
+            ),
+            "final_answer_requirements": (
+                "Explain that Ticket 7 is the urgent escalation ticket because requester tier overrides queue age.",
+                "Copy the priority_rule exactly from the visible board text.",
+                "Mention Ticket 7, facilities, and urgent.",
+                "Cite the collected fact ids and evidence item ids.",
             ),
         },
     }

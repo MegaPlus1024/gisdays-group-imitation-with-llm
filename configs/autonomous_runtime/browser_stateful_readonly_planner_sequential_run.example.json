@@ -1,0 +1,70 @@
+{
+  "schema_version": "autonomous_browser_stateful_readonly_planner_multimodel_sequential_run_config_v1",
+  "run_id": "phase_14_stateful_readonly_planner_multimodel_sequential",
+  "output_dir": "artifacts/autonomous_runtime_summaries/stateful_readonly_planner_multimodel_sequential",
+  "model_profiles": [
+    {
+      "model_alias": "third_model",
+      "enabled": true,
+      "endpoint": "http://127.0.0.1:8082/v1/chat/completions",
+      "models_endpoint": "http://127.0.0.1:8082/v1/models",
+      "port": 8082,
+      "ctx_size": 12288,
+      "cpu_only": true,
+      "request_timeout_sec": 180.0,
+      "startup_timeout_sec": 180.0,
+      "start_script": "scripts/start_llama_server.ps1",
+      "start_model_id": "third_model",
+      "start_api_model": "third_model",
+      "notes": [
+        "default stronger planner candidate",
+        "shared frozen task contract",
+        "manual operator opt-in required for real runs"
+      ]
+    },
+    {
+      "model_alias": "fourth_model",
+      "enabled": true,
+      "endpoint": "http://127.0.0.1:8083/v1/chat/completions",
+      "models_endpoint": "http://127.0.0.1:8083/v1/models",
+      "port": 8083,
+      "ctx_size": 8192,
+      "cpu_only": false,
+      "request_timeout_sec": 240.0,
+      "startup_timeout_sec": 240.0,
+      "start_script": "scripts/start_llama_server.ps1",
+      "start_model_id": "fourth_model",
+      "start_api_model": "fourth_model",
+      "notes": [
+        "strong non-Qwen challenger",
+        "shared frozen task contract",
+        "use cpu-only fallback if local GPU mode is unavailable"
+      ]
+    },
+    {
+      "model_alias": "fifth_model",
+      "enabled": false,
+      "endpoint": "http://127.0.0.1:8084/v1/chat/completions",
+      "models_endpoint": "http://127.0.0.1:8084/v1/models",
+      "port": 8084,
+      "ctx_size": 8192,
+      "cpu_only": true,
+      "request_timeout_sec": 360.0,
+      "startup_timeout_sec": 360.0,
+      "start_script": "scripts/start_llama_server.ps1",
+      "start_model_id": "fifth_model",
+      "start_api_model": "fifth_model",
+      "notes": [
+        "disabled by default due to slow observed runtime",
+        "manual optional challenger only"
+      ]
+    }
+  ],
+  "limitations": [
+    "sequential local model runner only",
+    "shared frozen task contract across enabled models",
+    "no browser execution",
+    "no Playwright execution",
+    "not production browser automation"
+  ]
+}
