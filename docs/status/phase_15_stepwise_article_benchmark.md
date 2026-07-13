@@ -31,6 +31,7 @@ Phase 15B adds a guarded local-model adapter for that same stepwise benchmark:
 - final-answer scoring now separates exact answer matching from semantic factual correctness: a full-sentence answer can pass when it contains the required fact and cites the correct fixture section
 - redundant valid actions now produce explicit observation feedback with section-read progress, unread-section counts, and generic anti-loop guidance
 - observations now include an observed evidence ledger for sections already read or extracted, so stateless local-model calls can synthesize answers across multiple prior sections
+- semantic scoring now supports explicit multiple required facts per scenario, with diagnostic matched and missing fact IDs
 
 ## Why it exists
 
@@ -57,6 +58,8 @@ This repair is generic control-loop feedback. It reports progress such as sectio
 
 Another medium two-fact smoke exposed an evidence-memory gap. The model opened the article, extracted both `escalation_owner` and `policy_scope`, and had valid workflow progress with all sections read, but its final answer only used the current visible evidence and claimed the escalation owner was not mentioned. Phase 15 now treats local-model calls as stateless action decisions and carries an observed evidence ledger in each observation. That ledger includes only section text already observed through read/extract/find behavior; it does not reveal unread section contents or add answer-specific hints before the model has read the relevant section.
 
+The same medium scenario also requires multi-fact scoring rather than a single contiguous exact phrase. The evaluator now represents required facts explicitly, such as `policy_version` and `escalation_owner`, and reports `required_facts_total`, `required_facts_matched`, `matched_required_fact_ids`, and `missing_required_fact_ids`. Exact answer matching remains diagnostic; semantic scoring checks that all required fact specs are present and citation scoring still requires the supporting sections.
+
 ## Safety boundaries
 
 - fixture-only article environment
@@ -71,6 +74,7 @@ Another medium two-fact smoke exposed an evidence-memory gap. The model opened t
 - benchmark prompts now instruct `browser_open_url` to use only the exposed fixture article URLs and not invent external URLs
 - redundant-action diagnostics are fixture-only progress signals and do not require a browser, Playwright, Chromium, or local server
 - observed evidence memory is limited to already-read or extracted fixture sections and is intended for multi-section synthesis, not scenario-specific answer tuning
+- multi-fact scoring is an evaluator repair and does not change prompts, model behavior, scenario text, or Phase 14 benchmark results
 
 ## Current scope
 

@@ -283,6 +283,15 @@ def test_repeated_valid_redundant_extract_loop_stops_before_max_steps() -> None:
 class EvidenceMemoryFakeModel:
     model_name = "evidence_memory_fake_model"
 
+    def __init__(
+        self,
+        *,
+        answer_text: str = "Workspace policy version 2026 and escalation owner Mira Chen.",
+        citation_ids: list[str] | None = None,
+    ) -> None:
+        self.answer_text = answer_text
+        self.citation_ids = citation_ids or ["policy_scope", "escalation_owner"]
+
     def next_action(self, task, observation, memory):  # type: ignore[no-untyped-def]
         scenario = memory["scenario"]
         observed_ids = set(observation.observed_section_ids)
@@ -298,8 +307,8 @@ class EvidenceMemoryFakeModel:
         return StepwiseArticleAction(
             "final_answer",
             {
-                "answer_text": "Workspace policy version 2026 and escalation owner Mira Chen.",
-                "citation_ids": ["policy_scope", "escalation_owner"],
+                "answer_text": self.answer_text,
+                "citation_ids": self.citation_ids,
             },
         )
 
@@ -340,6 +349,35 @@ def test_evidence_memory_fake_model_passes_medium_multi_section_answer() -> None
     assert result.evaluation.observed_section_ids_at_stop == ("escalation_owner", "policy_scope")
     assert result.evaluation.final_answer_supported_citation_ids == ("policy_scope", "escalation_owner")
     assert result.evaluation.missing_citation_ids == ()
+    assert result.evaluation.required_facts_total == 2
+    assert result.evaluation.required_facts_matched == 2
+    assert result.evaluation.matched_required_fact_ids == ("policy_version", "escalation_owner")
+    assert result.evaluation.missing_required_fact_ids == ()
+
+
+def test_medium_semantic_answer_with_version_and_owner_passes_without_exact_match() -> None:
+    scenarios = build_default_stepwise_article_scenarios()
+    result = run_stepwise_article_scenario(
+        scenarios["article_medium_two_fact_cross_section"],
+        EvidenceMemoryFakeModel(
+            answer_text="The workspace policy version is 2026, and the escalation owner is Mira Chen.",
+            citation_ids=["policy_scope", "escalation_owner"],
+        ),
+        max_steps=6,
+    )
+
+    assert result.status == "succeeded"
+    assert result.evaluation.answer_exact_match is False
+    assert result.evaluation.answer_correct is False
+    assert result.evaluation.answer_contains_required_fact is True
+    assert result.evaluation.semantic_answer_correct is True
+    assert result.evaluation.missing_required_fact is False
+    assert result.evaluation.stopped_too_early is False
+    assert result.evaluation.passed is True
+    assert result.evaluation.required_facts_total == 2
+    assert result.evaluation.required_facts_matched == 2
+    assert result.evaluation.matched_required_fact_ids == ("policy_version", "escalation_owner")
+    assert result.evaluation.missing_required_fact_ids == ()
 
 
 def test_answer_claiming_owner_missing_fails_after_owner_evidence_was_read() -> None:
@@ -355,8 +393,84 @@ def test_answer_claiming_owner_missing_fails_after_owner_evidence_was_read() -> 
     assert result.evaluation.observed_evidence_count_at_stop == 2
     assert result.evaluation.semantic_answer_correct is False
     assert result.evaluation.missing_required_fact is True
+    assert result.evaluation.missing_required_fact_ids == ("escalation_owner",)
+    assert result.evaluation.stopped_too_early is False
     assert result.evaluation.citation_correct is False
     assert result.evaluation.missing_citation_ids == ("escalation_owner",)
+
+
+def test_medium_answer_only_policy_version_fails_missing_owner_fact() -> None:
+    scenarios = build_default_stepwise_article_scenarios()
+    result = run_stepwise_article_scenario(
+        scenarios["article_medium_two_fact_cross_section"],
+        EvidenceMemoryFakeModel(
+            answer_text="The workspace policy version is 2026.",
+            citation_ids=["policy_scope", "escalation_owner"],
+        ),
+        max_steps=6,
+    )
+
+    assert result.status == "failed"
+    assert result.evaluation.required_facts_matched == 1
+    assert result.evaluation.matched_required_fact_ids == ("policy_version",)
+    assert result.evaluation.missing_required_fact_ids == ("escalation_owner",)
+    assert result.evaluation.semantic_answer_correct is False
+    assert result.evaluation.missing_required_fact is True
+
+
+def test_medium_answer_only_owner_fails_missing_policy_version_fact() -> None:
+    scenarios = build_default_stepwise_article_scenarios()
+    result = run_stepwise_article_scenario(
+        scenarios["article_medium_two_fact_cross_section"],
+        EvidenceMemoryFakeModel(
+            answer_text="The escalation owner is Mira Chen.",
+            citation_ids=["policy_scope", "escalation_owner"],
+        ),
+        max_steps=6,
+    )
+
+    assert result.status == "failed"
+    assert result.evaluation.required_facts_matched == 1
+    assert result.evaluation.matched_required_fact_ids == ("escalation_owner",)
+    assert result.evaluation.missing_required_fact_ids == ("policy_version",)
+    assert result.evaluation.semantic_answer_correct is False
+    assert result.evaluation.missing_required_fact is True
+
+
+def test_medium_answer_with_both_facts_requires_policy_scope_citation() -> None:
+    scenarios = build_default_stepwise_article_scenarios()
+    result = run_stepwise_article_scenario(
+        scenarios["article_medium_two_fact_cross_section"],
+        EvidenceMemoryFakeModel(
+            answer_text="The workspace policy version is 2026, and the escalation owner is Mira Chen.",
+            citation_ids=["escalation_owner"],
+        ),
+        max_steps=6,
+    )
+
+    assert result.status == "failed"
+    assert result.evaluation.semantic_answer_correct is True
+    assert result.evaluation.citation_correct is False
+    assert result.evaluation.missing_citation_ids == ("policy_scope",)
+    assert result.evaluation.passed is False
+
+
+def test_medium_answer_with_both_facts_requires_escalation_owner_citation() -> None:
+    scenarios = build_default_stepwise_article_scenarios()
+    result = run_stepwise_article_scenario(
+        scenarios["article_medium_two_fact_cross_section"],
+        EvidenceMemoryFakeModel(
+            answer_text="The workspace policy version is 2026, and the escalation owner is Mira Chen.",
+            citation_ids=["policy_scope"],
+        ),
+        max_steps=6,
+    )
+
+    assert result.status == "failed"
+    assert result.evaluation.semantic_answer_correct is True
+    assert result.evaluation.citation_correct is False
+    assert result.evaluation.missing_citation_ids == ("escalation_owner",)
+    assert result.evaluation.passed is False
 
 
 class FinalAnswerAfterReadModel:

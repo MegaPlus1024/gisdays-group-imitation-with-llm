@@ -137,6 +137,33 @@ class StepwiseArticleObservedSection:
 
 
 @dataclass(frozen=True)
+class StepwiseArticleRequiredFact:
+    fact_id: str
+    description: str = ""
+    required_terms: tuple[str, ...] = ()
+    accepted_terms: tuple[str, ...] = ()
+    supporting_citation_ids: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "fact_id", self.fact_id.strip())
+        object.__setattr__(self, "description", self.description.strip())
+        object.__setattr__(self, "required_terms", _coerce_string_list(self.required_terms))
+        object.__setattr__(self, "accepted_terms", _coerce_string_list(self.accepted_terms))
+        object.__setattr__(self, "supporting_citation_ids", _coerce_string_list(self.supporting_citation_ids))
+        if not self.fact_id.strip():
+            raise ValueError("required fact fact_id must be non-empty")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "fact_id": self.fact_id,
+            "description": self.description,
+            "required_terms": list(self.required_terms),
+            "accepted_terms": list(self.accepted_terms),
+            "supporting_citation_ids": list(self.supporting_citation_ids),
+        }
+
+
+@dataclass(frozen=True)
 class StepwiseArticleScenario:
     scenario_id: str
     start_url: str
@@ -146,6 +173,7 @@ class StepwiseArticleScenario:
     article_title_hint: str | None = None
     accepted_answer_texts: tuple[str, ...] = ()
     required_answer_fragments: tuple[str, ...] = ()
+    required_facts: tuple[StepwiseArticleRequiredFact, ...] = ()
     forbidden_answer_fragments: tuple[str, ...] = ()
     required_citation_ids: tuple[str, ...] = ()
     required_section_ids: tuple[str, ...] = ()
@@ -164,6 +192,17 @@ class StepwiseArticleScenario:
         if isinstance(self.article_title_hint, str):
             stripped = self.article_title_hint.strip()
             object.__setattr__(self, "article_title_hint", stripped or None)
+        object.__setattr__(self, "required_answer_fragments", _coerce_string_list(self.required_answer_fragments))
+        object.__setattr__(
+            self,
+            "required_facts",
+            tuple(
+                fact
+                if isinstance(fact, StepwiseArticleRequiredFact)
+                else StepwiseArticleRequiredFact(**fact)
+                for fact in self.required_facts
+            ),
+        )
 
     @property
     def article_url(self) -> str:
@@ -180,6 +219,7 @@ class StepwiseArticleScenario:
             "expected_answer_text": self.expected_answer_text,
             "accepted_answer_texts": list(self.accepted_answer_texts),
             "required_answer_fragments": list(self.required_answer_fragments),
+            "required_facts": [fact.to_dict() for fact in self.required_facts],
             "forbidden_answer_fragments": list(self.forbidden_answer_fragments),
             "required_citation_ids": list(self.required_citation_ids),
             "required_section_ids": list(self.required_section_ids),
@@ -304,6 +344,11 @@ class StepwiseArticleEvaluation:
     answer_correct: bool
     answer_exact_match: bool
     answer_contains_required_fact: bool
+    required_facts_total: int
+    required_facts_matched: int
+    matched_required_fact_ids: tuple[str, ...]
+    missing_required_fact_ids: tuple[str, ...]
+    required_fact_match_notes: tuple[str, ...]
     citation_correct: bool
     semantic_answer_correct: bool
     pass_used_semantic_answer: bool
@@ -333,6 +378,11 @@ class StepwiseArticleEvaluation:
             "answer_correct": self.answer_correct,
             "answer_exact_match": self.answer_exact_match,
             "answer_contains_required_fact": self.answer_contains_required_fact,
+            "required_facts_total": self.required_facts_total,
+            "required_facts_matched": self.required_facts_matched,
+            "matched_required_fact_ids": list(self.matched_required_fact_ids),
+            "missing_required_fact_ids": list(self.missing_required_fact_ids),
+            "required_fact_match_notes": list(self.required_fact_match_notes),
             "citation_correct": self.citation_correct,
             "semantic_answer_correct": self.semantic_answer_correct,
             "pass_used_semantic_answer": self.pass_used_semantic_answer,
@@ -1023,6 +1073,20 @@ def build_default_stepwise_article_scenarios() -> dict[str, StepwiseArticleScena
             article_title_hint="Workspace Policy Memo",
             expected_answer_text="Workspace policy version 2026 and escalation owner Mira Chen.",
             required_answer_fragments=("workspace policy version 2026", "mira chen"),
+            required_facts=(
+                StepwiseArticleRequiredFact(
+                    fact_id="policy_version",
+                    description="workspace policy version",
+                    accepted_terms=("2026",),
+                    supporting_citation_ids=("policy_scope",),
+                ),
+                StepwiseArticleRequiredFact(
+                    fact_id="escalation_owner",
+                    description="escalation owner",
+                    accepted_terms=("mira chen",),
+                    supporting_citation_ids=("escalation_owner",),
+                ),
+            ),
             required_citation_ids=("policy_scope", "escalation_owner"),
             required_section_ids=("policy_scope", "escalation_owner"),
             metadata={
@@ -1415,6 +1479,50 @@ def _attach_repetition_counts(
     return replace(step_result, observation_after=updated_observation)
 
 
+def _required_facts_for_scenario(scenario: StepwiseArticleScenario) -> tuple[StepwiseArticleRequiredFact, ...]:
+    if scenario.required_facts:
+        return scenario.required_facts
+    return tuple(
+        StepwiseArticleRequiredFact(
+            fact_id=f"required_fragment_{index}",
+            description=fragment,
+            required_terms=(fragment,),
+        )
+        for index, fragment in enumerate(scenario.required_answer_fragments, start=1)
+    )
+
+
+def _match_required_facts(
+    scenario: StepwiseArticleScenario,
+    normalized_answer: str,
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    matched_fact_ids: list[str] = []
+    missing_fact_ids: list[str] = []
+    notes: list[str] = []
+    for fact in _required_facts_for_scenario(scenario):
+        accepted_terms = tuple(_normalize_text(term) for term in fact.accepted_terms if _normalize_text(term))
+        required_terms = tuple(_normalize_text(term) for term in fact.required_terms if _normalize_text(term))
+        matched_term: str | None = None
+        if accepted_terms:
+            for term in accepted_terms:
+                if term in normalized_answer:
+                    matched_term = term
+                    break
+            matched = matched_term is not None
+        else:
+            matched = bool(required_terms) and all(term in normalized_answer for term in required_terms)
+            if matched:
+                matched_term = " + ".join(required_terms)
+
+        if matched:
+            matched_fact_ids.append(fact.fact_id)
+            notes.append(f"{fact.fact_id}: matched {matched_term or 'required terms'}")
+        else:
+            missing_fact_ids.append(fact.fact_id)
+            notes.append(f"{fact.fact_id}: missing")
+    return (tuple(matched_fact_ids), tuple(missing_fact_ids), tuple(notes))
+
+
 def write_stepwise_article_benchmark_summary(
     summary: Mapping[str, Any],
     output_path: str | Path = DEFAULT_OUTPUT_JSON,
@@ -1449,11 +1557,14 @@ def _evaluate_run(
     }
     answer_exact_match = bool(normalized_answer) and normalized_answer in accepted_exact
     answer_correct = answer_exact_match
-    answer_contains_required_fact = bool(normalized_answer)
-    for fragment in scenario.required_answer_fragments:
-        if _normalize_text(fragment) not in normalized_answer:
-            answer_contains_required_fact = False
-            break
+    required_facts = _required_facts_for_scenario(scenario)
+    matched_required_fact_ids, missing_required_fact_ids, required_fact_match_notes = _match_required_facts(
+        scenario,
+        normalized_answer,
+    )
+    required_facts_total = len(required_facts)
+    required_facts_matched = len(matched_required_fact_ids)
+    answer_contains_required_fact = bool(normalized_answer) and required_facts_total == required_facts_matched
     semantic_answer_correct = answer_exact_match or answer_contains_required_fact
     hallucinated_fact = False
     for fragment in scenario.forbidden_answer_fragments:
@@ -1478,7 +1589,10 @@ def _evaluate_run(
     max_steps_exceeded = stop_reason == "max_steps_exceeded"
     sections_read_count = len(set(sections_read_ids))
     required_sections_seen = set(scenario.required_section_ids).issubset(set(sections_read_ids))
-    stopped_too_early = completed and (missing_required_fact or not required_sections_seen)
+    stopped_too_early = completed and (
+        not required_sections_seen
+        or (missing_required_fact and sections_unread_count_at_stop > 0)
+    )
     unnecessary_action_count = sum(
         1
         for step in steps
@@ -1508,6 +1622,11 @@ def _evaluate_run(
         answer_correct=answer_correct,
         answer_exact_match=answer_exact_match,
         answer_contains_required_fact=answer_contains_required_fact,
+        required_facts_total=required_facts_total,
+        required_facts_matched=required_facts_matched,
+        matched_required_fact_ids=matched_required_fact_ids,
+        missing_required_fact_ids=missing_required_fact_ids,
+        required_fact_match_notes=required_fact_match_notes,
         citation_correct=citation_correct,
         semantic_answer_correct=semantic_answer_correct,
         pass_used_semantic_answer=pass_used_semantic_answer,
