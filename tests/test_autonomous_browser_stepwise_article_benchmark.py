@@ -159,6 +159,105 @@ def test_repeated_invalid_open_url_loop_stops_early() -> None:
     assert len(result.steps) == 3
 
 
+class FinalAnswerAfterReadModel:
+    model_name = "final_answer_after_read_model"
+
+    def __init__(self, *, answer_text: str, citation_ids: list[str]) -> None:
+        self.answer_text = answer_text
+        self.citation_ids = citation_ids
+
+    def next_action(self, task, observation, memory):  # type: ignore[no-untyped-def]
+        scenario = memory["scenario"]
+        if not observation.page_opened:
+            return StepwiseArticleAction("browser_open_url", {"url": scenario.start_url})
+        if not observation.sections_read_ids:
+            return StepwiseArticleAction("browser_read_visible_text", {})
+        return StepwiseArticleAction(
+            "final_answer",
+            {
+                "answer_text": self.answer_text,
+                "citation_ids": self.citation_ids,
+            },
+        )
+
+
+def test_full_sentence_required_fact_passes_without_exact_match() -> None:
+    scenarios = build_default_stepwise_article_scenarios()
+    result = run_stepwise_article_scenario(
+        scenarios["article_short_single_fact"],
+        FinalAnswerAfterReadModel(
+            answer_text="The harbor office opens at 06:30 each weekday for visitor processing.",
+            citation_ids=["harbor_hours"],
+        ),
+        max_steps=5,
+    )
+
+    assert result.status == "succeeded"
+    assert result.evaluation.answer_exact_match is False
+    assert result.evaluation.answer_correct is False
+    assert result.evaluation.answer_contains_required_fact is True
+    assert result.evaluation.semantic_answer_correct is True
+    assert result.evaluation.pass_used_semantic_answer is True
+    assert result.evaluation.answer_match_note == "full sentence accepted because required fact was present"
+    assert result.evaluation.passed is True
+
+
+def test_exact_answer_match_remains_diagnostic_and_passes() -> None:
+    scenarios = build_default_stepwise_article_scenarios()
+    scenario = scenarios["article_short_single_fact"]
+    result = run_stepwise_article_scenario(
+        scenario,
+        FinalAnswerAfterReadModel(
+            answer_text=scenario.expected_answer_text,
+            citation_ids=["harbor_hours"],
+        ),
+        max_steps=5,
+    )
+
+    assert result.status == "succeeded"
+    assert result.evaluation.answer_exact_match is True
+    assert result.evaluation.answer_correct is True
+    assert result.evaluation.semantic_answer_correct is True
+    assert result.evaluation.pass_used_semantic_answer is False
+    assert result.evaluation.passed is True
+
+
+def test_wrong_fact_fails_semantic_answer_correctness() -> None:
+    scenarios = build_default_stepwise_article_scenarios()
+    result = run_stepwise_article_scenario(
+        scenarios["article_short_single_fact"],
+        FinalAnswerAfterReadModel(
+            answer_text="The harbor office opens at 08:00 each weekday.",
+            citation_ids=["harbor_hours"],
+        ),
+        max_steps=5,
+    )
+
+    assert result.status == "failed"
+    assert result.evaluation.answer_exact_match is False
+    assert result.evaluation.answer_contains_required_fact is False
+    assert result.evaluation.semantic_answer_correct is False
+    assert result.evaluation.missing_required_fact is True
+    assert result.evaluation.passed is False
+
+
+def test_semantic_answer_with_wrong_citation_fails() -> None:
+    scenarios = build_default_stepwise_article_scenarios()
+    result = run_stepwise_article_scenario(
+        scenarios["article_short_single_fact"],
+        FinalAnswerAfterReadModel(
+            answer_text="The harbor office opens at 06:30 each weekday for visitor processing.",
+            citation_ids=["wrong_section"],
+        ),
+        max_steps=5,
+    )
+
+    assert result.status == "failed"
+    assert result.evaluation.semantic_answer_correct is True
+    assert result.evaluation.citation_correct is False
+    assert result.evaluation.passed is False
+
+
 def test_correct_final_answer_and_citation_can_pass() -> None:
     scenarios = build_default_stepwise_article_scenarios()
     result = run_stepwise_article_scenario(

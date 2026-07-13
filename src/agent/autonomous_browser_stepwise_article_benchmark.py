@@ -213,8 +213,12 @@ class StepwiseArticleEvaluation:
     completed: bool
     passed: bool
     answer_correct: bool
+    answer_exact_match: bool
+    answer_contains_required_fact: bool
     citation_correct: bool
     semantic_answer_correct: bool
+    pass_used_semantic_answer: bool
+    answer_match_note: str | None
     workflow_action_valid: bool
     steps_used: int
     sections_read: int
@@ -230,8 +234,12 @@ class StepwiseArticleEvaluation:
             "completed": self.completed,
             "passed": self.passed,
             "answer_correct": self.answer_correct,
+            "answer_exact_match": self.answer_exact_match,
+            "answer_contains_required_fact": self.answer_contains_required_fact,
             "citation_correct": self.citation_correct,
             "semantic_answer_correct": self.semantic_answer_correct,
+            "pass_used_semantic_answer": self.pass_used_semantic_answer,
+            "answer_match_note": self.answer_match_note,
             "workflow_action_valid": self.workflow_action_valid,
             "steps_used": self.steps_used,
             "sections_read": self.sections_read,
@@ -1144,12 +1152,14 @@ def _evaluate_run(
         _normalize_text(scenario.expected_answer_text),
         *(_normalize_text(item) for item in scenario.accepted_answer_texts),
     }
-    answer_correct = bool(normalized_answer) and normalized_answer in accepted_exact
-    semantic_answer_correct = bool(normalized_answer)
+    answer_exact_match = bool(normalized_answer) and normalized_answer in accepted_exact
+    answer_correct = answer_exact_match
+    answer_contains_required_fact = bool(normalized_answer)
     for fragment in scenario.required_answer_fragments:
         if _normalize_text(fragment) not in normalized_answer:
-            semantic_answer_correct = False
+            answer_contains_required_fact = False
             break
+    semantic_answer_correct = answer_exact_match or answer_contains_required_fact
     hallucinated_fact = False
     for fragment in scenario.forbidden_answer_fragments:
         if _normalize_text(fragment) in normalized_answer:
@@ -1174,19 +1184,29 @@ def _evaluate_run(
     )
     passed = (
         completed
-        and answer_correct
         and citation_correct
         and semantic_answer_correct
         and workflow_action_valid
+        and invalid_action_count == 0
         and not hallucinated_fact
+        and not missing_required_fact
         and not max_steps_exceeded
+        and not stopped_too_early
     )
+    pass_used_semantic_answer = passed and not answer_exact_match and semantic_answer_correct
+    answer_match_note = None
+    if pass_used_semantic_answer:
+        answer_match_note = "full sentence accepted because required fact was present"
     return StepwiseArticleEvaluation(
         completed=completed,
         passed=passed,
         answer_correct=answer_correct,
+        answer_exact_match=answer_exact_match,
+        answer_contains_required_fact=answer_contains_required_fact,
         citation_correct=citation_correct,
         semantic_answer_correct=semantic_answer_correct,
+        pass_used_semantic_answer=pass_used_semantic_answer,
+        answer_match_note=answer_match_note,
         workflow_action_valid=workflow_action_valid,
         steps_used=len(steps),
         sections_read=sections_read_count,

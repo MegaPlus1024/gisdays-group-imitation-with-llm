@@ -28,6 +28,7 @@ Phase 15B adds a guarded local-model adapter for that same stepwise benchmark:
 - Phase 15B now supports `disable_thinking` plus a configurable `/no_think`-style prefix as protocol control rather than scenario-specific answer tuning
 - article-reading scenarios now expose fixture start URLs and allowed fixture article URLs in the observation
 - the benchmark now tests reading a provided fixture article rather than guessing a hidden URL
+- final-answer scoring now separates exact answer matching from semantic factual correctness: a full-sentence answer can pass when it contains the required fact and cites the correct fixture section
 
 ## Why it exists
 
@@ -45,6 +46,8 @@ That separation matters for guarded local-model smoke runs: a run can fail befor
 For Qwen3-style thinking models in particular, `message.reasoning_content` may hold chain-of-thought while `message.content` stays empty unless thinking is disabled. The stepwise adapter now supports an explicit no-think/action-json mode for these control loops, but it still parses actions only from `message.content`, not from `reasoning_content`.
 
 The same principle applies to fixture URLs: the benchmark now exposes allowed local article URLs directly in the observation, analogous to a user giving the article link. Unknown URL attempts are treated as environment/action failures rather than as reading failures.
+
+The same separation applies to answer scoring. `answer_exact_match` remains a diagnostic for short expected-answer strings, while `semantic_answer_correct` and `answer_contains_required_fact` determine whether a semantically correct full-sentence response can pass. A run still needs the correct citation and valid stepwise workflow; semantic answer acceptance does not forgive wrong citations, hallucinated facts, missing required facts, invalid actions, or early stopping.
 
 ## Safety boundaries
 
