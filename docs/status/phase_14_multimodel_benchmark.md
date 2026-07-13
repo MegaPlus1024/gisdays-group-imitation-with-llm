@@ -39,6 +39,8 @@ Phase 14F prepares the final presentation benchmark layer on top of that frozen 
 - a dedicated summarizer can turn evaluator and sequential-run summaries into Markdown/CSV/JSON presentation tables
 - no final presentation result is claimed until the operator performs the real model run
 
+The operator has now completed that final presentation run. The result is presentation-grade benchmark evidence for this specific local fixture-only frozen raw setup, not a production-readiness claim.
+
 ## What was added
 
 - `src/agent/autonomous_browser_stateful_readonly_planner_multimodel_benchmark.py`
@@ -269,6 +271,81 @@ Phase 14F also adds a bounded summarizer for the future five-model operator run:
 - the Markdown output also includes a scenario matrix with `PASS`, `FAIL`, `REJECTED`, and `MISSING`
 
 That summarizer remains offline and does not launch models, browser automation, Playwright, Chromium, or local servers.
+
+## Final Phase 14F presentation result
+
+The final presentation benchmark used:
+
+- fixture-only workflow evaluation
+- frozen raw methodology
+- no model-specific prompt tuning
+- one shared prompt/schema/evaluator contract
+- shared `max_tokens: 4096`
+- `5` local model aliases
+- `11` deterministic scenarios
+- one mixed difficulty ladder: `ultra_easy`, `easy`, `medium`, `hard`, `very_hard`
+
+### Top-level evaluator summary
+
+- `status: completed_with_failures`
+- `error_code: browser_click_target_not_found`
+- `models_total: 5`
+- `best_model_by_pass_rate: fourth_model`
+- `fully_successful_models: []`
+- `missing_output_models: []`
+- `model_execution: false`
+- `real_browser_execution: false`
+- `playwright_execution: false`
+- `browser_opened: false`
+- `no_runtime_execution: true`
+- `fixture_only: true`
+
+The evaluator remained offline after capture, so this result adds no browser or Playwright evidence.
+
+### Final model table
+
+| model_alias | label | role | outputs_present | validation_accepted | validation_rejected | workflows_succeeded | workflows_failed | pass_rate_overall | validation_acceptance_rate | finish_reason_stop | finish_reason_length | failure_model_failed_task |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `first_model` | IBM Granite 3.3 8B Instruct Q4_K_M | small/medium non-Qwen baseline | 11 | 9 | 2 | 1 | 10 | 0.091 | 0.818 | 11 | 0 | 10 |
+| `second_model` | Qwen2.5-3B-Instruct Q4_K_M | weak Qwen baseline | 11 | 7 | 4 | 1 | 10 | 0.091 | 0.636 | 11 | 0 | 10 |
+| `third_model` | Qwen3-14B Q5_K_M | strong historical Qwen planner | 11 | 9 | 2 | 5 | 6 | 0.455 | 0.818 | 10 | 1 | 6 |
+| `fourth_model` | Mistral Small 3.2 24B Instruct Q4_K_M | strong non-Qwen challenger | 11 | 11 | 0 | 5 | 6 | 0.455 | 1.000 | 11 | 0 | 6 |
+| `fifth_model` | Qwen3-30B-A3B-Instruct-2507 Q4_K_M | strong efficient MoE challenger | 11 | 11 | 0 | 3 | 8 | 0.273 | 1.000 | 11 | 0 | 8 |
+
+### Final scenario matrix
+
+| scenario_id | difficulty | category | fourth_model | third_model | fifth_model | first_model | second_model |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `stateful_single_fact_sanity_check` | ultra_easy | sanity | FAIL | PASS | PASS | FAIL | FAIL |
+| `stateful_policy_search_marker_review` | easy | A | PASS | FAIL | FAIL | FAIL | FAIL |
+| `stateful_policy_allowed_activity` | easy | B | FAIL | FAIL | FAIL | REJECTED | REJECTED |
+| `stateful_policy_ticket_crosscheck` | medium | C | PASS | PASS | PASS | PASS | REJECTED |
+| `stateful_approval_queue_absence_review` | medium | D | PASS | PASS | FAIL | FAIL | FAIL |
+| `stateful_ticket_priority_digest` | medium | E | PASS | PASS | PASS | FAIL | FAIL |
+| `stateful_approval_id_review` | medium | F | FAIL | REJECTED | FAIL | REJECTED | REJECTED |
+| `stateful_policy_source_disambiguation` | hard | G | FAIL | FAIL | FAIL | FAIL | REJECTED |
+| `stateful_policy_trap_review` | hard | H | FAIL | FAIL | FAIL | FAIL | FAIL |
+| `stateful_priority_exception_rule_review` | hard | I | FAIL | PASS | FAIL | FAIL | FAIL |
+| `stateful_approval_policy_crosscheck` | very_hard | J | PASS | REJECTED | FAIL | FAIL | PASS |
+
+### Interpretation
+
+- `fourth_model` and `third_model` tied on completed workflows at `5/11` each.
+- `fourth_model` ranked first because it paired that workflow count with perfect validation acceptance: `11/11` accepted, `0` rejected, and no length-limited outputs.
+- `third_model` also reached `5/11`, but with `9/11` validation acceptance, `2` rejected outputs, and `1` length-limited output.
+- `fifth_model` had perfect validation acceptance but lower workflow completion at `3/11`.
+- `first_model` and `second_model` both completed `1/11`, which keeps them useful as lower presentation baselines rather than zero-pass rows.
+- Every model passed at least one scenario.
+- No model passed all scenarios.
+- The harder scenarios create visible separation without changing prompts per model.
+
+### Caveats
+
+- This does not mean `fourth_model` is universally better. It means `fourth_model` ranked first in this specific local frozen raw fixture-only agent-planning benchmark.
+- The result stays bounded by the shared prompt/schema/evaluator contract and shared `max_tokens: 4096`.
+- No model-specific prompt tuning was introduced.
+- The final evaluator `error_code` remained `browser_click_target_not_found`, so the run is still recorded as `completed_with_failures`.
+- Generated summary tables and captured outputs are operator evidence only and must not be committed.
 
 ## Clean Phase 14E frozen raw result
 

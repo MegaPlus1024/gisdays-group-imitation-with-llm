@@ -18,7 +18,29 @@ Phase 14C extends that optional benchmark registry/config path with `fourth_mode
 
 After the Phase 14E frozen-raw runner repair, a clean runner-owned rerun was completed as a separate post-completion benchmark line. Under that bounded fixture-only raw benchmark, `fourth_model` led `third_model` at `6/8` versus `5/8` workflow success with a shared prompt/schema/evaluator contract and shared `max_tokens: 4096`. That result supersedes the earlier polluted Phase 14E preliminary run, but it remains a narrow fixture-only comparison and does not replace the stronger final `third_model` repeated-variance evidence used for the core project closure.
 
-Phase 14F prepares a final-presentation benchmark layer above that repaired methodology. It adds a five-model registry/update path, a presentation-oriented 11-scenario frozen raw packet, a five-profile sequential run config, and a Markdown/CSV/JSON summary tool. The `first_model` alias in that presentation layer now points to IBM Granite 3.3 8B Instruct Q4_K_M as the small/medium non-Qwen baseline; the earlier Phi-4-mini local file was archived locally and was not committed. This is still preparation only: no final five-model presentation result is claimed here until the operator performs that separate run, and the presentation table should be regenerated after the `first_model` replacement.
+Phase 14F adds the final presentation benchmark result above that repaired methodology. It uses a presentation-oriented 11-scenario frozen raw packet, a five-profile sequential run config, and a Markdown/CSV/JSON summary tool over five local aliases. In that presentation layer, `first_model` points to IBM Granite 3.3 8B Instruct Q4_K_M as the small/medium non-Qwen baseline; the earlier Phi-4-mini local file was archived locally and was not committed.
+
+The final Phase 14F evaluator summary remained offline and fixture-only after capture:
+
+- `status: completed_with_failures`
+- `error_code: browser_click_target_not_found`
+- `best_model_by_pass_rate: fourth_model`
+- `model_execution: false`
+- `real_browser_execution: false`
+- `playwright_execution: false`
+- `browser_opened: false`
+- `no_runtime_execution: true`
+- `fixture_only: true`
+
+Final bounded outcome for that specific benchmark:
+
+- `fourth_model`: `5/11` workflows succeeded, `11/11` validation accepted
+- `third_model`: `5/11` workflows succeeded, `9/11` validation accepted, `1` length-limited output
+- `fifth_model`: `3/11` workflows succeeded, `11/11` validation accepted
+- `first_model`: `1/11` workflows succeeded
+- `second_model`: `1/11` workflows succeeded
+
+This does not change the core project closure basis, which still rests on the stronger repeated `third_model` Phase 13E stateful variance evidence. It records one presentation-grade, fixture-only, frozen raw comparison table with no model-specific prompt tuning and no production-readiness claim.
 
 ## A. Analysis of implementation means
 
