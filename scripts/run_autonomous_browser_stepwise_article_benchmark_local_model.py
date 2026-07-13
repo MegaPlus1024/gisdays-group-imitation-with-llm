@@ -41,35 +41,39 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     if not args.allow_model_execution:
-        _emit(
-            {
-                "schema_version": STEPWISE_ARTICLE_LOCAL_MODEL_SCHEMA_VERSION,
-                "status": "failed",
-                "error_code": "allow_model_execution_required",
-                "error_message": "--allow-model-execution is required before any model endpoint call.",
-                "model_execution": False,
-                "real_browser_execution": False,
-                "playwright_execution": False,
-                "browser_opened": False,
-                "fixture_only": True,
-                "no_runtime_execution": True,
-            }
+        payload = {
+            "schema_version": STEPWISE_ARTICLE_LOCAL_MODEL_SCHEMA_VERSION,
+            "status": "failed",
+            "error_code": "allow_model_execution_required",
+            "error_message": "--allow-model-execution is required before any model endpoint call.",
+            "model_execution": False,
+            "real_browser_execution": False,
+            "playwright_execution": False,
+            "browser_opened": False,
+            "fixture_only": True,
+            "no_runtime_execution": True,
+        }
+        _emit_and_write(
+            payload,
+            output_json=args.output_json,
         )
         return 2
     if not args.base_url or not str(args.base_url).strip():
-        _emit(
-            {
-                "schema_version": STEPWISE_ARTICLE_LOCAL_MODEL_SCHEMA_VERSION,
-                "status": "failed",
-                "error_code": "base_url_required",
-                "error_message": "--base-url is required.",
-                "model_execution": False,
-                "real_browser_execution": False,
-                "playwright_execution": False,
-                "browser_opened": False,
-                "fixture_only": True,
-                "no_runtime_execution": True,
-            }
+        payload = {
+            "schema_version": STEPWISE_ARTICLE_LOCAL_MODEL_SCHEMA_VERSION,
+            "status": "failed",
+            "error_code": "base_url_required",
+            "error_message": "--base-url is required.",
+            "model_execution": False,
+            "real_browser_execution": False,
+            "playwright_execution": False,
+            "browser_opened": False,
+            "fixture_only": True,
+            "no_runtime_execution": True,
+        }
+        _emit_and_write(
+            payload,
+            output_json=args.output_json,
         )
         return 2
 
@@ -89,25 +93,25 @@ def main(argv: list[str] | None = None) -> int:
             trials_per_scenario=args.trials_per_scenario,
             max_steps=args.max_steps,
         )
-        if args.output_json:
-            write_stepwise_article_benchmark_summary(summary, args.output_json)
-        _emit(summary)
-        return 0 if summary.get("status") == "succeeded" else 1
+        payload = _benchmark_cli_payload(summary)
+        _emit_and_write(payload, output_json=args.output_json)
+        return 0 if payload.get("status") == "succeeded" else 1
     except (StepwiseArticleLocalModelError, ValueError) as exc:
+        model_execution = bool(getattr(exc, "diagnostics", {}).get("model_execution", False))
         payload = {
             "schema_version": STEPWISE_ARTICLE_LOCAL_MODEL_SCHEMA_VERSION,
             "status": "failed",
             "error_code": getattr(exc, "error_code", "stepwise_article_local_model_failed"),
             "error_message": str(exc),
             "diagnostics": getattr(exc, "diagnostics", {}),
-            "model_execution": False,
+            "model_execution": model_execution,
             "real_browser_execution": False,
             "playwright_execution": False,
             "browser_opened": False,
             "fixture_only": True,
-            "no_runtime_execution": True,
+            "no_runtime_execution": not model_execution,
         }
-        _emit(payload)
+        _emit_and_write(payload, output_json=args.output_json)
         return 2
 
 
@@ -121,6 +125,42 @@ def _selected_scenarios(selected_ids: list[str]) -> list[object]:
             raise ValueError(f"Unknown scenario_id: {scenario_id}")
         selected.append(scenarios[scenario_id])
     return selected
+
+
+def _benchmark_cli_payload(summary: dict[str, object]) -> dict[str, object]:
+    payload = dict(summary)
+    per_trial_results = payload.get("per_trial_results")
+    if not isinstance(per_trial_results, list):
+        return payload
+    for trial in per_trial_results:
+        if not isinstance(trial, dict):
+            continue
+        result = trial.get("result")
+        if not isinstance(result, dict):
+            continue
+        if result.get("status") == "succeeded":
+            continue
+        diagnostics = dict(result.get("diagnostics", {})) if isinstance(result.get("diagnostics"), dict) else {}
+        payload["status"] = "failed"
+        payload["error_code"] = result.get("error_code") or "stepwise_article_trial_failed"
+        payload["error_message"] = (
+            diagnostics.get("parse_error_message")
+            or result.get("error_code")
+            or "stepwise_article_trial_failed"
+        )
+        payload["diagnostics"] = diagnostics
+        payload["model_execution"] = bool(result.get("model_execution", payload.get("model_execution", False)))
+        payload["no_runtime_execution"] = not bool(payload["model_execution"])
+        return payload
+    payload["status"] = "succeeded"
+    payload["error_code"] = None
+    return payload
+
+
+def _emit_and_write(payload: dict[str, object], *, output_json: str | None) -> None:
+    if output_json:
+        write_stepwise_article_benchmark_summary(payload, output_json)
+    _emit(payload)
 
 
 def _emit(payload: dict[str, object]) -> None:

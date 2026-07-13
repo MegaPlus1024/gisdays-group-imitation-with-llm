@@ -21,6 +21,9 @@ Phase 15B adds a guarded local-model adapter for that same stepwise benchmark:
 - explicit parser rejection for full workflows and unsupported actions
 - explicit rejection for `browser_click` in the default article benchmark
 - opt-in real model execution only with `--allow-model-execution`
+- failure artifacts now write to `--output-json` even for refusal and parse-failure outcomes
+- runtime flags now distinguish refused/offline runs from real model-call attempts that fail during parsing
+- parse failures now carry bounded diagnostics such as scenario/trial/step identifiers, parse error class, finish reason, response id, and a capped safe response preview
 
 ## Why it exists
 
@@ -33,6 +36,8 @@ Phase 14 is still useful for controlled model comparison, but it is a frozen raw
 
 Phase 15 separates those layers more clearly by measuring one interactive step at a time.
 
+That separation matters for guarded local-model smoke runs: a run can fail before any scenario-level correctness judgment if the model does not return one valid step JSON object. Those are protocol/format failures, not article-reading failures, and should be diagnosed separately.
+
 ## Safety boundaries
 
 - fixture-only article environment
@@ -42,6 +47,7 @@ Phase 15 separates those layers more clearly by measuring one interactive step a
 - no local server required for the benchmark fixture
 - no `browser_click` in the default article action set
 - local model execution is guarded and opt-in only
+- safe diagnostics redact obvious authorization/token-like material from failure previews
 
 ## Current scope
 
@@ -69,3 +75,4 @@ Default deterministic scenarios:
 - no real browser click/navigation behavior in the default article benchmark
 - local model calls remain operator-gated
 - still a controlled research prototype
+- real Phase 15B smoke attempts can still fail at the one-action JSON protocol layer before scenario evaluation completes

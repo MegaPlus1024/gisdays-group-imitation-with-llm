@@ -218,11 +218,13 @@ class StepwiseArticleRunResult:
     model_name: str
     status: str
     stop_reason: str
+    error_code: str | None
     max_steps: int
     final_answer_text: str | None
     final_citation_ids: tuple[str, ...]
     steps: tuple[StepwiseArticleStepResult, ...]
     evaluation: StepwiseArticleEvaluation
+    diagnostics: dict[str, Any] = field(default_factory=dict)
     no_runtime_execution: bool = True
     model_execution: bool = False
     real_browser_execution: bool = False
@@ -237,11 +239,13 @@ class StepwiseArticleRunResult:
             "model_name": self.model_name,
             "status": self.status,
             "stop_reason": self.stop_reason,
+            "error_code": self.error_code,
             "max_steps": self.max_steps,
             "final_answer_text": self.final_answer_text,
             "final_citation_ids": list(self.final_citation_ids),
             "steps": [step.to_dict() for step in self.steps],
             "evaluation": self.evaluation.to_dict(),
+            "diagnostics": dict(self.diagnostics),
             "no_runtime_execution": self.no_runtime_execution,
             "model_execution": self.model_execution,
             "real_browser_execution": self.real_browser_execution,
@@ -820,11 +824,11 @@ def run_stepwise_article_scenario(
     max_steps: int = 12,
     *,
     catalog: Mapping[str, ArticleDocument] | None = None,
+    trial_index: int = 1,
 ) -> StepwiseArticleRunResult:
     environment = FixtureArticleEnvironment(catalog)
     observation = environment.observe(scenario)
     steps: list[StepwiseArticleStepResult] = []
-    browser_opened = False
     final_answer_text: str | None = None
     final_citation_ids: tuple[str, ...] = ()
     model_execution_attempted = False
@@ -832,11 +836,26 @@ def run_stepwise_article_scenario(
     memory: dict[str, Any] = {
         "scenario": scenario,
         "step_results": [],
+        "trial_index": trial_index,
     }
     stop_reason = "max_steps_exceeded"
+    error_code: str | None = None
+    diagnostics: dict[str, Any] = {}
 
     for step_index in range(1, max_steps + 1):
-        action = model.next_action(scenario.task, observation, memory)
+        try:
+            action = model.next_action(scenario.task, observation, memory)
+        except Exception as exc:
+            model_execution_attempted = model_execution_attempted or bool(
+                getattr(model, "model_execution_attempted", False)
+            )
+            model_execution_completed = model_execution_completed or bool(
+                getattr(model, "model_execution_completed", False)
+            )
+            stop_reason = "model_error"
+            error_code = str(getattr(exc, "error_code", "model_step_failed"))
+            diagnostics = dict(getattr(exc, "diagnostics", {}))
+            break
         if not isinstance(action, StepwiseArticleAction):
             raise TypeError("stepwise fake models must return StepwiseArticleAction instances")
 
@@ -874,7 +893,6 @@ def run_stepwise_article_scenario(
         model_execution_completed = model_execution_completed or bool(
             getattr(model, "model_execution_completed", False)
         )
-        browser_opened = browser_opened or (action.action_name == "browser_open_url" and status == "succeeded")
         step_result = StepwiseArticleStepResult(
             step_index=step_index,
             action=action,
@@ -895,6 +913,7 @@ def run_stepwise_article_scenario(
         final_citation_ids=final_citation_ids,
         max_steps=max_steps,
         sections_read_ids=tuple(sorted(environment.observed_section_ids)),
+        stop_reason=stop_reason,
     )
     model_execution_attempted = model_execution_attempted or bool(
         getattr(model, "model_execution_attempted", False)
@@ -902,22 +921,26 @@ def run_stepwise_article_scenario(
     model_execution_completed = model_execution_completed or bool(
         getattr(model, "model_execution_completed", False)
     )
-    model_execution = model_execution_attempted and model_execution_completed
+    model_execution = model_execution_attempted
     status = "succeeded" if evaluation.passed else "failed"
+    if error_code is None and not evaluation.passed and stop_reason == "max_steps_exceeded":
+        error_code = "max_steps_exceeded"
     return StepwiseArticleRunResult(
         schema_version=STEPWISE_ARTICLE_RUN_SCHEMA_VERSION,
         scenario_id=scenario.scenario_id,
         model_name=getattr(model, "model_name", type(model).__name__),
         status=status,
         stop_reason=stop_reason,
+        error_code=error_code,
         max_steps=max_steps,
         final_answer_text=final_answer_text,
         final_citation_ids=final_citation_ids,
         steps=tuple(steps),
         evaluation=evaluation,
+        diagnostics=diagnostics,
         no_runtime_execution=not model_execution,
         model_execution=model_execution,
-        browser_opened=browser_opened,
+        browser_opened=False,
     )
 
 
@@ -951,6 +974,7 @@ def run_stepwise_article_benchmark(
                     model,
                     max_steps=max_steps,
                     catalog=catalog,
+                    trial_index=trial_index,
                 )
                 grouped_model_trials[model_alias].append(run_result)
                 grouped_scenario_trials[scenario.scenario_id].append((model_alias, run_result))
@@ -980,10 +1004,6 @@ def run_stepwise_article_benchmark(
         bool(trial["result"].get("model_execution"))
         for trial in per_trial_results
     )
-    any_browser_opened = any(
-        bool(trial["result"].get("browser_opened"))
-        for trial in per_trial_results
-    )
     return {
         "schema_version": STEPWISE_ARTICLE_BENCHMARK_SCHEMA_VERSION,
         "status": "succeeded",
@@ -999,7 +1019,7 @@ def run_stepwise_article_benchmark(
         "model_execution": any_model_execution,
         "real_browser_execution": False,
         "playwright_execution": False,
-        "browser_opened": any_browser_opened,
+        "browser_opened": False,
         "fixture_only": True,
     }
 
@@ -1025,6 +1045,7 @@ def _evaluate_run(
     final_citation_ids: tuple[str, ...],
     max_steps: int,
     sections_read_ids: tuple[str, ...],
+    stop_reason: str,
 ) -> StepwiseArticleEvaluation:
     normalized_answer = _normalize_text(final_answer_text or "")
     accepted_exact = {
@@ -1050,7 +1071,7 @@ def _evaluate_run(
     )
     completed = final_answer_text is not None
     missing_required_fact = completed and not semantic_answer_correct
-    max_steps_exceeded = final_answer_text is None
+    max_steps_exceeded = stop_reason == "max_steps_exceeded"
     sections_read_count = len(set(sections_read_ids))
     required_sections_seen = set(scenario.required_section_ids).issubset(set(sections_read_ids))
     stopped_too_early = completed and (missing_required_fact or not required_sections_seen)

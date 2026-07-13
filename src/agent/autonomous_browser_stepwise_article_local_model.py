@@ -130,6 +130,10 @@ class StepwiseArticleLocalModelClient:
     model_name: str = field(init=False)
     model_execution_attempted: bool = field(default=False, init=False)
     model_execution_completed: bool = field(default=False, init=False)
+    last_finish_reason: str | None = field(default=None, init=False)
+    last_response_id: str | None = field(default=None, init=False)
+    last_raw_model_response: str | None = field(default=None, init=False)
+    last_action_prompt_preview: str | None = field(default=None, init=False)
 
     def __post_init__(self) -> None:
         self.model_name = self.config.model_alias
@@ -149,6 +153,10 @@ class StepwiseArticleLocalModelClient:
                 {"model_execution": False},
             )
         prompt_messages = build_stepwise_article_prompt(task, observation)
+        self.last_action_prompt_preview = _preview_for_diagnostics(
+            prompt_messages[-1]["content"],
+            limit=400,
+        )
         request = StepwiseArticleChatCompletionRequest(
             endpoint_url=self.config.endpoint_url,
             model_alias=self.config.model_alias,
@@ -158,7 +166,31 @@ class StepwiseArticleLocalModelClient:
             timeout_seconds=self.config.request_timeout_seconds,
         )
         response = self._complete(request)
-        return parse_stepwise_article_action_response(response.content)
+        self.last_finish_reason = response.finish_reason
+        self.last_response_id = _response_id(response.raw_response)
+        self.last_raw_model_response = response.content
+        try:
+            return parse_stepwise_article_action_response(response.content)
+        except StepwiseArticleLocalModelError as exc:
+            diagnostics = {
+                "scenario_id": observation.scenario_id,
+                "model_alias": self.config.model_alias,
+                "trial_index": _memory_int(memory, "trial_index", default=1),
+                "step_index": len(memory.get("step_results", [])) + 1,
+                "parse_error_code": exc.error_code,
+                "parse_error_message": str(exc),
+                "raw_model_response_preview": _preview_for_diagnostics(response.content, limit=1000),
+                "raw_model_response_length": len(response.content),
+                "finish_reason": response.finish_reason,
+                "response_id": self.last_response_id,
+                "action_prompt_preview": self.last_action_prompt_preview,
+                "allowed_actions": list(DEFAULT_STEPWISE_ARTICLE_ACTIONS),
+            }
+            raise StepwiseArticleLocalModelError(
+                "Model response could not be parsed into a single allowed action.",
+                "model_output_parse_failed",
+                diagnostics,
+            ) from exc
 
     def _complete(
         self,
@@ -274,15 +306,10 @@ def build_stepwise_article_prompt(
 
 def parse_stepwise_article_action_response(raw_text: str) -> StepwiseArticleAction:
     payload = _extract_single_json_payload(raw_text)
-    if payload is None:
-        raise StepwiseArticleLocalModelError(
-            "Model response did not contain a valid JSON object.",
-            "model_output_parse_failed",
-        )
     if isinstance(payload, list):
         raise StepwiseArticleLocalModelError(
             "Model response must contain exactly one action object, not a list.",
-            "multiple_actions_not_allowed",
+            "multiple_actions_rejected",
         )
     if not isinstance(payload, dict):
         raise StepwiseArticleLocalModelError(
@@ -292,7 +319,7 @@ def parse_stepwise_article_action_response(raw_text: str) -> StepwiseArticleActi
     if _looks_like_workflow_json(payload):
         raise StepwiseArticleLocalModelError(
             "Full workflow JSON is not allowed; return exactly one action.",
-            "workflow_json_not_allowed",
+            "full_workflow_json_rejected",
             {"disallowed_keys": sorted(key for key in payload.keys() if key in {"actions", "steps", "final_answer", "facts", "evidence_items"})},
         )
 
@@ -306,13 +333,13 @@ def parse_stepwise_article_action_response(raw_text: str) -> StepwiseArticleActi
     if normalized_action_name == "browser_click":
         raise StepwiseArticleLocalModelError(
             "browser_click is not allowed in the default article benchmark.",
-            "browser_click_not_allowed",
+            "disallowed_action_browser_click",
             {"action_name": normalized_action_name},
         )
     if normalized_action_name not in ALLOWED_STEPWISE_ARTICLE_ACTION_NAMES:
         raise StepwiseArticleLocalModelError(
             "Unknown action_name returned by the model.",
-            "unknown_action_name",
+            "unknown_action",
             {"action_name": normalized_action_name},
         )
     parameters = payload.get("parameters", {})
@@ -404,11 +431,18 @@ def _finish_reason(response_json: Any) -> str | None:
 def _extract_single_json_payload(raw_text: str) -> Any | None:
     text = raw_text.strip()
     if not text:
-        return None
+        raise StepwiseArticleLocalModelError(
+            "Model response did not contain a JSON object.",
+            "no_json_object_found",
+        )
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        pass
+        if text.startswith("{") or text.startswith("["):
+            raise StepwiseArticleLocalModelError(
+                "Model response looked like JSON but could not be parsed.",
+                "invalid_json",
+            )
 
     fenced_candidates = [
         block.strip()
@@ -421,16 +455,24 @@ def _extract_single_json_payload(raw_text: str) -> Any | None:
             parsed_candidates.append(json.loads(candidate))
             continue
         except json.JSONDecodeError:
+            if candidate.startswith("{") or candidate.startswith("["):
+                raise StepwiseArticleLocalModelError(
+                    "Fenced JSON candidate could not be parsed.",
+                    "invalid_json",
+                )
             balanced = _extract_balanced_json_object(candidate)
             if balanced is not None:
                 try:
                     parsed_candidates.append(json.loads(balanced))
                 except json.JSONDecodeError:
-                    pass
+                    raise StepwiseArticleLocalModelError(
+                        "Balanced JSON object could not be parsed.",
+                        "invalid_json",
+                    ) from None
     if len(parsed_candidates) > 1:
         raise StepwiseArticleLocalModelError(
             "Multiple JSON objects were found in the model response.",
-            "multiple_actions_not_allowed",
+            "multiple_actions_rejected",
         )
     if len(parsed_candidates) == 1:
         return parsed_candidates[0]
@@ -439,14 +481,20 @@ def _extract_single_json_payload(raw_text: str) -> Any | None:
     if len(balanced_objects) > 1:
         raise StepwiseArticleLocalModelError(
             "Multiple JSON objects were found in the model response.",
-            "multiple_actions_not_allowed",
+            "multiple_actions_rejected",
         )
     if len(balanced_objects) == 1:
         try:
             return json.loads(balanced_objects[0])
         except json.JSONDecodeError:
-            return None
-    return None
+            raise StepwiseArticleLocalModelError(
+                "Balanced JSON object could not be parsed.",
+                "invalid_json",
+            ) from None
+    raise StepwiseArticleLocalModelError(
+        "Model response did not contain a JSON object.",
+        "no_json_object_found",
+    )
 
 
 def _extract_balanced_json_object(text: str) -> str | None:
@@ -526,3 +574,41 @@ def _safe_identifier(value: str) -> bool:
 def _safe_preview(value: str, *, limit: int = 200) -> str:
     text = " ".join(value.split())
     return text[:limit]
+
+
+def _response_id(response_json: Any) -> str | None:
+    if not isinstance(response_json, Mapping):
+        return None
+    value = response_json.get("id")
+    return value if isinstance(value, str) else None
+
+
+def _memory_int(memory: Mapping[str, Any], key: str, *, default: int) -> int:
+    value = memory.get(key, default)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _preview_for_diagnostics(value: str, *, limit: int) -> str:
+    compact = " ".join(str(value).split())
+    sanitized = re.sub(
+        r"authorization\s*:\s*bearer\s+\S+",
+        "[redacted authorization header]",
+        compact,
+        flags=re.IGNORECASE,
+    )
+    sanitized = re.sub(
+        r"\bBearer\s+[A-Za-z0-9._-]{8,}\b",
+        "Bearer [redacted]",
+        sanitized,
+        flags=re.IGNORECASE,
+    )
+    sanitized = re.sub(
+        r"\b(api[_-]?key|token|secret)\b\s*[:=]\s*([^\s,;]+)",
+        r"\1=[redacted]",
+        sanitized,
+        flags=re.IGNORECASE,
+    )
+    return sanitized[:limit]
