@@ -1148,6 +1148,27 @@ def _scenario_prompt_hints() -> dict[str, dict[str, tuple[str, ...]]]:
                 "Cite the policy anchor and policy marker fact ids.",
             ),
         },
+        "stateful_single_fact_sanity_check": {
+            "route_hints": (
+                "Open the Approval Status page directly.",
+                "Inspect the single visible approval status sentence and stop there.",
+            ),
+            "click_targets": (
+                "Approval status",
+            ),
+            "required_fact_keys": (
+                "approval_status",
+            ),
+            "expected_evidence_anchors": (
+                "Approval Status",
+                "Approval status: ready for fixture-backed review.",
+            ),
+            "final_answer_requirements": (
+                "Return the approval status exactly as shown on the page.",
+                "Keep the answer short and fact-only.",
+                "Cite the collected fact id and evidence item id.",
+            ),
+        },
         "stateful_policy_allowed_activity": {
             "route_hints": (
                 "Open the live Workspace Policy page directly.",

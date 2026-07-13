@@ -529,16 +529,19 @@ def test_final_presentation_config_loads_for_five_aliases() -> None:
         "fifth_model",
     ]
     assert config["trials_per_scenario"] == 1
-    assert len(config["scenarios"]) == 10
+    assert len(config["scenarios"]) == 11
+    assert config["scenarios"].count("stateful_single_fact_sanity_check") == 1
 
 
 def test_final_presentation_scenarios_cover_difficulty_ladder_and_are_deterministic() -> None:
     scenarios = build_final_presentation_stateful_readonly_workflow_scenarios()
 
     assert tuple(scenarios) == FINAL_PRESENTATION_STATEFUL_READONLY_SCENARIO_IDS
-    assert len(scenarios) == 10
+    assert len(scenarios) == 11
     difficulties = {scenario.difficulty for scenario in scenarios.values()}
-    assert difficulties == {"easy", "medium", "hard", "very_hard"}
+    assert difficulties == {"ultra_easy", "easy", "medium", "hard", "very_hard"}
+    assert sum(1 for scenario in scenarios.values() if scenario.difficulty == "ultra_easy") == 1
+    assert scenarios["stateful_single_fact_sanity_check"].benchmark_category == "sanity"
     assert any(scenario.difficulty == "easy" for scenario in scenarios.values())
     assert any(scenario.difficulty == "very_hard" for scenario in scenarios.values())
     for scenario in scenarios.values():
@@ -552,7 +555,7 @@ def test_final_presentation_scenarios_cover_difficulty_ladder_and_are_determinis
         )
 
 
-def test_final_presentation_packet_builder_creates_fifty_shared_requests(tmp_path: Path) -> None:
+def test_final_presentation_packet_builder_creates_fifty_five_shared_requests(tmp_path: Path) -> None:
     summary, output_dir = _build_packet(
         tmp_path,
         _final_presentation_config(),
@@ -565,9 +568,9 @@ def test_final_presentation_packet_builder_creates_fifty_shared_requests(tmp_pat
     assert summary["prompt_contract_mode"] == "frozen_raw"
     assert summary["max_tokens"] == 4096
     assert summary["models_total"] == 5
-    assert summary["scenarios_total"] == 10
+    assert summary["scenarios_total"] == 11
     assert summary["trials_per_scenario"] == 1
-    assert summary["requests_total"] == 50
+    assert summary["requests_total"] == 55
     assert summary["fixture_only"] is True
     assert summary["no_runtime_execution"] is True
     assert summary["model_execution"] is False
@@ -583,14 +586,14 @@ def test_final_presentation_packet_builder_creates_fifty_shared_requests(tmp_pat
         "fourth_model",
         "fifth_model",
     ]
-    assert manifest["requests_total"] == 50
+    assert manifest["requests_total"] == 55
     assert manifest["max_tokens"] == 4096
 
     first_request = json.loads(
         (
             output_dir
             / "first_model"
-            / "stateful_policy_search_marker_review"
+            / "stateful_single_fact_sanity_check"
             / "trial_01"
             / "request.json"
         ).read_text(encoding="utf-8")
@@ -599,7 +602,7 @@ def test_final_presentation_packet_builder_creates_fifty_shared_requests(tmp_pat
         (
             output_dir
             / "fifth_model"
-            / "stateful_policy_search_marker_review"
+            / "stateful_single_fact_sanity_check"
             / "trial_01"
             / "request.json"
         ).read_text(encoding="utf-8")

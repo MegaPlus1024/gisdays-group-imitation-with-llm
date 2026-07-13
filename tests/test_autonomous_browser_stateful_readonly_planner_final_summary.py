@@ -30,6 +30,7 @@ def _fake_evaluator_summary() -> dict[str, object]:
         "scenario_catalog": "final_presentation_v1",
         "model_aliases": ["first_model", "fourth_model"],
         "scenario_ids": [
+            "stateful_single_fact_sanity_check",
             "stateful_policy_search_marker_review",
             "stateful_policy_allowed_activity",
             "stateful_policy_source_disambiguation",
@@ -65,6 +66,13 @@ def _fake_evaluator_summary() -> dict[str, object]:
         "output_summaries": [
             {
                 "model_alias": "first_model",
+                "scenario_id": "stateful_single_fact_sanity_check",
+                "captured_output_present": True,
+                "validation_status": "accepted",
+                "workflow_status": "succeeded",
+            },
+            {
+                "model_alias": "first_model",
                 "scenario_id": "stateful_policy_search_marker_review",
                 "captured_output_present": True,
                 "validation_status": "accepted",
@@ -90,6 +98,13 @@ def _fake_evaluator_summary() -> dict[str, object]:
                 "captured_output_present": False,
                 "validation_status": "missing",
                 "workflow_status": "failed",
+            },
+            {
+                "model_alias": "fourth_model",
+                "scenario_id": "stateful_single_fact_sanity_check",
+                "captured_output_present": True,
+                "validation_status": "accepted",
+                "workflow_status": "succeeded",
             },
             {
                 "model_alias": "fourth_model",
@@ -167,14 +182,19 @@ def test_summary_writer_produces_markdown_csv_and_json(tmp_path: Path) -> None:
 
     assert "Final Presentation Benchmark Summary" in markdown
     assert "stateful_policy_search_marker_review" in markdown
+    assert "stateful_single_fact_sanity_check" in markdown
     assert "PASS" in markdown
     assert "FAIL" in markdown
     assert "REJECTED" in markdown
     assert "MISSING" in markdown
+    assert "| stateful_single_fact_sanity_check | ultra_easy | sanity | PASS | PASS |" in markdown
     assert "fourth_model" in csv_text
     assert payload["schema_version"] == SUMMARY_SCHEMA_VERSION
     assert payload["winner_by_pass_rate"] == "fourth_model"
     matrix_rows = {item["scenario_id"]: item for item in payload["scenario_matrix_rows"]}
+    assert matrix_rows["stateful_single_fact_sanity_check"]["difficulty"] == "ultra_easy"
+    assert matrix_rows["stateful_single_fact_sanity_check"]["benchmark_category"] == "sanity"
+    assert matrix_rows["stateful_single_fact_sanity_check"]["results"]["first_model"] == "PASS"
     assert matrix_rows["stateful_policy_search_marker_review"]["results"]["first_model"] == "PASS"
     assert matrix_rows["stateful_policy_allowed_activity"]["results"]["first_model"] == "FAIL"
     assert matrix_rows["stateful_policy_source_disambiguation"]["results"]["first_model"] == "REJECTED"

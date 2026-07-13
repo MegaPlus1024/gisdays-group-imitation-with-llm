@@ -34,7 +34,8 @@ Phase 14F prepares the final presentation benchmark layer on top of that frozen 
 
 - five local aliases are registered for the presentation table
 - the task contract remains frozen raw and model-neutral
-- a 10-scenario difficulty ladder is added for a readable final comparison
+- an 11-scenario difficulty ladder is added for a readable final comparison
+- one ultra-easy sanity scenario is included as a model-neutral lower-bound schema/workflow check
 - a dedicated summarizer can turn evaluator and sequential-run summaries into Markdown/CSV/JSON presentation tables
 - no final presentation result is claimed until the operator performs the real model run
 
@@ -141,13 +142,14 @@ The frozen raw request contract is shared across enabled aliases; only model ali
 
 Phase 14F adds a separate `final_presentation_v1` catalog for a bounded presentation table:
 
-- `10` deterministic fixture-only scenarios
+- `11` deterministic fixture-only scenarios
 - `5` model aliases
 - `1` trial per scenario by default
-- `50` total requests in the packet
+- `55` total requests in the packet
 
 The ladder is intentionally mixed rather than uniformly hard:
 
+- one ultra-easy single-fact sanity check
 - easy exact-fact and single-page policy lookups
 - medium digest, absence, numeric-comparison, and repeated-id tasks
 - hard conflicting-source, trap-text, and exception-rule tasks
@@ -159,6 +161,8 @@ This presentation ladder still uses:
 - one shared schema
 - one shared offline evaluator path
 - no model-specific prompt tuning
+
+The ultra-easy sanity scenario is intentionally model-neutral. It does not add model-specific prompt tuning; it only establishes the lower bound for whether an alias can follow the frozen raw contract, open one fixture page, and return one exact visible fact.
 
 It exists to make the final table interpretable, not to hide weak models. If a model fails every scenario, that should be reported honestly.
 

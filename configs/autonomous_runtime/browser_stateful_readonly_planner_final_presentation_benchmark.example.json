@@ -14,6 +14,7 @@
     "fifth_model"
   ],
   "scenarios": [
+    "stateful_single_fact_sanity_check",
     "stateful_policy_search_marker_review",
     "stateful_policy_allowed_activity",
     "stateful_policy_ticket_crosscheck",
@@ -39,6 +40,7 @@
   "limitations": [
     "optional post-completion final presentation benchmark only",
     "one shared frozen raw task contract across all five aliases",
+    "includes one ultra-easy model-neutral sanity scenario",
     "manual operator model runs only",
     "no model calls by Codex",
     "offline fixture-backed evaluation only",

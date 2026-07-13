@@ -58,6 +58,7 @@ FROZEN_RAW_STATEFUL_READONLY_SCENARIO_IDS = (
     "stateful_priority_exception_rule_review",
 )
 FINAL_PRESENTATION_STATEFUL_READONLY_SCENARIO_IDS = (
+    "stateful_single_fact_sanity_check",
     "stateful_policy_search_marker_review",
     "stateful_policy_allowed_activity",
     "stateful_policy_ticket_crosscheck",
@@ -619,6 +620,33 @@ def build_final_presentation_stateful_readonly_workflow_scenarios(
     scenarios = dict(build_frozen_raw_stateful_readonly_workflow_scenarios(policy))
     scenarios.update(
         {
+            "stateful_single_fact_sanity_check": StatefulReadonlyWorkflowScenarioDefinition(
+                scenario_id="stateful_single_fact_sanity_check",
+                workflow_id="stateful_single_fact_sanity_check",
+                start_url="https://local.intranet/portal/status",
+                objective="Report the single visible approval status from the local status page.",
+                steps=(
+                    StatefulReadonlyWorkflowStep(
+                        step_id="open_portal_status",
+                        action_name="browser_open_url",
+                        parameters={"url": "https://local.intranet/portal/status"},
+                        expected_text="Approval Status",
+                        expected_url="https://local.intranet/portal/status",
+                    ),
+                    StatefulReadonlyWorkflowStep(
+                        step_id="inspect_approval_status",
+                        action_name="browser_extract_text",
+                        parameters={},
+                        expected_text="Approval status: ready for fixture-backed review.",
+                        collect_fact_keys=("approval_status",),
+                    ),
+                ),
+                final_answer_builder=_build_single_fact_sanity_final_answer,
+                fact_extractor=_extract_single_fact_sanity_facts,
+                read_only_policy=policy,
+                difficulty="ultra_easy",
+                benchmark_category="sanity",
+            ),
             "stateful_policy_allowed_activity": StatefulReadonlyWorkflowScenarioDefinition(
                 scenario_id="stateful_policy_allowed_activity",
                 workflow_id="stateful_policy_allowed_activity",
@@ -1274,6 +1302,11 @@ def _build_policy_marker_final_answer(state: StatefulReadonlyWorkflowState) -> s
     return f"Workspace policy evidence marker: {marker}."
 
 
+def _build_single_fact_sanity_final_answer(state: StatefulReadonlyWorkflowState) -> str:
+    approval_status = state.facts.get("approval_status", "ready for fixture-backed review")
+    return f"Approval status: {approval_status}."
+
+
 def _build_policy_allowed_activity_final_answer(state: StatefulReadonlyWorkflowState) -> str:
     allowed_activity = state.facts.get(
         "allowed_activity",
@@ -1441,6 +1474,19 @@ def _extract_policy_marker_facts(
         facts["policy_anchor"] = "Workspace Policy"
     if "fixture-backed result for workspace policy review" in text:
         facts["policy_marker"] = "fixture-backed result for workspace policy review"
+    return facts
+
+
+def _extract_single_fact_sanity_facts(
+    observation: BrowserRuntimeObservation,
+    step: StatefulReadonlyWorkflowStep,
+    state: StatefulReadonlyWorkflowState,
+) -> dict[str, Any]:
+    del step, state
+    text = _compact_text(f"{observation.title or ''} {observation.text_preview or ''}")
+    facts: dict[str, Any] = {}
+    if "Approval status: ready for fixture-backed review" in text:
+        facts["approval_status"] = "ready for fixture-backed review"
     return facts
 
 
