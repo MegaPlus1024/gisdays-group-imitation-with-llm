@@ -241,6 +241,13 @@ description, status, evidence type, safe related resource ids, and the outcome
 that satisfies the requirement. File resources are also described explicitly:
 their repository-relative path, whether they exist, whether they are readable or
 writable, their purpose, and the last safe error for that resource/action pair.
+Shared facts in canonical long-horizon scenarios require evidence-grounded
+provenance. Successful observations create private bounded evidence records,
+and `shared_publish_fact` must cite an owned `evidence_id` whose tool and field
+match the scenario fact contract. The published value must match the observed
+value after the contract normalization policy. Ungrounded, wrong-source, or
+mismatched publications are recoverable failures and do not satisfy grounded
+completion requirements.
 `finish` is accepted only when declared generic requirements are met; pending
 consumers can use non-mutating `wait_for_dependency`. Local Qwen-style action
 prompts can use `/no_think`, while parsing remains limited to
@@ -264,6 +271,9 @@ retrying the unavailable `missing_input` resource.
 - first real third_model smoke is mixed: `article_file_handoff` passed, while
   `office_shared_fact_recovery` reached 6/7 requirements before this recovery
   transparency repair;
+- a later procedural `office_shared_fact_recovery` pass exposed ungrounded
+  owner/status publication; future passes must satisfy value-source
+  provenance, not key publication alone;
 - long-horizon results currently prove deterministic fake/fixture behavior,
   not model quality;
 - no fresh CPU/RAM/latency measurement for this runtime;

@@ -107,3 +107,10 @@ successful action after an own failure advanced progress." Treat
 unmet `recovery_completed` contract, the unavailable `missing_input` resource,
 the available `recovery_note` resource, and unchanged failed actions that should
 not be retried.
+
+For shared facts, a procedural pass is not enough unless the fact is grounded.
+The publishing agent must first observe the source with a successful tool call,
+then publish with the matching `evidence_id`. `evidence_id_required`,
+`evidence_source_mismatch`, or `published_value_mismatch` mean the key was not
+accepted into the shared environment and any grounded completion requirement
+must remain unmet.

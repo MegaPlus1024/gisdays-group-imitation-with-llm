@@ -83,6 +83,23 @@ def _load_trace(summary: dict[str, object]) -> list[dict[str, object]]:
     ]
 
 
+def _step_until_agent_history(
+    runtime,
+    agent_id: str,
+    history_len: int,
+    *,
+    max_steps: int = 12,
+):  # type: ignore[no-untyped-def]
+    result = None
+    for _ in range(max_steps):
+        if runtime.status != "running":
+            break
+        result = runtime.step()
+        if len(runtime.states[agent_id].history) >= history_len:
+            return result
+    return result
+
+
 def test_example_config_loads_with_safe_defaults() -> None:
     config = load_long_horizon_experiment_config(CONFIG_PATH)
 
@@ -307,6 +324,317 @@ def test_office_recovery_requirement_contracts_and_file_resources_are_visible() 
     assert "Recovery note" not in json.dumps(resources)
 
 
+def test_successful_office_read_creates_agent_scoped_observed_evidence() -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery",
+        trial_id="evidence_scope",
+        trial_output_dir="artifacts/canonical_multi_agent_long_horizon/evidence_scope",
+        project_root=PROJECT_ROOT,
+    )
+    runtime.step()
+    document = runtime.states["document_agent"]
+    verifier = runtime.states["verification_agent"]
+
+    evidence = {
+        item["source_field"]: item for item in document.memory["observed_evidence"]
+    }
+    assert {"owner", "version", "status"} <= set(evidence)
+    assert evidence["owner"]["evidence_id"] == "ev_document_agent_0_owner"
+    assert evidence["owner"]["source_tool"] == "office_fixture_read"
+    assert evidence["owner"]["source_event_index"] == 0
+    assert evidence["owner"]["agent_id"] == "document_agent"
+    assert "owner" not in json.dumps(verifier.memory.get("observed_evidence", []))
+
+
+def test_unobserved_field_has_no_evidence_until_read() -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery",
+        trial_id="unobserved",
+        trial_output_dir="artifacts/canonical_multi_agent_long_horizon/unobserved",
+        project_root=PROJECT_ROOT,
+    )
+    runtime.policies["document_agent"] = PerfectFakePolicy(
+        (Action("office_fixture_read", {"field": "version"}),)
+    )
+    runtime.step()
+    evidence_fields = {
+        item["source_field"]
+        for item in runtime.states["document_agent"].memory["observed_evidence"]
+    }
+
+    assert evidence_fields == {"version"}
+    assert "owner" not in evidence_fields
+    publishable = runtime.states["document_agent"].memory["available_resources"][
+        "publishable_facts"
+    ]
+    owner = next(item for item in publishable if item["key"] == "review_owner")
+    version = next(item for item in publishable if item["key"] == "review_version")
+    assert owner["candidate_evidence_ids"] == []
+    assert version["candidate_evidence_ids"] == ["ev_document_agent_0_version"]
+
+
+def test_grounded_publish_validation_failure_modes() -> None:
+    cases = [
+        (
+            "without_evidence",
+            (
+                Action("office_fixture_read", {"field": "owner"}),
+                Action(
+                    "shared_publish_fact",
+                    {"key": "review_owner", "value": "office worker"},
+                ),
+            ),
+            "evidence_id_required",
+        ),
+        (
+            "unknown_evidence",
+            (
+                Action("office_fixture_read", {"field": "owner"}),
+                Action(
+                    "shared_publish_fact",
+                    {
+                        "key": "review_owner",
+                        "value": "office worker",
+                        "evidence_id": "missing_evidence",
+                    },
+                ),
+            ),
+            "evidence_not_found",
+        ),
+        (
+            "wrong_source",
+            (
+                Action("office_fixture_read", {"field": "version"}),
+                Action(
+                    "shared_publish_fact",
+                    {
+                        "key": "review_owner",
+                        "value": "v3.2",
+                        "evidence_id": "ev_document_agent_0_version",
+                    },
+                ),
+            ),
+            "evidence_source_mismatch",
+        ),
+        (
+            "mismatched_value",
+            (
+                Action("office_fixture_read", {"field": "owner"}),
+                Action(
+                    "shared_publish_fact",
+                    {
+                        "key": "review_owner",
+                        "value": "john_doe",
+                        "evidence_id": "ev_document_agent_0_owner",
+                    },
+                ),
+            ),
+            "published_value_mismatch",
+        ),
+    ]
+    for trial_id, steps, expected_error in cases:
+        runtime = build_long_horizon_trial_runtime(
+            scenario_id="office_shared_fact_recovery",
+            trial_id=trial_id,
+            trial_output_dir=f"artifacts/canonical_multi_agent_long_horizon/{trial_id}",
+            project_root=PROJECT_ROOT,
+        )
+        runtime.policies["document_agent"] = PerfectFakePolicy(steps)
+        _step_until_agent_history(runtime, "document_agent", 1)
+        result = _step_until_agent_history(runtime, "document_agent", 2)
+
+        assert result.observation is not None
+        assert result.observation.error_code == expected_error
+        assert "review_owner" not in runtime.shared_environment.facts
+        assert result.observation.metadata["grounding_valid"] is False
+
+
+def test_other_agent_evidence_is_rejected() -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery",
+        trial_id="other_agent_evidence",
+        trial_output_dir="artifacts/canonical_multi_agent_long_horizon/other_agent_evidence",
+        project_root=PROJECT_ROOT,
+    )
+    runtime.policies["document_agent"] = PerfectFakePolicy(
+        (
+            Action("office_fixture_read", {"field": "owner"}),
+            Action(
+                "shared_publish_fact",
+                {
+                    "key": "review_owner",
+                    "value": "office worker",
+                    "evidence_id": "ev_verification_agent_0_owner",
+                },
+            ),
+        )
+    )
+    _step_until_agent_history(runtime, "document_agent", 1)
+    doc = runtime.states["document_agent"]
+    foreign = dict(doc.memory["observed_evidence"][0])
+    foreign["agent_id"] = "verification_agent"
+    foreign["evidence_id"] = "ev_verification_agent_0_owner"
+    doc.memory["observed_evidence"].append(foreign)
+    result = _step_until_agent_history(runtime, "document_agent", 2)
+
+    assert result.observation is not None
+    assert result.observation.error_code == "evidence_not_owned"
+
+
+def test_grounded_publish_allows_trimmed_value_and_rejects_alias() -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery",
+        trial_id="trimmed_grounding",
+        trial_output_dir="artifacts/canonical_multi_agent_long_horizon/trimmed_grounding",
+        project_root=PROJECT_ROOT,
+    )
+    runtime.policies["document_agent"] = PerfectFakePolicy(
+        (
+            Action("office_fixture_read", {"field": "owner"}),
+            Action(
+                "shared_publish_fact",
+                {
+                    "key": "review_owner",
+                    "value": "  office   worker\n",
+                    "evidence_id": "ev_document_agent_0_owner",
+                },
+            ),
+        )
+    )
+    _step_until_agent_history(runtime, "document_agent", 1)
+    success = _step_until_agent_history(runtime, "document_agent", 2)
+
+    assert success.observation is not None and success.observation.success is True
+    assert runtime.shared_environment.shared_fact_metadata["review_owner"][
+        "grounding_status"
+    ] == "grounded"
+
+    alias_runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery",
+        trial_id="alias_grounding",
+        trial_output_dir="artifacts/canonical_multi_agent_long_horizon/alias_grounding",
+        project_root=PROJECT_ROOT,
+    )
+    alias_runtime.policies["document_agent"] = PerfectFakePolicy(
+        (
+            Action("office_fixture_read", {"field": "owner"}),
+            Action(
+                "shared_publish_fact",
+                {
+                    "key": "review_owner",
+                    "value": "john_doe",
+                    "evidence_id": "ev_document_agent_0_owner",
+                },
+            ),
+        )
+    )
+    _step_until_agent_history(alias_runtime, "document_agent", 1)
+    failed = _step_until_agent_history(alias_runtime, "document_agent", 2)
+
+    assert failed.observation is not None
+    assert failed.observation.error_code == "published_value_mismatch"
+
+
+def test_grounded_fact_storage_inventory_and_finish_guard() -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery",
+        trial_id="grounded_storage",
+        trial_output_dir="artifacts/canonical_multi_agent_long_horizon/grounded_storage",
+        project_root=PROJECT_ROOT,
+        max_turns=12,
+    )
+    runtime.policies["document_agent"] = PerfectFakePolicy(
+        (
+            Action("office_fixture_read", {"field": "version"}),
+            Action(
+                "shared_publish_fact",
+                {
+                    "key": "review_version",
+                    "value": "v3.2",
+                    "evidence_id": "ev_document_agent_0_version",
+                },
+            ),
+            Action("finish"),
+        )
+    )
+    _step_until_agent_history(runtime, "document_agent", 2)
+    _step_until_agent_history(runtime, "document_agent", 3)
+
+    metadata = runtime.shared_environment.shared_fact_metadata["review_version"]
+    assert metadata["evidence_id"] == "ev_document_agent_0_version"
+    assert metadata["evidence_source_tool"] == "office_fixture_read"
+    assert metadata["evidence_source_field"] == "version"
+    assert metadata["grounding_status"] == "grounded"
+    document_progress = runtime.states["document_agent"].memory["task_progress"]
+    assert "version_published" in document_progress["completed_requirements"]
+    assert "owner_published" in document_progress["unmet_requirements"]
+    finish_event = next(
+        event
+        for event in runtime.states["document_agent"].history
+        if event.action is not None and event.action.tool_name == "finish"
+    )
+    assert finish_event.observation.error_code == "completion_requirements_unmet"
+    unmet = finish_event.observation.metadata["unmet_requirement_contracts"]
+    assert any(item["grounding_required"] is True for item in unmet)
+
+    runtime.step()
+    verifier_resources = runtime.states["verification_agent"].memory[
+        "available_resources"
+    ]
+    version_inventory = next(
+        item
+        for item in verifier_resources["shared_fact_inventory"]
+        if item["key"] == "review_version"
+    )
+    assert version_inventory["grounded"] is True
+
+
+def test_article_review_owner_requires_article_derived_evidence(
+    artifact_output_dir: str,
+) -> None:
+    summary = _run_trial("article_file_handoff", artifact_output_dir)
+
+    assert summary["status"] == "succeeded"
+    research = summary["agent_metrics"]["research_agent"]  # type: ignore[index]
+    assert research["grounded_shared_facts"] == 1
+    assert research["grounded_fact_requirement_completed"] == 1
+
+
+def test_hallucinated_owner_status_fake_policy_fails_semantically(
+    artifact_output_dir: str,
+) -> None:
+    summary = _run_trial(
+        "office_shared_fact_recovery",
+        artifact_output_dir,
+        policy_variant="publish_with_mismatched_value",
+    )
+
+    assert summary["status"] == "failed"
+    document = summary["agent_metrics"]["document_agent"]  # type: ignore[index]
+    assert document["value_mismatch_attempts"] == 1
+    assert document["grounded_fact_requirement_completed"] == 0
+
+
+def test_trace_contains_provenance_fields_for_grounded_publish(
+    artifact_output_dir: str,
+) -> None:
+    summary = _run_trial("office_shared_fact_recovery", artifact_output_dir)
+    trace = _load_trace(summary)
+    publish = next(
+        event
+        for event in trace
+        if event["action_name"] == "shared_publish_fact"
+        and event["agent_id"] == "document_agent"
+    )
+
+    assert publish["selected_evidence_id"] == "ev_document_agent_0_owner"
+    assert publish["evidence_source_tool"] == "office_fixture_read"
+    assert publish["evidence_source_field"] == "owner"
+    assert publish["grounding_required"] is True
+    assert publish["grounding_valid"] is True
+    assert publish["normalized_value_match"] is True
+
+
 def test_failed_resource_records_error_and_discourages_unchanged_retry() -> None:
     runtime = build_long_horizon_trial_runtime(
         scenario_id="office_shared_fact_recovery",
@@ -355,7 +683,11 @@ def test_wait_fact_read_and_validation_do_not_satisfy_required_file_recovery() -
             Action("office_fixture_read", {"field": "owner"}),
             Action(
                 "shared_publish_fact",
-                {"key": "review_owner", "value": "office worker"},
+                {
+                    "key": "review_owner",
+                    "value": "office worker",
+                    "evidence_id": "ev_document_agent_0_owner",
+                },
             ),
             Action("finish"),
         )

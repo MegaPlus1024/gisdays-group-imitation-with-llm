@@ -340,3 +340,10 @@ requirements, with the verification agent quarantined after the remaining
 descriptive requirement contracts, explicit file resource status, and separate
 generic versus scenario-required recovery metrics. This remains fixture-only
 and does not claim production readiness.
+
+A later real `office_shared_fact_recovery` smoke passed procedurally at 7/7
+requirements, but trace review exposed a semantic gap: `document_agent`
+published owner/status facts that were not grounded in prior owner/status
+observations. That pass is therefore not full semantic evidence. Canonical
+shared facts now require provenance from owned observed evidence, and future
+pass criteria include value-source consistency as well as key publication.

@@ -238,6 +238,7 @@ class ToolSpec:
 @dataclass
 class SharedEnvironment:
     facts: dict[str, Any] = field(default_factory=dict)
+    shared_fact_metadata: dict[str, dict[str, Any]] = field(default_factory=dict)
     operations: list[dict[str, Any]] = field(default_factory=list)
     article_catalog: dict[str, tuple[dict[str, str], ...]] = field(
         default_factory=dict
@@ -245,9 +246,17 @@ class SharedEnvironment:
     fact_contracts: dict[str, dict[str, Any]] = field(default_factory=dict)
     known_files: set[str] = field(default_factory=set)
 
-    def publish_fact(self, *, key: str, value: Any, agent_id: str) -> None:
+    def publish_fact(
+        self,
+        *,
+        key: str,
+        value: Any,
+        agent_id: str,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> None:
         _require_identifier(key, "shared fact key")
         self.facts[key] = _jsonable(value)
+        self.shared_fact_metadata[key] = _sanitize_value(dict(metadata or {}))
         self.operations.append(
             {
                 "operation": "publish",
@@ -273,6 +282,7 @@ class SharedEnvironment:
         return {
             "fact_keys": sorted(self.facts),
             "fact_contracts": _sanitize_value(self.fact_contracts),
+            "shared_fact_metadata": _sanitize_value(self.shared_fact_metadata),
             "known_files": sorted(self.known_files),
             "facts": _sanitize_value(self.facts),
             "operations": _sanitize_value(self.operations),
@@ -553,7 +563,10 @@ class LocalOpenAIModelPolicy:
                 "instruction": (
                     "Return exactly one action object, never a workflow or actions "
                     "array. If the previous own action failed, do not repeat it "
-                    "unchanged."
+                    "unchanged. Publish shared facts only from your own observed "
+                    "evidence and include the matching evidence_id; invented or "
+                    "mismatched values will fail and finish remains blocked until "
+                    "grounded requirements are complete."
                 ),
                 }
             )
@@ -1072,6 +1085,8 @@ class AutonomousMultiAgentRuntime:
         self.group_history.append(event)
         if action and action.tool_name in {"read_file", "create_file", "append_file"}:
             self._record_file_resource_attempt(state, action, observation)
+        if action and observation.success:
+            self._record_observed_evidence(state, action, observation)
         if observation.success and action and action.tool_name in {"create_file", "append_file"}:
             path = action.parameters.get("path")
             if isinstance(path, str):
@@ -1098,10 +1113,18 @@ class AutonomousMultiAgentRuntime:
             if item.get("access") in {"read", "write", "read_write"}
         ]
         facts = [
-            {"key": key, "status": "published" if key in self.shared_environment.facts else "pending", "producer_agent": contract.get("producer_agent")}
+            {
+                "key": key,
+                "status": "published" if key in self.shared_environment.facts else "pending",
+                "producer_agent": contract.get("producer_agent"),
+                "grounded": self.shared_environment.shared_fact_metadata.get(key, {}).get("grounding_status") == "grounded",
+                "evidence_source_type": self.shared_environment.shared_fact_metadata.get(key, {}).get("evidence_source_tool"),
+                "published_event_index": self.shared_environment.shared_fact_metadata.get(key, {}).get("published_event_index"),
+            }
             for key, contract in sorted(self.shared_environment.fact_contracts.items())
             if state.agent_id in contract.get("consumers", ()) or state.agent_id == contract.get("producer_agent")
         ]
+        observed_evidence = list(state.memory.get("observed_evidence", []))
         state.memory["shared_facts"] = readable_facts
         state.memory["available_resources"] = {
             "article_urls": affordances.get("article_urls", []),
@@ -1114,10 +1137,13 @@ class AutonomousMultiAgentRuntime:
             "allowed_paths": allowed_paths,
             "file_resources": self._file_resource_contracts(state),
             "shared_fact_inventory": facts,
+            "observed_evidence": self._evidence_for_prompt(state),
+            "publishable_facts": self._publishable_facts_for_prompt(state),
             "available_commands": affordances.get("available_commands", []),
             "guidance": [
                 "Do not repeat an unchanged action against a resource that is still marked unavailable.",
                 "Use an advertised existing resource or another valid action that advances an unmet requirement.",
+                "Publish shared facts only when they are grounded in your own successful observed evidence and include the evidence_id.",
             ],
         }
         unmet_contracts = [
@@ -1136,10 +1162,82 @@ class AutonomousMultiAgentRuntime:
             "artifacts_created": sorted(self.shared_environment.known_files),
             "facts_published": sorted(self.shared_environment.facts),
             "facts_available": sorted(readable_facts),
+            "observed_evidence_ids": [
+                item.get("evidence_id")
+                for item in observed_evidence
+                if isinstance(item, Mapping)
+            ],
             "terminal_allowed": not unmet,
             "required_recovery_evidence": self._required_recovery_evidence(state),
             "unchanged_failed_actions": self._unchanged_failed_actions(state),
         }
+
+    def _evidence_for_prompt(self, state: AgentState) -> list[dict[str, Any]]:
+        prompt_items: list[dict[str, Any]] = []
+        for evidence in state.memory.get("observed_evidence", []):
+            if not isinstance(evidence, Mapping):
+                continue
+            prompt_items.append(
+                {
+                    "evidence_id": evidence.get("evidence_id"),
+                    "source_tool": evidence.get("source_tool"),
+                    "source_field": evidence.get("source_field"),
+                    "safe_value_preview": _sanitize_text(
+                        str(evidence.get("observed_value", "")),
+                        limit=120,
+                    ),
+                    "compatible_fact_keys": self._compatible_fact_keys(
+                        state,
+                        evidence,
+                    ),
+                }
+            )
+        return _sanitize_value(prompt_items)
+
+    def _publishable_facts_for_prompt(self, state: AgentState) -> list[dict[str, Any]]:
+        publishable: list[dict[str, Any]] = []
+        for key, contract in sorted(self.shared_environment.fact_contracts.items()):
+            if contract.get("producer_agent") != state.agent_id:
+                continue
+            publishable.append(
+                {
+                    "key": key,
+                    "required_source_type": contract.get("required_source_tool"),
+                    "required_source_field": contract.get("required_source_field"),
+                    "candidate_evidence_ids": [
+                        item.get("evidence_id")
+                        for item in state.memory.get("observed_evidence", [])
+                        if isinstance(item, Mapping)
+                        and self._evidence_matches_contract(item, contract)
+                    ],
+                    "grounding_required": bool(
+                        contract.get("grounding_required", False)
+                    ),
+                    "published_status": "published"
+                    if key in self.shared_environment.facts
+                    else "pending",
+                }
+            )
+        return _sanitize_value(publishable)
+
+    def _compatible_fact_keys(
+        self,
+        state: AgentState,
+        evidence: Mapping[str, Any],
+    ) -> list[str]:
+        return [
+            key
+            for key, contract in sorted(self.shared_environment.fact_contracts.items())
+            if contract.get("producer_agent") == state.agent_id
+            and self._evidence_matches_contract(evidence, contract)
+        ]
+
+    def _evidence_matches_contract(
+        self,
+        evidence: Mapping[str, Any],
+        contract: Mapping[str, Any],
+    ) -> bool:
+        return _evidence_matches_contract(evidence, contract)
 
     def _record_file_resource_attempt(
         self,
@@ -1161,6 +1259,118 @@ class AutonomousMultiAgentRuntime:
                 "action_name": action.tool_name,
             }
         state.memory["resource_last_errors"] = errors
+
+    def _record_observed_evidence(
+        self,
+        state: AgentState,
+        action: Action,
+        observation: Observation,
+    ) -> None:
+        event_index = len(state.history) - 1
+        evidence_items = self._evidence_from_observation(
+            state,
+            action,
+            observation,
+            event_index,
+        )
+        if not evidence_items:
+            return
+        existing = list(state.memory.get("observed_evidence", []))
+        existing.extend(evidence_items)
+        state.memory["observed_evidence"] = _sanitize_value(existing)
+
+    def _evidence_from_observation(
+        self,
+        state: AgentState,
+        action: Action,
+        observation: Observation,
+        event_index: int,
+    ) -> list[dict[str, Any]]:
+        output = observation.output
+        if action.tool_name == "office_fixture_read" and isinstance(output, Mapping):
+            field = output.get("field")
+            if isinstance(field, str) and "value" in output:
+                return [
+                    self._observed_evidence_record(
+                        state,
+                        action,
+                        event_index,
+                        source_field=field,
+                        observed_value=output.get("value"),
+                        source_resource_id="office_fixture",
+                    )
+                ]
+            if all(isinstance(key, str) for key in output):
+                return [
+                    self._observed_evidence_record(
+                        state,
+                        action,
+                        event_index,
+                        source_field=str(key),
+                        observed_value=value,
+                        source_resource_id="office_fixture",
+                    )
+                    for key, value in output.items()
+                    if isinstance(value, (str, int, float, bool))
+                ]
+        if action.tool_name == "browser_article_extract" and isinstance(output, Mapping):
+            section = output.get("section")
+            if isinstance(section, Mapping):
+                heading = section.get("heading")
+                text = section.get("text")
+                if isinstance(heading, str) and isinstance(text, str):
+                    return [
+                        self._observed_evidence_record(
+                            state,
+                            action,
+                            event_index,
+                            source_field=heading,
+                            observed_value=text,
+                            source_resource_id=str(output.get("url", "article_fixture")),
+                        )
+                    ]
+        if action.tool_name == "read_file":
+            path = action.parameters.get("path")
+            if isinstance(path, str):
+                return [
+                    self._observed_evidence_record(
+                        state,
+                        action,
+                        event_index,
+                        source_field="content",
+                        observed_value=output,
+                        source_resource_id=self._resource_id_for_path(state, path) or path,
+                    )
+                ]
+        return []
+
+    def _observed_evidence_record(
+        self,
+        state: AgentState,
+        action: Action,
+        event_index: int,
+        *,
+        source_field: str,
+        observed_value: Any,
+        source_resource_id: str,
+    ) -> dict[str, Any]:
+        normalized = _normalize_fact_value(observed_value, "trimmed_text")
+        evidence_id = (
+            f"ev_{state.agent_id}_{event_index}_{_safe_evidence_token(source_field)}"
+        )
+        return {
+            "evidence_id": evidence_id,
+            "agent_id": state.agent_id,
+            "source_event_index": event_index,
+            "source_tool": action.tool_name,
+            "source_resource_id": source_resource_id,
+            "source_field": source_field,
+            "observed_value": _sanitize_text(str(observed_value), limit=500),
+            "normalized_value": _sanitize_text(normalized, limit=500),
+            "observed_at_step": self.turn_count,
+            "trust_level": "fixture_observation",
+            "visibility_scope": "agent_private",
+        }
 
     def _file_resource_contracts(self, state: AgentState) -> list[dict[str, Any]]:
         affordances = dict(state.profile.resource_affordances)
@@ -1201,7 +1411,7 @@ class AutonomousMultiAgentRuntime:
         completed: bool,
     ) -> dict[str, Any]:
         requirement_id = str(requirement.get("id", ""))
-        return {
+        contract = {
             "requirement_id": requirement_id,
             "description": _sanitize_text(
                 str(requirement.get("description") or _requirement_description(requirement))
@@ -1215,6 +1425,30 @@ class AutonomousMultiAgentRuntime:
             "related_resource_ids": list(requirement.get("related_resource_ids", ())),
             "last_progress_event_index": self._last_requirement_progress_index(state, requirement),
         }
+        key = requirement.get("key")
+        if isinstance(key, str):
+            fact_contract = self.shared_environment.fact_contracts.get(key, {})
+            metadata = self.shared_environment.shared_fact_metadata.get(key, {})
+            contract.update(
+                {
+                    "fact_key": key,
+                    "grounding_required": bool(
+                        fact_contract.get("grounding_required", False)
+                    ),
+                    "grounding_status": metadata.get(
+                        "grounding_status",
+                        "pending" if key not in self.shared_environment.facts else "ungrounded",
+                    ),
+                    "grounding_error": metadata.get("grounding_error"),
+                    "related_evidence_ids": [
+                        item.get("evidence_id")
+                        for item in state.memory.get("observed_evidence", [])
+                        if isinstance(item, Mapping)
+                        and self._evidence_matches_contract(item, fact_contract)
+                    ],
+                }
+            )
+        return contract
 
     def _last_requirement_progress_index(
         self,
@@ -1261,7 +1495,21 @@ class AutonomousMultiAgentRuntime:
         if kind == "file_written":
             return bool(event.action and event.action.tool_name in {"create_file", "append_file"} and event.observation.success and event.action.parameters.get("path") == requirement.get("path"))
         if kind == "fact_published":
-            return bool(event.action and event.action.tool_name == "shared_publish_fact" and event.observation.success and event.action.parameters.get("key") == requirement.get("key"))
+            if not (event.action and event.action.tool_name == "shared_publish_fact" and event.observation.success and event.action.parameters.get("key") == requirement.get("key")):
+                return False
+            contract = self.shared_environment.fact_contracts.get(str(requirement.get("key")))
+            if contract and contract.get("grounding_required"):
+                return self.shared_environment.shared_fact_metadata.get(str(requirement.get("key")), {}).get("grounding_status") == "grounded"
+            return True
+        if kind == "fact_published_grounded":
+            key = str(requirement.get("key"))
+            return bool(
+                event.action
+                and event.action.tool_name == "shared_publish_fact"
+                and event.observation.success
+                and event.action.parameters.get("key") == key
+                and self.shared_environment.shared_fact_metadata.get(key, {}).get("grounding_status") == "grounded"
+            )
         if kind == "fact_read":
             return bool(event.action and event.action.tool_name == "shared_read_fact" and event.action.parameters.get("key") == requirement.get("key") and event.observation.success)
         if kind == "error_observed":
@@ -1358,6 +1606,12 @@ class AutonomousMultiAgentRuntime:
                 return str(resource["path"])
         return None
 
+    def _resource_id_for_path(self, state: AgentState, path: str) -> str | None:
+        for resource in self._file_resource_contracts(state):
+            if resource.get("path") == path and isinstance(resource.get("resource_id"), str):
+                return str(resource["resource_id"])
+        return None
+
     def _stop_if_needed(self) -> str | None:
         if self.status != "running":
             return self.stop_reason
@@ -1452,7 +1706,7 @@ def build_default_tool_registry(
             description="Publish one explicit JSON-safe fact to the shared environment.",
             family="coordination",
             required_parameters=("key", "value"),
-            parameter_names=("key", "value"),
+            parameter_names=("key", "value", "evidence_id"),
             read_only=False,
         ),
         _publish_fact,
@@ -1682,13 +1936,42 @@ def _publish_fact(action: Action, context: ToolExecutionContext) -> ToolResult:
             error_message="key must be a string.",
         )
     contract = context.shared_environment.fact_contracts.get(key)
+    if context.shared_environment.fact_contracts and contract is None:
+        return ToolResult(
+            False,
+            error_code="fact_key_not_allowed",
+            error_message="Fact key is not declared in the scenario contract.",
+            metadata={"key": key},
+        )
     if contract and contract.get("producer_agent") != context.agent_state.agent_id:
         return ToolResult(False, error_code="shared_fact_publish_not_allowed", error_message="This agent is not the declared producer for the fact.")
+    grounding = _validate_fact_grounding(action, context, contract)
+    if not grounding["success"]:
+        return ToolResult(
+            False,
+            error_code=str(grounding["error_code"]),
+            error_message="Shared fact provenance validation failed.",
+            metadata=dict(grounding["metadata"]),
+        )
     try:
         context.shared_environment.publish_fact(
             key=key,
             value=action.parameters.get("value"),
             agent_id=context.agent_state.agent_id,
+            metadata={
+                "key": key,
+                "value": action.parameters.get("value"),
+                "normalized_value": grounding["metadata"].get("normalized_published_value"),
+                "producer_agent": context.agent_state.agent_id,
+                "published_event_index": context.turn_index,
+                "evidence_id": grounding["metadata"].get("selected_evidence_id"),
+                "evidence_source_tool": grounding["metadata"].get("evidence_source_tool"),
+                "evidence_source_field": grounding["metadata"].get("evidence_source_field"),
+                "evidence_source_event_index": grounding["metadata"].get("evidence_source_event_index"),
+                "grounding_required": grounding["metadata"].get("grounding_required", False),
+                "grounding_status": "grounded" if grounding["metadata"].get("grounding_valid") else "not_required",
+                "grounding_error": None,
+            },
         )
     except ValueError as exc:
         return ToolResult(
@@ -1696,7 +1979,11 @@ def _publish_fact(action: Action, context: ToolExecutionContext) -> ToolResult:
             error_code="invalid_shared_fact",
             error_message=str(exc),
         )
-    return ToolResult(success=True, output={"published_key": key})
+    return ToolResult(
+        success=True,
+        output={"published_key": key, "grounded": grounding["metadata"].get("grounding_valid")},
+        metadata=dict(grounding["metadata"]),
+    )
 
 
 def _read_fact(action: Action, context: ToolExecutionContext) -> ToolResult:
@@ -1727,7 +2014,17 @@ def _read_fact(action: Action, context: ToolExecutionContext) -> ToolResult:
             error_code="shared_fact_not_found",
             error_message=f"Shared fact was not found: {key}",
         )
-    return ToolResult(success=True, output={"key": key, "value": value})
+    metadata = context.shared_environment.shared_fact_metadata.get(key, {})
+    return ToolResult(
+        success=True,
+        output={
+            "key": key,
+            "value": value,
+            "grounded": metadata.get("grounding_status") == "grounded",
+            "evidence_source_tool": metadata.get("evidence_source_tool"),
+            "published_event_index": metadata.get("published_event_index"),
+        },
+    )
 
 
 def _wait_for_dependency(action: Action, context: ToolExecutionContext) -> ToolResult:
@@ -1765,6 +2062,94 @@ def _finish(action: Action, context: ToolExecutionContext) -> ToolResult:
         output={"status": "goal_completed", "terminal_allowed": True},
         metadata={"agent_id": context.agent_state.agent_id, "terminal_allowed": True},
     )
+
+
+def _validate_fact_grounding(
+    action: Action,
+    context: ToolExecutionContext,
+    contract: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    grounding_required = bool(contract and contract.get("grounding_required", False))
+    metadata: dict[str, Any] = {
+        "grounding_required": grounding_required,
+        "grounding_valid": not grounding_required,
+        "grounding_error_code": None,
+        "normalized_value_match": None,
+    }
+    if not grounding_required:
+        return {"success": True, "metadata": metadata}
+    evidence_id = action.parameters.get("evidence_id")
+    metadata["selected_evidence_id"] = evidence_id
+    metadata["expected_source_tool"] = contract.get("required_source_tool") if contract else None
+    metadata["expected_source_field"] = contract.get("required_source_field") if contract else None
+    if not isinstance(evidence_id, str) or not evidence_id.strip():
+        return _grounding_failure("evidence_id_required", metadata)
+    evidence = _find_observed_evidence(context.agent_state, evidence_id)
+    if evidence is None:
+        return _grounding_failure("evidence_not_found", metadata)
+    if evidence.get("agent_id") != context.agent_state.agent_id:
+        return _grounding_failure("evidence_not_owned", metadata, evidence)
+    if contract and not _evidence_matches_contract(evidence, contract):
+        return _grounding_failure("evidence_source_mismatch", metadata, evidence)
+    policy = str(contract.get("normalization_policy", "trimmed_text")) if contract else "trimmed_text"
+    observed = _normalize_fact_value(evidence.get("observed_value"), policy)
+    published = _normalize_fact_value(action.parameters.get("value"), policy)
+    metadata.update(
+        {
+            "evidence_source_tool": evidence.get("source_tool"),
+            "evidence_source_field": evidence.get("source_field"),
+            "evidence_source_event_index": evidence.get("source_event_index"),
+            "normalized_observed_value_preview": _sanitize_text(observed, limit=120),
+            "normalized_published_value": published,
+            "normalized_published_value_preview": _sanitize_text(published, limit=120),
+            "normalized_value_match": observed == published,
+        }
+    )
+    if observed != published:
+        return _grounding_failure("published_value_mismatch", metadata, evidence)
+    metadata["grounding_valid"] = True
+    return {"success": True, "metadata": metadata}
+
+
+def _grounding_failure(
+    error_code: str,
+    metadata: Mapping[str, Any],
+    evidence: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload = dict(metadata)
+    payload["grounding_error_code"] = error_code
+    if evidence is not None:
+        payload.update(
+            {
+                "evidence_source_tool": evidence.get("source_tool"),
+                "evidence_source_field": evidence.get("source_field"),
+                "evidence_source_event_index": evidence.get("source_event_index"),
+            }
+        )
+    return {"success": False, "error_code": error_code, "metadata": _sanitize_value(payload)}
+
+
+def _find_observed_evidence(
+    state: AgentState,
+    evidence_id: str,
+) -> Mapping[str, Any] | None:
+    for evidence in state.memory.get("observed_evidence", []):
+        if isinstance(evidence, Mapping) and evidence.get("evidence_id") == evidence_id:
+            return evidence
+    return None
+
+
+def _evidence_matches_contract(
+    evidence: Mapping[str, Any],
+    contract: Mapping[str, Any],
+) -> bool:
+    required_tool = contract.get("required_source_tool")
+    required_field = contract.get("required_source_field")
+    if required_tool and evidence.get("source_tool") != required_tool:
+        return False
+    if required_field and str(evidence.get("source_field", "")).casefold() != str(required_field).casefold():
+        return False
+    return True
 
 
 def _article_open(action: Action, context: ToolExecutionContext) -> ToolResult:
@@ -1965,6 +2350,8 @@ def _requirement_description(requirement: Mapping[str, Any]) -> str:
         return "Write the declared bounded repository-relative file."
     if kind == "fact_published":
         return "Publish the declared shared fact for authorized consumers."
+    if kind == "fact_published_grounded":
+        return "Publish the declared shared fact with provenance from a matching own observation."
     if kind == "fact_read":
         return "Read the declared shared fact after it is available."
     if kind == "error_observed":
@@ -1982,6 +2369,8 @@ def _requirement_outcome(requirement: Mapping[str, Any]) -> str:
         return "declared file path is created or appended"
     if kind == "fact_published":
         return "declared shared fact key is published"
+    if kind == "fact_published_grounded":
+        return "declared shared fact key is published with valid evidence provenance"
     if kind == "fact_read":
         return "declared shared fact key is read successfully"
     if kind == "error_observed":
@@ -1989,6 +2378,23 @@ def _requirement_outcome(requirement: Mapping[str, Any]) -> str:
     if kind == "recovery_completed":
         return "successful recovery action uses a different advertised resource after the source failure"
     return "requirement-specific predicate becomes true"
+
+
+def _normalize_fact_value(value: Any, policy: str) -> str:
+    text = str(value).replace("\r\n", "\n").replace("\r", "\n")
+    if policy == "exact_text":
+        return text
+    text = re.sub(r"\s+", " ", text).strip()
+    if policy == "casefolded_text":
+        return text.casefold()
+    if policy == "trimmed_text":
+        return text
+    return text
+
+
+def _safe_evidence_token(value: str) -> str:
+    token = re.sub(r"[^A-Za-z0-9_.-]+", "_", value.strip())[:48].strip("_.-")
+    return token or "value"
 
 
 def sanitize_runtime_value(value: Any) -> Any:

@@ -217,6 +217,9 @@ def build_long_horizon_trial_runtime(
         "repeating",
         "role_violating",
         "early_stop",
+        "publish_without_evidence",
+        "publish_with_wrong_evidence",
+        "publish_with_mismatched_value",
     ] = "perfect",
     model_policy_settings: Mapping[str, Any] | None = None,
     allow_model_execution: bool = False,
@@ -287,6 +290,9 @@ def run_long_horizon_trial(
         "repeating",
         "role_violating",
         "early_stop",
+        "publish_without_evidence",
+        "publish_with_wrong_evidence",
+        "publish_with_mismatched_value",
     ] = "perfect",
 ) -> dict[str, Any]:
     root = Path(project_root).resolve()
@@ -535,7 +541,14 @@ def _scenario_profiles(
                     {"id": "ownership_extracted", "kind": "tool_succeeded", "tool_name": "browser_article_extract", "parameters": {"heading": "Ownership"}},
                     {"id": "status_extracted", "kind": "tool_succeeded", "tool_name": "browser_article_extract", "parameters": {"heading": "Status"}},
                     {"id": "research_note_written", "kind": "file_written", "path": note_path},
-                    {"id": "review_owner_published", "kind": "fact_published", "key": "review_owner"},
+                    {
+                        "id": "review_owner_published",
+                        "kind": "fact_published_grounded",
+                        "key": "review_owner",
+                        "description": "Publish review_owner with provenance from the Ownership article extraction.",
+                        "evidence_type": "grounded_shared_fact",
+                        "satisfied_by_outcome": "review_owner is published with valid Ownership evidence",
+                    },
                 ),
                 resource_affordances={"article_urls": [ARTICLE_URL], "article_title_hints": ["Long-horizon fixture article"], "recommended_start_url": ARTICLE_URL, "allowed_file_roots": [trial_output_dir], "paths": [{"path": note_path, "access": "write"}]},
             ),
@@ -581,7 +594,17 @@ def _scenario_profiles(
                     "finish",
                 ),
                 resource_constraints=common_constraints,
-                completion_requirements=tuple({"id": f"{field}_published", "kind": "fact_published", "key": f"review_{field}"} for field in ("owner", "version", "status")),
+                completion_requirements=tuple(
+                    {
+                        "id": f"{field}_published",
+                        "kind": "fact_published_grounded",
+                        "key": f"review_{field}",
+                        "description": f"Publish review_{field} with provenance from the matching office fixture field.",
+                        "evidence_type": "grounded_shared_fact",
+                        "satisfied_by_outcome": f"review_{field} is published with valid {field} evidence",
+                    }
+                    for field in ("owner", "version", "status")
+                ),
                 resource_affordances={"office_fixture_fields": list(OFFICE_RECORD)},
             ),
             AgentProfile(
@@ -731,7 +754,11 @@ def _scenario_fake_policies(
             ),
             Action(
                 "shared_publish_fact",
-                {"key": "review_owner", "value": "office worker"},
+                {
+                    "key": "review_owner",
+                    "value": "The assigned owner is office worker.",
+                    "evidence_id": "ev_research_agent_3_Ownership",
+                },
             ),
             Action("finish"),
         )
@@ -750,21 +777,74 @@ def _scenario_fake_policies(
             "operator_agent": PerfectFakePolicy(operator_steps),
         }
     if scenario_id == "office_shared_fact_recovery":
+        negative_document_steps = {
+            "publish_without_evidence": (
+                Action("office_fixture_read", {"field": "all"}),
+                Action(
+                    "shared_publish_fact",
+                    {"key": "review_owner", "value": "office worker"},
+                ),
+                Action("finish"),
+            ),
+            "publish_with_wrong_evidence": (
+                Action("office_fixture_read", {"field": "all"}),
+                Action(
+                    "shared_publish_fact",
+                    {
+                        "key": "review_owner",
+                        "value": "v3.2",
+                        "evidence_id": "ev_document_agent_0_version",
+                    },
+                ),
+                Action("finish"),
+            ),
+            "publish_with_mismatched_value": (
+                Action("office_fixture_read", {"field": "all"}),
+                Action(
+                    "shared_publish_fact",
+                    {
+                        "key": "review_owner",
+                        "value": "john_doe",
+                        "evidence_id": "ev_document_agent_0_owner",
+                    },
+                ),
+                Action("finish"),
+            ),
+        }
+        if policy_variant in negative_document_steps:
+            return {
+                "document_agent": PerfectFakePolicy(
+                    negative_document_steps[policy_variant]
+                ),
+                "verification_agent": EarlyStopFakePolicy(),
+            }
         return {
             "document_agent": PerfectFakePolicy(
                 (
                     Action("office_fixture_read", {"field": "all"}),
                     Action(
                         "shared_publish_fact",
-                        {"key": "review_owner", "value": "office worker"},
+                        {
+                            "key": "review_owner",
+                            "value": "office worker",
+                            "evidence_id": "ev_document_agent_0_owner",
+                        },
                     ),
                     Action(
                         "shared_publish_fact",
-                        {"key": "review_version", "value": "v3.2"},
+                        {
+                            "key": "review_version",
+                            "value": "v3.2",
+                            "evidence_id": "ev_document_agent_0_version",
+                        },
                     ),
                     Action(
                         "shared_publish_fact",
-                        {"key": "review_status", "value": "approved"},
+                        {
+                            "key": "review_status",
+                            "value": "approved",
+                            "evidence_id": "ev_document_agent_0_status",
+                        },
                     ),
                     Action("finish"),
                 )
@@ -895,12 +975,25 @@ def _configure_environment_contract(
             "review_owner": {
                 "producer_agent": "research_agent",
                 "consumers": ("operator_agent",),
+                "grounding_required": True,
+                "required_source_tool": "browser_article_extract",
+                "required_source_field": "Ownership",
+                "normalization_policy": "trimmed_text",
+                "overwrite_policy": "last_write_wins",
             }
         }
     elif scenario_id == "office_shared_fact_recovery":
         environment.fact_contracts = {
-            key: {"producer_agent": "document_agent", "consumers": ("verification_agent",)}
-            for key in ("review_owner", "review_version", "review_status")
+            f"review_{field}": {
+                "producer_agent": "document_agent",
+                "consumers": ("verification_agent",),
+                "grounding_required": True,
+                "required_source_tool": "office_fixture_read",
+                "required_source_field": field,
+                "normalization_policy": "trimmed_text",
+                "overwrite_policy": "last_write_wins",
+            }
+            for field in ("owner", "version", "status")
         }
         environment.known_files.add(
             "tests/fixtures/canonical_multi_agent/recovery_note.txt"
@@ -1101,6 +1194,7 @@ def _run_runtime_with_trace(
             and result.observation.success
             and (bool(requirements_advanced) or bool(progress.get("ready_dependencies", [])))
         )
+        observation_metadata = result.observation.metadata
         trace.append(
             {
                 "schema_version": TRACE_SCHEMA_VERSION,
@@ -1155,6 +1249,14 @@ def _run_runtime_with_trace(
                     required_recovery_evidence,
                     limit=1000,
                 ),
+                "selected_evidence_id": observation_metadata.get("selected_evidence_id"),
+                "evidence_source_tool": observation_metadata.get("evidence_source_tool"),
+                "evidence_source_field": observation_metadata.get("evidence_source_field"),
+                "evidence_source_event_index": observation_metadata.get("evidence_source_event_index"),
+                "grounding_required": observation_metadata.get("grounding_required"),
+                "grounding_valid": observation_metadata.get("grounding_valid"),
+                "grounding_error_code": observation_metadata.get("grounding_error_code"),
+                "normalized_value_match": observation_metadata.get("normalized_value_match"),
                 "pending_dependency_ids": [item.get("dependency_id") for item in progress.get("pending_dependencies", [])],
                 "terminal_allowed": bool(progress.get("terminal_allowed", False)),
                 "model_protocol": _bounded_value(protocol, limit=500),
@@ -1200,6 +1302,73 @@ def _resource_status_changes(
             }
         )
     return changes
+
+
+def _grounding_metrics(
+    events: Sequence[Mapping[str, Any]],
+    requirement_contracts: Sequence[Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
+    publish_events = [
+        event
+        for event in events
+        if event.get("action_name") == "shared_publish_fact"
+    ]
+    grounded_publish_events = [
+        event for event in publish_events if event.get("grounding_valid") is True
+    ]
+    missing_provenance = [
+        event
+        for event in publish_events
+        if event.get("grounding_error_code") == "evidence_id_required"
+    ]
+    mismatched_values = [
+        event
+        for event in publish_events
+        if event.get("grounding_error_code") == "published_value_mismatch"
+    ]
+    ungrounded_attempts = [
+        event
+        for event in publish_events
+        if event.get("grounding_required") is True
+        and event.get("grounding_valid") is not True
+    ]
+    latest_requirements: dict[str, Mapping[str, Any]] = {}
+    if requirement_contracts is not None:
+        for contract in requirement_contracts:
+            if isinstance(contract, Mapping) and isinstance(contract.get("requirement_id"), str):
+                latest_requirements[str(contract["requirement_id"])] = contract
+    else:
+        for event in events:
+            for contract in event.get("requirement_contracts", []):
+                if not isinstance(contract, Mapping):
+                    continue
+                requirement_id = contract.get("requirement_id")
+                if isinstance(requirement_id, str):
+                    latest_requirements[requirement_id] = contract
+    grounded_requirements = [
+        contract
+        for contract in latest_requirements.values()
+        if contract.get("evidence_type") == "grounded_shared_fact"
+        or contract.get("grounding_required") is True
+    ]
+    grounded_completed = sum(
+        contract.get("status") == "completed" for contract in grounded_requirements
+    )
+    return {
+        "shared_facts_published_total": sum(
+            event.get("tool_status") == "succeeded" for event in publish_events
+        ),
+        "grounded_shared_facts": len(grounded_publish_events),
+        "ungrounded_publish_attempts": len(ungrounded_attempts),
+        "value_mismatch_attempts": len(mismatched_values),
+        "missing_provenance_attempts": len(missing_provenance),
+        "grounded_fact_requirement_total": len(grounded_requirements),
+        "grounded_fact_requirement_completed": grounded_completed,
+        "grounded_fact_success_rate": _rate(
+            grounded_completed,
+            len(grounded_requirements),
+        ),
+    }
 
 
 def _agent_metrics(
@@ -1262,6 +1431,10 @@ def _agent_metrics(
             and event["tool_status"] == "failed"
             for event in action_events
         )
+        grounding = _grounding_metrics(
+            events,
+            state.memory.get("task_progress", {}).get("requirement_contracts", []),
+        )
         metrics[agent_id] = {
             "turns": len(events),
             "model_calls": len(model_latencies),
@@ -1282,6 +1455,7 @@ def _agent_metrics(
                 required_recoveries_total,
             ),
             "unchanged_failed_action_retries": unchanged_failed_action_retries,
+            **grounding,
             "recovery_attempts": generic_recovery_attempts,
             "recovery_successes": generic_recovery_successes,
             "repeated_actions": sum(
@@ -1346,6 +1520,15 @@ def _trial_metrics(
         and event["tool_status"] == "failed"
         for event in action_events
     )
+    grounding = _grounding_metrics(
+        trace,
+        [
+            contract
+            for state in runtime.states.values()
+            for contract in state.memory.get("task_progress", {}).get("requirement_contracts", [])
+            if isinstance(contract, Mapping)
+        ],
+    )
     model_execution = any(
         bool(getattr(policy, "model_execution_attempted", False))
         for policy in runtime.policies.values()
@@ -1394,6 +1577,7 @@ def _trial_metrics(
             required_recoveries_total,
         ),
         "unchanged_failed_action_retries": unchanged_failed_action_retries,
+        **grounding,
         "recovery_success_rate": _rate(generic_recovery_successes, generic_recovery_attempts),
         "role_violation_rate": _rate(
             sum(event["role_violation"] is True for event in action_events),
@@ -1557,6 +1741,44 @@ def _experiment_summary(
             required_recoveries_total,
         ),
         "unchanged_failed_action_retries": unchanged_failed_action_retries,
+        "shared_facts_published_total": sum(
+            int(metrics.get("shared_facts_published_total", 0))
+            for metrics in trial_metric_rows
+        ),
+        "grounded_shared_facts": sum(
+            int(metrics.get("grounded_shared_facts", 0))
+            for metrics in trial_metric_rows
+        ),
+        "ungrounded_publish_attempts": sum(
+            int(metrics.get("ungrounded_publish_attempts", 0))
+            for metrics in trial_metric_rows
+        ),
+        "value_mismatch_attempts": sum(
+            int(metrics.get("value_mismatch_attempts", 0))
+            for metrics in trial_metric_rows
+        ),
+        "missing_provenance_attempts": sum(
+            int(metrics.get("missing_provenance_attempts", 0))
+            for metrics in trial_metric_rows
+        ),
+        "grounded_fact_requirement_total": sum(
+            int(metrics.get("grounded_fact_requirement_total", 0))
+            for metrics in trial_metric_rows
+        ),
+        "grounded_fact_requirement_completed": sum(
+            int(metrics.get("grounded_fact_requirement_completed", 0))
+            for metrics in trial_metric_rows
+        ),
+        "grounded_fact_success_rate": _rate(
+            sum(
+                int(metrics.get("grounded_fact_requirement_completed", 0))
+                for metrics in trial_metric_rows
+            ),
+            sum(
+                int(metrics.get("grounded_fact_requirement_total", 0))
+                for metrics in trial_metric_rows
+            ),
+        ),
         "aggregate_repetition_rate": _rate(repeated_actions, total_actions),
         "aggregate_role_violation_rate": _rate(role_violations, total_actions),
         "model_calls_total": sum(
@@ -1631,6 +1853,14 @@ def _empty_trial_metrics(started_at: float) -> dict[str, Any]:
         "required_recoveries_completed": 0,
         "required_recovery_success_rate": 0.0,
         "unchanged_failed_action_retries": 0,
+        "shared_facts_published_total": 0,
+        "grounded_shared_facts": 0,
+        "ungrounded_publish_attempts": 0,
+        "value_mismatch_attempts": 0,
+        "missing_provenance_attempts": 0,
+        "grounded_fact_requirement_total": 0,
+        "grounded_fact_requirement_completed": 0,
+        "grounded_fact_success_rate": 0.0,
         "recovery_success_rate": 0.0,
         "role_violation_rate": 0.0,
         "repeated_action_rate": 0.0,
@@ -1650,6 +1880,7 @@ def _observation_summary(result: RuntimeStepResult) -> dict[str, Any]:
             "error_code": observation.error_code,
             "error_message": observation.error_message,
             "output": observation.output,
+            "metadata": observation.metadata,
         },
         limit=500,
     )
