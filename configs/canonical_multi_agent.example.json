@@ -1,0 +1,120 @@
+{
+  "schema_version": "canonical_multi_agent_runtime_config_v1",
+  "runtime_id": "canonical_two_agent_fake_v1",
+  "limits": {
+    "max_turns_total": 12,
+    "max_turns_per_agent": 6,
+    "max_failures_per_agent": 3,
+    "max_identical_actions": 2
+  },
+  "agents": [
+    {
+      "agent_id": "research_reader",
+      "role": "Read-only research worker",
+      "goal": "Inspect bounded project evidence and publish one coordination fact.",
+      "allowed_tools": [
+        "read_file",
+        "list_directory",
+        "shared_publish_fact",
+        "finish"
+      ],
+      "resource_constraints": [
+        "repository-relative paths only",
+        "no external network"
+      ],
+      "behavior_constraints": [
+        "use only allowed tools",
+        "one action per turn"
+      ],
+      "policy": {
+        "type": "perfect",
+        "steps": [
+          {
+            "tool_name": "read_file",
+            "parameters": {
+              "path": "docs/status/current_architecture_audit.md"
+            },
+            "reason": "Inspect the current factual architecture audit.",
+            "expected_result": "Bounded audit text."
+          },
+          {
+            "tool_name": "shared_publish_fact",
+            "parameters": {
+              "key": "architecture_audit_seen",
+              "value": true
+            },
+            "reason": "Publish an explicit coordination fact.",
+            "expected_result": "Fact is available to the checker."
+          },
+          {
+            "tool_name": "list_directory",
+            "parameters": {
+              "path": "docs/status"
+            },
+            "reason": "Confirm the status document workspace.",
+            "expected_result": "Bounded directory listing."
+          },
+          {
+            "tool_name": "finish",
+            "parameters": {},
+            "reason": "The reader goal is complete.",
+            "expected_result": "Agent completion."
+          }
+        ]
+      }
+    },
+    {
+      "agent_id": "evidence_checker",
+      "role": "Read-only evidence checker",
+      "goal": "Recover from one missing fixture read and verify the reader coordination fact.",
+      "allowed_tools": [
+        "read_file",
+        "shared_read_fact",
+        "finish"
+      ],
+      "resource_constraints": [
+        "repository-relative paths only",
+        "no external network"
+      ],
+      "behavior_constraints": [
+        "use only allowed tools",
+        "repair a failed read on the next turn"
+      ],
+      "policy": {
+        "type": "recovering",
+        "steps": [
+          {
+            "tool_name": "read_file",
+            "parameters": {
+              "path": "tests/fixtures/canonical_multi_agent/missing.txt"
+            },
+            "reason": "Exercise bounded missing-file recovery.",
+            "expected_result": "A structured missing-file observation."
+          },
+          {
+            "tool_name": "shared_read_fact",
+            "parameters": {
+              "key": "architecture_audit_seen"
+            },
+            "reason": "Verify the reader's explicit coordination fact.",
+            "expected_result": "The published fact is present."
+          },
+          {
+            "tool_name": "finish",
+            "parameters": {},
+            "reason": "The checker goal is complete.",
+            "expected_result": "Agent completion."
+          }
+        ],
+        "recovery_action": {
+          "tool_name": "read_file",
+          "parameters": {
+            "path": "tests/fixtures/canonical_multi_agent/recovery_note.txt"
+          },
+          "reason": "Use the known safe fixture after the missing-file observation.",
+          "expected_result": "Recovery fixture text."
+        }
+      }
+    }
+  ]
+}

@@ -15,7 +15,7 @@ from src.agent.autonomous_browser_runtime import (
     browser_session_resource_lock,
     make_browser_runtime_action_executor,
 )
-from src.agent.autonomous_multi_agent_runtime import (
+from src.agent.legacy_autonomous_multi_agent_runtime import (
     AutonomousMultiAgentRuntime,
     RuntimeActionDecision,
     RuntimeAgentSpec,

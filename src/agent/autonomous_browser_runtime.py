@@ -9,7 +9,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
-from .autonomous_multi_agent_runtime import (
+from .legacy_autonomous_multi_agent_runtime import (
     RuntimeActionDecision,
     RuntimeActionResult,
     RuntimeSharedState,

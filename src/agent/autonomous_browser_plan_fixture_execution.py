@@ -14,7 +14,7 @@ from .autonomous_browser_runtime import (
     BrowserRuntimeVerifier,
     FixtureBackedBrowserRuntimeExecutor,
 )
-from .autonomous_multi_agent_runtime import (
+from .legacy_autonomous_multi_agent_runtime import (
     AutonomousMultiAgentRuntime,
     RuntimeAgentSpec,
     RuntimePolicy,

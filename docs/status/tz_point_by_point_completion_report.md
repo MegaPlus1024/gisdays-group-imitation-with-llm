@@ -17,6 +17,13 @@
 - Mean deterministic correctness = 1.0.
 - Normality/resource counts = 3/3.
 - Semantic LLM judge score = not run yet.
+- Current architecture consolidation: `src/agent/autonomous_multi_agent_runtime.py`
+  is now the canonical one-action-per-turn group runtime. Its deterministic
+  two-agent slice proves eight alternating turns, independent histories,
+  tool-role allowlists, explicit shared-state operations, one structured
+  failure, and recovery on the failed agent's next turn. It does not call a
+  model or browser. Historical browser integrations import
+  `legacy_autonomous_multi_agent_runtime.py`.
 - Phase 9.1: добавлен autonomous multi-agent runtime foundation без live model/browser/API calls.
 - Phase 9.2: добавлен fixture-backed autonomous browser runtime integration без real browser/Playwright/Chromium/API calls.
 - Phase 9.3: добавлен config-driven autonomous browser scenario runner без real browser/model/API calls.
@@ -124,9 +131,9 @@
 | Раздел ТЗ | Статус | Краткий вывод |
 |-----------|--------|---------------|
 | Цель работы | Частично выполнено | Исследовательский прототип разработан и проверен на controlled office workflow; полная виртуальная сеть и production-readiness не закрыты. |
-| Общее описание | Частично выполнено | Оркестратор, роли, ресурсы, ограничения, локальная LLM, scripts, history, autonomous runtime foundation и config-driven browser scenario evidence реализованы; production deployment и true parallel runtime отсутствуют. |
+| Общее описание | Частично выполнено | Канонический stepwise group runtime, роли, tool allowlists, independent history, explicit shared state и config-driven historical browser evidence реализованы; local-model group proof, production deployment и true parallel runtime отсутствуют. |
 | 1. Проанализировать возможные средства реализации | Частично выполнено | Локальные модели, запуск, agent integration и форматы описаний проработаны; deployment/sizing остаются предварительными. |
-| 2. Спроектировать общую схему работы | Частично выполнено | Схема orchestrator/executor, agent state, registry, action selection, history, deterministic scheduler, shared task board and config-driven autonomous browser scenario реализована; production scheduler/deployment не реализован. |
+| 2. Спроектировать общую схему работы | Частично выполнено | Канонические AgentProfile/AgentState/Action/Observation/HistoryEvent, единый ToolRegistry, one-action policy contract, deterministic round-robin scheduler и explicit shared operations реализованы; production scheduler/deployment не реализован. |
 | 3. Подготовить минимальный набор параметризуемых скриптов активности | Частично выполнено | File, office, shell, browser fixture-backed runtime integration и guarded Playwright smoke evidence есть; mail/git actions не реализованы. |
 | 4. Реализовать прототип агента | Завершено | Агентный прототип с config/orchestrator state, local LLM client, action selection, script execution и history/errors реализован. |
 | 5. Провести эксперименты с разными локальными моделями | Частично выполнено | Есть сравнения двух локальных моделей, pair workflows и behavioral metrics; semantic judge и широкая scenario diversity не закрыты. |
@@ -156,13 +163,13 @@
 - `src/agent/orchestrator_executor_pipeline.py`
 - `src/agent/virtual_network.py`
 - `src/agent/virtual_network_policy.py`
-- `src/agent/autonomous_multi_agent_runtime.py`
+- `src/agent/legacy_autonomous_multi_agent_runtime.py`
 - `src/agent/autonomous_browser_runtime.py`
 - `src/agent/autonomous_runtime_scenarios.py`
 - `configs/autonomous_runtime/browser_intranet_research_group_basic.example.json`
 - `tests/test_orchestrator_executor_pipeline.py`
 - `tests/test_virtual_network.py`
-- `tests/test_autonomous_multi_agent_runtime.py`
+- `tests/test_legacy_autonomous_multi_agent_runtime.py`
 - `tests/test_autonomous_browser_runtime.py`
 - `tests/test_autonomous_runtime_scenarios.py`
 
@@ -223,11 +230,11 @@ Controlled packets и local pipeline configs существуют для Phase 8
 - `src/agent/script_registry.py`
 - `src/agent/script_execution_bridge.py`
 - `src/agent/execution_history.py`
-- `src/agent/autonomous_multi_agent_runtime.py`
+- `src/agent/legacy_autonomous_multi_agent_runtime.py`
 - `tests/test_llm_client.py`
 - `tests/test_action_selector_prototype.py`
 - `tests/test_script_registry.py`
-- `tests/test_autonomous_multi_agent_runtime.py`
+- `tests/test_legacy_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 В committed status docs зафиксирован controlled workflow `second_model -> first_model`, но semantic judge score пока не получен.
@@ -312,10 +319,10 @@ Production deployment, monitoring and sizing не завершены; GPU/stress
 - `src/agent/orchestrator_executor_pipeline.py`
 - `src/agent/model_pair_pipeline_bridge.py`
 - `src/agent/model_pair_local_pipeline_entrypoint.py`
-- `src/agent/autonomous_multi_agent_runtime.py`
+- `src/agent/legacy_autonomous_multi_agent_runtime.py`
 - `tests/test_model_pair_pipeline_bridge.py`
 - `tests/test_model_pair_local_pipeline_entrypoint.py`
-- `tests/test_autonomous_multi_agent_runtime.py`
+- `tests/test_legacy_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 В Phase 8 controlled workflow executor actions валидировались и исполнялись через pipeline.
@@ -373,10 +380,10 @@ Offline tests validate schemas and config loading.
 - `src/agent/model_pair_execution_api.py`
 - `src/agent/model_pair_single_trial_execution.py`
 - `src/agent/model_pair_single_trial_operator_runner.py`
-- `src/agent/autonomous_multi_agent_runtime.py`
+- `src/agent/legacy_autonomous_multi_agent_runtime.py`
 - `tests/test_orchestrator_executor_pipeline.py`
 - `tests/test_model_pair_single_trial_execution.py`
-- `tests/test_autonomous_multi_agent_runtime.py`
+- `tests/test_legacy_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 Controlled office workflow показал успешную цепочку `orchestrator plan -> executor actions -> validation -> artifact -> score`. Phase 9.1 unit tests additionally cover `observe -> decide -> validate -> execute -> verify -> update`.
@@ -399,7 +406,7 @@ MVP sequential. Deterministic scheduler foundation есть, но production lon
 
 **Доказательства:**
 - `src/agent/state.py`
-- `src/agent/autonomous_multi_agent_runtime.py`
+- `src/agent/legacy_autonomous_multi_agent_runtime.py`
 - `src/agent/prompt_contract.py`
 - `configs/role_constrained_trajectory.example.json`
 - `tests/test_agent_state.py`
@@ -480,10 +487,10 @@ Semantic quality of choices needs broader evaluation and judge scoring.
 **Доказательства:**
 - `src/agent/execution_history.py`
 - `src/agent/model_pair_pipeline_result_adapter.py`
-- `src/agent/autonomous_multi_agent_runtime.py`
+- `src/agent/legacy_autonomous_multi_agent_runtime.py`
 - `tests/test_execution_history_error_log.py`
 - `tests/test_model_pair_pipeline_result_adapter.py`
-- `tests/test_autonomous_multi_agent_runtime.py`
+- `tests/test_legacy_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 Tests cover history and error artifacts.
@@ -645,7 +652,7 @@ Agent should receive initial state from orchestrator or config file.
 **Доказательства:**
 - `src/agent/state.py`
 - `src/agent/orchestrator_executor_pipeline.py`
-- `src/agent/autonomous_multi_agent_runtime.py`
+- `src/agent/legacy_autonomous_multi_agent_runtime.py`
 - `configs/local_pipeline/`
 - `artifacts/first_run_packets/phase_8_26_mini_matrix_r3/`
 - `tests/test_agent_state.py`
@@ -725,13 +732,13 @@ Run selected parameterized script after validation.
 
 **Доказательства:**
 - `src/agent/script_execution_bridge.py`
-- `src/agent/autonomous_multi_agent_runtime.py`
+- `src/agent/legacy_autonomous_multi_agent_runtime.py`
 - `src/agent/scripts/file_activity.py`
 - `src/agent/scripts/office_real_document_activity.py`
 - `src/agent/scripts/shell_command_activity.py`
 - `tests/test_script_execution_bridge.py`
 - `tests/test_office_real_document_docx.py`
-- `tests/test_autonomous_multi_agent_runtime.py`
+- `tests/test_legacy_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 6/6 office actions executed successfully in current Phase 8 status.
@@ -755,10 +762,10 @@ Save action history and errors.
 **Доказательства:**
 - `src/agent/execution_history.py`
 - `src/agent/model_pair_pipeline_result_adapter.py`
-- `src/agent/autonomous_multi_agent_runtime.py`
+- `src/agent/legacy_autonomous_multi_agent_runtime.py`
 - `tests/test_execution_history_error_log.py`
 - `tests/test_model_pair_pipeline_result_adapter.py`
-- `tests/test_autonomous_multi_agent_runtime.py`
+- `tests/test_legacy_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 History/error tests pass.
@@ -943,12 +950,12 @@ Resource/capacity estimation modules and historical runtime/resource probes exis
 **Доказательства:**
 - `src/agent/resource_capacity_evaluation.py`
 - `src/agent/orchestrator_executor_runtime_probe.py`
-- `src/agent/autonomous_multi_agent_runtime.py`
+- `src/agent/legacy_autonomous_multi_agent_runtime.py`
 - `docs/ai/final_tz_readiness_audit.md`
 - `configs/model_catalog.example.json`
 - `tests/test_resource_capacity_evaluation.py`
 - `tests/test_orchestrator_executor_runtime_probe.py`
-- `tests/test_autonomous_multi_agent_runtime.py`
+- `tests/test_legacy_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 Offline tests validate estimation/probe logic.
@@ -1023,11 +1030,11 @@ Capacity formula estimate, runtime probe and bounded stress probe modules exist;
 **Доказательства:**
 - `src/agent/resource_capacity_evaluation.py`
 - `src/agent/orchestrator_executor_stress_probe.py`
-- `src/agent/autonomous_multi_agent_runtime.py`
+- `src/agent/legacy_autonomous_multi_agent_runtime.py`
 - `docs/ai/final_tz_readiness_audit.md`
 - `tests/test_resource_capacity_evaluation.py`
 - `tests/test_orchestrator_executor_stress_probe.py`
-- `tests/test_autonomous_multi_agent_runtime.py`
+- `tests/test_legacy_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 Offline tests validate capacity/stress logic.
@@ -1184,10 +1191,10 @@ Prototype includes role/context configs, local model client, action selection, s
 - `src/agent/script_registry.py`
 - `src/agent/script_execution_bridge.py`
 - `src/agent/orchestrator_executor_pipeline.py`
-- `src/agent/autonomous_multi_agent_runtime.py`
+- `src/agent/legacy_autonomous_multi_agent_runtime.py`
 - `tests/test_action_selector_prototype.py`
 - `tests/test_script_execution_bridge.py`
-- `tests/test_autonomous_multi_agent_runtime.py`
+- `tests/test_legacy_autonomous_multi_agent_runtime.py`
 
 **Проверенный результат:**
 3/3 controlled mini-matrix repeats succeeded; 6/6 office actions executed.

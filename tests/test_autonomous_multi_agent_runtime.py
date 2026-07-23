@@ -1,457 +1,444 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
 
 from src.agent.autonomous_multi_agent_runtime import (
+    Action,
+    AgentProfile,
+    AgentState,
     AutonomousMultiAgentRuntime,
-    RuntimeActionDecision,
-    RuntimeActionResult,
-    RuntimeAgentSpec,
-    RuntimePolicy,
-    RuntimeSharedState,
-    RuntimeStopReason,
-    RuntimeTask,
-    RuntimeVirtualEnvironment,
-    RuntimeWorkspace,
+    EarlyStopFakePolicy,
+    LocalOpenAIModelPolicy,
+    PerfectFakePolicy,
+    PolicyError,
+    RepeatingFakePolicy,
+    RoleViolatingFakePolicy,
+    RuntimeLimits,
+    SharedEnvironment,
+    ToolExecutionContext,
+    ToolRegistry,
+    ToolResult,
+    ToolSpec,
+    build_default_tool_registry,
+    load_runtime_from_config,
 )
+from src.agent.schemas import NextAction
 
 
-def _decision(agent_id: str, *, task_id: str | None = None, action_type: str = "files") -> RuntimeActionDecision:
-    return RuntimeActionDecision(
-        agent_id=agent_id,
-        action_type=action_type,
-        action_name="read_file",
-        task_id=task_id,
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+CONFIG_PATH = PROJECT_ROOT / "configs" / "canonical_multi_agent.example.json"
+
+
+def test_default_registry_unifies_required_tool_families_without_click() -> None:
+    registry, _ = build_default_tool_registry(project_root=PROJECT_ROOT)
+
+    families = {spec.family for spec in registry.specs_for(registry.names())}
+    names = set(registry.names())
+
+    assert {"browser_article_read", "files", "office_documents", "simple_commands"} <= families
+    assert {
+        "browser_article_open",
+        "browser_article_read",
+        "browser_article_scroll",
+        "browser_article_find",
+        "browser_article_extract",
+        "read_file",
+        "list_directory",
+        "office_extract_docx_text",
+        "run_shell_command",
+        "shared_publish_fact",
+        "shared_read_fact",
+    } <= names
+    assert "browser_click" not in names
+    assert "browser_open_url" not in names
+
+
+def test_two_agent_fake_slice_alternates_recovers_and_retains_histories() -> None:
+    runtime = load_runtime_from_config(CONFIG_PATH, project_root=PROJECT_ROOT)
+
+    summary = runtime.run()
+
+    assert summary["status"] == "succeeded"
+    assert summary["stop_reason"] == "all_agents_terminal"
+    assert summary["policy_contract"] == "one_action_per_turn"
+    assert summary["turn_count"] == 8
+    assert summary["scheduler_trace"] == [
+        "research_reader",
+        "evidence_checker",
+        "research_reader",
+        "evidence_checker",
+        "research_reader",
+        "evidence_checker",
+        "research_reader",
+        "evidence_checker",
+    ]
+    assert summary["group_metrics"]["agents_completed"] == 2
+    assert summary["group_metrics"]["policy_calls_total"] == 8
+    assert summary["group_metrics"]["actions_attempted"] == 8
+    assert summary["group_metrics"]["actions_succeeded"] == 7
+    assert summary["group_metrics"]["actions_failed"] == 1
+    assert summary["group_metrics"]["recovered_failures"] == 1
+
+    reader = summary["per_agent"]["research_reader"]
+    checker = summary["per_agent"]["evidence_checker"]
+    assert reader["status"] == checker["status"] == "completed"
+    assert reader["turn_count"] == checker["turn_count"] == 4
+    assert len(reader["history"]) == len(checker["history"]) == 4
+    assert {event["agent_id"] for event in reader["history"]} == {"research_reader"}
+    assert {event["agent_id"] for event in checker["history"]} == {"evidence_checker"}
+
+    assert checker["history"][0]["observation"]["error_code"] == "file_not_found"
+    assert checker["history"][1]["action"]["parameters"]["path"].endswith(
+        "recovery_note.txt"
     )
+    assert checker["history"][1]["observation"]["success"] is True
+    assert checker["recovered_failures"] == 1
+
+    shared = summary["shared_environment"]
+    assert shared["facts"]["architecture_audit_seen"] is True
+    assert shared["operations"] == [
+        {
+            "operation": "publish",
+            "key": "architecture_audit_seen",
+            "agent_id": "research_reader",
+        },
+        {
+            "operation": "read",
+            "key": "architecture_audit_seen",
+            "agent_id": "evidence_checker",
+            "found": True,
+        },
+    ]
+    assert summary["model_execution"] is False
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["external_network"] is False
 
 
-def _success_executor(decision: RuntimeActionDecision, state: RuntimeSharedState) -> RuntimeActionResult:
-    return RuntimeActionResult(success=True, artifact_refs=(f"{decision.agent_id}.txt",))
-
-
-def test_round_robin_scheduler_selects_agents_deterministically() -> None:
-    order: list[str] = []
-
-    def provider(agent: RuntimeAgentSpec, state: RuntimeSharedState) -> RuntimeActionDecision:
-        order.append(agent.agent_id)
-        return _decision(agent.agent_id)
-
-    runtime = AutonomousMultiAgentRuntime(
-        runtime_id="rr",
-        agents=[RuntimeAgentSpec("a"), RuntimeAgentSpec("b")],
-        policy=RuntimePolicy(stop_when_all_tasks_terminal=False, idle_tick_limit=10),
-        decision_provider=provider,
-        action_executor=_success_executor,
-    )
-
-    runtime.step()
-    runtime.step()
-    runtime.step()
-
-    assert order == ["a", "b", "a"]
-
-
-def test_priority_then_round_robin_scheduler_prefers_high_priority_agents() -> None:
-    order: list[str] = []
-
-    def provider(agent: RuntimeAgentSpec, state: RuntimeSharedState) -> RuntimeActionDecision:
-        order.append(agent.agent_id)
-        return _decision(agent.agent_id)
-
-    runtime = AutonomousMultiAgentRuntime(
-        runtime_id="priority",
-        agents=[
-            RuntimeAgentSpec("low", priority=1),
-            RuntimeAgentSpec("high_a", priority=5),
-            RuntimeAgentSpec("high_b", priority=5),
-        ],
-        policy=RuntimePolicy(
-            scheduler="priority_then_round_robin",
-            stop_when_all_tasks_terminal=False,
-            idle_tick_limit=10,
-        ),
-        decision_provider=provider,
-        action_executor=_success_executor,
-    )
-
-    runtime.step()
-    runtime.step()
-    runtime.step()
-
-    assert order == ["high_a", "high_b", "high_a"]
-
-
-def test_completed_blocked_and_quarantined_agents_are_skipped() -> None:
-    selected: list[str] = []
-    state = RuntimeSharedState.from_specs(
-        [
-            RuntimeAgentSpec("done", status="completed"),
-            RuntimeAgentSpec("blocked", status="blocked"),
-            RuntimeAgentSpec("ok"),
-            RuntimeAgentSpec("bad"),
-        ],
-        [],
-    )
-    state.quarantined_agents.add("bad")
-
-    def provider(agent: RuntimeAgentSpec, shared: RuntimeSharedState) -> RuntimeActionDecision:
-        selected.append(agent.agent_id)
-        return _decision(agent.agent_id)
-
-    runtime = AutonomousMultiAgentRuntime(
-        runtime_id="skip",
-        shared_state=state,
-        policy=RuntimePolicy(stop_when_all_tasks_terminal=False),
-        decision_provider=provider,
-        action_executor=_success_executor,
-    )
-
-    runtime.step()
-
-    assert selected == ["ok"]
-
-
-def test_shared_task_board_assign_complete_fail_and_facts_work() -> None:
-    state = RuntimeSharedState.from_specs(
-        [RuntimeAgentSpec("a")],
-        [RuntimeTask("t1"), RuntimeTask("t2")],
-    )
-
-    assigned = state.assign_task("a", "t1")
-    state.add_fact("doc", "ready", "a")
-    completed = state.complete_task("t1", ["artifact.docx"])
-    failed = state.fail_task("t2", "bad output")
-    event = state.record_event("note", "recorded", agent_id="a", task_id="t2")
-
-    assert assigned.assigned_agent_id == "a"
-    assert completed.status == "completed"
-    assert completed.artifact_refs == ["artifact.docx"]
-    assert failed.status == "failed"
-    assert state.shared_facts["doc"]["source_agent_id"] == "a"
-    assert state.group_event_log == [event]
-    assert state.per_agent_history["a"] == [event]
-
-
-def test_runtime_step_calls_decision_executor_and_verifier() -> None:
+def test_role_allowlist_rejects_action_before_executor() -> None:
     calls: list[str] = []
-
-    def provider(agent: RuntimeAgentSpec, state: RuntimeSharedState) -> RuntimeActionDecision:
-        calls.append("decision")
-        return _decision(agent.agent_id, task_id="t1")
-
-    def executor(decision: RuntimeActionDecision, state: RuntimeSharedState) -> RuntimeActionResult:
-        calls.append("executor")
-        return RuntimeActionResult(success=True)
-
-    def verifier(
-        decision: RuntimeActionDecision,
-        result: RuntimeActionResult,
-        state: RuntimeSharedState,
-    ) -> bool:
-        calls.append("verifier")
-        return True
-
+    registry = ToolRegistry()
+    registry.register(
+        ToolSpec(
+            name="read_file",
+            description="Read a fixture.",
+            family="files",
+            parameter_names=("path",),
+            required_parameters=("path",),
+        ),
+        lambda action, context: calls.append(action.tool_name)
+        or ToolResult(success=True),
+    )
+    registry.register(
+        ToolSpec(
+            name="finish",
+            description="Finish.",
+            family="control",
+        ),
+        lambda action, context: ToolResult(success=True),
+    )
+    profiles = (
+        _profile("restricted", ("finish",)),
+        _profile("idle", ("finish",)),
+    )
     runtime = AutonomousMultiAgentRuntime(
-        runtime_id="step",
-        agents=[RuntimeAgentSpec("a")],
-        tasks=[RuntimeTask("t1")],
-        decision_provider=provider,
-        action_executor=executor,
-        verifier=verifier,
+        runtime_id="role_guard_test",
+        profiles=profiles,
+        policies={
+            "restricted": RoleViolatingFakePolicy(
+                Action("read_file", {"path": "docs/x.txt"})
+            ),
+            "idle": EarlyStopFakePolicy(),
+        },
+        tool_registry=registry,
+        limits=RuntimeLimits(max_failures_per_agent=1),
     )
 
-    result = runtime.step()
+    summary = runtime.run()
 
-    assert result.status == "success"
-    assert calls == ["decision", "executor", "verifier"]
-    assert runtime.shared_state.tasks["t1"].status == "completed"
+    restricted = summary["per_agent"]["restricted"]
+    assert summary["status"] == "failed"
+    assert restricted["validation_rejections"] == 1
+    assert restricted["history"][0]["observation"]["error_code"] == "tool_not_allowed"
+    assert calls == []
 
 
-def test_runtime_run_stops_when_all_tasks_terminal() -> None:
+def test_repetition_guard_stops_repeating_policy() -> None:
+    registry = _simple_registry()
     runtime = AutonomousMultiAgentRuntime(
-        runtime_id="all_done",
-        agents=[RuntimeAgentSpec("a")],
-        tasks=[RuntimeTask("t1")],
-        decision_provider=lambda agent, state: _decision(agent.agent_id, task_id="t1"),
-        action_executor=_success_executor,
-    )
-
-    summary = runtime.run().to_dict()
-
-    assert summary["stop_reason"] == RuntimeStopReason.ALL_TASKS_TERMINAL.value
-    assert summary["task_counts"]["completed"] == 1
-
-
-def test_max_ticks_stop_works() -> None:
-    runtime = AutonomousMultiAgentRuntime(
-        runtime_id="max_ticks",
-        agents=[RuntimeAgentSpec("a")],
-        policy=RuntimePolicy(max_ticks=2, idle_tick_limit=10, stop_when_all_tasks_terminal=False),
-        decision_provider=lambda agent, state: None,
-    )
-
-    summary = runtime.run().to_dict()
-
-    assert summary["tick_count"] == 2
-    assert summary["stop_reason"] == RuntimeStopReason.MAX_TICKS_REACHED.value
-
-
-def test_max_actions_total_stop_works() -> None:
-    runtime = AutonomousMultiAgentRuntime(
-        runtime_id="max_actions",
-        agents=[RuntimeAgentSpec("a")],
-        policy=RuntimePolicy(max_actions_total=2, max_ticks=10, stop_when_all_tasks_terminal=False),
-        decision_provider=lambda agent, state: _decision(agent.agent_id),
-        action_executor=_success_executor,
-    )
-
-    summary = runtime.run().to_dict()
-
-    assert summary["action_count"] == 2
-    assert summary["stop_reason"] == RuntimeStopReason.MAX_ACTIONS_TOTAL_REACHED.value
-
-
-def test_idle_tick_limit_stop_works() -> None:
-    runtime = AutonomousMultiAgentRuntime(
-        runtime_id="idle",
-        agents=[RuntimeAgentSpec("a")],
-        policy=RuntimePolicy(idle_tick_limit=2, max_ticks=10, stop_when_all_tasks_terminal=False),
-        decision_provider=lambda agent, state: None,
-    )
-
-    summary = runtime.run().to_dict()
-
-    assert summary["tick_count"] == 2
-    assert summary["stop_reason"] == RuntimeStopReason.IDLE_LIMIT_REACHED.value
-
-
-def test_task_retry_works() -> None:
-    attempts = 0
-
-    def executor(decision: RuntimeActionDecision, state: RuntimeSharedState) -> RuntimeActionResult:
-        nonlocal attempts
-        attempts += 1
-        if attempts == 1:
-            return RuntimeActionResult(success=False, error_type="temporary", error_message="try again")
-        return RuntimeActionResult(success=True)
-
-    runtime = AutonomousMultiAgentRuntime(
-        runtime_id="retry",
-        agents=[RuntimeAgentSpec("a")],
-        tasks=[RuntimeTask("t1")],
-        policy=RuntimePolicy(max_retries_per_task=1),
-        decision_provider=lambda agent, state: _decision(agent.agent_id, task_id="t1"),
-        action_executor=executor,
-    )
-
-    first = runtime.step()
-    second = runtime.step()
-
-    assert first.status == "failed"
-    assert second.status == "success"
-    assert runtime.shared_state.retry_counters["t1"] == 1
-    assert runtime.shared_state.tasks["t1"].status == "completed"
-
-
-def test_task_fails_after_retries_exhausted() -> None:
-    runtime = AutonomousMultiAgentRuntime(
-        runtime_id="fail",
-        agents=[RuntimeAgentSpec("a")],
-        tasks=[RuntimeTask("t1")],
-        policy=RuntimePolicy(max_retries_per_task=0),
-        decision_provider=lambda agent, state: _decision(agent.agent_id, task_id="t1"),
-        action_executor=lambda decision, state: RuntimeActionResult(
-            success=False,
-            error_type="bad_action",
-            error_message="nope",
+        runtime_id="repetition_guard_test",
+        profiles=(
+            _profile("repeater", ("probe", "finish")),
+            _profile("idle", ("finish",)),
+        ),
+        policies={
+            "repeater": RepeatingFakePolicy(Action("probe")),
+            "idle": EarlyStopFakePolicy(),
+        },
+        tool_registry=registry,
+        limits=RuntimeLimits(
+            max_turns_total=10,
+            max_turns_per_agent=5,
+            max_failures_per_agent=3,
+            max_identical_actions=2,
         ),
     )
 
-    result = runtime.step()
+    summary = runtime.run()
 
-    assert result.status == "failed"
-    assert runtime.shared_state.tasks["t1"].status == "failed"
-    assert runtime.shared_state.tasks["t1"].failure_reason == "nope"
+    repeater = summary["per_agent"]["repeater"]
+    assert summary["status"] == "failed"
+    assert repeater["stop_reason"] == "repetition_guard"
+    assert repeater["history"][-1]["observation"]["error_code"] == "repeated_action_detected"
+    assert repeater["actions_succeeded"] == 2
 
 
-def test_agent_quarantine_after_repeated_failures() -> None:
+def test_early_stop_policy_is_bounded() -> None:
+    registry = _simple_registry()
     runtime = AutonomousMultiAgentRuntime(
-        runtime_id="quarantine",
-        agents=[RuntimeAgentSpec("a")],
-        tasks=[RuntimeTask("t1")],
-        policy=RuntimePolicy(max_retries_per_task=5, max_agent_failures=2),
-        decision_provider=lambda agent, state: _decision(agent.agent_id, task_id="t1"),
-        action_executor=lambda decision, state: RuntimeActionResult(
-            success=False,
-            error_type="bad_action",
-            error_message="nope",
+        runtime_id="early_stop_test",
+        profiles=(
+            _profile("early", ("finish",)),
+            _profile("finisher", ("finish",)),
+        ),
+        policies={
+            "early": EarlyStopFakePolicy(),
+            "finisher": PerfectFakePolicy((Action("finish"),)),
+        },
+        tool_registry=registry,
+    )
+
+    summary = runtime.run()
+
+    assert summary["status"] == "failed"
+    assert summary["turn_count"] == 2
+    assert summary["per_agent"]["early"]["stop_reason"] == "policy_stopped"
+    assert summary["per_agent"]["finisher"]["status"] == "completed"
+
+
+def test_fixture_article_tools_are_stepwise_and_read_only() -> None:
+    registry, environment = build_default_tool_registry(project_root=PROJECT_ROOT)
+    profile = AgentProfile(
+        agent_id="article_reader",
+        role="Article reader",
+        goal="Read the safety section.",
+        allowed_tools=(
+            "browser_article_open",
+            "browser_article_find",
+            "browser_article_read",
+            "finish",
         ),
     )
+    state = _state_for(profile)
+    context = ToolExecutionContext(
+        runtime_id="article_test",
+        turn_index=1,
+        agent_state=state,
+        shared_environment=environment,
+    )
 
-    runtime.step()
-    runtime.step()
-
-    assert "a" in runtime.shared_state.quarantined_agents
-    assert runtime.shared_state.agents["a"].status == "quarantined"
-
-
-def test_resource_lock_acquire_and_release_work() -> None:
-    state = RuntimeSharedState.from_specs([RuntimeAgentSpec("a"), RuntimeAgentSpec("b")], [])
-
-    assert state.acquire_lock("doc", "a") is True
-    assert state.acquire_lock("doc", "b") is False
-    assert state.release_lock("doc", "b") is False
-    assert state.release_lock("doc", "a") is True
-    assert state.acquire_lock("doc", "b") is True
-
-
-def test_unavailable_lock_blocks_action_without_executor_call() -> None:
-    state = RuntimeSharedState.from_specs([RuntimeAgentSpec("a"), RuntimeAgentSpec("b")], [RuntimeTask("t1")])
-    assert state.acquire_lock("doc", "b") is True
-    executor_called = False
-
-    def executor(decision: RuntimeActionDecision, shared: RuntimeSharedState) -> RuntimeActionResult:
-        nonlocal executor_called
-        executor_called = True
-        return RuntimeActionResult(success=True)
-
-    runtime = AutonomousMultiAgentRuntime(
-        runtime_id="blocked_lock",
-        shared_state=state,
-        policy=RuntimePolicy(idle_tick_limit=5),
-        decision_provider=lambda agent, shared: RuntimeActionDecision(
-            agent_id=agent.agent_id,
-            task_id="t1",
-            action_type="files",
-            action_name="append_file",
-            resource_locks=("doc",),
+    opened = registry.execute(
+        Action(
+            "browser_article_open",
+            {"url": "https://fixture.local/articles/runtime"},
         ),
-        action_executor=executor,
+        context,
     )
+    found = registry.execute(
+        Action("browser_article_find", {"query": "external network"}),
+        context,
+    )
+    read = registry.execute(Action("browser_article_read"), context)
 
-    result = runtime.step()
+    assert opened.success is True
+    assert found.success is True
+    assert read.success is True
+    assert read.output["visible_section"]["heading"] == "Safety"
+    assert "browser_click" not in registry.names()
 
-    assert result.status == "blocked"
-    assert executor_called is False
-    assert state.resource_locks == {"doc": "b"}
-    assert state.tasks["t1"].status == "running"
+
+def test_local_policy_refuses_without_explicit_opt_in() -> None:
+    class FakeClient:
+        base_url = "http://127.0.0.1:8080/v1"
+
+        def generate_next_action(self, agent_state):  # type: ignore[no-untyped-def]
+            raise AssertionError("client must not be called")
+
+    policy = LocalOpenAIModelPolicy(client=FakeClient())  # type: ignore[arg-type]
+    profile = _profile("local_agent", ("finish",))
+
+    with pytest.raises(PolicyError) as exc_info:
+        policy.next_action(_state_for(profile), None, ())
+
+    assert exc_info.value.error_code == "allow_model_calls_required"
+    assert policy.model_execution_attempted is False
 
 
-def test_virtual_environment_metadata_appears_in_summary() -> None:
-    env = RuntimeVirtualEnvironment(
-        environment_id="env1",
-        workspace=RuntimeWorkspace(
-            workspace_root="artifacts/runtime_workspace",
-            per_agent_workspaces={"a": "artifacts/runtime_workspace/a"},
-            reset_policy="per_run",
+def test_local_policy_adapts_one_next_action_not_workflow_json() -> None:
+    calls: list[dict[str, object]] = []
+
+    class FakeClient:
+        base_url = "http://localhost:8080/v1"
+
+        def generate_next_action(self, agent_state):  # type: ignore[no-untyped-def]
+            calls.append(agent_state)
+            return NextAction(
+                action="finish",
+                parameters={},
+                reason="done",
+                expected_result="complete",
+            )
+
+    policy = LocalOpenAIModelPolicy(  # type: ignore[arg-type]
+        client=FakeClient(),
+        allow_model_calls=True,
+    )
+    profile = _profile("local_agent", ("finish",))
+
+    action = policy.next_action(_state_for(profile), None, ())
+
+    assert action == Action(
+        tool_name="finish",
+        parameters={},
+        reason="done",
+        expected_result="complete",
+    )
+    assert len(calls) == 1
+    assert calls[0]["instruction"] == (
+        "Return exactly one action object, never a workflow or actions array."
+    )
+    assert "actions" not in action.to_dict()
+
+
+def test_action_and_profile_reject_browser_click() -> None:
+    with pytest.raises(ValueError, match="browser_click"):
+        Action("browser_click")
+
+    with pytest.raises(ValueError, match="browser_click"):
+        AgentProfile(
+            agent_id="clicker",
+            role="Invalid",
+            goal="Click",
+            allowed_tools=("browser_click",),
+        )
+
+
+def test_summary_does_not_expose_local_absolute_paths() -> None:
+    runtime = load_runtime_from_config(CONFIG_PATH, project_root=PROJECT_ROOT)
+
+    rendered = json.dumps(runtime.run(), ensure_ascii=False)
+
+    assert str(PROJECT_ROOT) not in rendered
+    assert "resolved_path" not in rendered
+
+
+def test_summary_preserves_secret_key_but_redacts_value() -> None:
+    registry = _simple_registry()
+    registry.register(
+        ToolSpec(
+            name="shared_publish_fact",
+            description="Publish a shared fact.",
+            family="coordination",
+            required_parameters=("key", "value"),
+            parameter_names=("key", "value"),
         ),
-        allowed_resource_namespaces=("files", "browser"),
-        metadata={"scenario": "fake"},
+        lambda action, context: (
+            context.shared_environment.publish_fact(
+                key=str(action.parameters["key"]),
+                value=action.parameters["value"],
+                agent_id=context.agent_state.agent_id,
+            )
+            or ToolResult(success=True)
+        ),
     )
     runtime = AutonomousMultiAgentRuntime(
-        runtime_id="env_summary",
-        agents=[RuntimeAgentSpec("a")],
-        virtual_environment=env,
-    )
-
-    summary = runtime.to_summary()
-
-    assert summary["virtual_environment"]["environment_id"] == "env1"
-    assert summary["virtual_environment"]["workspace"]["reset_policy"] == "per_run"
-    assert summary["virtual_environment"]["allowed_resource_namespaces"] == ["files", "browser"]
-
-
-def test_browser_action_rejected_when_browser_namespace_disabled() -> None:
-    runtime = AutonomousMultiAgentRuntime(
-        runtime_id="browser_reject",
-        agents=[RuntimeAgentSpec("a")],
-        tasks=[RuntimeTask("t1")],
-        policy=RuntimePolicy(max_retries_per_task=0),
-        virtual_environment=RuntimeVirtualEnvironment(
-            environment_id="env",
-            workspace=RuntimeWorkspace("runtime/workspace"),
-            allowed_resource_namespaces=("files",),
+        runtime_id="summary_redaction_test",
+        profiles=(
+            _profile("publisher", ("shared_publish_fact", "finish")),
+            _profile("finisher", ("finish",)),
         ),
-        decision_provider=lambda agent, state: RuntimeActionDecision(
-            agent_id=agent.agent_id,
-            task_id="t1",
-            action_type="browser",
-            action_name="browser_open_url",
+        policies={
+            "publisher": PerfectFakePolicy(
+                (
+                    Action(
+                        "shared_publish_fact",
+                        {"key": "api_key", "value": "supersecret"},
+                    ),
+                    Action("finish"),
+                )
+            ),
+            "finisher": PerfectFakePolicy((Action("finish"),)),
+        },
+        tool_registry=registry,
+    )
+
+    rendered = json.dumps(runtime.run(), ensure_ascii=False)
+
+    assert "api_key" in rendered
+    assert "supersecret" not in rendered
+    assert "<redacted>" in rendered
+
+
+def test_cli_fake_smoke_succeeds_without_model_or_browser() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/run_autonomous_multi_agent_runtime.py",
+            "--config",
+            "configs/canonical_multi_agent.example.json",
+        ],
+        cwd=PROJECT_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    summary = json.loads(completed.stdout)
+    assert summary["status"] == "succeeded"
+    assert summary["turn_count"] == 8
+    assert summary["model_execution"] is False
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert "\n" not in completed.stdout.strip()
+    assert str(PROJECT_ROOT) not in completed.stdout
+
+
+def _profile(agent_id: str, allowed_tools: tuple[str, ...]) -> AgentProfile:
+    return AgentProfile(
+        agent_id=agent_id,
+        role=f"{agent_id} role",
+        goal=f"{agent_id} goal",
+        allowed_tools=allowed_tools,
+    )
+
+
+def _simple_registry() -> ToolRegistry:
+    registry = ToolRegistry()
+    registry.register(
+        ToolSpec(
+            name="probe",
+            description="Return a deterministic probe result.",
+            family="test",
         ),
+        lambda action, context: ToolResult(success=True, output="ok"),
     )
-
-    result = runtime.step()
-
-    assert result.status == "failed"
-    assert result.action_result is not None
-    assert result.action_result.error_type == "browser_namespace_disabled"
-    assert runtime.shared_state.tasks["t1"].status == "failed"
-
-
-def test_browser_action_accepted_when_namespace_enabled_and_fake_executor_succeeds() -> None:
-    executor_calls: list[str] = []
-    runtime = AutonomousMultiAgentRuntime(
-        runtime_id="browser_accept",
-        agents=[RuntimeAgentSpec("a")],
-        tasks=[RuntimeTask("t1")],
-        virtual_environment=RuntimeVirtualEnvironment(
-            environment_id="env",
-            workspace=RuntimeWorkspace("runtime/workspace"),
-            allowed_resource_namespaces=("files", "browser"),
+    registry.register(
+        ToolSpec(
+            name="finish",
+            description="Finish.",
+            family="control",
         ),
-        decision_provider=lambda agent, state: RuntimeActionDecision(
-            agent_id=agent.agent_id,
-            task_id="t1",
-            action_type="browser",
-            action_name="browser_open_url",
-            parameters={"url": "http://localhost:8080"},
-        ),
-        action_executor=lambda decision, state: executor_calls.append(decision.action_name)
-        or RuntimeActionResult(success=True),
+        lambda action, context: ToolResult(success=True),
     )
-
-    result = runtime.step()
-
-    assert result.status == "success"
-    assert executor_calls == ["browser_open_url"]
-    assert runtime.shared_state.tasks["t1"].status == "completed"
+    return registry
 
 
-def test_summary_is_json_serializable() -> None:
-    runtime = AutonomousMultiAgentRuntime(
-        runtime_id="json",
-        agents=[RuntimeAgentSpec("a")],
-        tasks=[RuntimeTask("t1")],
-        decision_provider=lambda agent, state: _decision(agent.agent_id, task_id="t1"),
-        action_executor=_success_executor,
-    )
-
-    summary = runtime.run().to_dict()
-
-    assert json.loads(json.dumps(summary))["schema_version"] == "autonomous_multi_agent_runtime_summary_v1"
-
-
-def test_runtime_uses_injected_fakes_and_does_not_launch_real_runtime() -> None:
-    calls = {"decision": 0, "executor": 0}
-
-    def provider(agent: RuntimeAgentSpec, state: RuntimeSharedState) -> RuntimeActionDecision:
-        calls["decision"] += 1
-        return _decision(agent.agent_id, task_id="t1")
-
-    def executor(decision: RuntimeActionDecision, state: RuntimeSharedState) -> RuntimeActionResult:
-        calls["executor"] += 1
-        return RuntimeActionResult(success=True, metadata={"fake_executor": True})
-
-    runtime = AutonomousMultiAgentRuntime(
-        runtime_id="fake_only",
-        agents=[RuntimeAgentSpec("a")],
-        tasks=[RuntimeTask("t1")],
-        decision_provider=provider,
-        action_executor=executor,
-    )
-
-    result = runtime.step()
-
-    assert result.action_result is not None
-    assert result.action_result.metadata == {"fake_executor": True}
-    assert calls == {"decision": 1, "executor": 1}
+def _state_for(profile: AgentProfile) -> AgentState:
+    return AgentState(profile=profile)

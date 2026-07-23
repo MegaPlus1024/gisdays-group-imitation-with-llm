@@ -33,7 +33,8 @@ only a smaller subset is suitable as the current runtime foundation.
 | Hardened stepwise local client | `src/agent/autonomous_browser_stepwise_article_local_model.py` | `tests/test_autonomous_browser_stepwise_article_local_model.py` | Stronger transport, opt-in, parsing, and diagnostics, but article-specific. |
 | Script catalog | `src/agent/script_registry.py`, `configs/script_registry.example.json` | `tests/test_script_registry.py` | Best existing parameterized tool catalog and safety validator. |
 | Script dispatch | `src/agent/script_execution_bridge.py`, `src/agent/scripts/` | `tests/test_script_execution_bridge.py` and backend tests | Existing file, office-file, shell, and fixture-open execution layer. |
-| Multi-agent scheduler | `src/agent/autonomous_multi_agent_runtime.py` | `tests/test_autonomous_multi_agent_runtime.py` | Real deterministic round-robin/priority scheduler with independent event histories, shared task board, retries, quarantine, locks, and group counters. |
+| Canonical multi-agent runtime | `src/agent/autonomous_multi_agent_runtime.py` | `tests/test_autonomous_multi_agent_runtime.py` | One-action-per-turn round-robin runtime with profiles, allowlists, one tool registry, independent histories, explicit shared operations, recovery observations, repetition guard, and group metrics. |
+| Legacy callback scheduler | `src/agent/legacy_autonomous_multi_agent_runtime.py` | `tests/test_legacy_autonomous_multi_agent_runtime.py` | Preserved for historical browser runtime/bridge evidence; it is no longer the canonical import path. |
 | Scripted multi-agent fixture scenario | `src/agent/autonomous_runtime_scenarios.py` | scenario and suite tests | Executes two agents through the scheduler, but decisions are prewritten one-action tasks rather than model-selected actions. |
 | Stepwise observation/action benchmark | `src/agent/autonomous_browser_stepwise_article_benchmark.py` | Phase 15 tests | Genuine bounded one-action-per-turn loop, but single-agent and benchmark-specific. |
 | Browser live loop | `src/agent/autonomous_browser_live_loop.py` | live-loop tests | Genuine model step loop with repair and fixture execution, but browser-specific and built around a broad action surface including clicks. |
@@ -61,7 +62,7 @@ only a smaller subset is suitable as the current runtime foundation.
    actions. It has useful historical model/resource evidence, but it is a
    separate experiment stack rather than the current agent runtime.
 
-4. `autonomous_multi_agent_runtime.py`
+4. `legacy_autonomous_multi_agent_runtime.py`
 
    This is the strongest reusable scheduler. It interleaves runnable agents,
    maintains `per_agent_history`, exposes an explicit shared task/fact state,
@@ -96,6 +97,13 @@ only a smaller subset is suitable as the current runtime foundation.
    workflow JSON outputs. They retain benchmark value, but they contradict the
    target canonical policy contract of one action per model turn.
 
+9. `autonomous_multi_agent_runtime.py`
+
+   The post-audit canonical runtime owns the shared domain types, tool
+   interface, one-action policy contract, deterministic group scheduler, and
+   current fake vertical slice. Historical browser modules import the explicit
+   `legacy_` scheduler instead of sharing the canonical name.
+
 ## Reference and duplication findings
 
 - `src/agent` contains roughly 24,900 lines of non-stateful autonomous-browser
@@ -116,9 +124,9 @@ only a smaller subset is suitable as the current runtime foundation.
 - The canonical script registry does not contain `browser_click`; click is
   concentrated in browser planning/live-loop/Playwright research paths and
   related configs/tests/docs.
-- `src/agent/autonomous_multi_agent_runtime.py` has inbound source imports from
-  the fixture execution/runtime bridge/browser suite family and is therefore
-  not dead code.
+- `src/agent/legacy_autonomous_multi_agent_runtime.py` has inbound source
+  imports from the fixture execution/runtime bridge/browser suite family and
+  remains isolated for historical evidence.
 - `src/agent/multi_agent_orchestrator.py` has no production entrypoint import;
   its inbound references are a smoke test, readiness checks, one config, and
   historical documentation.
@@ -129,28 +137,28 @@ only a smaller subset is suitable as the current runtime foundation.
 ## Twelve direct answers
 
 1. **Is there a real multi-agent runtime?**  
-   **Partial.** `AutonomousMultiAgentRuntime` is a real interleaved scheduler,
-   but its current model-facing scenario composition is scripted or
-   browser-specific.
+   **Proven with deterministic policies.** `AutonomousMultiAgentRuntime`
+   interleaves independent states over one shared tool registry. Local-model
+   group evidence remains future opt-in work.
 
 2. **Can more than one agent run in one bounded session?**  
    **Proven with fakes/fixtures.** The scheduler and
-   `browser_intranet_research_group_basic.example.json` run two agent states in
-   one session.
+   `configs/canonical_multi_agent.example.json` run two agent states in one
+   session.
 
 3. **Does each agent retain independent history?**  
-   **Proven.** `RuntimeSharedState.per_agent_history` is keyed by agent id and
-   covered by runtime tests. A canonical action/observation history abstraction
-   is still missing.
+   **Proven.** Each canonical `AgentState` owns `HistoryEvent` records, and the
+   two-agent test proves that agent ids never leak across histories.
 
 4. **Does one model turn select exactly one action?**  
-   **Proven only in single-agent paths.** The old `NextAction` path, browser
-   live loop, and Phase 15 stepwise benchmark parse one action. The scripted
-   multi-agent runtime does not yet use that policy contract.
+   **Proven by contract and fakes.** Canonical `ModelPolicy.next_action`
+   returns one `Action` or stops. `LocalOpenAIModelPolicy` reuses the existing
+   `LocalLLMClient` one-action parser and defaults to refusal.
 
 5. **Can an execution error become an observation and be repaired next turn?**  
-   **Partial.** Runtime task retries and browser/Phase 15 repair tests exist,
-   but this is not demonstrated in a generic multi-agent policy loop.
+   **Proven with fakes.** The checker observes `file_not_found`, repairs the
+   read on its next scheduled turn, and completes; the summary counts one
+   recovered failure.
 
 6. **Are activity scripts parameterized and validated?**  
    **Proven.** `ScriptRegistry`, `ScriptDescriptor`, parameter schemas, safety
@@ -158,18 +166,18 @@ only a smaller subset is suitable as the current runtime foundation.
 
 7. **Is there one unified tool registry across browser, files, office files,
    and simple commands?**  
-   **Partial.** `configs/script_registry.example.json` catalogs these families,
-   and `ScriptExecutionBridge` dispatches them. The Phase 15 browser article
-   actions and browser live-loop actions use separate interfaces.
+   **Proven for the canonical surface.** `ToolRegistry` adapts the existing
+   script registry/bridge and adds fixture article and explicit coordination
+   tools. It excludes `browser_click` and generic browser navigation.
 
 8. **Are role/resource constraints enforced before execution?**  
-   **Partial.** Registry safety rules, scenario policies, URL policies, and
-   runtime resource locks are enforced. A single `AgentProfile.allowed_tools`
-   check is not present in the reusable scheduler.
+   **Proven for tool access.** `AgentProfile.allowed_tools` is enforced before
+   dispatch, in addition to existing registry parameter/path safety. Resource
+   text constraints remain descriptive in the canonical slice.
 
 9. **Are per-agent and group metrics available?**  
    **Proven for the scheduler.** Runtime summaries include per-agent action and
-   failure counts plus group events/task counts. The metric vocabulary differs
+   failure counts plus group event/action counts. The metric vocabulary differs
    across historical benchmark families.
 
 10. **Is there a long multi-call benchmark rather than only complete workflow
@@ -203,17 +211,17 @@ Statuses mean:
 | TZ requirement | Status | Current evidence | Gap |
 | --- | --- | --- | --- |
 | Local small/medium model registry and launch metadata | proven | `configs/evaluation_models.json`, model registry tests | GGUF/runtime availability is operator-local. |
-| Role, resources, constraints, and available actions in initial state | partial | `state.py`, role/config files, script registry, runtime agent specs | No single canonical `AgentProfile` owns all constraints. |
-| Local model chooses the next action from state/history/tools | partial | old `NextAction`, browser live loop, Phase 15 | Not integrated into the reusable multi-agent scheduler. |
+| Role, resources, constraints, and available actions in initial state | proven | canonical `AgentProfile`, config, tool registry | Resource strings are not a production sandbox policy. |
+| Local model chooses the next action from state/history/tools | partial | canonical `ModelPolicy` and opt-in `LocalOpenAIModelPolicy` | Deterministic group run is proven; a local-model group run is not. |
 | Scripts are allowed parameterized actions, not a fixed workflow | proven | script registry and validation tests | Several benchmark families still ask for full workflows. |
-| Browser read activity | proven | Phase 15 fixture article open/read/scroll/find/extract | Real browser is deliberately outside the canonical slice. |
-| File activity | proven | file scripts and execution bridge tests | Canonical multi-agent demonstration still needed. |
+| Browser read activity | proven | canonical fixture article open/read/scroll/find/extract and Phase 15 | Real browser is deliberately outside the canonical slice. |
+| File activity | proven | canonical fake slice, file scripts, and execution bridge tests | Write behavior is not exercised by the read-only fake config. |
 | Office document activity | proven | DOCX/XLSX/PPTX file backends and tests | Optional dependencies/backends remain bounded. |
 | Simple commands | proven | constrained shell action and tests | Command allowlist is intentionally narrow. |
 | Mail/git/other applications | missing | none in canonical registry | Optional TZ clause; requires separate safety design. |
 | Agent receives initial state from orchestrator/config | proven | scenario/config loaders and runtimes | Representations are duplicated. |
-| Agent saves action and error history | proven | execution history and runtime events | No single canonical history event type. |
-| Group of local agents | partial | autonomous scheduler and fixture scenario | Generic model-driven group vertical slice missing. |
+| Agent saves action and error history | proven | canonical `HistoryEvent` plus legacy evidence | Persistence is summary/JSON based, not an external store. |
+| Group of local agents | partial | canonical two-agent fake slice | Local-model group execution and true parallelism are not proven. |
 | Normal activity/role behavior evaluation | partial | normality and model evaluation modules | Evidence is controlled and scenario limited. |
 | Coherence/diversity/repetition evaluation | proven | behavior/variance evaluators and tests | Metric definitions differ by benchmark family. |
 | Several local models compared | proven | five aliases and Phase 14 evidence | Results are bounded to specific frozen protocols. |
@@ -227,7 +235,8 @@ Statuses mean:
 
 | path/subsystem | classification | inbound references | TZ value | replacement | confidence | action |
 | --- | --- | --- | --- | --- | --- | --- |
-| `src/agent/autonomous_multi_agent_runtime.py` | canonical_core | browser runtime/bridge/suite modules and tests | group scheduling, independent histories, retries, locks | none | 0.99 | keep and consolidate |
+| `src/agent/autonomous_multi_agent_runtime.py` | canonical_core | canonical CLI/config/tests | one-action policies, unified tools, group scheduling, independent histories, recovery | none | 0.99 | keep |
+| `src/agent/legacy_autonomous_multi_agent_runtime.py` | legacy_experiment | browser runtime/bridge/suite modules and legacy tests | historical scheduler evidence | canonical runtime | 0.99 | keep isolated until browser evidence retirement |
 | `src/agent/script_registry.py` | tool | bridge, runners, pipeline, tests | parameterized scripts and safety | none | 0.99 | keep |
 | `src/agent/script_execution_bridge.py` and `src/agent/scripts/` | tool | experiment/pipeline/recovery modules and tests | file/office/command execution | none | 0.99 | keep and adapt |
 | Phase 15 stepwise article modules | benchmark | two CLIs and tests | one-action loop and read-only browser evidence | canonical runtime should reuse concepts | 0.99 | keep as benchmark |
@@ -273,11 +282,12 @@ The current implementation should converge on these layers:
 7. Benchmarks: separate modules that consume the runtime rather than define its
    domain types.
 
-The first canonical fake slice must demonstrate two role-distinct agents,
-multiple turns per agent, at least six total turns, one failed tool call
-observed by the policy, recovery on that agent's next turn, independent
-histories, allowlist enforcement, bounded repetition/stop behavior, and a
-JSON-serializable group summary. It must not launch a model or browser.
+The canonical fake slice now demonstrates two role-distinct agents, four turns
+per agent, eight total turns, one failed tool call observed by the policy,
+recovery on that agent's next turn, independent histories, allowlist
+enforcement, bounded repetition/stop behavior, explicit shared fact
+publication/read, and a JSON-serializable group summary. It launches neither a
+model nor a browser.
 
 ## Benchmark progression
 
@@ -292,4 +302,3 @@ JSON-serializable group summary. It must not launch a model or browser.
 5. Resource/capacity: measured model RSS, host RAM/CPU, per-turn latency, then
    bounded concurrency experiments. No capacity recommendation before stable
    measured evidence exists.
-

@@ -2,7 +2,12 @@
 
 ## Executive summary
 
-This repository now satisfies the research-prototype closure for the stated TZ: a controlled local LLM agent stack was designed, implemented, and experimentally checked across single-agent, orchestrator/executor, guarded browser, and final stateful read-only planner tracks.
+This repository supports a bounded research-prototype closure for much of the
+stated TZ: controlled local agent components were designed, implemented, and
+checked across single-agent, orchestrator/executor, guarded browser, stateful
+planner, and stepwise tracks. The current architecture audit records remaining
+partial areas, especially local-model multi-agent integration, true
+parallelism, and stable capacity evidence.
 
 The strongest final browser-planner evidence is the repeated stateful read-only planner variance success under `third_model`: 5 controlled scenarios x 3 trials = 15 captured outputs, 15/15 validation acceptance, 15/15 evaluator workflow success, and 15/15 materialized workflows. Those model calls were manual operator runs. The evaluator and materializer stayed offline, fixture-backed, and did not launch models, browser, Playwright, Chromium, or external network activity.
 
@@ -48,16 +53,31 @@ Phase 15 begins a separate fixture-only stepwise observation-action benchmark fo
 
 Phase 15B extends that post-completion line with a guarded local-model adapter for the stepwise article benchmark. It still stays fixture-only on the benchmark side, does not add real browser or Playwright evidence, and requires explicit operator opt-in before any local model endpoint call.
 
+The subsequent architecture consolidation makes
+`src/agent/autonomous_multi_agent_runtime.py` the current stepwise group
+runtime. Its deterministic vertical slice runs two role-distinct agents for
+eight alternating turns through one tool registry, retains independent
+histories, performs explicit shared-state operations, and recovers from one
+structured file error. Historical browser modules now import
+`legacy_autonomous_multi_agent_runtime.py`. This is no-model fixture/local-tool
+evidence, not a new local-model or production claim. See
+`docs/status/current_architecture_audit.md`.
+
 ## A. Analysis of implementation means
 
-- Local small/medium LLMs were used through GGUF-backed local model aliases `first_model`, `second_model`, and `third_model`.
+- Local small/medium LLM experiments use the five aliases in
+  `configs/evaluation_models.json`; availability of their GGUF files is local
+  to the operator environment.
 - The documented local launch method is `llama.cpp` / `llama-server` with an OpenAI-compatible `/chat/completions` API shape and PowerShell wrappers such as `scripts/start_llama_server.ps1`.
 - Integration with the execution agent is implemented through `src/agent/llm_client.py`, `src/agent/action_selector.py`, `src/agent/script_registry.py`, and `src/agent/script_execution_bridge.py`.
 - Role, context, and script formats are represented through `AgentState`, role templates/configs, prompt contracts, `NextAction` JSON, and the parameterized script registry.
 
 ## B. Overall design
 
-- The project implements an orchestrator/agent interaction model with a sequential orchestrator/executor prototype for group work and a separate read-only browser-planner path for controlled fixture workflows.
+- The current runtime implements one-action-per-turn round-robin group work
+  over independent `AgentState` histories and one `ToolRegistry`. Earlier
+  orchestrator/executor and browser-planner paths remain historical
+  benchmarks/evidence.
 - Initial state composition is built from role, objective, environment, resources, constraints, available actions, and recent history.
 - Parameterized actions/scripts are archived in the script registry and scenario/config packets rather than being hard-coded as one fixed scenario.
 - Local LLM next-action choice is mediated through JSON-only prompt contracts, parser/validator layers, and bounded repair logic before any execution bridge is reached.
@@ -71,7 +91,9 @@ Phase 15B extends that post-completion line with a guarded local-model adapter f
 
 ## D. Agent prototype
 
-- Config and packet input paths exist for agent state, evaluation scenarios, browser-plan packets, planner-output ingestion packets, variance packets, and materializer/evaluator configs.
+- The canonical input is
+  `configs/canonical_multi_agent.example.json`; phase-specific packet,
+  variance, materializer, and evaluator configs remain benchmark inputs.
 - The local LLM planner path is implemented as a prompt -> JSON output -> validator -> evaluator/materializer chain, with manual operator model execution where real local model outputs were needed.
 - Parameterized action selection is enforced through the `NextAction` contract plus registry validation rather than free-form execution.
 - Evaluator, materializer, and history artifacts exist for repeated stateful read-only workflows and for earlier orchestrator/executor experiments.

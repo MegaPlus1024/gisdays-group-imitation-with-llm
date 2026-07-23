@@ -11,7 +11,7 @@ from .autonomous_browser_scenario_suite import (
     load_autonomous_browser_scenario_suite,
     run_autonomous_browser_scenario_suite,
 )
-from .autonomous_multi_agent_runtime import (
+from .legacy_autonomous_multi_agent_runtime import (
     AutonomousMultiAgentRuntime,
     RuntimeAgentSpec,
     RuntimePolicy,

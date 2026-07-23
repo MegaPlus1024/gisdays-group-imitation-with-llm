@@ -92,7 +92,11 @@ Guarded API judge runner:
 
 ## Phase 9.1 Autonomous multi-agent runtime foundation
 
-Phase 9.1 adds a library-only autonomous multi-agent runtime foundation in `src/agent/autonomous_multi_agent_runtime.py`.
+Phase 9.1 added the callback/task scheduler now preserved at
+`src/agent/legacy_autonomous_multi_agent_runtime.py`. The current canonical
+one-action-per-turn group runtime is
+`src/agent/autonomous_multi_agent_runtime.py`; historical browser integrations
+continue to use the explicit legacy module.
 
 What was added:
 

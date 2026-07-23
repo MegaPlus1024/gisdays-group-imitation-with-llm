@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .autonomous_browser_plan_validation import validate_autonomous_browser_plan
-from .autonomous_multi_agent_runtime import (
+from .legacy_autonomous_multi_agent_runtime import (
     AutonomousMultiAgentRuntime,
     RuntimeAgentSpec,
     RuntimePolicy,
