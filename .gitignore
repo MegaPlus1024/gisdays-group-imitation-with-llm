@@ -34,6 +34,11 @@ artifacts/single_trial_runs/
 artifacts/mini_matrix_summaries/
 artifacts/judge_prompt_packs/
 artifacts/autonomous_runtime_summaries/
+artifacts/autonomous_runtime_planner_outputs/
+artifacts/autonomous_runtime_planner_packets/
+artifacts/autonomous_runtime_planner_summaries/
+artifacts/browser_planner_replay_suite_tests/
+artifacts/stepwise_article_benchmark/
 
 # Local models
 models/gguf/*.gguf

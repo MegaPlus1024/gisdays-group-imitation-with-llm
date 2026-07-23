@@ -101,7 +101,7 @@ Fact-based pipeline from repository:
 | Behavioral evaluation | partial | `activity_profile.py`, `activity_evaluator.py`, fixtures | Evaluator works on fixture/synthetic trajectories | Run evaluator on real model trajectories |
 | Model comparison readiness | partial | `model_behavior_evaluation.py`, `configs/model_behavior_evaluation.example.json`, runtime comparison artifacts | Harness supports synthetic results; runtime comparison exists | Produce behavior comparison numbers across models |
 | Resource/capacity formula readiness | partial | `scripts/run_runtime_baseline.py`, scenario resource plans | CPU/RAM/latency captured for fixed prompt; scenario has capacity flags | Add multi-agent capacity formula and measurements |
-| Final report readiness | partial | `README.md`, `architecture_report.md`, `docs/ai/*`, experiments artifacts | Enough material for technical status report | Missing real experiments, capacity, failure limitations |
+| Final report readiness | partial | `README.md`, `docs/status/current_architecture_audit.md`, `docs/ai/*`, experiments artifacts | Enough material for technical status report | Missing stable concurrency evidence and production capacity validation |
 
 ## 5. Runtime and local model integration
 
@@ -516,7 +516,6 @@ local-llm-agent-lab/
   README.md
   pyproject.toml
   requirements.txt
-  architecture_report.md
   tasks.txt
   tz.txt
   configs/ (32 files)
