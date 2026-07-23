@@ -230,7 +230,12 @@ def build_long_horizon_trial_runtime(
         article_catalog=_article_catalog(),
     )
     _register_experiment_tools(registry)
-    profiles = _scenario_profiles(scenario_id)
+    profiles = _scenario_profiles(scenario_id, trial_output_dir=trial_output_dir)
+    _configure_environment_contract(
+        environment,
+        scenario_id=scenario_id,
+        trial_output_dir=trial_output_dir,
+    )
     policies: dict[str, ModelPolicy]
     if allow_model_execution:
         if policy_variant != "perfect":
@@ -336,6 +341,13 @@ def run_long_horizon_trial(
             "agents_total": len(runtime.states),
             "agent_metrics": _agent_metrics(runtime, trace),
             "trial_metrics": trial_metrics,
+            "rejected_finish_count": sum(event.get("tool_error_code") == "completion_requirements_unmet" for event in trace),
+            "dependency_wait_count": sum(event.get("action_name") == "wait_for_dependency" and event.get("tool_status") == "succeeded" for event in trace),
+            "completion_requirements_total": sum(len(state.profile.completion_requirements) for state in runtime.states.values()),
+            "completion_requirements_met": sum(len(state.memory.get("task_progress", {}).get("completed_requirements", [])) for state in runtime.states.values()),
+            "empty_content_policy_errors": sum(event.get("tool_error_code") in {"empty_content", "empty_content_with_reasoning", "finish_reason_length"} for event in trace),
+            "path_validation_failures": sum(event.get("tool_error_code") == "path_not_advertised" for event in trace),
+            "unavailable_dependency_failures": sum(event.get("tool_error_code") in {"dependency_not_pending", "shared_fact_not_found"} for event in trace),
             "group_trace_path": (
                 PurePosixPath(trial_relative) / "group_trace.jsonl"
             ).as_posix(),
@@ -485,7 +497,11 @@ def run_long_horizon_experiment(
     return summary
 
 
-def _scenario_profiles(scenario_id: str) -> tuple[AgentProfile, AgentProfile]:
+def _scenario_profiles(
+    scenario_id: str,
+    *,
+    trial_output_dir: str = "artifacts/canonical_multi_agent_long_horizon/default",
+) -> tuple[AgentProfile, AgentProfile]:
     common_constraints = (
         "fixture-only execution",
         "repository-relative paths only",
@@ -493,6 +509,7 @@ def _scenario_profiles(scenario_id: str) -> tuple[AgentProfile, AgentProfile]:
         "do not repeat failed actions unchanged",
     )
     if scenario_id == "article_file_handoff":
+        note_path = (PurePosixPath(trial_output_dir) / "research_note.txt").as_posix()
         return (
             AgentProfile(
                 agent_id="research_agent",
@@ -513,6 +530,14 @@ def _scenario_profiles(scenario_id: str) -> tuple[AgentProfile, AgentProfile]:
                     "finish",
                 ),
                 resource_constraints=common_constraints,
+                completion_requirements=(
+                    {"id": "article_opened", "kind": "tool_succeeded", "tool_name": "browser_article_open", "parameters": {"url": ARTICLE_URL}},
+                    {"id": "ownership_extracted", "kind": "tool_succeeded", "tool_name": "browser_article_extract", "parameters": {"heading": "Ownership"}},
+                    {"id": "status_extracted", "kind": "tool_succeeded", "tool_name": "browser_article_extract", "parameters": {"heading": "Status"}},
+                    {"id": "research_note_written", "kind": "file_written", "path": note_path},
+                    {"id": "review_owner_published", "kind": "fact_published", "key": "review_owner"},
+                ),
+                resource_affordances={"article_urls": [ARTICLE_URL], "article_title_hints": ["Long-horizon fixture article"], "recommended_start_url": ARTICLE_URL, "allowed_file_roots": [trial_output_dir], "paths": [{"path": note_path, "access": "write"}]},
             ),
             AgentProfile(
                 agent_id="operator_agent",
@@ -525,9 +550,20 @@ def _scenario_profiles(scenario_id: str) -> tuple[AgentProfile, AgentProfile]:
                     "office_fixture_read",
                     "read_file",
                     "shared_read_fact",
+                    "wait_for_dependency",
                     "finish",
                 ),
                 resource_constraints=common_constraints,
+                dependencies=(
+                    {"dependency_id": "research_note", "kind": "file", "path": note_path, "producer_agent": "research_agent"},
+                    {"dependency_id": "review_owner", "kind": "shared_fact", "key": "review_owner", "producer_agent": "research_agent"},
+                ),
+                completion_requirements=(
+                    {"id": "owner_verified", "kind": "tool_succeeded", "tool_name": "office_fixture_read", "parameters": {"field": "owner"}},
+                    {"id": "research_note_read", "kind": "tool_succeeded", "tool_name": "read_file", "parameters": {"path": note_path}},
+                    {"id": "review_owner_read", "kind": "fact_read", "key": "review_owner"},
+                ),
+                resource_affordances={"office_fixture_fields": list(OFFICE_RECORD), "allowed_file_roots": [trial_output_dir], "paths": [{"path": note_path, "access": "read"}]},
             ),
         )
     if scenario_id == "office_shared_fact_recovery":
@@ -545,6 +581,8 @@ def _scenario_profiles(scenario_id: str) -> tuple[AgentProfile, AgentProfile]:
                     "finish",
                 ),
                 resource_constraints=common_constraints,
+                completion_requirements=tuple({"id": f"{field}_published", "kind": "fact_published", "key": f"review_{field}"} for field in ("owner", "version", "status")),
+                resource_affordances={"office_fixture_fields": list(OFFICE_RECORD)},
             ),
             AgentProfile(
                 agent_id="verification_agent",
@@ -558,9 +596,18 @@ def _scenario_profiles(scenario_id: str) -> tuple[AgentProfile, AgentProfile]:
                     "shared_read_fact",
                     "read_file",
                     "constrained_fixture_command",
+                    "wait_for_dependency",
                     "finish",
                 ),
                 resource_constraints=common_constraints,
+                dependencies=({"dependency_id": "review_owner", "kind": "shared_fact", "key": "review_owner", "producer_agent": "document_agent"},),
+                completion_requirements=(
+                    {"id": "recoverable_error_seen", "kind": "error_observed", "error_code": "file_not_found"},
+                    {"id": "recovery_completed", "kind": "recovery_completed", "tool_name": "read_file"},
+                    {"id": "review_owner_read", "kind": "fact_read", "key": "review_owner"},
+                    {"id": "fact_validated", "kind": "tool_succeeded", "tool_name": "constrained_fixture_command", "parameters": {"operation": "validate_shared_fact", "key": "review_owner"}},
+                ),
+                resource_affordances={"allowed_file_roots": [trial_output_dir, "tests/fixtures/canonical_multi_agent"], "paths": [{"path": f"{trial_output_dir}/missing_input.txt", "access": "read"}, {"path": "tests/fixtures/canonical_multi_agent/recovery_note.txt", "access": "read"}], "available_commands": ["validate_shared_fact"]},
             ),
         )
     return (
@@ -763,6 +810,30 @@ def _register_experiment_tools(registry: ToolRegistry) -> None:
     )
 
 
+def _configure_environment_contract(
+    environment: Any,
+    *,
+    scenario_id: str,
+    trial_output_dir: str,
+) -> None:
+    """Declare scenario resources without exposing fixture values to policies."""
+    if scenario_id == "article_file_handoff":
+        environment.fact_contracts = {
+            "review_owner": {
+                "producer_agent": "research_agent",
+                "consumers": ("operator_agent",),
+            }
+        }
+    elif scenario_id == "office_shared_fact_recovery":
+        environment.fact_contracts = {
+            key: {"producer_agent": "document_agent", "consumers": ("verification_agent",)}
+            for key in ("review_owner", "review_version", "review_status")
+        }
+        environment.known_files.add(
+            "tests/fixtures/canonical_multi_agent/recovery_note.txt"
+        )
+
+
 def _office_fixture_read(
     action: Action,
     context: ToolExecutionContext,
@@ -849,6 +920,8 @@ def _build_local_model_policy(
         timeout_seconds=float(resolved["timeout_seconds"]),
         temperature=float(resolved["temperature"]),
         max_tokens=int(resolved["response_max_tokens"]),
+        disable_thinking=bool(resolved["disable_thinking"]),
+        no_think_prefix=str(resolved["no_think_prefix"]),
     )
     return LocalOpenAIModelPolicy(
         client=client,
@@ -856,6 +929,7 @@ def _build_local_model_policy(
         disable_thinking=bool(resolved["disable_thinking"]),
         response_max_tokens=int(resolved["response_max_tokens"]),
         temperature=float(resolved["temperature"]),
+        no_think_prefix=str(resolved["no_think_prefix"]),
     )
 
 
@@ -879,6 +953,7 @@ def _resolved_model_settings(
         "api_model": spec.api_model or spec.model_name,
         "timeout_seconds": float(profile.get("timeout_seconds", spec.timeout_seconds)),
         "disable_thinking": bool(profile.get("disable_thinking", True)),
+        "no_think_prefix": str(profile.get("no_think_prefix", "/no_think")),
         "response_max_tokens": int(
             profile.get("response_max_tokens", spec.max_tokens)
         ),
@@ -940,6 +1015,9 @@ def _run_runtime_with_trace(
         terminal_reason = (
             state.stop_reason if state.status != "ready" else result.stop_reason
         )
+        progress = state.memory.get("task_progress", {})
+        resources = state.memory.get("available_resources", {})
+        protocol = getattr(policy, "last_protocol_diagnostics", {})
         trace.append(
             {
                 "schema_version": TRACE_SCHEMA_VERSION,
@@ -975,6 +1053,12 @@ def _run_runtime_with_trace(
                 "input_tokens": result.input_tokens,
                 "output_tokens": result.output_tokens,
                 "terminal_reason": terminal_reason,
+                "resource_summary": _bounded_value(resources, limit=1000),
+                "completed_requirement_ids": list(progress.get("completed_requirements", [])),
+                "unmet_requirement_ids": list(progress.get("unmet_requirements", [])),
+                "pending_dependency_ids": [item.get("dependency_id") for item in progress.get("pending_dependencies", [])],
+                "terminal_allowed": bool(progress.get("terminal_allowed", False)),
+                "model_protocol": _bounded_value(protocol, limit=500),
             }
         )
     return trace

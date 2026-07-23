@@ -13,6 +13,7 @@
   "model_profile": {
     "model_id": "third_model",
     "disable_thinking": true,
+    "no_think_prefix": "/no_think",
     "response_max_tokens": 512,
     "temperature": 0.0,
     "timeout_seconds": 120.0

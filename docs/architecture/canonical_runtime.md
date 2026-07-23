@@ -230,6 +230,18 @@ building new canonical runtime behavior.
 Existing Phase 14 rankings measure a frozen complete-workflow protocol and
 must not be presented as results for this stepwise runtime.
 
+## Environment Contract
+
+Canonical long-horizon agents receive only role-relevant resources: exact
+fixture URLs, readable field names, advertised relative paths, known files,
+declared fact producer/consumer status, available commands, and generic task
+progress. Fact values are not supplied before publication and permitted read.
+`finish` is accepted only when declared generic requirements are met; pending
+consumers can use non-mutating `wait_for_dependency`. Local Qwen-style action
+prompts can use `/no_think`, while parsing remains limited to
+`message.content`; sanitized protocol diagnostics retain content/reasoning
+lengths and finish reason.
+
 ## Known limits
 
 - deterministic local/fixture slice only;

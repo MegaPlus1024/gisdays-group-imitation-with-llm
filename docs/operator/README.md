@@ -93,3 +93,9 @@ architecture entrypoint. Start with:
 
 Generated packets, outputs, summaries, model files, and GGUF files must not be
 committed.
+
+For canonical long-horizon smoke runs, inspect generated traces for advertised
+resources, unmet completion requirements, dependency state, and sanitized model
+protocol diagnostics. A failed first smoke is contract evidence, not a
+model-quality result. Model calls remain explicit opt-in; the canonical runtime
+is fixture-only and does not launch a browser.

@@ -16,6 +16,7 @@ from src.agent.autonomous_multi_agent_runtime import (
     LocalOpenAIModelPolicy,
     Observation,
     PolicyError,
+    PerfectFakePolicy,
     ToolResult,
     ToolSpec,
 )
@@ -102,6 +103,51 @@ def test_example_config_loads_with_safe_defaults() -> None:
     assert json.loads(CONFIG_PATH.read_text(encoding="utf-8"))["schema_version"] == (
         CONFIG_SCHEMA_VERSION
     )
+
+
+def test_article_contract_advertises_exact_url_without_fixture_values() -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff",
+        trial_id="contract",
+        trial_output_dir="artifacts/canonical_multi_agent_long_horizon/contract",
+        project_root=PROJECT_ROOT,
+    )
+    runtime.step()
+    state = runtime.states["research_agent"]
+    resources = state.memory["available_resources"]
+    assert resources["article_urls"] == ["https://fixture.local/articles/long-horizon"]
+    assert "office worker" not in json.dumps(resources)
+    assert state.memory["task_progress"]["terminal_allowed"] is False
+
+
+def test_finish_is_rejected_until_declared_requirements_are_met() -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff",
+        trial_id="finish_guard",
+        trial_output_dir="artifacts/canonical_multi_agent_long_horizon/finish_guard",
+        project_root=PROJECT_ROOT,
+    )
+    runtime.policies["research_agent"] = PerfectFakePolicy((Action("finish"),))
+    result = runtime.step()
+    assert result.observation is not None
+    assert result.observation.error_code == "completion_requirements_unmet"
+    assert runtime.states["research_agent"].status == "ready"
+
+
+def test_wait_for_dependency_is_non_mutating_and_available_to_consumer() -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff",
+        trial_id="wait",
+        trial_output_dir="artifacts/canonical_multi_agent_long_horizon/wait",
+        project_root=PROJECT_ROOT,
+    )
+    runtime.policies["research_agent"] = PerfectFakePolicy((Action("browser_article_open", {"url": "https://fixture.local/articles/long-horizon"}),))
+    runtime.policies["operator_agent"] = PerfectFakePolicy((Action("wait_for_dependency", {"dependency_id": "review_owner"}),))
+    runtime.step()
+    result = runtime.step()
+    assert result.observation is not None and result.observation.success is True
+    assert runtime.shared_environment.facts == {}
+    assert result.action is not None and result.action.tool_name == "wait_for_dependency"
 
 
 def test_percentile_uses_deterministic_stdlib_interpolation() -> None:

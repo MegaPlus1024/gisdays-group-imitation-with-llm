@@ -33,6 +33,7 @@ CANONICAL_ARTICLE_TOOL_NAMES = (
 CANONICAL_COORDINATION_TOOL_NAMES = (
     "shared_publish_fact",
     "shared_read_fact",
+    "wait_for_dependency",
     "finish",
 )
 LOCAL_MODEL_HOSTS = {"127.0.0.1", "localhost"}
@@ -57,6 +58,9 @@ class AgentProfile:
     allowed_tools: tuple[str, ...]
     resource_constraints: tuple[str, ...] = ()
     behavior_constraints: tuple[str, ...] = ()
+    completion_requirements: tuple[Mapping[str, Any], ...] = ()
+    dependencies: tuple[Mapping[str, Any], ...] = ()
+    resource_affordances: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         _require_identifier(self.agent_id, "agent_id")
@@ -70,6 +74,11 @@ class AgentProfile:
             _require_identifier(tool_name, "allowed tool")
         if "browser_click" in self.allowed_tools:
             raise ValueError("browser_click is not part of the canonical runtime.")
+        for requirement in self.completion_requirements:
+            if not isinstance(requirement, Mapping) or not isinstance(requirement.get("id"), str):
+                raise ValueError("completion requirements must have an id.")
+        if len({item["id"] for item in self.completion_requirements}) != len(self.completion_requirements):
+            raise ValueError("completion requirement ids must be unique.")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -79,6 +88,9 @@ class AgentProfile:
             "allowed_tools": list(self.allowed_tools),
             "resource_constraints": _sanitize_value(self.resource_constraints),
             "behavior_constraints": _sanitize_value(self.behavior_constraints),
+            "completion_requirements": _sanitize_value(self.completion_requirements),
+            "dependencies": _sanitize_value(self.dependencies),
+            "resource_affordances": _sanitize_value(self.resource_affordances),
         }
 
 
@@ -230,6 +242,8 @@ class SharedEnvironment:
     article_catalog: dict[str, tuple[dict[str, str], ...]] = field(
         default_factory=dict
     )
+    fact_contracts: dict[str, dict[str, Any]] = field(default_factory=dict)
+    known_files: set[str] = field(default_factory=set)
 
     def publish_fact(self, *, key: str, value: Any, agent_id: str) -> None:
         _require_identifier(key, "shared fact key")
@@ -258,6 +272,8 @@ class SharedEnvironment:
     def to_dict(self) -> dict[str, Any]:
         return {
             "fact_keys": sorted(self.facts),
+            "fact_contracts": _sanitize_value(self.fact_contracts),
+            "known_files": sorted(self.known_files),
             "facts": _sanitize_value(self.facts),
             "operations": _sanitize_value(self.operations),
             "article_urls": sorted(self.article_catalog),
@@ -477,9 +493,11 @@ class LocalOpenAIModelPolicy:
     disable_thinking: bool = True
     response_max_tokens: int | None = None
     temperature: float | None = None
+    no_think_prefix: str = ""
     model_execution_attempted: bool = field(default=False, init=False)
     last_input_tokens: int | None = field(default=None, init=False)
     last_output_tokens: int | None = field(default=None, init=False)
+    last_protocol_diagnostics: dict[str, Any] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
         parsed = urlparse(self.client.base_url)
@@ -504,8 +522,10 @@ class LocalOpenAIModelPolicy:
         self.model_execution_attempted = True
         self.last_input_tokens = None
         self.last_output_tokens = None
-        next_action = self.client.generate_next_action(
-            {
+        self.last_protocol_diagnostics = {}
+        try:
+            next_action = self.client.generate_next_action(
+                {
                 "agent_id": agent_state.agent_id,
                 "role": agent_state.profile.role,
                 "goal": agent_state.profile.goal,
@@ -522,6 +542,7 @@ class LocalOpenAIModelPolicy:
                     "disable_thinking": self.disable_thinking,
                     "response_max_tokens": self.response_max_tokens,
                     "temperature": self.temperature,
+                    **({"no_think_prefix": self.no_think_prefix} if self.no_think_prefix else {}),
                 },
                 "action_schema": {
                     "action": "string",
@@ -534,8 +555,30 @@ class LocalOpenAIModelPolicy:
                     "array. If the previous own action failed, do not repeat it "
                     "unchanged."
                 ),
+                }
+            )
+        except Exception as exc:  # preserve structured local-client diagnostics.
+            diagnostics = getattr(self.client, "last_diagnostics", {})
+            self.last_protocol_diagnostics = {
+                "disable_thinking": self.disable_thinking,
+                "no_think_prefix_used": bool(
+                    diagnostics.get("no_think_prefix_used", False)
+                ),
+                "content_length": diagnostics.get("content_length", 0),
+                "reasoning_content_length": diagnostics.get("reasoning_content_length", 0),
+                "finish_reason": diagnostics.get("finish_reason"),
+                "response_id": diagnostics.get("response_id"),
             }
-        )
+            raise PolicyError(str(exc), getattr(exc, "error_code", "policy_error")) from exc
+        diagnostics = getattr(self.client, "last_diagnostics", {})
+        self.last_protocol_diagnostics = {
+            "disable_thinking": self.disable_thinking,
+            "no_think_prefix_used": bool(diagnostics.get("no_think_prefix_used", False)),
+            "content_length": diagnostics.get("content_length", 0),
+            "reasoning_content_length": diagnostics.get("reasoning_content_length", 0),
+            "finish_reason": diagnostics.get("finish_reason"),
+            "response_id": diagnostics.get("response_id"),
+        }
         if not isinstance(next_action, NextAction):
             raise PolicyError(
                 "Local model client returned a non-NextAction result.",
@@ -680,8 +723,11 @@ class AutonomousMultiAgentRuntime:
         state.turn_count += 1
         state.policy_call_count += 1
         self.scheduler_trace.append(state.agent_id)
-        allowed_tools = self.tool_registry.specs_for(state.profile.allowed_tools)
-        state.memory["shared_facts"] = _jsonable(self.shared_environment.facts)
+        self._refresh_agent_context(state)
+        allowed_names = list(state.profile.allowed_tools)
+        if "wait_for_dependency" in allowed_names and not state.memory["task_progress"]["pending_dependencies"]:
+            allowed_names.remove("wait_for_dependency")
+        allowed_tools = self.tool_registry.specs_for(tuple(allowed_names))
         policy = self.policies[state.agent_id]
         policy_started = time.perf_counter()
 
@@ -959,6 +1005,16 @@ class AutonomousMultiAgentRuntime:
                     "allowed_tools": list(state.profile.allowed_tools),
                 },
             )
+        if action.tool_name == "wait_for_dependency":
+            pending = {item["dependency_id"] for item in state.memory.get("task_progress", {}).get("pending_dependencies", [])}
+            dependency_id = action.parameters.get("dependency_id")
+            if not isinstance(dependency_id, str) or dependency_id not in pending:
+                return Observation(False, action.tool_name, error_code="dependency_not_pending", error_message="Dependency is not pending for this agent.")
+        if action.tool_name in {"read_file", "create_file", "append_file"}:
+            path = action.parameters.get("path")
+            advertised = state.memory.get("available_resources", {}).get("allowed_paths", [])
+            if advertised and (not isinstance(path, str) or path not in advertised):
+                return Observation(False, action.tool_name, error_code="path_not_advertised", error_message="Path is outside the advertised scenario contract.")
         return None
 
     def _record_failure(
@@ -1014,6 +1070,88 @@ class AutonomousMultiAgentRuntime:
         state.history.append(event)
         state.last_observation = observation
         self.group_history.append(event)
+        if observation.success and action and action.tool_name in {"create_file", "append_file"}:
+            path = action.parameters.get("path")
+            if isinstance(path, str):
+                self.shared_environment.known_files.add(path)
+        for candidate in self.states.values():
+            self._refresh_agent_context(candidate)
+
+    def _refresh_agent_context(self, state: AgentState) -> None:
+        completed = [item["id"] for item in state.profile.completion_requirements if self._requirement_met(state, item)]
+        unmet = [item["id"] for item in state.profile.completion_requirements if item["id"] not in completed]
+        pending, ready = self._dependency_status(state)
+        readable_facts = {
+            key: _jsonable(value)
+            for key, value in self.shared_environment.facts.items()
+            if self._fact_readable_by(state.agent_id, key)
+        }
+        affordances = dict(state.profile.resource_affordances)
+        allowed_paths = [
+            item["path"] for item in affordances.get("paths", [])
+            if item.get("access") in {"read", "write", "read_write"}
+        ]
+        facts = [
+            {"key": key, "status": "published" if key in self.shared_environment.facts else "pending", "producer_agent": contract.get("producer_agent")}
+            for key, contract in sorted(self.shared_environment.fact_contracts.items())
+            if state.agent_id in contract.get("consumers", ()) or state.agent_id == contract.get("producer_agent")
+        ]
+        state.memory["shared_facts"] = readable_facts
+        state.memory["available_resources"] = {
+            "article_urls": affordances.get("article_urls", []),
+            "article_title_hints": affordances.get("article_title_hints", []),
+            "recommended_start_url": affordances.get("recommended_start_url"),
+            "office_fixture_fields": affordances.get("office_fixture_fields", []),
+            "allowed_file_roots": affordances.get("allowed_file_roots", []),
+            "known_readable_files": [path for path in allowed_paths if path in self.shared_environment.known_files],
+            "writable_paths": [item["path"] for item in affordances.get("paths", []) if item.get("access") in {"write", "read_write"}],
+            "allowed_paths": allowed_paths,
+            "shared_fact_inventory": facts,
+            "available_commands": affordances.get("available_commands", []),
+        }
+        state.memory["task_progress"] = {
+            "goal": state.profile.goal,
+            "required_capabilities": sorted({item.get("kind", "tool") for item in state.profile.completion_requirements}),
+            "completion_requirements": _sanitize_value(state.profile.completion_requirements),
+            "completed_requirements": completed,
+            "unmet_requirements": unmet,
+            "pending_dependencies": pending,
+            "ready_dependencies": ready,
+            "artifacts_created": sorted(self.shared_environment.known_files),
+            "facts_published": sorted(self.shared_environment.facts),
+            "facts_available": sorted(readable_facts),
+            "terminal_allowed": not unmet,
+        }
+
+    def _dependency_status(self, state: AgentState) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        pending: list[dict[str, Any]] = []
+        ready: list[dict[str, Any]] = []
+        for dependency in state.profile.dependencies:
+            item = dict(dependency)
+            kind = item.get("kind")
+            is_ready = (kind == "shared_fact" and item.get("key") in self.shared_environment.facts) or (kind == "file" and item.get("path") in self.shared_environment.known_files)
+            (ready if is_ready else pending).append(item)
+        return pending, ready
+
+    def _fact_readable_by(self, agent_id: str, key: str) -> bool:
+        contract = self.shared_environment.fact_contracts.get(key)
+        return contract is None or agent_id == contract.get("producer_agent") or agent_id in contract.get("consumers", ())
+
+    def _requirement_met(self, state: AgentState, requirement: Mapping[str, Any]) -> bool:
+        kind = requirement.get("kind")
+        if kind == "tool_succeeded":
+            return any(event.action and event.action.tool_name == requirement.get("tool_name") and event.observation.success and all(event.action.parameters.get(key) == value for key, value in dict(requirement.get("parameters", {})).items()) for event in state.history)
+        if kind == "file_written":
+            return requirement.get("path") in self.shared_environment.known_files
+        if kind == "fact_published":
+            return requirement.get("key") in self.shared_environment.facts
+        if kind == "fact_read":
+            return any(event.action and event.action.tool_name == "shared_read_fact" and event.action.parameters.get("key") == requirement.get("key") and event.observation.success for event in state.history)
+        if kind == "error_observed":
+            return any(event.observation.error_code == requirement.get("error_code") for event in state.history)
+        if kind == "recovery_completed":
+            return any(event.observation.success and event.action and event.action.tool_name == requirement.get("tool_name") for event in state.history)
+        return False
 
     def _stop_if_needed(self) -> str | None:
         if self.status != "running":
@@ -1124,6 +1262,17 @@ def build_default_tool_registry(
             read_only=True,
         ),
         _read_fact,
+    )
+    registry.register(
+        ToolSpec(
+            name="wait_for_dependency",
+            description="Yield until one declared dependency becomes available.",
+            family="coordination",
+            required_parameters=("dependency_id",),
+            parameter_names=("dependency_id",),
+            read_only=True,
+        ),
+        _wait_for_dependency,
     )
     registry.register(
         ToolSpec(
@@ -1327,6 +1476,9 @@ def _publish_fact(action: Action, context: ToolExecutionContext) -> ToolResult:
             error_code="invalid_parameter",
             error_message="key must be a string.",
         )
+    contract = context.shared_environment.fact_contracts.get(key)
+    if contract and contract.get("producer_agent") != context.agent_state.agent_id:
+        return ToolResult(False, error_code="shared_fact_publish_not_allowed", error_message="This agent is not the declared producer for the fact.")
     try:
         context.shared_environment.publish_fact(
             key=key,
@@ -1350,6 +1502,9 @@ def _read_fact(action: Action, context: ToolExecutionContext) -> ToolResult:
             error_code="invalid_parameter",
             error_message="key must be a string.",
         )
+    contract = context.shared_environment.fact_contracts.get(key)
+    if contract and context.agent_state.agent_id not in contract.get("consumers", ()) and context.agent_state.agent_id != contract.get("producer_agent"):
+        return ToolResult(False, error_code="shared_fact_not_readable", error_message="This agent cannot read the declared fact.")
     try:
         found, value = context.shared_environment.read_fact(
             key=key,
@@ -1370,11 +1525,22 @@ def _read_fact(action: Action, context: ToolExecutionContext) -> ToolResult:
     return ToolResult(success=True, output={"key": key, "value": value})
 
 
+def _wait_for_dependency(action: Action, context: ToolExecutionContext) -> ToolResult:
+    dependency_id = action.parameters.get("dependency_id")
+    if not isinstance(dependency_id, str):
+        return ToolResult(False, error_code="invalid_parameter", error_message="dependency_id must be a string.")
+    return ToolResult(success=True, output={"dependency_id": dependency_id, "status": "waiting"})
+
+
 def _finish(action: Action, context: ToolExecutionContext) -> ToolResult:
+    progress = context.agent_state.memory.get("task_progress", {})
+    unmet = list(progress.get("unmet_requirements", []))
+    if unmet:
+        return ToolResult(False, error_code="completion_requirements_unmet", error_message="Completion requirements remain unmet.", metadata={"unmet_requirement_ids": unmet, "terminal_allowed": False})
     return ToolResult(
         success=True,
-        output={"status": "goal_completed"},
-        metadata={"agent_id": context.agent_state.agent_id},
+        output={"status": "goal_completed", "terminal_allowed": True},
+        metadata={"agent_id": context.agent_state.agent_id, "terminal_allowed": True},
     )
 
 

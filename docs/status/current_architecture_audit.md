@@ -323,3 +323,14 @@ claimed.
 5. Resource/capacity: measured model RSS, host RAM/CPU, per-turn latency, then
    bounded concurrency experiments. No capacity recommendation before stable
    measured evidence exists.
+
+## Canonical Multi-Agent Environment Contract Repair
+
+The first two third_model smoke trials were diagnostic, not successful
+long-horizon evidence: agents guessed resources, and `finish` could previously
+complete a role before its declared work existed. The canonical runtime now
+provides exact fixture URLs, field names without fixture values, scenario-safe
+paths, fact inventory, dependency readiness, and generic task progress.
+Premature finish is a recoverable `completion_requirements_unmet` observation.
+This remains fixture-only and does not claim a successful real-model
+multi-agent run.

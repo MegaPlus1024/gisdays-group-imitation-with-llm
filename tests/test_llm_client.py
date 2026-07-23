@@ -35,6 +35,12 @@ def test_build_payload_includes_expected_fields() -> None:
     assert len(payload["messages"]) == 2
 
 
+def test_disable_thinking_prefix_is_applied_to_user_prompt() -> None:
+    client = LocalLLMClient(disable_thinking=True, no_think_prefix="/no_think")
+    messages = client._build_messages({"stage": "init"})
+    assert messages[-1]["content"].startswith("/no_think\n")
+
+
 def test_extract_assistant_content_valid() -> None:
     response = {"choices": [{"message": {"content": '{"action":"read_file","reason":"r","expected_result":"e","parameters":{}}'}}]}
     text = LocalLLMClient.extract_assistant_content(response)
@@ -49,6 +55,17 @@ def test_extract_assistant_content_rejects_missing_choices() -> None:
 def test_extract_assistant_content_rejects_empty() -> None:
     with pytest.raises(LocalLLMResponseError):
         LocalLLMClient.extract_assistant_content({"choices": [{"message": {"content": "   "}}]})
+
+
+def test_empty_content_with_reasoning_has_structured_diagnostics() -> None:
+    client = LocalLLMClient(disable_thinking=True, no_think_prefix="/no_think")
+    with pytest.raises(LocalLLMResponseError) as raised:
+        client._extract_assistant_content_with_diagnostics(
+            {"id": "response-1", "choices": [{"finish_reason": "stop", "message": {"content": "", "reasoning_content": "internal"}}]}
+        )
+    assert raised.value.error_code == "empty_content_with_reasoning"
+    assert client.last_diagnostics["reasoning_content_length"] == 8
+    assert client.last_diagnostics["content_length"] == 0
 
 
 def test_parse_next_action_text_accepts_valid_json() -> None:
