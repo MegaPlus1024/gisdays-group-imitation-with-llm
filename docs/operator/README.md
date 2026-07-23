@@ -99,3 +99,11 @@ resources, unmet completion requirements, dependency state, and sanitized model
 protocol diagnostics. A failed first smoke is contract evidence, not a
 model-quality result. Model calls remain explicit opt-in; the canonical runtime
 is fixture-only and does not launch a browser.
+
+For recovery scenarios, treat `generic_recovery_*` metrics as "a changed
+successful action after an own failure advanced progress." Treat
+`required_recoveries_*` as the scenario contract. In
+`office_shared_fact_recovery`, `completion_requirements_unmet` should expose the
+unmet `recovery_completed` contract, the unavailable `missing_input` resource,
+the available `recovery_note` resource, and unchanged failed actions that should
+not be retried.

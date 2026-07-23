@@ -1070,6 +1070,8 @@ class AutonomousMultiAgentRuntime:
         state.history.append(event)
         state.last_observation = observation
         self.group_history.append(event)
+        if action and action.tool_name in {"read_file", "create_file", "append_file"}:
+            self._record_file_resource_attempt(state, action, observation)
         if observation.success and action and action.tool_name in {"create_file", "append_file"}:
             path = action.parameters.get("path")
             if isinstance(path, str):
@@ -1080,6 +1082,10 @@ class AutonomousMultiAgentRuntime:
     def _refresh_agent_context(self, state: AgentState) -> None:
         completed = [item["id"] for item in state.profile.completion_requirements if self._requirement_met(state, item)]
         unmet = [item["id"] for item in state.profile.completion_requirements if item["id"] not in completed]
+        requirement_contracts = [
+            self._requirement_contract(state, item, item["id"] in completed)
+            for item in state.profile.completion_requirements
+        ]
         pending, ready = self._dependency_status(state)
         readable_facts = {
             key: _jsonable(value)
@@ -1106,22 +1112,119 @@ class AutonomousMultiAgentRuntime:
             "known_readable_files": [path for path in allowed_paths if path in self.shared_environment.known_files],
             "writable_paths": [item["path"] for item in affordances.get("paths", []) if item.get("access") in {"write", "read_write"}],
             "allowed_paths": allowed_paths,
+            "file_resources": self._file_resource_contracts(state),
             "shared_fact_inventory": facts,
             "available_commands": affordances.get("available_commands", []),
+            "guidance": [
+                "Do not repeat an unchanged action against a resource that is still marked unavailable.",
+                "Use an advertised existing resource or another valid action that advances an unmet requirement.",
+            ],
         }
+        unmet_contracts = [
+            contract for contract in requirement_contracts if contract["status"] == "unmet"
+        ]
         state.memory["task_progress"] = {
             "goal": state.profile.goal,
             "required_capabilities": sorted({item.get("kind", "tool") for item in state.profile.completion_requirements}),
             "completion_requirements": _sanitize_value(state.profile.completion_requirements),
+            "requirement_contracts": _sanitize_value(requirement_contracts),
             "completed_requirements": completed,
             "unmet_requirements": unmet,
+            "unmet_requirement_contracts": _sanitize_value(unmet_contracts),
             "pending_dependencies": pending,
             "ready_dependencies": ready,
             "artifacts_created": sorted(self.shared_environment.known_files),
             "facts_published": sorted(self.shared_environment.facts),
             "facts_available": sorted(readable_facts),
             "terminal_allowed": not unmet,
+            "required_recovery_evidence": self._required_recovery_evidence(state),
+            "unchanged_failed_actions": self._unchanged_failed_actions(state),
         }
+
+    def _record_file_resource_attempt(
+        self,
+        state: AgentState,
+        action: Action,
+        observation: Observation,
+    ) -> None:
+        path = action.parameters.get("path")
+        if not isinstance(path, str):
+            return
+        errors = dict(state.memory.get("resource_last_errors", {}))
+        if observation.success:
+            errors.pop(path, None)
+        else:
+            errors[path] = {
+                "last_error_code": observation.error_code,
+                "last_attempt_history_index": len(state.history) - 1,
+                "unchanged_retry_discouraged": True,
+                "action_name": action.tool_name,
+            }
+        state.memory["resource_last_errors"] = errors
+
+    def _file_resource_contracts(self, state: AgentState) -> list[dict[str, Any]]:
+        affordances = dict(state.profile.resource_affordances)
+        explicit = affordances.get("file_resources")
+        if isinstance(explicit, Sequence) and not isinstance(explicit, (str, bytes)):
+            descriptors = [dict(item) for item in explicit if isinstance(item, Mapping)]
+        else:
+            descriptors = []
+            for item in affordances.get("paths", []):
+                if not isinstance(item, Mapping):
+                    continue
+                path = item.get("path")
+                if not isinstance(path, str):
+                    continue
+                descriptors.append(
+                    {
+                        "resource_id": item.get("resource_id", path.rsplit("/", 1)[-1].replace(".", "_")),
+                        "path": path,
+                        "exists": path in self.shared_environment.known_files,
+                        "readable": item.get("access") in {"read", "read_write"},
+                        "writable": item.get("access") in {"write", "read_write"},
+                        "purpose": item.get("purpose", "advertised scenario file resource"),
+                    }
+                )
+        errors = state.memory.get("resource_last_errors", {})
+        resources: list[dict[str, Any]] = []
+        for descriptor in descriptors:
+            path = descriptor.get("path")
+            if isinstance(path, str) and path in errors and isinstance(errors[path], Mapping):
+                descriptor.update(errors[path])
+            resources.append(_sanitize_value(descriptor))
+        return resources
+
+    def _requirement_contract(
+        self,
+        state: AgentState,
+        requirement: Mapping[str, Any],
+        completed: bool,
+    ) -> dict[str, Any]:
+        requirement_id = str(requirement.get("id", ""))
+        return {
+            "requirement_id": requirement_id,
+            "description": _sanitize_text(
+                str(requirement.get("description") or _requirement_description(requirement))
+            ),
+            "status": "completed" if completed else "unmet",
+            "evidence_type": requirement.get("evidence_type") or requirement.get("kind"),
+            "dependency_ids": list(requirement.get("dependency_ids", ())),
+            "satisfied_by_outcome": _sanitize_text(
+                str(requirement.get("satisfied_by_outcome") or _requirement_outcome(requirement))
+            ),
+            "related_resource_ids": list(requirement.get("related_resource_ids", ())),
+            "last_progress_event_index": self._last_requirement_progress_index(state, requirement),
+        }
+
+    def _last_requirement_progress_index(
+        self,
+        state: AgentState,
+        requirement: Mapping[str, Any],
+    ) -> int | None:
+        for index in range(len(state.history) - 1, -1, -1):
+            if self._event_satisfies_requirement(state, requirement, index):
+                return index
+        return None
 
     def _dependency_status(self, state: AgentState) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         pending: list[dict[str, Any]] = []
@@ -1138,20 +1241,122 @@ class AutonomousMultiAgentRuntime:
         return contract is None or agent_id == contract.get("producer_agent") or agent_id in contract.get("consumers", ())
 
     def _requirement_met(self, state: AgentState, requirement: Mapping[str, Any]) -> bool:
+        return any(
+            self._event_satisfies_requirement(state, requirement, index)
+            for index in range(len(state.history))
+        )
+
+    def _event_satisfies_requirement(
+        self,
+        state: AgentState,
+        requirement: Mapping[str, Any],
+        index: int,
+    ) -> bool:
+        if index < 0 or index >= len(state.history):
+            return False
+        event = state.history[index]
         kind = requirement.get("kind")
         if kind == "tool_succeeded":
-            return any(event.action and event.action.tool_name == requirement.get("tool_name") and event.observation.success and all(event.action.parameters.get(key) == value for key, value in dict(requirement.get("parameters", {})).items()) for event in state.history)
+            return bool(event.action and event.action.tool_name == requirement.get("tool_name") and event.observation.success and all(event.action.parameters.get(key) == value for key, value in dict(requirement.get("parameters", {})).items()))
         if kind == "file_written":
-            return requirement.get("path") in self.shared_environment.known_files
+            return bool(event.action and event.action.tool_name in {"create_file", "append_file"} and event.observation.success and event.action.parameters.get("path") == requirement.get("path"))
         if kind == "fact_published":
-            return requirement.get("key") in self.shared_environment.facts
+            return bool(event.action and event.action.tool_name == "shared_publish_fact" and event.observation.success and event.action.parameters.get("key") == requirement.get("key"))
         if kind == "fact_read":
-            return any(event.action and event.action.tool_name == "shared_read_fact" and event.action.parameters.get("key") == requirement.get("key") and event.observation.success for event in state.history)
+            return bool(event.action and event.action.tool_name == "shared_read_fact" and event.action.parameters.get("key") == requirement.get("key") and event.observation.success)
         if kind == "error_observed":
-            return any(event.observation.error_code == requirement.get("error_code") for event in state.history)
+            return event.observation.error_code == requirement.get("error_code")
         if kind == "recovery_completed":
-            return any(event.observation.success and event.action and event.action.tool_name == requirement.get("tool_name") for event in state.history)
+            return self._event_satisfies_required_recovery(state, requirement, index)
         return False
+
+    def _event_satisfies_required_recovery(
+        self,
+        state: AgentState,
+        requirement: Mapping[str, Any],
+        index: int,
+    ) -> bool:
+        event = state.history[index]
+        if not event.action or not event.observation.success:
+            return False
+        if event.action.tool_name != requirement.get("tool_name"):
+            return False
+        recovery_resource_id = requirement.get("recovery_resource_id")
+        recovery_path = self._resource_path(state, recovery_resource_id)
+        if recovery_path is not None and event.action.parameters.get("path") != recovery_path:
+            return False
+        source_error_code = requirement.get("source_error_code", "file_not_found")
+        source_resource_id = requirement.get("source_resource_id")
+        source_path = self._resource_path(state, source_resource_id)
+        for prior in state.history[:index]:
+            if prior.observation.error_code != source_error_code or prior.action is None:
+                continue
+            if prior.action.tool_name != requirement.get("tool_name"):
+                continue
+            if source_path is not None and prior.action.parameters.get("path") != source_path:
+                continue
+            return prior.action.parameters.get("path") != event.action.parameters.get("path")
+        return False
+
+    def _required_recovery_evidence(self, state: AgentState) -> list[dict[str, Any]]:
+        evidence: list[dict[str, Any]] = []
+        for requirement in state.profile.completion_requirements:
+            if requirement.get("kind") != "recovery_completed":
+                continue
+            for index in range(len(state.history)):
+                if not self._event_satisfies_required_recovery(state, requirement, index):
+                    continue
+                source_error_code = requirement.get("source_error_code", "file_not_found")
+                source_resource_id = requirement.get("source_resource_id")
+                source_path = self._resource_path(state, source_resource_id)
+                source_index = None
+                failed_resource_id = source_resource_id
+                for prior_index, prior in enumerate(state.history[:index]):
+                    if prior.observation.error_code != source_error_code or prior.action is None:
+                        continue
+                    if prior.action.tool_name != requirement.get("tool_name"):
+                        continue
+                    if source_path is not None and prior.action.parameters.get("path") != source_path:
+                        continue
+                    source_index = prior_index
+                    break
+                event = state.history[index]
+                evidence.append(
+                    {
+                        "requirement_id": requirement.get("id"),
+                        "source_failure_event_index": source_index,
+                        "recovery_event_index": index,
+                        "source_error_code": source_error_code,
+                        "failed_resource_id": failed_resource_id,
+                        "recovery_resource_id": requirement.get("recovery_resource_id"),
+                        "recovery_action_name": event.action.tool_name if event.action else None,
+                    }
+                )
+        return _sanitize_value(evidence)
+
+    def _unchanged_failed_actions(self, state: AgentState) -> list[dict[str, Any]]:
+        errors = state.memory.get("resource_last_errors", {})
+        if not isinstance(errors, Mapping):
+            return []
+        return [
+            {
+                "action_name": item.get("action_name"),
+                "path": path,
+                "last_error_code": item.get("last_error_code"),
+                "last_attempt_history_index": item.get("last_attempt_history_index"),
+                "unchanged_retry_discouraged": True,
+            }
+            for path, item in errors.items()
+            if isinstance(path, str) and isinstance(item, Mapping)
+        ]
+
+    def _resource_path(self, state: AgentState, resource_id: object) -> str | None:
+        if not isinstance(resource_id, str):
+            return None
+        for resource in self._file_resource_contracts(state):
+            if resource.get("resource_id") == resource_id and isinstance(resource.get("path"), str):
+                return str(resource["path"])
+        return None
 
     def _stop_if_needed(self) -> str | None:
         if self.status != "running":
@@ -1536,7 +1741,25 @@ def _finish(action: Action, context: ToolExecutionContext) -> ToolResult:
     progress = context.agent_state.memory.get("task_progress", {})
     unmet = list(progress.get("unmet_requirements", []))
     if unmet:
-        return ToolResult(False, error_code="completion_requirements_unmet", error_message="Completion requirements remain unmet.", metadata={"unmet_requirement_ids": unmet, "terminal_allowed": False})
+        resources = context.agent_state.memory.get("available_resources", {})
+        return ToolResult(
+            False,
+            error_code="completion_requirements_unmet",
+            error_message="Completion requirements remain unmet.",
+            metadata={
+                "unmet_requirement_ids": unmet,
+                "unmet_requirement_contracts": progress.get(
+                    "unmet_requirement_contracts",
+                    [],
+                ),
+                "related_available_resources": resources.get("file_resources", []),
+                "unchanged_failed_actions": progress.get(
+                    "unchanged_failed_actions",
+                    [],
+                ),
+                "terminal_allowed": False,
+            },
+        )
     return ToolResult(
         success=True,
         output={"status": "goal_completed", "terminal_allowed": True},
@@ -1732,6 +1955,40 @@ def _safe_message(value: str | None) -> str | None:
     if value is None:
         return None
     return _sanitize_text(value, limit=500)
+
+
+def _requirement_description(requirement: Mapping[str, Any]) -> str:
+    kind = requirement.get("kind")
+    if kind == "tool_succeeded":
+        return f"Complete a successful {requirement.get('tool_name')} action matching the declared parameters."
+    if kind == "file_written":
+        return "Write the declared bounded repository-relative file."
+    if kind == "fact_published":
+        return "Publish the declared shared fact for authorized consumers."
+    if kind == "fact_read":
+        return "Read the declared shared fact after it is available."
+    if kind == "error_observed":
+        return f"Observe the expected recoverable error {requirement.get('error_code')}."
+    if kind == "recovery_completed":
+        return "After the expected recoverable error, use an advertised recovery resource successfully."
+    return "Satisfy the declared completion requirement."
+
+
+def _requirement_outcome(requirement: Mapping[str, Any]) -> str:
+    kind = requirement.get("kind")
+    if kind == "tool_succeeded":
+        return "tool action succeeds with the declared safe parameters"
+    if kind == "file_written":
+        return "declared file path is created or appended"
+    if kind == "fact_published":
+        return "declared shared fact key is published"
+    if kind == "fact_read":
+        return "declared shared fact key is read successfully"
+    if kind == "error_observed":
+        return "expected recoverable error is observed"
+    if kind == "recovery_completed":
+        return "successful recovery action uses a different advertised resource after the source failure"
+    return "requirement-specific predicate becomes true"
 
 
 def sanitize_runtime_value(value: Any) -> Any:

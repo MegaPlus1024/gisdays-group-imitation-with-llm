@@ -332,5 +332,11 @@ complete a role before its declared work existed. The canonical runtime now
 provides exact fixture URLs, field names without fixture values, scenario-safe
 paths, fact inventory, dependency readiness, and generic task progress.
 Premature finish is a recoverable `completion_requirements_unmet` observation.
-This remains fixture-only and does not claim a successful real-model
-multi-agent run.
+After `5dd4820`, a real third_model smoke produced mixed evidence:
+`article_file_handoff` passed with both agents completing 8/8 requirements and
+no protocol/path/role failures. `office_shared_fact_recovery` reached 6/7
+requirements, with the verification agent quarantined after the remaining
+`recovery_completed` requirement stayed opaque. The repair now exposes
+descriptive requirement contracts, explicit file resource status, and separate
+generic versus scenario-required recovery metrics. This remains fixture-only
+and does not claim production readiness.

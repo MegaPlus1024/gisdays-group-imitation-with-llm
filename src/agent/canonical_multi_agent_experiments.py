@@ -602,12 +602,85 @@ def _scenario_profiles(
                 resource_constraints=common_constraints,
                 dependencies=({"dependency_id": "review_owner", "kind": "shared_fact", "key": "review_owner", "producer_agent": "document_agent"},),
                 completion_requirements=(
-                    {"id": "recoverable_error_seen", "kind": "error_observed", "error_code": "file_not_found"},
-                    {"id": "recovery_completed", "kind": "recovery_completed", "tool_name": "read_file"},
-                    {"id": "review_owner_read", "kind": "fact_read", "key": "review_owner"},
-                    {"id": "fact_validated", "kind": "tool_succeeded", "tool_name": "constrained_fixture_command", "parameters": {"operation": "validate_shared_fact", "key": "review_owner"}},
+                    {
+                        "id": "recoverable_error_seen",
+                        "kind": "error_observed",
+                        "error_code": "file_not_found",
+                        "description": "Observe the expected missing-file error from an advertised unavailable input.",
+                        "evidence_type": "expected_recoverable_error",
+                        "satisfied_by_outcome": "a read_file attempt against missing_input returns file_not_found",
+                        "related_resource_ids": ["missing_input"],
+                    },
+                    {
+                        "id": "recovery_completed",
+                        "kind": "recovery_completed",
+                        "tool_name": "read_file",
+                        "source_error_code": "file_not_found",
+                        "source_resource_id": "missing_input",
+                        "recovery_resource_id": "recovery_note",
+                        "description": "After the expected missing-file error, successfully use an advertised existing recovery resource.",
+                        "evidence_type": "successful_recovery_action",
+                        "satisfied_by_outcome": "read_file succeeds on recovery_note after missing_input failed",
+                        "related_resource_ids": ["missing_input", "recovery_note"],
+                        "dependency_ids": [],
+                    },
+                    {
+                        "id": "review_owner_read",
+                        "kind": "fact_read",
+                        "key": "review_owner",
+                        "description": "Read the published review_owner shared fact after it is available.",
+                        "evidence_type": "shared_fact_read",
+                        "satisfied_by_outcome": "shared_read_fact succeeds for review_owner",
+                    },
+                    {
+                        "id": "fact_validated",
+                        "kind": "tool_succeeded",
+                        "tool_name": "constrained_fixture_command",
+                        "parameters": {"operation": "validate_shared_fact", "key": "review_owner"},
+                        "description": "Validate the owner fact with the constrained fixture command.",
+                        "evidence_type": "constrained_command_success",
+                        "satisfied_by_outcome": "validate_shared_fact succeeds for review_owner",
+                    },
                 ),
-                resource_affordances={"allowed_file_roots": [trial_output_dir, "tests/fixtures/canonical_multi_agent"], "paths": [{"path": f"{trial_output_dir}/missing_input.txt", "access": "read"}, {"path": "tests/fixtures/canonical_multi_agent/recovery_note.txt", "access": "read"}], "available_commands": ["validate_shared_fact"]},
+                resource_affordances={
+                    "allowed_file_roots": [
+                        trial_output_dir,
+                        "tests/fixtures/canonical_multi_agent",
+                    ],
+                    "paths": [
+                        {
+                            "path": f"{trial_output_dir}/missing_input.txt",
+                            "access": "read",
+                            "resource_id": "missing_input",
+                            "purpose": "expected recoverable failure source",
+                        },
+                        {
+                            "path": "tests/fixtures/canonical_multi_agent/recovery_note.txt",
+                            "access": "read",
+                            "resource_id": "recovery_note",
+                            "purpose": "available valid recovery resource",
+                        },
+                    ],
+                    "file_resources": [
+                        {
+                            "resource_id": "missing_input",
+                            "path": f"{trial_output_dir}/missing_input.txt",
+                            "exists": False,
+                            "readable": False,
+                            "writable": False,
+                            "purpose": "expected recoverable failure source",
+                        },
+                        {
+                            "resource_id": "recovery_note",
+                            "path": "tests/fixtures/canonical_multi_agent/recovery_note.txt",
+                            "exists": True,
+                            "readable": True,
+                            "writable": False,
+                            "purpose": "available valid recovery resource",
+                        },
+                    ],
+                    "available_commands": ["validate_shared_fact"],
+                },
             ),
         )
     return (
@@ -1018,6 +1091,16 @@ def _run_runtime_with_trace(
         progress = state.memory.get("task_progress", {})
         resources = state.memory.get("available_resources", {})
         protocol = getattr(policy, "last_protocol_diagnostics", {})
+        previous_completed = _previous_completed_requirements(trace, agent_id)
+        completed_now = set(progress.get("completed_requirements", []))
+        requirements_advanced = sorted(completed_now - previous_completed)
+        resource_status_changes = _resource_status_changes(resources, state)
+        required_recovery_evidence = progress.get("required_recovery_evidence", [])
+        generic_recovery_success = (
+            recovery_from is not None
+            and result.observation.success
+            and (bool(requirements_advanced) or bool(progress.get("ready_dependencies", [])))
+        )
         trace.append(
             {
                 "schema_version": TRACE_SCHEMA_VERSION,
@@ -1056,12 +1139,67 @@ def _run_runtime_with_trace(
                 "resource_summary": _bounded_value(resources, limit=1000),
                 "completed_requirement_ids": list(progress.get("completed_requirements", [])),
                 "unmet_requirement_ids": list(progress.get("unmet_requirements", [])),
+                "requirement_contracts": _bounded_value(
+                    progress.get("requirement_contracts", []),
+                    limit=1500,
+                ),
+                "requirements_advanced": requirements_advanced,
+                "resource_status_changes": _bounded_value(
+                    resource_status_changes,
+                    limit=1000,
+                ),
+                "generic_recovery_source_event_index": (
+                    recovery_from if generic_recovery_success else None
+                ),
+                "required_recovery_evidence": _bounded_value(
+                    required_recovery_evidence,
+                    limit=1000,
+                ),
                 "pending_dependency_ids": [item.get("dependency_id") for item in progress.get("pending_dependencies", [])],
                 "terminal_allowed": bool(progress.get("terminal_allowed", False)),
                 "model_protocol": _bounded_value(protocol, limit=500),
             }
         )
     return trace
+
+
+def _previous_completed_requirements(
+    trace: Sequence[Mapping[str, Any]],
+    agent_id: str,
+) -> set[str]:
+    for event in reversed(trace):
+        if event.get("agent_id") == agent_id:
+            completed = event.get("completed_requirement_ids", [])
+            if isinstance(completed, Sequence) and not isinstance(completed, (str, bytes)):
+                return {str(item) for item in completed}
+            return set()
+    return set()
+
+
+def _resource_status_changes(
+    resources: Mapping[str, Any],
+    state: AgentState,
+) -> list[dict[str, Any]]:
+    current_history_index = len(state.history) - 1
+    changes: list[dict[str, Any]] = []
+    file_resources = resources.get("file_resources", [])
+    if not isinstance(file_resources, Sequence) or isinstance(file_resources, (str, bytes)):
+        return changes
+    for resource in file_resources:
+        if not isinstance(resource, Mapping):
+            continue
+        if resource.get("last_attempt_history_index") != current_history_index:
+            continue
+        changes.append(
+            {
+                "resource_id": resource.get("resource_id"),
+                "path": resource.get("path"),
+                "last_error_code": resource.get("last_error_code"),
+                "last_attempt_history_index": resource.get("last_attempt_history_index"),
+                "unchanged_retry_discouraged": resource.get("unchanged_retry_discouraged"),
+            }
+        )
+    return changes
 
 
 def _agent_metrics(
@@ -1096,17 +1234,33 @@ def _agent_metrics(
             for event in action_events
             if event["action_allowed"] is True
         }
-        recovery_attempts = sum(
+        generic_recovery_attempts = sum(
             event["recovery_from_event_index"] is not None for event in events
         )
-        recovery_successes = sum(
-            event["recovery_from_event_index"] is not None
-            and event["tool_status"] == "succeeded"
+        generic_recovery_successes = sum(
+            event["generic_recovery_source_event_index"] is not None
             for event in events
+        )
+        progress = state.memory.get("task_progress", {})
+        latest_requirements = progress.get("requirement_contracts", [])
+        required_recoveries = [
+            item
+            for item in latest_requirements
+            if isinstance(item, Mapping)
+            and item.get("evidence_type") == "successful_recovery_action"
+        ]
+        required_recoveries_total = len(required_recoveries)
+        required_recoveries_completed = sum(
+            item.get("status") == "completed" for item in required_recoveries
         )
         valid_actions = sum(event["action_allowed"] is True for event in action_events)
         invalid_actions = sum(
             event["action_allowed"] is False for event in action_events
+        )
+        unchanged_failed_action_retries = sum(
+            int(event["repeated_action_count"]) > 1
+            and event["tool_status"] == "failed"
+            for event in action_events
         )
         metrics[agent_id] = {
             "turns": len(events),
@@ -1119,8 +1273,17 @@ def _agent_metrics(
             "failed_tools": sum(
                 event["tool_status"] == "failed" for event in action_events
             ),
-            "recovery_attempts": recovery_attempts,
-            "recovery_successes": recovery_successes,
+            "generic_recovery_attempts": generic_recovery_attempts,
+            "generic_recovery_successes": generic_recovery_successes,
+            "required_recoveries_total": required_recoveries_total,
+            "required_recoveries_completed": required_recoveries_completed,
+            "required_recovery_success_rate": _rate(
+                required_recoveries_completed,
+                required_recoveries_total,
+            ),
+            "unchanged_failed_action_retries": unchanged_failed_action_retries,
+            "recovery_attempts": generic_recovery_attempts,
+            "recovery_successes": generic_recovery_successes,
             "repeated_actions": sum(
                 int(event["repeated_action_count"]) > 1 for event in action_events
             ),
@@ -1153,13 +1316,35 @@ def _trial_metrics(
         for agent_id in runtime.states
     ]
     action_events = [event for event in trace if event["action_name"] is not None]
-    recovery_attempts = sum(
+    generic_recovery_attempts = sum(
         event["recovery_from_event_index"] is not None for event in trace
     )
-    recovery_successes = sum(
-        event["recovery_from_event_index"] is not None
-        and event["tool_status"] == "succeeded"
+    generic_recovery_successes = sum(
+        event["generic_recovery_source_event_index"] is not None
         for event in trace
+    )
+    latest_requirements: dict[tuple[str, str], Mapping[str, Any]] = {}
+    for agent_id, state in runtime.states.items():
+        progress = state.memory.get("task_progress", {})
+        for contract in progress.get("requirement_contracts", []):
+            if not isinstance(contract, Mapping):
+                continue
+            requirement_id = contract.get("requirement_id")
+            if isinstance(requirement_id, str):
+                latest_requirements[(agent_id, requirement_id)] = contract
+    required_recoveries = [
+        item
+        for item in latest_requirements.values()
+        if item.get("evidence_type") == "successful_recovery_action"
+    ]
+    required_recoveries_total = len(required_recoveries)
+    required_recoveries_completed = sum(
+        item.get("status") == "completed" for item in required_recoveries
+    )
+    unchanged_failed_action_retries = sum(
+        int(event["repeated_action_count"]) > 1
+        and event["tool_status"] == "failed"
+        for event in action_events
     )
     model_execution = any(
         bool(getattr(policy, "model_execution_attempted", False))
@@ -1200,7 +1385,16 @@ def _trial_metrics(
         ),
         "input_tokens_total": input_tokens,
         "output_tokens_total": output_tokens,
-        "recovery_success_rate": _rate(recovery_successes, recovery_attempts),
+        "generic_recovery_attempts": generic_recovery_attempts,
+        "generic_recovery_successes": generic_recovery_successes,
+        "required_recoveries_total": required_recoveries_total,
+        "required_recoveries_completed": required_recoveries_completed,
+        "required_recovery_success_rate": _rate(
+            required_recoveries_completed,
+            required_recoveries_total,
+        ),
+        "unchanged_failed_action_retries": unchanged_failed_action_retries,
+        "recovery_success_rate": _rate(generic_recovery_successes, generic_recovery_attempts),
         "role_violation_rate": _rate(
             sum(event["role_violation"] is True for event in action_events),
             len(action_events),
@@ -1257,13 +1451,28 @@ def _experiment_summary(
         for value in [metrics.get("average_model_latency_ms")]
         if isinstance(value, (int, float)) and value > 0
     ]
-    recovery_attempts = sum(
-        int(metrics.get("recovery_attempts", 0))
+    generic_recovery_attempts = sum(
+        int(metrics.get("generic_recovery_attempts", metrics.get("recovery_attempts", 0)))
         for trial in trials
         for metrics in trial.get("agent_metrics", {}).values()
     )
-    recovery_successes = sum(
-        int(metrics.get("recovery_successes", 0))
+    generic_recovery_successes = sum(
+        int(metrics.get("generic_recovery_successes", metrics.get("recovery_successes", 0)))
+        for trial in trials
+        for metrics in trial.get("agent_metrics", {}).values()
+    )
+    required_recoveries_total = sum(
+        int(metrics.get("required_recoveries_total", 0))
+        for trial in trials
+        for metrics in trial.get("agent_metrics", {}).values()
+    )
+    required_recoveries_completed = sum(
+        int(metrics.get("required_recoveries_completed", 0))
+        for trial in trials
+        for metrics in trial.get("agent_metrics", {}).values()
+    )
+    unchanged_failed_action_retries = sum(
+        int(metrics.get("unchanged_failed_action_retries", 0))
         for trial in trials
         for metrics in trial.get("agent_metrics", {}).values()
     )
@@ -1334,9 +1543,20 @@ def _experiment_summary(
         "aggregate_p50_model_latency_ms": percentile(model_latencies, 50),
         "aggregate_p95_model_latency_ms": percentile(model_latencies, 95),
         "aggregate_recovery_rate": _rate(
-            recovery_successes,
-            recovery_attempts,
+            generic_recovery_successes,
+            generic_recovery_attempts,
         ),
+        "aggregate_generic_recovery_rate": _rate(
+            generic_recovery_successes,
+            generic_recovery_attempts,
+        ),
+        "required_recoveries_total": required_recoveries_total,
+        "required_recoveries_completed": required_recoveries_completed,
+        "required_recovery_success_rate": _rate(
+            required_recoveries_completed,
+            required_recoveries_total,
+        ),
+        "unchanged_failed_action_retries": unchanged_failed_action_retries,
         "aggregate_repetition_rate": _rate(repeated_actions, total_actions),
         "aggregate_role_violation_rate": _rate(role_violations, total_actions),
         "model_calls_total": sum(
@@ -1405,6 +1625,12 @@ def _empty_trial_metrics(started_at: float) -> dict[str, Any]:
         "failed_tools": 0,
         "input_tokens_total": 0,
         "output_tokens_total": 0,
+        "generic_recovery_attempts": 0,
+        "generic_recovery_successes": 0,
+        "required_recoveries_total": 0,
+        "required_recoveries_completed": 0,
+        "required_recovery_success_rate": 0.0,
+        "unchanged_failed_action_retries": 0,
         "recovery_success_rate": 0.0,
         "role_violation_rate": 0.0,
         "repeated_action_rate": 0.0,

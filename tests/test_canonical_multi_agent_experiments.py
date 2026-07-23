@@ -252,10 +252,176 @@ def test_office_recovery_metrics_and_shared_validation_succeed(
     assert verification["failed_tools"] == 1
     assert verification["recovery_attempts"] == 1
     assert verification["recovery_successes"] == 1
+    assert verification["generic_recovery_attempts"] == 1
+    assert verification["generic_recovery_successes"] == 1
+    assert verification["required_recoveries_total"] == 1
+    assert verification["required_recoveries_completed"] == 1
+    assert verification["required_recovery_success_rate"] == 1.0
     assert verification["input_tokens_total"] == 0
     assert verification["output_tokens_total"] == 0
     assert "constrained_fixture_command" in verification["unique_action_names"]
+    assert summary["trial_metrics"]["generic_recovery_attempts"] == 1  # type: ignore[index]
+    assert summary["trial_metrics"]["generic_recovery_successes"] == 1  # type: ignore[index]
+    assert summary["trial_metrics"]["required_recoveries_total"] == 1  # type: ignore[index]
+    assert summary["trial_metrics"]["required_recoveries_completed"] == 1  # type: ignore[index]
     assert summary["trial_metrics"]["recovery_success_rate"] == 1.0  # type: ignore[index]
+    assert summary["trial_metrics"]["required_recovery_success_rate"] == 1.0  # type: ignore[index]
+
+
+def test_office_recovery_requirement_contracts_and_file_resources_are_visible() -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery",
+        trial_id="contracts",
+        trial_output_dir="artifacts/canonical_multi_agent_long_horizon/contracts",
+        project_root=PROJECT_ROOT,
+    )
+    runtime.step()
+    verifier = runtime.states["verification_agent"]
+    runtime._refresh_agent_context(verifier)
+
+    progress = verifier.memory["task_progress"]
+    contracts = {
+        item["requirement_id"]: item for item in progress["requirement_contracts"]
+    }
+    recovery_contract = contracts["recovery_completed"]
+    assert recovery_contract["description"].startswith(
+        "After the expected missing-file error"
+    )
+    assert recovery_contract["evidence_type"] == "successful_recovery_action"
+    assert recovery_contract["related_resource_ids"] == [
+        "missing_input",
+        "recovery_note",
+    ]
+    assert "office worker" not in json.dumps(progress)
+
+    resources = {
+        item["resource_id"]: item
+        for item in verifier.memory["available_resources"]["file_resources"]
+    }
+    assert resources["missing_input"]["exists"] is False
+    assert resources["missing_input"]["purpose"] == (
+        "expected recoverable failure source"
+    )
+    assert resources["recovery_note"]["exists"] is True
+    assert resources["recovery_note"]["readable"] is True
+    assert "Recovery note" not in json.dumps(resources)
+
+
+def test_failed_resource_records_error_and_discourages_unchanged_retry() -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery",
+        trial_id="resource_error",
+        trial_output_dir="artifacts/canonical_multi_agent_long_horizon/resource_error",
+        project_root=PROJECT_ROOT,
+    )
+    runtime.step()
+    result = runtime.step()
+
+    assert result.observation is not None
+    assert result.observation.error_code == "file_not_found"
+    verifier = runtime.states["verification_agent"]
+    resources = {
+        item["resource_id"]: item
+        for item in verifier.memory["available_resources"]["file_resources"]
+    }
+    missing = resources["missing_input"]
+    assert missing["last_error_code"] == "file_not_found"
+    assert missing["unchanged_retry_discouraged"] is True
+    assert verifier.memory["task_progress"]["unchanged_failed_actions"] == [
+        {
+            "action_name": "read_file",
+            "path": (
+                "artifacts/canonical_multi_agent_long_horizon/"
+                "resource_error/missing_input.txt"
+            ),
+            "last_error_code": "file_not_found",
+            "last_attempt_history_index": 0,
+            "unchanged_retry_discouraged": True,
+        }
+    ]
+
+
+def test_wait_fact_read_and_validation_do_not_satisfy_required_file_recovery() -> None:
+    output_dir = "artifacts/canonical_multi_agent_long_horizon/no_file_recovery"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery",
+        trial_id="no_file_recovery",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        max_turns=10,
+    )
+    runtime.policies["document_agent"] = PerfectFakePolicy(
+        (
+            Action("office_fixture_read", {"field": "owner"}),
+            Action(
+                "shared_publish_fact",
+                {"key": "review_owner", "value": "office worker"},
+            ),
+            Action("finish"),
+        )
+    )
+    runtime.policies["verification_agent"] = PerfectFakePolicy(
+        (
+            Action("read_file", {"path": f"{output_dir}/missing_input.txt"}),
+            Action("wait_for_dependency", {"dependency_id": "review_owner"}),
+            Action("shared_read_fact", {"key": "review_owner"}),
+            Action(
+                "constrained_fixture_command",
+                {
+                    "operation": "validate_shared_fact",
+                    "key": "review_owner",
+                    "expected": "office worker",
+                },
+            ),
+            Action("finish"),
+        )
+    )
+
+    for _ in range(10):
+        if runtime.status != "running":
+            break
+        runtime.step()
+
+    verifier_progress = runtime.states["verification_agent"].memory["task_progress"]
+    assert "recovery_completed" not in verifier_progress["completed_requirements"]
+    assert "recovery_completed" in verifier_progress["unmet_requirements"]
+    finish_event = next(
+        event
+        for event in runtime.states["verification_agent"].history
+        if event.action is not None and event.action.tool_name == "finish"
+    )
+    assert finish_event.action is not None
+    assert finish_event.action.tool_name == "finish"
+    assert finish_event.observation.error_code == "completion_requirements_unmet"
+    unmet = finish_event.observation.metadata["unmet_requirement_contracts"]
+    assert unmet[0]["requirement_id"] == "recovery_completed"
+    assert "successful" in unmet[0]["evidence_type"]
+    assert any(
+        item["resource_id"] == "recovery_note"
+        for item in finish_event.observation.metadata["related_available_resources"]
+    )
+
+
+def test_recovery_note_read_satisfies_required_recovery_and_records_evidence(
+    artifact_output_dir: str,
+) -> None:
+    summary = _run_trial("office_shared_fact_recovery", artifact_output_dir)
+    trace = _load_trace(summary)
+    verifier_events = [
+        event for event in trace if event["agent_id"] == "verification_agent"
+    ]
+    recovery_event = verifier_events[1]
+
+    assert recovery_event["action_name"] == "read_file"
+    assert recovery_event["tool_status"] == "succeeded"
+    assert recovery_event["requirements_advanced"] == ["recovery_completed"]
+    evidence = recovery_event["required_recovery_evidence"][0]
+    assert evidence["source_failure_event_index"] == 0
+    assert evidence["recovery_event_index"] == 1
+    assert evidence["source_error_code"] == "file_not_found"
+    assert evidence["failed_resource_id"] == "missing_input"
+    assert evidence["recovery_resource_id"] == "recovery_note"
+    assert evidence["recovery_action_name"] == "read_file"
 
 
 def test_bounded_repetition_guard_stops_repeating_agent() -> None:

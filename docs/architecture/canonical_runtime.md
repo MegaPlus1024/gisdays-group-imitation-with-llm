@@ -236,11 +236,24 @@ Canonical long-horizon agents receive only role-relevant resources: exact
 fixture URLs, readable field names, advertised relative paths, known files,
 declared fact producer/consumer status, available commands, and generic task
 progress. Fact values are not supplied before publication and permitted read.
+Completion requirements are exposed as bounded contracts with an id,
+description, status, evidence type, safe related resource ids, and the outcome
+that satisfies the requirement. File resources are also described explicitly:
+their repository-relative path, whether they exist, whether they are readable or
+writable, their purpose, and the last safe error for that resource/action pair.
 `finish` is accepted only when declared generic requirements are met; pending
 consumers can use non-mutating `wait_for_dependency`. Local Qwen-style action
 prompts can use `/no_think`, while parsing remains limited to
 `message.content`; sanitized protocol diagnostics retain content/reasoning
 lengths and finish reason.
+
+Recovery metrics distinguish generic recovery from scenario-required recovery.
+Generic recovery means a changed successful action after a prior own failure
+that advances a requirement or resolves dependency context. Required recovery
+is an explicit scenario predicate. In `office_shared_fact_recovery`, the
+required recovery evidence is: observe the expected missing-file error, then
+successfully read the advertised existing `recovery_note` resource instead of
+retrying the unavailable `missing_input` resource.
 
 ## Known limits
 
@@ -248,7 +261,9 @@ lengths and finish reason.
 - no real browser or external web;
 - no Playwright in the canonical runtime;
 - no true parallel execution;
-- no canonical local-model group run yet;
+- first real third_model smoke is mixed: `article_file_handoff` passed, while
+  `office_shared_fact_recovery` reached 6/7 requirements before this recovery
+  transparency repair;
 - long-horizon results currently prove deterministic fake/fixture behavior,
   not model quality;
 - no fresh CPU/RAM/latency measurement for this runtime;
