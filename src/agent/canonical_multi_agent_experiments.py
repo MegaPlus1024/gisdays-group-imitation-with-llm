@@ -540,7 +540,13 @@ def _scenario_profiles(
                     {"id": "article_opened", "kind": "tool_succeeded", "tool_name": "browser_article_open", "parameters": {"url": ARTICLE_URL}},
                     {"id": "ownership_extracted", "kind": "tool_succeeded", "tool_name": "browser_article_extract", "parameters": {"heading": "Ownership"}},
                     {"id": "status_extracted", "kind": "tool_succeeded", "tool_name": "browser_article_extract", "parameters": {"heading": "Status"}},
-                    {"id": "research_note_written", "kind": "file_written", "path": note_path},
+                    {
+                        "id": "research_note_written",
+                        "kind": "file_written",
+                        "path": note_path,
+                        "resource_id": "research_note_txt",
+                        "related_resource_ids": ["research_note_txt"],
+                    },
                     {
                         "id": "review_owner_published",
                         "kind": "fact_published_grounded",
@@ -550,7 +556,20 @@ def _scenario_profiles(
                         "satisfied_by_outcome": "review_owner is published with valid Ownership evidence",
                     },
                 ),
-                resource_affordances={"article_urls": [ARTICLE_URL], "article_title_hints": ["Long-horizon fixture article"], "recommended_start_url": ARTICLE_URL, "allowed_file_roots": [trial_output_dir], "paths": [{"path": note_path, "access": "write"}]},
+                resource_affordances={
+                    "article_urls": [ARTICLE_URL],
+                    "article_title_hints": ["Long-horizon fixture article"],
+                    "recommended_start_url": ARTICLE_URL,
+                    "allowed_file_roots": [trial_output_dir],
+                    "paths": [
+                        {
+                            "path": note_path,
+                            "access": "write",
+                            "resource_id": "research_note_txt",
+                            "purpose": "research note handoff artifact",
+                        }
+                    ],
+                },
             ),
             AgentProfile(
                 agent_id="operator_agent",
@@ -573,10 +592,32 @@ def _scenario_profiles(
                 ),
                 completion_requirements=(
                     {"id": "owner_verified", "kind": "tool_succeeded", "tool_name": "office_fixture_read", "parameters": {"field": "owner"}},
-                    {"id": "research_note_read", "kind": "tool_succeeded", "tool_name": "read_file", "parameters": {"path": note_path}},
+                    {
+                        "id": "research_note_read",
+                        "kind": "tool_succeeded",
+                        "tool_name": "read_file",
+                        "required_action": "read_file",
+                        "resource_id": "research_note_txt",
+                        "parameters": {"path": note_path},
+                        "evidence_type": "resource_read_success",
+                        "related_resource_ids": ["research_note_txt"],
+                        "description": "Read the research note handoff file after it exists.",
+                        "satisfied_by_outcome": "read_file succeeds for research_note_txt after the resource exists",
+                    },
                     {"id": "review_owner_read", "kind": "fact_read", "key": "review_owner"},
                 ),
-                resource_affordances={"office_fixture_fields": list(OFFICE_RECORD), "allowed_file_roots": [trial_output_dir], "paths": [{"path": note_path, "access": "read"}]},
+                resource_affordances={
+                    "office_fixture_fields": list(OFFICE_RECORD),
+                    "allowed_file_roots": [trial_output_dir],
+                    "paths": [
+                        {
+                            "path": note_path,
+                            "access": "read",
+                            "resource_id": "research_note_txt",
+                            "purpose": "research note handoff artifact",
+                        }
+                    ],
+                },
             ),
         )
     if scenario_id == "office_shared_fact_recovery":
@@ -1187,10 +1228,15 @@ def _run_runtime_with_trace(
         previous_completed = _previous_completed_requirements(trace, agent_id)
         completed_now = set(progress.get("completed_requirements", []))
         requirements_advanced = sorted(completed_now - previous_completed)
-        resource_status_changes = _resource_status_changes(resources, state)
+        resource_status_changes = _resource_status_changes(resources, state, runtime)
+        retry_after_resource_change = _retry_after_resource_state_change(
+            action,
+            result.observation.success,
+            resources,
+        )
         required_recovery_evidence = progress.get("required_recovery_evidence", [])
         generic_recovery_success = (
-            recovery_from is not None
+            (recovery_from is not None or retry_after_resource_change)
             and result.observation.success
             and (bool(requirements_advanced) or bool(progress.get("ready_dependencies", [])))
         )
@@ -1245,6 +1291,10 @@ def _run_runtime_with_trace(
                 "generic_recovery_source_event_index": (
                     recovery_from if generic_recovery_success else None
                 ),
+                "retry_after_resource_state_change": retry_after_resource_change,
+                "successful_retry_after_resource_state_change": (
+                    retry_after_resource_change and result.observation.success
+                ),
                 "required_recovery_evidence": _bounded_value(
                     required_recovery_evidence,
                     limit=1000,
@@ -1281,9 +1331,24 @@ def _previous_completed_requirements(
 def _resource_status_changes(
     resources: Mapping[str, Any],
     state: AgentState,
+    runtime: AutonomousMultiAgentRuntime,
 ) -> list[dict[str, Any]]:
     current_history_index = len(state.history) - 1
+    current_event_index = len(runtime.group_history) - 1
     changes: list[dict[str, Any]] = []
+    for transition in runtime.shared_environment.resource_transitions:
+        if transition.get("event_index") == current_event_index:
+            changes.append(
+                {
+                    "resource_id": transition.get("resource_id"),
+                    "path": transition.get("path"),
+                    "previous_exists": transition.get("previous_exists"),
+                    "current_exists": transition.get("current_exists"),
+                    "producer_agent": transition.get("producer_agent"),
+                    "event_index": transition.get("event_index"),
+                    "dependencies_unblocked": transition.get("dependencies_unblocked", []),
+                }
+            )
     file_resources = resources.get("file_resources", [])
     if not isinstance(file_resources, Sequence) or isinstance(file_resources, (str, bytes)):
         return changes
@@ -1296,12 +1361,36 @@ def _resource_status_changes(
             {
                 "resource_id": resource.get("resource_id"),
                 "path": resource.get("path"),
-                "last_error_code": resource.get("last_error_code"),
-                "last_attempt_history_index": resource.get("last_attempt_history_index"),
+                "last_failure_error_code": resource.get("last_failure_error_code"),
+                "last_failure_event_index": resource.get("last_failure_event_index"),
+                "state_changed_since_failure": resource.get("state_changed_since_failure"),
                 "unchanged_retry_discouraged": resource.get("unchanged_retry_discouraged"),
+                "retry_now_valid": resource.get("retry_now_valid"),
             }
         )
     return changes
+
+
+def _retry_after_resource_state_change(
+    action: Action | None,
+    success: bool,
+    resources: Mapping[str, Any],
+) -> bool:
+    if action is None or not success or action.tool_name != "read_file":
+        return False
+    path = action.parameters.get("path")
+    if not isinstance(path, str):
+        return False
+    file_resources = resources.get("file_resources", [])
+    if not isinstance(file_resources, Sequence) or isinstance(file_resources, (str, bytes)):
+        return False
+    return any(
+        isinstance(resource, Mapping)
+        and resource.get("path") == path
+        and resource.get("state_changed_since_failure") is True
+        and resource.get("retry_now_valid") is True
+        for resource in file_resources
+    )
 
 
 def _grounding_metrics(
@@ -1404,10 +1493,13 @@ def _agent_metrics(
             if event["action_allowed"] is True
         }
         generic_recovery_attempts = sum(
-            event["recovery_from_event_index"] is not None for event in events
+            event["recovery_from_event_index"] is not None
+            or event.get("retry_after_resource_state_change") is True
+            for event in events
         )
         generic_recovery_successes = sum(
             event["generic_recovery_source_event_index"] is not None
+            or event.get("successful_retry_after_resource_state_change") is True
             for event in events
         )
         progress = state.memory.get("task_progress", {})
@@ -1429,6 +1521,14 @@ def _agent_metrics(
         unchanged_failed_action_retries = sum(
             int(event["repeated_action_count"]) > 1
             and event["tool_status"] == "failed"
+            for event in action_events
+        )
+        retries_after_resource_state_change = sum(
+            event.get("retry_after_resource_state_change") is True
+            for event in action_events
+        )
+        successful_retries_after_resource_state_change = sum(
+            event.get("successful_retry_after_resource_state_change") is True
             for event in action_events
         )
         grounding = _grounding_metrics(
@@ -1455,6 +1555,8 @@ def _agent_metrics(
                 required_recoveries_total,
             ),
             "unchanged_failed_action_retries": unchanged_failed_action_retries,
+            "retries_after_resource_state_change": retries_after_resource_state_change,
+            "successful_retries_after_resource_state_change": successful_retries_after_resource_state_change,
             **grounding,
             "recovery_attempts": generic_recovery_attempts,
             "recovery_successes": generic_recovery_successes,
@@ -1491,10 +1593,13 @@ def _trial_metrics(
     ]
     action_events = [event for event in trace if event["action_name"] is not None]
     generic_recovery_attempts = sum(
-        event["recovery_from_event_index"] is not None for event in trace
+        event["recovery_from_event_index"] is not None
+        or event.get("retry_after_resource_state_change") is True
+        for event in trace
     )
     generic_recovery_successes = sum(
         event["generic_recovery_source_event_index"] is not None
+        or event.get("successful_retry_after_resource_state_change") is True
         for event in trace
     )
     latest_requirements: dict[tuple[str, str], Mapping[str, Any]] = {}
@@ -1518,6 +1623,14 @@ def _trial_metrics(
     unchanged_failed_action_retries = sum(
         int(event["repeated_action_count"]) > 1
         and event["tool_status"] == "failed"
+        for event in action_events
+    )
+    retries_after_resource_state_change = sum(
+        event.get("retry_after_resource_state_change") is True
+        for event in action_events
+    )
+    successful_retries_after_resource_state_change = sum(
+        event.get("successful_retry_after_resource_state_change") is True
         for event in action_events
     )
     grounding = _grounding_metrics(
@@ -1577,6 +1690,9 @@ def _trial_metrics(
             required_recoveries_total,
         ),
         "unchanged_failed_action_retries": unchanged_failed_action_retries,
+        "resource_state_transitions": len(runtime.shared_environment.resource_transitions),
+        "retries_after_resource_state_change": retries_after_resource_state_change,
+        "successful_retries_after_resource_state_change": successful_retries_after_resource_state_change,
         **grounding,
         "recovery_success_rate": _rate(generic_recovery_successes, generic_recovery_attempts),
         "role_violation_rate": _rate(
@@ -1635,6 +1751,11 @@ def _experiment_summary(
         for value in [metrics.get("average_model_latency_ms")]
         if isinstance(value, (int, float)) and value > 0
     ]
+    trial_metric_rows = [
+        trial.get("trial_metrics", {})
+        for trial in trials
+        if isinstance(trial.get("trial_metrics"), Mapping)
+    ]
     generic_recovery_attempts = sum(
         int(metrics.get("generic_recovery_attempts", metrics.get("recovery_attempts", 0)))
         for trial in trials
@@ -1660,6 +1781,18 @@ def _experiment_summary(
         for trial in trials
         for metrics in trial.get("agent_metrics", {}).values()
     )
+    resource_state_transitions = sum(
+        int(metrics.get("resource_state_transitions", 0))
+        for metrics in trial_metric_rows
+    )
+    retries_after_resource_state_change = sum(
+        int(metrics.get("retries_after_resource_state_change", 0))
+        for metrics in trial_metric_rows
+    )
+    successful_retries_after_resource_state_change = sum(
+        int(metrics.get("successful_retries_after_resource_state_change", 0))
+        for metrics in trial_metric_rows
+    )
     total_actions = sum(
         int(metrics.get("valid_actions", 0)) + int(metrics.get("invalid_actions", 0))
         for trial in trials
@@ -1676,11 +1809,6 @@ def _experiment_summary(
         for metrics in trial.get("agent_metrics", {}).values()
     )
     model_execution = any(trial.get("model_execution") is True for trial in trials)
-    trial_metric_rows = [
-        trial.get("trial_metrics", {})
-        for trial in trials
-        if isinstance(trial.get("trial_metrics"), Mapping)
-    ]
     return {
         "schema_version": EXPERIMENT_SUMMARY_SCHEMA_VERSION,
         "experiment_id": config.experiment_id,
@@ -1741,6 +1869,9 @@ def _experiment_summary(
             required_recoveries_total,
         ),
         "unchanged_failed_action_retries": unchanged_failed_action_retries,
+        "resource_state_transitions": resource_state_transitions,
+        "retries_after_resource_state_change": retries_after_resource_state_change,
+        "successful_retries_after_resource_state_change": successful_retries_after_resource_state_change,
         "shared_facts_published_total": sum(
             int(metrics.get("shared_facts_published_total", 0))
             for metrics in trial_metric_rows
@@ -1853,6 +1984,9 @@ def _empty_trial_metrics(started_at: float) -> dict[str, Any]:
         "required_recoveries_completed": 0,
         "required_recovery_success_rate": 0.0,
         "unchanged_failed_action_retries": 0,
+        "resource_state_transitions": 0,
+        "retries_after_resource_state_change": 0,
+        "successful_retries_after_resource_state_change": 0,
         "shared_facts_published_total": 0,
         "grounded_shared_facts": 0,
         "ungrounded_publish_attempts": 0,

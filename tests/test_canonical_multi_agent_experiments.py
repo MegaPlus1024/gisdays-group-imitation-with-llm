@@ -4,6 +4,7 @@ import json
 import shutil
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from src.agent.autonomous_multi_agent_runtime import (
     Action,
     AgentProfile,
     AgentState,
+    HistoryEvent,
     LocalOpenAIModelPolicy,
     Observation,
     PolicyError,
@@ -26,6 +28,8 @@ from src.agent.canonical_multi_agent_experiments import (
     TRACE_SCHEMA_VERSION,
     TRIAL_SUMMARY_SCHEMA_VERSION,
     _bounded_value,
+    _run_runtime_with_trace,
+    _trial_metrics,
     build_long_horizon_trial_runtime,
     load_long_horizon_experiment_config,
     percentile,
@@ -222,6 +226,184 @@ def test_article_file_handoff_uses_file_and_explicit_shared_fact(
     assert "shared_publish_fact" in action_names
     assert "shared_read_fact" in action_names
     assert summary["trial_metrics"]["shared_operations"] == 2  # type: ignore[index]
+
+
+def test_article_note_resource_state_updates_after_creation(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/article_retry_state"
+    note_path = f"{output_dir}/research_note.txt"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff",
+        trial_id="article_retry_state",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        max_turns=8,
+    )
+    runtime.policies["research_agent"] = PerfectFakePolicy(
+        (
+            Action("browser_article_open", {"url": "https://fixture.local/articles/long-horizon"}),
+            Action("create_file", {"path": note_path, "content": "Owner: office worker\n"}),
+        )
+    )
+    runtime.policies["operator_agent"] = PerfectFakePolicy(
+        (
+            Action("read_file", {"path": note_path}),
+            Action("finish"),
+            Action("read_file", {"path": note_path}),
+        )
+    )
+
+    runtime.step()
+    failed = runtime.step()
+    assert failed.observation is not None
+    assert failed.observation.error_code == "file_not_found"
+    operator = runtime.states["operator_agent"]
+    before = {
+        item["resource_id"]: item
+        for item in operator.memory["available_resources"]["file_resources"]
+    }["research_note_txt"]
+    assert before["exists"] is False
+    assert before["last_failure_error_code"] == "file_not_found"
+    assert before["state_changed_since_failure"] is False
+    assert before["unchanged_retry_discouraged"] is True
+    assert before["retry_now_valid"] is False
+
+    runtime.step()
+    after_create = {
+        item["resource_id"]: item
+        for item in operator.memory["available_resources"]["file_resources"]
+    }["research_note_txt"]
+    assert after_create["exists"] is True
+    assert after_create["readable"] is True
+    assert after_create["last_failure_error_code"] == "file_not_found"
+    assert after_create["state_changed_since_failure"] is True
+    assert after_create["unchanged_retry_discouraged"] is False
+    assert after_create["retry_now_valid"] is True
+
+    rejected_finish = runtime.step()
+    assert rejected_finish.observation is not None
+    assert rejected_finish.observation.error_code == "completion_requirements_unmet"
+    unmet = rejected_finish.observation.metadata["unmet_requirement_contracts"]
+    note_requirement = next(
+        item for item in unmet if item["requirement_id"] == "research_note_read"
+    )
+    assert note_requirement["related_resource_ids"] == ["research_note_txt"]
+    assert note_requirement["resource_state"]["exists"] is True
+    assert note_requirement["resource_state"]["state_changed_since_failure"] is True
+    assert note_requirement["resource_state"]["retry_now_valid"] is True
+
+    _step_until_agent_history(runtime, "operator_agent", 3)
+    progress = runtime.states["operator_agent"].memory["task_progress"]
+    assert "research_note_read" in progress["completed_requirements"]
+    assert progress["unchanged_failed_actions"] == []
+
+
+def test_article_note_resource_transition_and_retry_metrics(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/article_retry_metrics"
+    note_path = f"{output_dir}/research_note.txt"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff",
+        trial_id="article_retry_metrics",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        max_turns=8,
+    )
+    runtime.policies["research_agent"] = PerfectFakePolicy(
+        (
+            Action("browser_article_open", {"url": "https://fixture.local/articles/long-horizon"}),
+            Action("create_file", {"path": note_path, "content": "Owner: office worker\n"}),
+        )
+    )
+    runtime.policies["operator_agent"] = PerfectFakePolicy(
+        (
+            Action("read_file", {"path": note_path}),
+            Action("read_file", {"path": note_path}),
+        )
+    )
+    trace = _run_runtime_with_trace(runtime, started_at=time.perf_counter())
+    create_event = next(
+        event
+        for event in trace
+        if event["agent_id"] == "research_agent"
+        and event["action_name"] == "create_file"
+    )
+    retry_event = next(
+        event
+        for event in trace
+        if event["agent_id"] == "operator_agent"
+        and event["action_name"] == "read_file"
+        and event["tool_status"] == "succeeded"
+    )
+    assert create_event["resource_status_changes"] == [
+        {
+            "resource_id": "research_note_txt",
+            "path": note_path,
+            "previous_exists": False,
+            "current_exists": True,
+            "producer_agent": "research_agent",
+            "event_index": 2,
+            "dependencies_unblocked": ["research_note"],
+        }
+    ]
+    assert retry_event["retry_after_resource_state_change"] is True
+    assert retry_event["successful_retry_after_resource_state_change"] is True
+    metrics = _trial_metrics(runtime, trace, started_at=time.perf_counter())
+    assert metrics["resource_state_transitions"] == 1
+    assert metrics["retries_after_resource_state_change"] == 1
+    assert metrics["successful_retries_after_resource_state_change"] == 1
+    assert metrics["generic_recovery_attempts"] == 1
+    assert metrics["generic_recovery_successes"] == 1
+    assert metrics["unchanged_failed_action_retries"] == 0
+    assert runtime.shared_environment.resource_transitions == [
+        {
+            "resource_id": "research_note_txt",
+            "path": note_path,
+            "previous_exists": False,
+            "current_exists": True,
+            "producer_agent": "research_agent",
+            "event_index": 2,
+            "dependencies_unblocked": ["research_note"],
+        }
+    ]
+    operator = runtime.states["operator_agent"]
+    assert "research_note_read" in operator.memory["task_progress"]["completed_requirements"]
+    assert operator.memory["task_progress"]["unchanged_failed_actions"] == []
+
+
+def test_unrelated_read_file_does_not_satisfy_resource_bound_requirement() -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff",
+        trial_id="unrelated_read",
+        trial_output_dir="artifacts/canonical_multi_agent_long_horizon/unrelated_read",
+        project_root=PROJECT_ROOT,
+    )
+    operator = runtime.states["operator_agent"]
+    runtime.shared_environment.known_files.add(
+        "tests/fixtures/canonical_multi_agent/recovery_note.txt"
+    )
+    operator.history.append(
+        # A successful read_file event with the wrong path must not satisfy the
+        # research_note_txt-bound requirement.
+        HistoryEvent(
+            turn_index=1,
+            agent_id="operator_agent",
+            action=Action(
+                "read_file",
+                {"path": "tests/fixtures/canonical_multi_agent/recovery_note.txt"},
+            ),
+            observation=Observation(
+                success=True,
+                tool_name="read_file",
+                output="Recovery note",
+            ),
+        )
+    )
+    runtime._refresh_agent_context(operator)
+
+    assert "research_note_read" not in operator.memory["task_progress"]["completed_requirements"]
 
 
 def test_each_agent_history_is_independent() -> None:

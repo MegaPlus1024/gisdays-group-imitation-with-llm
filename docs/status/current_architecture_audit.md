@@ -347,3 +347,11 @@ published owner/status facts that were not grounded in prior owner/status
 observations. That pass is therefore not full semantic evidence. Canonical
 shared facts now require provenance from owned observed evidence, and future
 pass criteria include value-source consistency as well as key publication.
+
+Three real `article_file_handoff` third_model trials then failed 0/3 with the
+producer path and grounded provenance working: the research agent created
+`research_note_txt` and published grounded `review_owner`, but the operator had
+seen an earlier `file_not_found` and did not retry the read. The resource
+descriptor still discouraged the unchanged read after the file existed. The
+repair separates historical failure metadata from current resource state and
+binds `research_note_read` to `research_note_txt`.

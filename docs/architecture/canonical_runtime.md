@@ -241,6 +241,13 @@ description, status, evidence type, safe related resource ids, and the outcome
 that satisfies the requirement. File resources are also described explicitly:
 their repository-relative path, whether they exist, whether they are readable or
 writable, their purpose, and the last safe error for that resource/action pair.
+Historical file failures are kept separate from current retry advice. If a
+consumer reads a declared handoff file before it exists, the descriptor records
+the `file_not_found` history. When the producer later creates that same
+resource, `exists` becomes true, `state_changed_since_failure` becomes true,
+and `unchanged_retry_discouraged` becomes false. File-backed requirements can
+bind to resource ids such as `research_note_txt`, so unrelated successful reads
+do not complete the requirement.
 Shared facts in canonical long-horizon scenarios require evidence-grounded
 provenance. Successful observations create private bounded evidence records,
 and `shared_publish_fact` must cite an owned `evidence_id` whose tool and field
@@ -274,6 +281,10 @@ retrying the unavailable `missing_input` resource.
 - a later procedural `office_shared_fact_recovery` pass exposed ungrounded
   owner/status publication; future passes must satisfy value-source
   provenance, not key publication alone;
+- three real `article_file_handoff` trials failed after a stale
+  `file_not_found` retry warning remained visible even after `research_note_txt`
+  existed; the repair distinguishes historical failure from current resource
+  availability;
 - long-horizon results currently prove deterministic fake/fixture behavior,
   not model quality;
 - no fresh CPU/RAM/latency measurement for this runtime;

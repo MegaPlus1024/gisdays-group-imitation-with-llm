@@ -114,3 +114,9 @@ then publish with the matching `evidence_id`. `evidence_id_required`,
 `evidence_source_mismatch`, or `published_value_mismatch` mean the key was not
 accepted into the shared environment and any grounded completion requirement
 must remain unmet.
+
+For file handoffs, distinguish historical failure from current availability.
+If `research_note_txt` shows `exists: true` and
+`state_changed_since_failure: true`, a prior `file_not_found` is historical and
+`retry_now_valid` should be true. A rejected finish for `research_note_read`
+should expose that resource state instead of continuing to discourage the read.

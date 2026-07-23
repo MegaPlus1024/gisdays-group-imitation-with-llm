@@ -240,6 +240,7 @@ class SharedEnvironment:
     facts: dict[str, Any] = field(default_factory=dict)
     shared_fact_metadata: dict[str, dict[str, Any]] = field(default_factory=dict)
     operations: list[dict[str, Any]] = field(default_factory=list)
+    resource_transitions: list[dict[str, Any]] = field(default_factory=list)
     article_catalog: dict[str, tuple[dict[str, str], ...]] = field(
         default_factory=dict
     )
@@ -284,6 +285,7 @@ class SharedEnvironment:
             "fact_contracts": _sanitize_value(self.fact_contracts),
             "shared_fact_metadata": _sanitize_value(self.shared_fact_metadata),
             "known_files": sorted(self.known_files),
+            "resource_transitions": _sanitize_value(self.resource_transitions),
             "facts": _sanitize_value(self.facts),
             "operations": _sanitize_value(self.operations),
             "article_urls": sorted(self.article_catalog),
@@ -1090,9 +1092,45 @@ class AutonomousMultiAgentRuntime:
         if observation.success and action and action.tool_name in {"create_file", "append_file"}:
             path = action.parameters.get("path")
             if isinstance(path, str):
+                previous_exists = path in self.shared_environment.known_files
                 self.shared_environment.known_files.add(path)
+                if not previous_exists:
+                    self._record_resource_transition(
+                        path=path,
+                        producer_agent=state.agent_id,
+                        event_index=len(self.group_history) - 1,
+                        previous_exists=False,
+                        current_exists=True,
+                    )
         for candidate in self.states.values():
             self._refresh_agent_context(candidate)
+
+    def _record_resource_transition(
+        self,
+        *,
+        path: str,
+        producer_agent: str,
+        event_index: int,
+        previous_exists: bool,
+        current_exists: bool,
+    ) -> None:
+        dependencies_unblocked = [
+            str(item.get("dependency_id"))
+            for state in self.states.values()
+            for item in state.profile.dependencies
+            if item.get("kind") == "file" and item.get("path") == path
+        ]
+        self.shared_environment.resource_transitions.append(
+            {
+                "resource_id": self._resource_id_for_path_any(path),
+                "path": path,
+                "previous_exists": previous_exists,
+                "current_exists": current_exists,
+                "producer_agent": producer_agent,
+                "event_index": event_index,
+                "dependencies_unblocked": dependencies_unblocked,
+            }
+        )
 
     def _refresh_agent_context(self, state: AgentState) -> None:
         completed = [item["id"] for item in state.profile.completion_requirements if self._requirement_met(state, item)]
@@ -1142,6 +1180,7 @@ class AutonomousMultiAgentRuntime:
             "available_commands": affordances.get("available_commands", []),
             "guidance": [
                 "Do not repeat an unchanged action against a resource that is still marked unavailable.",
+                "Previously failed actions may be retried when the relevant resource state has changed.",
                 "Use an advertised existing resource or another valid action that advances an unmet requirement.",
                 "Publish shared facts only when they are grounded in your own successful observed evidence and include the evidence_id.",
             ],
@@ -1249,13 +1288,12 @@ class AutonomousMultiAgentRuntime:
         if not isinstance(path, str):
             return
         errors = dict(state.memory.get("resource_last_errors", {}))
-        if observation.success:
-            errors.pop(path, None)
-        else:
+        if not observation.success:
             errors[path] = {
-                "last_error_code": observation.error_code,
-                "last_attempt_history_index": len(state.history) - 1,
-                "unchanged_retry_discouraged": True,
+                "last_failure_error_code": observation.error_code,
+                "last_failure_event_index": len(state.history) - 1,
+                "last_failure_action_name": action.tool_name,
+                "last_failure_parameters": dict(action.parameters),
                 "action_name": action.tool_name,
             }
         state.memory["resource_last_errors"] = errors
@@ -1399,8 +1437,37 @@ class AutonomousMultiAgentRuntime:
         resources: list[dict[str, Any]] = []
         for descriptor in descriptors:
             path = descriptor.get("path")
+            if isinstance(path, str):
+                descriptor["exists"] = path in self.shared_environment.known_files
             if isinstance(path, str) and path in errors and isinstance(errors[path], Mapping):
-                descriptor.update(errors[path])
+                historical = dict(errors[path])
+                current_exists = bool(descriptor.get("exists", False))
+                state_changed = (
+                    historical.get("last_failure_error_code") == "file_not_found"
+                    and current_exists
+                )
+                retry_now_valid = (
+                    state_changed
+                    and descriptor.get("readable") is True
+                )
+                unchanged_discouraged = (
+                    historical.get("last_failure_error_code") == "file_not_found"
+                    and not current_exists
+                )
+                descriptor.update(
+                    {
+                        **historical,
+                        "last_error_code": historical.get("last_failure_error_code"),
+                        "last_attempt_history_index": historical.get("last_failure_event_index"),
+                        "state_changed_since_failure": state_changed,
+                        "retry_now_valid": retry_now_valid,
+                        "unchanged_retry_discouraged": unchanged_discouraged,
+                    }
+                )
+            else:
+                descriptor.setdefault("state_changed_since_failure", False)
+                descriptor.setdefault("retry_now_valid", False)
+                descriptor.setdefault("unchanged_retry_discouraged", False)
             resources.append(_sanitize_value(descriptor))
         return resources
 
@@ -1448,6 +1515,12 @@ class AutonomousMultiAgentRuntime:
                     ],
                 }
             )
+        resource_ids = list(requirement.get("related_resource_ids", ()))
+        if resource_ids:
+            states = self._resource_states_for_ids(state, resource_ids)
+            contract["resource_states"] = states
+            if len(states) == 1:
+                contract["resource_state"] = states[0]
         return contract
 
     def _last_requirement_progress_index(
@@ -1491,6 +1564,9 @@ class AutonomousMultiAgentRuntime:
         event = state.history[index]
         kind = requirement.get("kind")
         if kind == "tool_succeeded":
+            resource_id = requirement.get("resource_id")
+            if isinstance(resource_id, str):
+                return self._resource_bound_tool_succeeded(state, requirement, index)
             return bool(event.action and event.action.tool_name == requirement.get("tool_name") and event.observation.success and all(event.action.parameters.get(key) == value for key, value in dict(requirement.get("parameters", {})).items()))
         if kind == "file_written":
             return bool(event.action and event.action.tool_name in {"create_file", "append_file"} and event.observation.success and event.action.parameters.get("path") == requirement.get("path"))
@@ -1582,20 +1658,61 @@ class AutonomousMultiAgentRuntime:
                 )
         return _sanitize_value(evidence)
 
+    def _resource_bound_tool_succeeded(
+        self,
+        state: AgentState,
+        requirement: Mapping[str, Any],
+        index: int,
+    ) -> bool:
+        event = state.history[index]
+        resource_id = requirement.get("resource_id")
+        required_action = requirement.get("required_action") or requirement.get("tool_name")
+        if not isinstance(resource_id, str):
+            return False
+        if not event.action or event.action.tool_name != required_action:
+            return False
+        if not event.observation.success:
+            return False
+        path = event.action.parameters.get("path")
+        if not isinstance(path, str):
+            return False
+        if self._resource_id_for_path(state, path) != resource_id:
+            return False
+        return path in self.shared_environment.known_files
+
     def _unchanged_failed_actions(self, state: AgentState) -> list[dict[str, Any]]:
-        errors = state.memory.get("resource_last_errors", {})
-        if not isinstance(errors, Mapping):
-            return []
         return [
             {
-                "action_name": item.get("action_name"),
-                "path": path,
-                "last_error_code": item.get("last_error_code"),
-                "last_attempt_history_index": item.get("last_attempt_history_index"),
+                "action_name": resource.get("action_name"),
+                "path": resource.get("path"),
+                "last_error_code": resource.get("last_failure_error_code"),
+                "last_attempt_history_index": resource.get("last_failure_event_index"),
                 "unchanged_retry_discouraged": True,
             }
-            for path, item in errors.items()
-            if isinstance(path, str) and isinstance(item, Mapping)
+            for resource in self._file_resource_contracts(state)
+            if resource.get("unchanged_retry_discouraged") is True
+        ]
+
+    def _resource_states_for_ids(
+        self,
+        state: AgentState,
+        resource_ids: Sequence[Any],
+    ) -> list[dict[str, Any]]:
+        wanted = {str(item) for item in resource_ids if isinstance(item, str)}
+        return [
+            {
+                "resource_id": resource.get("resource_id"),
+                "path": resource.get("path"),
+                "exists": resource.get("exists"),
+                "readable": resource.get("readable"),
+                "state_changed_since_failure": resource.get("state_changed_since_failure"),
+                "retry_now_valid": resource.get("retry_now_valid"),
+                "unchanged_retry_discouraged": resource.get("unchanged_retry_discouraged"),
+                "last_failure_event_index": resource.get("last_failure_event_index"),
+                "last_failure_error_code": resource.get("last_failure_error_code"),
+            }
+            for resource in self._file_resource_contracts(state)
+            if resource.get("resource_id") in wanted
         ]
 
     def _resource_path(self, state: AgentState, resource_id: object) -> str | None:
@@ -1611,6 +1728,23 @@ class AutonomousMultiAgentRuntime:
             if resource.get("path") == path and isinstance(resource.get("resource_id"), str):
                 return str(resource["resource_id"])
         return None
+
+    def _resource_id_for_path_any(self, path: str) -> str:
+        for state in self.states.values():
+            resource_id = self._resource_id_for_path(state, path)
+            if resource_id is not None:
+                return resource_id
+        return path.rsplit("/", 1)[-1].replace(".", "_")
+
+    def _resource_available_event_index(self, resource_id: str) -> int | None:
+        indexes = [
+            int(item["event_index"])
+            for item in self.shared_environment.resource_transitions
+            if item.get("resource_id") == resource_id
+            and item.get("current_exists") is True
+            and isinstance(item.get("event_index"), int)
+        ]
+        return min(indexes) if indexes else None
 
     def _stop_if_needed(self) -> str | None:
         if self.status != "running":
