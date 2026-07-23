@@ -641,12 +641,18 @@ class FixtureArticleEnvironment:
         self._observed_event_index = 0
         self._last_find_result = None
         visible_section = document.sections[0]
+        self.observed_section_ids.add(visible_section.section_id)
+        self._record_observed_section(visible_section)
         return {
             "success": True,
             "logical_url": document.logical_url,
             "article_title": document.title,
             "visible_section_id": visible_section.section_id,
             "visible_section_title": visible_section.title,
+            "visible_text": visible_section.combined_text(),
+            "newly_observed_section_ids": [visible_section.section_id],
+            "evidence_source": "visible_text",
+            "redundant": False,
         }
 
     def read_visible_text(self) -> dict[str, Any]:
@@ -680,13 +686,18 @@ class FixtureArticleEnvironment:
             self.visible_index + max(1, int(pages)),
         )
         section = self.current_document.sections[self.visible_index]
+        redundant = section.section_id in self.observed_section_ids
+        self.observed_section_ids.add(section.section_id)
+        self._record_observed_section(section)
         return {
             "success": True,
             "section_id": section.section_id,
             "section_title": section.title,
             "visible_text": section.combined_text(),
             "changed_window": self.visible_index != previous_index,
-            "redundant": self.visible_index == previous_index,
+            "newly_observed_section_ids": [] if redundant else [section.section_id],
+            "evidence_source": "visible_text",
+            "redundant": redundant,
         }
 
     def find_text(self, query: str) -> dict[str, Any]:
@@ -1580,6 +1591,7 @@ def _evaluate_run(
     missing_citation_ids = tuple(
         citation_id for citation_id in scenario.required_citation_ids if citation_id not in final_citation_ids
     )
+    required_citation_evidence_seen = set(scenario.required_citation_ids).issubset(observed_section_id_set)
     invalid_action_count = sum(1 for step in steps if not step.action_valid)
     workflow_action_valid = invalid_action_count == 0 and all(
         step.status in {"succeeded"} for step in steps if step.action.action_name != "final_answer"
@@ -1588,9 +1600,8 @@ def _evaluate_run(
     missing_required_fact = completed and not semantic_answer_correct
     max_steps_exceeded = stop_reason == "max_steps_exceeded"
     sections_read_count = len(set(sections_read_ids))
-    required_sections_seen = set(scenario.required_section_ids).issubset(set(sections_read_ids))
     stopped_too_early = completed and (
-        not required_sections_seen
+        not required_citation_evidence_seen
         or (missing_required_fact and sections_unread_count_at_stop > 0)
     )
     unnecessary_action_count = sum(
