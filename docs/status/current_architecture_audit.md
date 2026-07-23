@@ -29,11 +29,12 @@ only a smaller subset is suitable as the current runtime foundation.
 | Concern | Current implementation | Evidence | Assessment |
 | --- | --- | --- | --- |
 | Model registry | `configs/evaluation_models.json`, `src/agent/evaluation_models.py` | `tests/test_evaluation_models.py` | Canonical metadata source for five local aliases. GGUF files are local-only. |
-| Local OpenAI-compatible client | `src/agent/llm_client.py` | `tests/test_llm_client.py` | Reusable early client, but it is tied to the old `NextAction` and prompt contract. |
+| Local OpenAI-compatible client | `src/agent/llm_client.py` | `tests/test_llm_client.py` | Reused by the canonical opt-in model policy, including one-action parsing and token telemetry. |
 | Hardened stepwise local client | `src/agent/autonomous_browser_stepwise_article_local_model.py` | `tests/test_autonomous_browser_stepwise_article_local_model.py` | Stronger transport, opt-in, parsing, and diagnostics, but article-specific. |
 | Script catalog | `src/agent/script_registry.py`, `configs/script_registry.example.json` | `tests/test_script_registry.py` | Best existing parameterized tool catalog and safety validator. |
 | Script dispatch | `src/agent/script_execution_bridge.py`, `src/agent/scripts/` | `tests/test_script_execution_bridge.py` and backend tests | Existing file, office-file, shell, and fixture-open execution layer. |
 | Canonical multi-agent runtime | `src/agent/autonomous_multi_agent_runtime.py` | `tests/test_autonomous_multi_agent_runtime.py` | One-action-per-turn round-robin runtime with profiles, allowlists, one tool registry, independent histories, explicit shared operations, recovery observations, repetition guard, and group metrics. |
+| Canonical long-horizon experiments | `src/agent/canonical_multi_agent_experiments.py` | `tests/test_canonical_multi_agent_experiments.py` | Reuses the canonical runtime for repeated two-agent fixture trials, globally ordered JSONL traces, failure summaries, and per-agent/trial/experiment metrics. It defines no second runtime or model client. |
 | Legacy callback scheduler | `src/agent/legacy_autonomous_multi_agent_runtime.py` | `tests/test_legacy_autonomous_multi_agent_runtime.py` | Preserved for historical browser runtime/bridge evidence; it is no longer the canonical import path. |
 | Scripted multi-agent fixture scenario | `src/agent/autonomous_runtime_scenarios.py` | scenario and suite tests | Executes two agents through the scheduler, but decisions are prewritten one-action tasks rather than model-selected actions. |
 | Stepwise observation/action benchmark | `src/agent/autonomous_browser_stepwise_article_benchmark.py` | Phase 15 tests | Genuine bounded one-action-per-turn loop, but single-agent and benchmark-specific. |
@@ -104,6 +105,13 @@ only a smaller subset is suitable as the current runtime foundation.
    current fake vertical slice. Historical browser modules import the explicit
    `legacy_` scheduler instead of sharing the canonical name.
 
+10. `canonical_multi_agent_experiments.py`
+
+   This is the canonical benchmark composition layer. It builds long-horizon
+   scenarios from the domain/runtime/tool types above and writes traces and
+   metrics. Its model path reuses `LocalOpenAIModelPolicy` and
+   `LocalLLMClient`; no workflow-planner or browser-click runtime is imported.
+
 ## Reference and duplication findings
 
 - `src/agent` contains roughly 24,900 lines of non-stateful autonomous-browser
@@ -116,8 +124,9 @@ only a smaller subset is suitable as the current runtime foundation.
 - Three local chat-client implementations are active in source:
   `LocalLLMClient`, `HttpxChatCompletionClient`, and
   `StepwiseArticleLocalModelClient`.
-- There is one substantial script registry and dispatch bridge, but no shared
-  runtime-level `ToolSpec`, `ToolExecutionContext`, or `ToolResult` interface.
+- The canonical runtime now owns shared `ToolSpec`, `ToolExecutionContext`,
+  `ToolResult`, and `ToolRegistry` interfaces over the existing script
+  registry and dispatch bridge.
 - There is no exact `action_history` or `tool_registry` symbol in the current
   source. Equivalent data is split between execution history, runtime events,
   browser traces, and benchmark step results.
@@ -144,7 +153,8 @@ only a smaller subset is suitable as the current runtime foundation.
 2. **Can more than one agent run in one bounded session?**  
    **Proven with fakes/fixtures.** The scheduler and
    `configs/canonical_multi_agent.example.json` run two agent states in one
-   session.
+   session. Long-horizon fake scenarios extend this to 16-turn article/file
+   handoff and 10-turn office/shared-fact recovery.
 
 3. **Does each agent retain independent history?**  
    **Proven.** Each canonical `AgentState` owns `HistoryEvent` records, and the
@@ -176,15 +186,17 @@ only a smaller subset is suitable as the current runtime foundation.
    text constraints remain descriptive in the canonical slice.
 
 9. **Are per-agent and group metrics available?**  
-   **Proven for the scheduler.** Runtime summaries include per-agent action and
-   failure counts plus group event/action counts. The metric vocabulary differs
-   across historical benchmark families.
+   **Proven for the scheduler and canonical experiment harness.** Runtime
+   summaries include per-agent action/failure counts. Long-horizon summaries
+   add completion, recovery, repetition, role, fairness, latency, token, and
+   per-scenario pass-rate metrics.
 
 10. **Is there a long multi-call benchmark rather than only complete workflow
     generation?**  
-    **Partial.** Phase 15 provides repeated stepwise calls for one article
-    agent. Phase 13E/14 provide broad repeated model evidence, but each output
-    is a complete workflow JSON.
+    **Proven with deterministic canonical policies; local-model evidence is
+    pending.** The canonical harness executes fixed 10/16-turn two-agent
+    scenarios under the one-action contract. Phase 13E/14 remain separate
+    complete-workflow benchmarks.
 
 11. **Is model variance measured?**  
     **Proven for controlled benchmark protocols.** Phase 13E/14 include repeated
@@ -221,7 +233,7 @@ Statuses mean:
 | Mail/git/other applications | missing | none in canonical registry | Optional TZ clause; requires separate safety design. |
 | Agent receives initial state from orchestrator/config | proven | scenario/config loaders and runtimes | Representations are duplicated. |
 | Agent saves action and error history | proven | canonical `HistoryEvent` plus legacy evidence | Persistence is summary/JSON based, not an external store. |
-| Group of local agents | partial | canonical two-agent fake slice | Local-model group execution and true parallelism are not proven. |
+| Group of local agents | partial | canonical two-agent fake slice and long-horizon harness | Local-model group execution and true parallelism are not proven. |
 | Normal activity/role behavior evaluation | partial | normality and model evaluation modules | Evidence is controlled and scenario limited. |
 | Coherence/diversity/repetition evaluation | proven | behavior/variance evaluators and tests | Metric definitions differ by benchmark family. |
 | Several local models compared | proven | five aliases and Phase 14 evidence | Results are bounded to specific frozen protocols. |
@@ -236,6 +248,7 @@ Statuses mean:
 | path/subsystem | classification | inbound references | TZ value | replacement | confidence | action |
 | --- | --- | --- | --- | --- | --- | --- |
 | `src/agent/autonomous_multi_agent_runtime.py` | canonical_core | canonical CLI/config/tests | one-action policies, unified tools, group scheduling, independent histories, recovery | none | 0.99 | keep |
+| `src/agent/canonical_multi_agent_experiments.py` | benchmark | canonical CLI/config/tests | long-horizon scenarios, traces, and repeated metrics over the canonical runtime | none | 0.99 | keep |
 | `src/agent/legacy_autonomous_multi_agent_runtime.py` | legacy_experiment | browser runtime/bridge/suite modules and legacy tests | historical scheduler evidence | canonical runtime | 0.99 | keep isolated until browser evidence retirement |
 | `src/agent/script_registry.py` | tool | bridge, runners, pipeline, tests | parameterized scripts and safety | none | 0.99 | keep |
 | `src/agent/script_execution_bridge.py` and `src/agent/scripts/` | tool | experiment/pipeline/recovery modules and tests | file/office/command execution | none | 0.99 | keep and adapt |
@@ -288,6 +301,14 @@ recovery on that agent's next turn, independent histories, allowlist
 enforcement, bounded repetition/stop behavior, explicit shared fact
 publication/read, and a JSON-serializable group summary. It launches neither a
 model nor a browser.
+
+The canonical long-horizon harness extends that evidence without changing the
+runtime: article/file handoff completes in 16 alternating turns and
+office/shared-fact recovery completes in 10. Repetition, role violation,
+early-stop, local-endpoint refusal, one-action parsing, trace sanitization, and
+failure-summary paths are covered by deterministic tests. This is fake-policy
+fixture evidence only; no local-model group run or true parallel execution is
+claimed.
 
 ## Benchmark progression
 

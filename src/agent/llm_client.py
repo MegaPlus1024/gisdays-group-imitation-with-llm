@@ -51,6 +51,7 @@ class LocalLLMClient:
         self.max_tokens = max_tokens
         self.endpoint = f"{self.base_url}/chat/completions"
         self.prompt_builder = prompt_builder or PromptBuilder()
+        self.last_usage: dict[str, int] = {}
 
     def _build_messages(self, agent_state: dict[str, Any]) -> list[dict[str, str]]:
         return self.prompt_builder.build_messages(agent_state)
@@ -88,6 +89,7 @@ class LocalLLMClient:
             ) from exc
 
     def generate_next_action(self, agent_state: dict[str, Any]) -> NextAction:
+        self.last_usage = {}
         payload = self._build_payload(agent_state)
         try:
             with httpx.Client(timeout=self.timeout_seconds, trust_env=False) as client:
@@ -97,5 +99,14 @@ class LocalLLMClient:
         except httpx.HTTPError as exc:
             raise LocalLLMRequestError(f"Local runtime request failed: {exc}") from exc
 
+        usage = response_json.get("usage")
+        if isinstance(usage, dict):
+            self.last_usage = {
+                key: int(value)
+                for key, value in usage.items()
+                if key in {"prompt_tokens", "completion_tokens", "total_tokens"}
+                and isinstance(value, int)
+                and value >= 0
+            }
         text = self.extract_assistant_content(response_json)
         return self.parse_next_action_text(text)

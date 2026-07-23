@@ -10,6 +10,11 @@ turns. They keep independent histories, share facts only through explicit
 operations, validate tool access before dispatch, observe structured failures,
 and can recover on a later turn.
 
+The same runtime also has a canonical long-horizon experiment harness. Its
+safe default runs repeated fixture-only fake-policy trials for article/file
+handoff and office/shared-fact recovery. It records per-turn JSONL traces and
+per-trial/experiment metrics without launching a model or browser.
+
 This repository is not production-ready.
 
 The project studies normal user activity with groups of local LLM agents:
@@ -49,14 +54,29 @@ Run tests:
 .\.venv\Scripts\python.exe -m pytest
 ```
 
+Run one safe long-horizon fake trial per default scenario:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_autonomous_multi_agent_runtime.py `
+  --config configs\canonical_multi_agent_long_horizon.example.json `
+  --trials-per-scenario 1 `
+  --dry-run
+```
+
+Generated summaries and traces are written below the ignored
+`artifacts/canonical_multi_agent_long_horizon/` root.
+
 ## Canonical Architecture
 
 Current entrypoints:
 
 - `src/agent/autonomous_multi_agent_runtime.py`
+- `src/agent/canonical_multi_agent_experiments.py`
 - `configs/canonical_multi_agent.example.json`
+- `configs/canonical_multi_agent_long_horizon.example.json`
 - `scripts/run_autonomous_multi_agent_runtime.py`
 - `tests/test_autonomous_multi_agent_runtime.py`
+- `tests/test_canonical_multi_agent_experiments.py`
 
 The policy contract is:
 
@@ -74,6 +94,8 @@ Core layers:
 4. Deterministic fake policies and an explicit-opt-in local
    OpenAI-compatible policy.
 5. Bounded round-robin multi-agent scheduling and group metrics.
+6. A repeated long-horizon harness that consumes these same layers and writes
+   sanitized trial traces and aggregate metrics.
 
 The default registry adapts the existing `ScriptRegistry` and
 `ScriptExecutionBridge`; file/office/command backends are not reimplemented.
@@ -114,6 +136,8 @@ Historical evaluation commands retain the stable aliases:
 
 Local model calls are never the default. The library policy accepts only
 localhost endpoints and requires explicit opt-in.
+The long-horizon CLI additionally requires `--allow-model-execution`; omitting
+it selects fake policies. No canonical local-model group result is claimed.
 
 ## Tools
 
@@ -154,6 +178,8 @@ Important interpretation:
 - Phase 15 evaluates repeated observation/action behavior for one article
   agent.
 - The canonical runtime proves a deterministic two-agent stepwise integration.
+- The long-horizon fake evidence proves 16-turn article/file handoff and
+  10-turn office/shared-fact recovery through that same integration.
 - No local-model two-agent canonical run or true parallel execution is claimed.
 - Historical CPU/RAM/latency probes are bounded evidence, not production
   sizing.
@@ -167,6 +193,7 @@ allowlisted runtime and historical guarded experiments described here.
 ```text
 configs/
   canonical_multi_agent.example.json
+  canonical_multi_agent_long_horizon.example.json
   evaluation_models.json
   script_registry.example.json
 docs/
@@ -176,6 +203,7 @@ docs/
   status/final_project_completion_report.md
 src/agent/
   autonomous_multi_agent_runtime.py
+  canonical_multi_agent_experiments.py
   legacy_autonomous_multi_agent_runtime.py
   script_registry.py
   script_execution_bridge.py
@@ -184,6 +212,7 @@ scripts/
   run_autonomous_multi_agent_runtime.py
 tests/
   test_autonomous_multi_agent_runtime.py
+  test_canonical_multi_agent_experiments.py
 ```
 
 Generated outputs belong under ignored `artifacts/` paths. Local models,

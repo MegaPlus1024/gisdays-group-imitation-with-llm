@@ -27,7 +27,13 @@ class FileActivityNotFoundError(FileActivityError):
 class FileActivityConfig(BaseModel):
     project_root: Path
     allowed_file_roots: list[str] = Field(
-        default_factory=lambda: ["docs/", "configs/", "experiments/", "tests/"]
+        default_factory=lambda: [
+            "artifacts/",
+            "docs/",
+            "configs/",
+            "experiments/",
+            "tests/",
+        ]
     )
     forbidden_file_roots: list[str] = Field(
         default_factory=lambda: ["models/gguf/", ".venv/", ".git/"]

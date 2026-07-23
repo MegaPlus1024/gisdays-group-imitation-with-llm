@@ -310,9 +310,11 @@ def test_local_policy_adapts_one_next_action_not_workflow_json() -> None:
         expected_result="complete",
     )
     assert len(calls) == 1
-    assert calls[0]["instruction"] == (
-        "Return exactly one action object, never a workflow or actions array."
-    )
+    assert "Return exactly one action object" in calls[0]["instruction"]
+    assert "do not repeat it unchanged" in calls[0]["instruction"]
+    assert calls[0]["available_actions"] == []
+    assert calls[0]["shared_facts"] == {}
+    assert calls[0]["protocol"]["disable_thinking"] is True
     assert "actions" not in action.to_dict()
 
 

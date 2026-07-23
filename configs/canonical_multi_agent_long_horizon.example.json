@@ -1,0 +1,41 @@
+{
+  "schema_version": "canonical_multi_agent_long_horizon_config_v1",
+  "experiment_id": "canonical_multi_agent_long_horizon_v1",
+  "scenario_ids": [
+    "article_file_handoff",
+    "office_shared_fact_recovery"
+  ],
+  "trials_per_scenario": 3,
+  "max_turns_per_trial": 24,
+  "scheduler": "round_robin",
+  "fixture_only": true,
+  "model_execution": false,
+  "model_profile": {
+    "model_id": "third_model",
+    "disable_thinking": true,
+    "response_max_tokens": 512,
+    "temperature": 0.0,
+    "timeout_seconds": 120.0
+  },
+  "agents": {
+    "source": "canonical_scenario_definitions",
+    "minimum_agents": 2
+  },
+  "output_dir": "artifacts/canonical_multi_agent_long_horizon",
+  "metrics": [
+    "turns",
+    "model_calls",
+    "valid_actions",
+    "invalid_actions",
+    "successful_tools",
+    "failed_tools",
+    "recovery_successes",
+    "repeated_actions",
+    "role_violations",
+    "scheduler_fairness"
+  ],
+  "failure_policy": {
+    "fail_fast": false,
+    "skip_existing": false
+  }
+}

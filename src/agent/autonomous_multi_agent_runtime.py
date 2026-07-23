@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -473,12 +474,21 @@ class EarlyStopFakePolicy:
 class LocalOpenAIModelPolicy:
     client: LocalLLMClient
     allow_model_calls: bool = False
+    disable_thinking: bool = True
+    response_max_tokens: int | None = None
+    temperature: float | None = None
     model_execution_attempted: bool = field(default=False, init=False)
+    last_input_tokens: int | None = field(default=None, init=False)
+    last_output_tokens: int | None = field(default=None, init=False)
 
     def __post_init__(self) -> None:
         parsed = urlparse(self.client.base_url)
         if parsed.scheme not in {"http", "https"} or parsed.hostname not in LOCAL_MODEL_HOSTS:
             raise ValueError("Local model policy only accepts localhost endpoints.")
+        if self.response_max_tokens is not None and self.response_max_tokens <= 0:
+            raise ValueError("response_max_tokens must be greater than zero.")
+        if self.temperature is not None and self.temperature < 0:
+            raise ValueError("temperature must be non-negative.")
 
     def next_action(
         self,
@@ -492,17 +502,51 @@ class LocalOpenAIModelPolicy:
                 "allow_model_calls_required",
             )
         self.model_execution_attempted = True
+        self.last_input_tokens = None
+        self.last_output_tokens = None
         next_action = self.client.generate_next_action(
             {
                 "agent_id": agent_state.agent_id,
                 "role": agent_state.profile.role,
                 "goal": agent_state.profile.goal,
                 "constraints": list(agent_state.profile.behavior_constraints),
-                "allowed_actions": [spec.to_dict() for spec in allowed_tools],
+                "resources": list(agent_state.profile.resource_constraints),
+                "available_actions": [spec.to_dict() for spec in allowed_tools],
                 "last_observation": observation.to_dict() if observation else None,
                 "history": [event.to_dict() for event in agent_state.history[-8:]],
-                "instruction": "Return exactly one action object, never a workflow or actions array.",
+                "memory": _sanitize_value(agent_state.memory),
+                "shared_facts": _sanitize_value(
+                    agent_state.memory.get("shared_facts", {})
+                ),
+                "protocol": {
+                    "disable_thinking": self.disable_thinking,
+                    "response_max_tokens": self.response_max_tokens,
+                    "temperature": self.temperature,
+                },
+                "action_schema": {
+                    "action": "string",
+                    "parameters": "object",
+                    "reason": "string",
+                    "expected_result": "string",
+                },
+                "instruction": (
+                    "Return exactly one action object, never a workflow or actions "
+                    "array. If the previous own action failed, do not repeat it "
+                    "unchanged."
+                ),
             }
+        )
+        if not isinstance(next_action, NextAction):
+            raise PolicyError(
+                "Local model client returned a non-NextAction result.",
+                "invalid_model_action",
+            )
+        usage = getattr(self.client, "last_usage", {})
+        self.last_input_tokens = (
+            usage.get("prompt_tokens") if isinstance(usage, Mapping) else None
+        )
+        self.last_output_tokens = (
+            usage.get("completion_tokens") if isinstance(usage, Mapping) else None
         )
         return Action(
             tool_name=next_action.action,
@@ -538,6 +582,10 @@ class RuntimeStepResult:
     observation: Observation | None
     status: str
     stop_reason: str | None = None
+    model_latency_ms: float = 0.0
+    tool_latency_ms: float = 0.0
+    input_tokens: int | None = None
+    output_tokens: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -547,6 +595,10 @@ class RuntimeStepResult:
             "observation": self.observation.to_dict() if self.observation else None,
             "status": self.status,
             "stop_reason": self.stop_reason,
+            "model_latency_ms": self.model_latency_ms,
+            "tool_latency_ms": self.tool_latency_ms,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
         }
 
 
@@ -629,29 +681,60 @@ class AutonomousMultiAgentRuntime:
         state.policy_call_count += 1
         self.scheduler_trace.append(state.agent_id)
         allowed_tools = self.tool_registry.specs_for(state.profile.allowed_tools)
+        state.memory["shared_facts"] = _jsonable(self.shared_environment.facts)
+        policy = self.policies[state.agent_id]
+        policy_started = time.perf_counter()
 
         try:
-            action = self.policies[state.agent_id].next_action(
+            action = policy.next_action(
                 state,
                 state.last_observation,
                 allowed_tools,
             )
         except PolicyError as exc:
+            model_latency_ms, input_tokens, output_tokens = _policy_telemetry(
+                policy,
+                policy_started,
+            )
             observation = Observation(
                 success=False,
                 tool_name=None,
                 error_code=exc.error_code,
                 error_message=str(exc),
             )
-            return self._record_failure(state, None, observation, validation=True)
+            return self._record_failure(
+                state,
+                None,
+                observation,
+                validation=True,
+                model_latency_ms=model_latency_ms,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+            )
         except Exception as exc:  # noqa: BLE001 - policy failures become observations.
+            model_latency_ms, input_tokens, output_tokens = _policy_telemetry(
+                policy,
+                policy_started,
+            )
             observation = Observation(
                 success=False,
                 tool_name=None,
                 error_code="policy_error",
                 error_message=str(exc),
             )
-            return self._record_failure(state, None, observation, validation=True)
+            return self._record_failure(
+                state,
+                None,
+                observation,
+                validation=True,
+                model_latency_ms=model_latency_ms,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+            )
+        model_latency_ms, input_tokens, output_tokens = _policy_telemetry(
+            policy,
+            policy_started,
+        )
 
         if action is None:
             state.status = "stopped"
@@ -670,6 +753,9 @@ class AutonomousMultiAgentRuntime:
                 observation=observation,
                 status="policy_stopped",
                 stop_reason=stop_reason,
+                model_latency_ms=model_latency_ms,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
             )
 
         self.actions_attempted += 1
@@ -681,6 +767,9 @@ class AutonomousMultiAgentRuntime:
                 action,
                 validation_error,
                 validation=True,
+                model_latency_ms=model_latency_ms,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
             )
 
         signature = action.signature()
@@ -706,6 +795,9 @@ class AutonomousMultiAgentRuntime:
                 action,
                 observation,
                 validation=True,
+                model_latency_ms=model_latency_ms,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
             )
 
         context = ToolExecutionContext(
@@ -714,6 +806,7 @@ class AutonomousMultiAgentRuntime:
             agent_state=state,
             shared_environment=self.shared_environment,
         )
+        tool_started = time.perf_counter()
         try:
             result = self.tool_registry.execute(action, context)
         except Exception as exc:  # noqa: BLE001 - tool failures are observations.
@@ -722,6 +815,7 @@ class AutonomousMultiAgentRuntime:
                 error_code="tool_executor_error",
                 error_message=str(exc),
             )
+        tool_latency_ms = round((time.perf_counter() - tool_started) * 1000, 3)
         observation = result.to_observation(action.tool_name)
         if observation.success:
             previous_failed = (
@@ -745,8 +839,21 @@ class AutonomousMultiAgentRuntime:
                 observation=observation,
                 status="success",
                 stop_reason=stop_reason,
+                model_latency_ms=model_latency_ms,
+                tool_latency_ms=tool_latency_ms,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
             )
-        return self._record_failure(state, action, observation, validation=False)
+        return self._record_failure(
+            state,
+            action,
+            observation,
+            validation=False,
+            model_latency_ms=model_latency_ms,
+            tool_latency_ms=tool_latency_ms,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
 
     def run(self) -> dict[str, Any]:
         while self.status == "running":
@@ -861,6 +968,10 @@ class AutonomousMultiAgentRuntime:
         observation: Observation,
         *,
         validation: bool,
+        model_latency_ms: float = 0.0,
+        tool_latency_ms: float = 0.0,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
     ) -> RuntimeStepResult:
         state.actions_failed += 1
         self.actions_failed += 1
@@ -882,6 +993,10 @@ class AutonomousMultiAgentRuntime:
             observation=observation,
             status="failed",
             stop_reason=stop_reason,
+            model_latency_ms=model_latency_ms,
+            tool_latency_ms=tool_latency_ms,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
         )
 
     def _record_event(
@@ -1451,6 +1566,27 @@ def _safe_message(value: str | None) -> str | None:
     if value is None:
         return None
     return _sanitize_text(value, limit=500)
+
+
+def sanitize_runtime_value(value: Any) -> Any:
+    """Return a bounded, path-safe, secret-redacted JSON-compatible value."""
+    return _sanitize_value(value)
+
+
+def _policy_telemetry(
+    policy: ModelPolicy,
+    started_at: float,
+) -> tuple[float, int | None, int | None]:
+    if not bool(getattr(policy, "model_execution_attempted", False)):
+        return 0.0, None, None
+    latency_ms = round((time.perf_counter() - started_at) * 1000, 3)
+    input_tokens = getattr(policy, "last_input_tokens", None)
+    output_tokens = getattr(policy, "last_output_tokens", None)
+    return (
+        latency_ms,
+        input_tokens if isinstance(input_tokens, int) else None,
+        output_tokens if isinstance(output_tokens, int) else None,
+    )
 
 
 def _sanitize_value(value: Any) -> Any:

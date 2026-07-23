@@ -39,6 +39,7 @@ artifacts/autonomous_runtime_planner_packets/
 artifacts/autonomous_runtime_planner_summaries/
 artifacts/browser_planner_replay_suite_tests/
 artifacts/stepwise_article_benchmark/
+artifacts/canonical_multi_agent_long_horizon/
 
 # Local models
 models/gguf/*.gguf

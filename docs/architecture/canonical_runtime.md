@@ -13,9 +13,13 @@ fixture/local-tool only, and does not call a model or open a browser.
 ## Current entrypoints
 
 - Runtime and domain: `src/agent/autonomous_multi_agent_runtime.py`
+- Long-horizon experiments: `src/agent/canonical_multi_agent_experiments.py`
 - Deterministic config: `configs/canonical_multi_agent.example.json`
+- Experiment config:
+  `configs/canonical_multi_agent_long_horizon.example.json`
 - CLI: `scripts/run_autonomous_multi_agent_runtime.py`
 - Tests: `tests/test_autonomous_multi_agent_runtime.py`
+- Experiment tests: `tests/test_canonical_multi_agent_experiments.py`
 - Script catalog: `configs/script_registry.example.json`
 - Existing dispatch backends: `src/agent/script_execution_bridge.py` and
   `src/agent/scripts/`
@@ -30,6 +34,19 @@ Run the no-model vertical slice:
 
 The command emits one compact JSON summary to stdout. It does not write an
 artifact unless `--output artifacts/...` is supplied.
+
+Run the safe long-horizon fake harness:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_autonomous_multi_agent_runtime.py `
+  --config configs\canonical_multi_agent_long_horizon.example.json `
+  --trials-per-scenario 1 `
+  --dry-run
+```
+
+This command uses the same domain objects, tool registry, policies, and
+round-robin runtime. The experiment module adds scenario composition,
+trace/materialization, and metrics only; it is not a second runtime.
 
 ## Layers
 
@@ -90,8 +107,16 @@ The canonical module supplies deterministic policies for tests:
 
 `LocalOpenAIModelPolicy` reuses `LocalLLMClient`; it is not a second HTTP
 client. It accepts only localhost endpoints and refuses calls unless
-`allow_model_calls=True`. The canonical CLI uses fake policies and has no model
-execution flag.
+`allow_model_calls=True`. Long-horizon CLI model execution also requires the
+explicit `--allow-model-execution` flag. Without that flag, fake policies are
+used and no endpoint is contacted.
+
+Each model turn receives role, goal, resource and behavior constraints,
+profile-filtered `ToolSpec` entries, the agent's bounded own history and
+memory, explicit shared facts, the previous observation/error, and protocol
+metadata. The response contract remains one `NextAction`; workflow arrays are
+rejected. The prompt explicitly asks the model not to repeat a failed action
+unchanged.
 
 Complete workflow JSON is not the policy contract. Phase 13E/14 workflow
 planners are retained as historical frozen benchmarks.
@@ -112,6 +137,34 @@ planners are retained as historical frozen benchmarks.
 
 The scheduler is interleaved, not parallel. No thread/process concurrency is
 claimed.
+
+## Long-horizon experiment layer
+
+The canonical experiment scenarios are:
+
+- `article_file_handoff`: two agents alternate for 16 turns while reading a
+  fixture article, writing/reading a bounded note, and publishing/reading one
+  explicit shared fact;
+- `office_shared_fact_recovery`: two agents alternate for 10 turns, including
+  a missing-file observation, next-own-turn repair, office fixture reads,
+  explicit shared facts, and a constrained fixture validation command;
+- `bounded_repetition_and_role_guard`: deterministic fake variants exercise
+  early stop, identical-action bounds, and role allowlist rejection before
+  dispatch.
+
+Every trial writes:
+
+- `trial_summary.json` with per-agent and trial completion, action, recovery,
+  repetition, role, latency, token, and fairness metrics;
+- `group_trace.jsonl` in global scheduler order, with action/observation,
+  recovery linkage, bounded parameters, sanitized diagnostics, and terminal
+  reason.
+
+`experiment_summary.json` aggregates pass rates by scenario, turn/wall-time
+means, p50/p95 model latency, recovery/repetition/role rates, tool/action
+counters, and token totals. Percentiles use deterministic standard-library
+interpolation. All output paths are repository-relative below ignored
+`artifacts/`.
 
 ## Error and recovery semantics
 
@@ -184,6 +237,8 @@ must not be presented as results for this stepwise runtime.
 - no Playwright in the canonical runtime;
 - no true parallel execution;
 - no canonical local-model group run yet;
+- long-horizon results currently prove deterministic fake/fixture behavior,
+  not model quality;
 - no fresh CPU/RAM/latency measurement for this runtime;
 - no stable concurrency-2 evidence;
 - no production recommendation.
