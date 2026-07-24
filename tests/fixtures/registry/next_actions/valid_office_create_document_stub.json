@@ -1,10 +1,8 @@
 {
-  "action": "office_create_document_stub",
-  "parameters": {
-    "path": "docs/ai/office_fixture.md",
-    "title": "Fixture",
-    "body": "Text"
-  },
-  "reason": "Need a stub office document.",
-  "expected_result": "Document stub is created."
+    "action_name":  "office_create_document_stub",
+    "parameters":  {
+                       "path":  "docs/ai/office_fixture.md",
+                       "title":  "Fixture",
+                       "body":  "Text"
+                   }
 }

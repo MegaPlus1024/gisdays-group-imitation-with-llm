@@ -20,10 +20,8 @@ from agent.state import AgentState, load_agent_state
 class FakeSuccessClient:
     def generate_next_action(self, agent_state: dict[str, Any]) -> NextAction:
         return NextAction(
-            action="read_file",
+            action_name="read_file",
             parameters={"path": "docs/ai/model_registry.md"},
-            reason="Need model metadata context.",
-            expected_result="Model registry content is available.",
         )
 
 

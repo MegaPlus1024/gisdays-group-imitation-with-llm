@@ -17,27 +17,24 @@ Define the strict output shape the local model must return when proposing exactl
 ## Contract shape
 ```json
 {
-  "action": "string",
-  "parameters": {},
-  "reason": "string",
-  "expected_result": "string"
+  "action_name": "string",
+  "parameters": {}
 }
 ```
 
 ## Validation rules
-- `action` must be a non-empty string after whitespace trim.
-- `reason` must be a non-empty string after whitespace trim.
-- `expected_result` must be a non-empty string after whitespace trim.
+- `action_name` must be a non-empty string after whitespace trim.
 - `parameters` must be a JSON object; if omitted it defaults to `{}`.
 - Extra fields are rejected.
 - Input text must be valid JSON and must decode to an object.
 - Markdown-fenced JSON is rejected by design.
+- The legacy output keys `action`, `reason`, and `expected_result` are rejected by design.
 
 ## Example usage
 ```python
 from agent.action_contract import parse_next_action_text
 
-text = '{"action":"read_file","parameters":{"path":"docs/ai/model_registry.md"},"reason":"Need source context.","expected_result":"File content loaded."}'
+text = '{"action_name":"read_file","parameters":{"path":"docs/ai/model_registry.md"}}'
 next_action = parse_next_action_text(text)
 ```
 
@@ -48,4 +45,4 @@ next_action = parse_next_action_text(text)
 - Full agent loop.
 
 ## Next step
-Implement script-registry JSON v1 and semantic action validation that checks `action` and `parameters` against registry rules.
+Keep semantic action validation checking `action_name` and `parameters` against registry rules.

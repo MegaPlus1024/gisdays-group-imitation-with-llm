@@ -557,14 +557,12 @@ class LocalOpenAIModelPolicy:
                     **({"no_think_prefix": self.no_think_prefix} if self.no_think_prefix else {}),
                 },
                 "action_schema": {
-                    "action": "string",
+                    "action_name": "string",
                     "parameters": "object",
-                    "reason": "string",
-                    "expected_result": "string",
                 },
                 "instruction": (
-                    "Return exactly one action object, never a workflow or actions "
-                    "array. If the previous own action failed, do not repeat it "
+                    "Return exactly one action object with only action_name and "
+                    "parameters, never a workflow or actions array. If the previous own action failed, do not repeat it "
                     "unchanged. Publish shared facts only from your own observed "
                     "evidence and include the matching evidence_id; invented or "
                     "mismatched values will fail and finish remains blocked until "
@@ -1806,10 +1804,8 @@ class ScriptBridgeToolExecutor:
     ) -> ToolResult:
         output = self.bridge.execute_next_action(
             NextAction(
-                action=action.tool_name,
+                action_name=action.tool_name,
                 parameters=dict(action.parameters),
-                reason=action.reason or "Canonical runtime tool call.",
-                expected_result=action.expected_result or "Bounded tool result.",
             ),
             run_id=context.runtime_id,
             agent_id=context.agent_state.agent_id,

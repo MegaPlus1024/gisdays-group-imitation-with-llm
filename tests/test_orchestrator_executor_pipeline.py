@@ -143,10 +143,8 @@ def _bloated_agent_state() -> AgentState:
                 "safe_write_path_examples": [f"artifacts/out_{index}.md" for index in range(40)],
                 "path_rules": ["Use relative project paths only.", "Do not use absolute paths."],
                 "json_only_example": {
-                    "action": "action_0",
+                    "action_name": "action_0",
                     "parameters": {"path": "configs/example_0.json"},
-                    "reason": "Read safe local input.",
-                    "expected_result": "Local input is available.",
                 },
             },
             "raw_prompt": "RAW_PROMPT_MARKER_SHOULD_NOT_LEAK",
@@ -185,10 +183,8 @@ def _repair_config() -> ActionParameterRepairConfig:
 
 def _next_action(action: str, parameters: dict[str, object] | None = None) -> pipeline.NextAction:
     return pipeline.NextAction(
-        action=action,
+        action_name=action,
         parameters=parameters or {},
-        reason="Select a safe local action.",
-        expected_result="The action validates.",
     )
 
 
@@ -200,7 +196,7 @@ class _FakeBridgeOutput:
     def model_dump(self, *, mode: str = "json") -> dict[str, object]:
         del mode
         return {
-            "action": self.raw_result.action,
+            "action_name": self.raw_result.action,
             "success": self.raw_result.success,
             "raw_result": self.raw_result.model_dump(mode="json"),
         }
@@ -215,7 +211,7 @@ class _RecordingBridge:
     def execute_next_action(self, next_action, *, run_id, agent_id, step_index):  # type: ignore[no-untyped-def]
         del run_id, agent_id, step_index
         path = next_action.parameters.get("path")
-        self.calls.append({"action": next_action.action, "path": path})
+        self.calls.append({"action_name": next_action.action, "path": path})
         if next_action.action == "office_create_docx" and self.fail_precreate:
             return _FakeBridgeOutput(
                 ScriptExecutionResult(
@@ -699,7 +695,7 @@ def test_executor_attempt_executes_controlled_office_action_with_fake_bridge() -
                 def model_dump(self, *, mode: str = "json"):  # type: ignore[no-untyped-def]
                     del mode
                     return {
-                        "action": next_action.action,
+                        "action_name": next_action.action,
                         "success": True,
                         "raw_result": self.raw_result.model_dump(mode="json"),
                     }
@@ -777,7 +773,7 @@ def test_executor_attempt_repairs_append_docx_no_extension_before_fake_bridge() 
                 def model_dump(self, *, mode: str = "json"):  # type: ignore[no-untyped-def]
                     del mode
                     return {
-                        "action": next_action.action,
+                        "action_name": next_action.action,
                         "success": True,
                         "raw_result": self.raw_result.model_dump(mode="json"),
                     }
@@ -867,7 +863,7 @@ def test_append_docx_safe_missing_path_precreates_when_enabled() -> None:
     assert attempt.error_type is None
     assert attempt.execution_attempted is True
     assert attempt.execution_success is True
-    assert [call["action"] for call in bridge.calls] == ["office_create_docx", "office_append_docx_section"]
+    assert [call["action_name"] for call in bridge.calls] == ["office_create_docx", "office_append_docx_section"]
     assert bridge.calls[0]["path"] == action_path
     assert attempt.precreate_metadata is not None
     assert attempt.precreate_metadata["precreated_missing_document"] is True
@@ -918,7 +914,7 @@ def test_append_docx_precreate_disabled_preserves_missing_file_failure() -> None
 
     assert attempt.error_type == "office_docx_file_missing"
     assert attempt.precreate_metadata is None
-    assert [call["action"] for call in bridge.calls] == ["office_append_docx_section"]
+    assert [call["action_name"] for call in bridge.calls] == ["office_append_docx_section"]
 
 
 def test_append_docx_existing_path_is_not_precreated_again(tmp_path: Path) -> None:
@@ -1022,7 +1018,7 @@ def test_append_docx_precreate_dependency_missing_stops_before_append() -> None:
     assert attempt.error_type == "office_dependency_missing"
     assert attempt.execution_attempted is True
     assert attempt.execution_success is False
-    assert [call["action"] for call in bridge.calls] == ["office_create_docx"]
+    assert [call["action_name"] for call in bridge.calls] == ["office_create_docx"]
     assert attempt.precreate_metadata is not None
     assert attempt.precreate_metadata["precreate_success"] is False
     assert attempt.precreate_metadata["precreate_error_type"] == "office_dependency_missing"

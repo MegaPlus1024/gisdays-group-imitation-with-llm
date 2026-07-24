@@ -270,10 +270,8 @@ def test_session_atypical_and_forbidden_count_methods() -> None:
 
 def test_step_from_next_action_builds_summary() -> None:
     action = NextAction(
-        action="read_file",
+        action_name="read_file",
         parameters={"path": "docs/x.md"},
-        reason="r",
-        expected_result="e",
     )
     step = step_from_next_action(1, action)
     assert step.action == "read_file"

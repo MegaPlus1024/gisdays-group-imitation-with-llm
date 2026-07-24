@@ -1,8 +1,6 @@
 {
-  "action": "read_file",
-  "parameters": {
-    "path": "C:\\Temp\\outside_workspace\\blocked.txt"
-  },
-  "reason": "Absolute path case.",
-  "expected_result": "Should fail unsafe path check."
+    "action_name":  "read_file",
+    "parameters":  {
+                       "path":  "C:\\Temp\\outside_workspace\\blocked.txt"
+                   }
 }

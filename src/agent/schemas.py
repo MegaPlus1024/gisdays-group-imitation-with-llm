@@ -8,17 +8,27 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class NextAction(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    action: str
+    action_name: str
     parameters: dict[str, Any] = Field(default_factory=dict)
-    reason: str
-    expected_result: str
 
-    @field_validator("action", "reason", "expected_result")
+    @field_validator("action_name")
     @classmethod
     def validate_non_empty_text(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("Value must not be empty.")
         return value
+
+    @property
+    def action(self) -> str:
+        return self.action_name
+
+    @property
+    def reason(self) -> str:
+        return ""
+
+    @property
+    def expected_result(self) -> str:
+        return ""
 
 
 class RuntimeConfig(BaseModel):

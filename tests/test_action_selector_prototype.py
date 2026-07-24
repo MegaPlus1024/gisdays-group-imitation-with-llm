@@ -140,10 +140,8 @@ def test_validate_actions_false_skips_validation_for_unknown_but_well_formed_act
     selector = ActionSelector(
         llm_client=FakeClientReturnAction(
             {
-                "action": "unknown_action_name",
+                "action_name": "unknown_action_name",
                 "parameters": {},
-                "reason": "test",
-                "expected_result": "test",
             }
         ),
         config=ActionSelectorConfig(validate_actions=False),

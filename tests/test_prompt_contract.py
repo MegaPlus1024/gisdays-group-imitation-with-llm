@@ -51,6 +51,8 @@ def test_message_roles_ordered_system_then_user() -> None:
 def test_system_message_contains_json_only_instruction() -> None:
     system = PromptBuilder().build_messages(_example_state())[0]["content"]
     assert "Return only raw JSON." in system
+    assert "Your output must begin with { and end with }." in system
+    assert "Do not use markdown, code fences, or prose" in system
 
 
 def test_system_message_contains_injection_hardening_instruction() -> None:
@@ -66,10 +68,28 @@ def test_user_message_contains_prompt_contract_id() -> None:
 
 def test_user_message_contains_next_action_required_fields() -> None:
     user = PromptBuilder().build_messages(_example_state())[1]["content"]
-    assert '"action": "string"' in user
-    assert '"parameters": {}' in user
-    assert '"reason": "string"' in user
-    assert '"expected_result": "string"' in user
+    assert '{"action_name":"office_fixture_read","parameters":{"field":"owner"}}' in user
+    assert "only action_name and parameters" in user
+    assert "Do not include action, reason, expected_result" in user
+    assert '"action": "string"' not in user
+    assert '"reason": "string"' not in user
+    assert '"expected_result": "string"' not in user
+    assert "No markdown, code fences, prose" in user
+
+
+def test_user_message_forbids_placeholders_and_uses_real_literals() -> None:
+    state = _example_state()
+    state.metadata["executor_prompt_hints"] = {
+        "agent_id": "student_researcher_001",
+        "allowed_actions": ["read_file"],
+        "action_schemas": {"read_file": {"required_parameters": ["path"]}},
+        "safe_existing_read_paths": ["docs/ai/model_research_metadata.md"],
+    }
+    user = PromptBuilder().build_messages(state)[1]["content"]
+    assert "http<absolute_path>" in user
+    assert "No placeholders" in user
+    assert "AGENT_STATE_DATA" in user
+    assert "docs/ai/model_research_metadata.md" in user
 
 
 def test_user_message_contains_agent_id_from_example_state() -> None:
@@ -188,7 +208,7 @@ def test_local_llm_client_payload_uses_prompt_builder_messages(
                 "choices": [
                     {
                         "message": {
-                            "content": '{"action":"read_file","parameters":{},"reason":"r","expected_result":"e"}'
+                            "content": '{"action_name":"read_file","parameters":{}}'
                         }
                     }
                 ]

@@ -1089,10 +1089,8 @@ def test_local_policy_prompt_contains_protocol_memory_shared_facts_and_error() -
         def generate_next_action(self, agent_state):  # type: ignore[no-untyped-def]
             self.state = agent_state
             return NextAction(
-                action="finish",
+                action_name="finish",
                 parameters={},
-                reason="complete",
-                expected_result="finished",
             )
 
     client = CapturingClient()
@@ -1144,6 +1142,13 @@ def test_local_policy_prompt_contains_protocol_memory_shared_facts_and_error() -
         "response_max_tokens": 256,
         "temperature": 0.0,
     }
+    assert client.state["action_schema"] == {  # type: ignore[index]
+        "action_name": "string",
+        "parameters": "object",
+    }
+    assert "action_name and parameters" in client.state["instruction"]  # type: ignore[operator]
+    assert "reason" not in client.state["action_schema"]  # type: ignore[operator]
+    assert "expected_result" not in client.state["action_schema"]  # type: ignore[operator]
     assert "do not repeat it unchanged" in client.state["instruction"]  # type: ignore[operator]
     assert policy.last_input_tokens == 17
     assert policy.last_output_tokens == 5
@@ -1229,7 +1234,7 @@ def test_canonical_group_trace_records_fenced_json_parse_diagnostics_and_usage(
     artifact_output_dir: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    content = '```json\n{"action":"finish","parameters":{},"reason":"done","expected_result":"finished"}\n```'
+    content = '```json\n{"action_name":"finish","parameters":{}}\n```'
     _install_fake_openai_response(
         monkeypatch,
         _openai_chat_payload(
@@ -1281,7 +1286,7 @@ def test_canonical_group_trace_records_prose_prefix_without_tolerant_extraction(
     artifact_output_dir: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    content = 'Sure, here is the action:\n{"action":"finish","parameters":{},"reason":"done","expected_result":"finished"}'
+    content = 'Sure, here is the action:\n{"action_name":"finish","parameters":{}}'
     _install_fake_openai_response(
         monkeypatch,
         _openai_chat_payload(content, usage={"prompt_tokens": 7, "other": 3}),
@@ -1323,10 +1328,8 @@ def test_canonical_group_trace_valid_json_behavior_and_missing_usage(
 ) -> None:
     content = json.dumps(
         {
-            "action": "finish",
+            "action_name": "finish",
             "parameters": {},
-            "reason": "complete",
-            "expected_result": "finished",
         }
     )
     _install_fake_openai_response(monkeypatch, _openai_chat_payload(content))
@@ -1355,6 +1358,30 @@ def test_canonical_group_trace_valid_json_behavior_and_missing_usage(
     assert protocol["usage_total_tokens"] is None
     assert event["input_tokens"] is None
     assert event["output_tokens"] is None
+
+
+def test_canonical_group_trace_rejects_legacy_action_wire_key(
+    artifact_output_dir: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    content = json.dumps({"action": "finish", "parameters": {}})
+    _install_fake_openai_response(monkeypatch, _openai_chat_payload(content))
+
+    summary = run_long_horizon_trial(
+        experiment_id="pytest_canonical_action_name_contract",
+        scenario_id="article_file_handoff",
+        trial_index=1,
+        model_id="first_model",
+        output_dir=artifact_output_dir,
+        project_root=PROJECT_ROOT,
+        max_turns=1,
+        allow_model_execution=True,
+        model_policy_settings={"model_id": "first_model"},
+    )
+    event = _load_trace(summary)[0]
+
+    assert event["action_name"] is None
+    assert event["tool_error_code"] == "invalid_action_json"
 
 
 def test_canonical_group_trace_parse_preview_is_bounded_and_escaped(

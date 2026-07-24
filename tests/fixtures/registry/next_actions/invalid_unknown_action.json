@@ -1,6 +1,6 @@
 {
-  "action": "delete_project",
-  "parameters": {},
-  "reason": "Trying unknown action.",
-  "expected_result": "Should be rejected by semantic validator."
+    "action_name":  "delete_project",
+    "parameters":  {
+
+                   }
 }

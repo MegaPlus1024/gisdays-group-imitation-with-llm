@@ -68,10 +68,8 @@ def _valid_plan() -> str:
 def _read_file(path: str) -> str:
     return json.dumps(
         {
-            "action": "read_file",
+            "action_name": "read_file",
             "parameters": {"path": path},
-            "reason": "Read a safe local project file.",
-            "expected_result": "The local file content is available.",
         }
     )
 
@@ -96,10 +94,8 @@ class MissingPathThenRepairExecutor:
             return ExecutorProviderResult(
                 raw_model_output=json.dumps(
                     {
-                        "action": "read_file",
+                        "action_name": "read_file",
                         "parameters": {},
-                        "reason": "Read a local office summary file.",
-                        "expected_result": "A local office summary file.",
                     }
                 )
             )
@@ -142,13 +138,11 @@ class AbsolutePathThenRepairExecutor:
             return ExecutorProviderResult(
                 raw_model_output=json.dumps(
                     {
-                        "action": "create_file",
+                        "action_name": "create_file",
                         "parameters": {
                             "path": "C:\\Temp\\outside_workspace\\bad.txt",
                             "content": "unsafe absolute path",
                         },
-                        "reason": "Create a file with a Windows path.",
-                        "expected_result": "A file is written.",
                     }
                 )
             )

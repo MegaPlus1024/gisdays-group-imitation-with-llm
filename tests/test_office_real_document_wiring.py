@@ -77,10 +77,8 @@ def _registry() -> Any:
 
 def _next_action(action: str, parameters: dict[str, Any] | None = None) -> NextAction:
     return NextAction(
-        action=action,
+        action_name=action,
         parameters=parameters or VALID_PARAMETERS.get(action, {}),
-        reason="wiring test",
-        expected_result="controlled result",
     )
 
 
@@ -183,10 +181,8 @@ def test_bridge_missing_optional_dependency_returns_controlled_error(tmp_path: P
 def test_existing_office_stub_bridge_behavior_still_works(tmp_path: Path) -> None:
     output = _bridge(tmp_path).execute_next_action(
         NextAction(
-            action="office_create_document_stub",
+            action_name="office_create_document_stub",
             parameters={"path": "docs/stub.txt", "title": "Stub", "body": "Body"},
-            reason="existing behavior",
-            expected_result="stub file",
         )
     )
 

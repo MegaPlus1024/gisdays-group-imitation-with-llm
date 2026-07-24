@@ -1,8 +1,6 @@
 {
-  "action": "read_file",
-  "parameters": {
-    "path": "models/gguf/first_model.gguf"
-  },
-  "reason": "Forbidden path case.",
-  "expected_result": "Should fail forbidden path check."
+    "action_name":  "read_file",
+    "parameters":  {
+                       "path":  "models/gguf/first_model.gguf"
+                   }
 }

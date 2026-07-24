@@ -99,28 +99,24 @@ class OfficeDocumentExecutorProvider:
         del task, state, group_step_index, agent_step_index, out_dir, project_root
         if agent.agent_id == "document_summary_agent":
             action = {
-                "action": "office_create_docx",
+                "action_name": "office_create_docx",
                 "parameters": {
                     "path": f"{OFFICE_WORKSPACE_ROOT}/office_documents/offline_basic/summary.docx",
                     "title": "Offline fake summary",
                     "paragraphs": ["Validation-only fake pipeline smoke."],
                 },
-                "reason": "Select an allowlisted DOCX document-file action without executing it.",
-                "expected_result": "The action validates and is not executed.",
             }
         else:
             action = {
-                "action": "office_create_xlsx",
+                "action_name": "office_create_xlsx",
                 "parameters": {
                     "path": f"{OFFICE_WORKSPACE_ROOT}/office_documents/offline_basic/tasks.xlsx",
                     "sheet_name": "Tasks",
                     "headers": ["Task", "Status"],
                     "rows": [["Smoke validation", "Planned"]],
                 },
-                "reason": "Select an allowlisted XLSX document-file action without executing it.",
-                "expected_result": "The action validates and is not executed.",
             }
-        self.calls.append({"agent_id": agent.agent_id, "action": action["action"]})
+        self.calls.append({"agent_id": agent.agent_id, "action_name": action["action_name"]})
         return ExecutorProviderResult(
             raw_model_output=json.dumps(action, ensure_ascii=False),
             metadata={"provider": "office_document_fake_executor", "agent_id": agent.agent_id},
@@ -188,8 +184,8 @@ def test_office_document_scenario_fake_pipeline_validates_without_execution(
     assert result.artifact_dir is not None
     assert out_dir.is_relative_to(tmp_path)
     assert executor_provider.calls == [
-        {"agent_id": "document_summary_agent", "action": "office_create_docx"},
-        {"agent_id": "document_tracker_agent", "action": "office_create_xlsx"},
+        {"agent_id": "document_summary_agent", "action_name": "office_create_docx"},
+        {"agent_id": "document_tracker_agent", "action_name": "office_create_xlsx"},
     ]
 
     assert {row["action"] for row in actions} == {"office_create_docx", "office_create_xlsx"}
@@ -214,10 +210,8 @@ def test_office_document_role_rejects_disallowed_runtime_action() -> None:
     registry = load_script_registry(PROJECT_ROOT / scenario.registry_path)
     role = load_role_template(PROJECT_ROOT / ROLE_PATH)
     action = NextAction(
-        action="browser_open_url",
+        action_name="browser_open_url",
         parameters={"url": "http://localhost/offline-smoke"},
-        reason="negative validation check",
-        expected_result="disallowed action is rejected by the role allowlist",
     )
 
     result = validate_next_action_against_registry(action, registry, role)

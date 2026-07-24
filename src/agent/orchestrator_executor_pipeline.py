@@ -583,35 +583,27 @@ class FakeExecutorActionProvider:
         if "office" in agent.agent_id:
             if agent_step_index == 1:
                 action = {
-                    "action": "read_file",
+                    "action_name": "read_file",
                     "parameters": {"path": "docs/ai/model_research_metadata.md"},
-                    "reason": "Inspect current model metadata before preparing a group note.",
-                    "expected_result": "Research metadata is available for the office note.",
                 }
             else:
                 action = {
-                    "action": "create_file",
+                    "action_name": "create_file",
                     "parameters": {
                         "path": _safe_relative_artifact_path(project_root, out_dir / "workspace" / "office_agent_summary.md"),
                         "content": "Office agent summary: model metadata was reviewed for the group run.\n",
                     },
-                    "reason": "Use previous metadata review to create a concise safe local summary.",
-                    "expected_result": "A local office summary note is created in the group artifact workspace.",
                 }
         else:
             if agent_step_index == 1:
                 action = {
-                    "action": "read_file",
+                    "action_name": "read_file",
                     "parameters": {"path": "docs/ai/final_tz_readiness_audit.md"},
-                    "reason": "Inspect the current readiness audit before developer follow-up.",
-                    "expected_result": "Readiness gaps are available to guide the developer task.",
                 }
             else:
                 action = {
-                    "action": "read_file",
+                    "action_name": "read_file",
                     "parameters": {"path": "docs/ai/orchestrator_executor_quality_spec.md"},
-                    "reason": "Use previous readiness context and inspect the pair quality scoring draft.",
-                    "expected_result": "Quality scoring context is available for the group history.",
                 }
         return ExecutorProviderResult(
             raw_model_output=json.dumps(action, ensure_ascii=False, indent=2),
@@ -2077,10 +2069,8 @@ def _next_action_json_example(
     if "read_file" in action_schemas:
         path = sorted(safe_existing_read_paths)[0] if safe_existing_read_paths else "docs/ai/model_research_metadata.md"
         return {
-            "action": "read_file",
+            "action_name": "read_file",
             "parameters": {"path": path},
-            "reason": "Read a safe local project document for the assigned task.",
-            "expected_result": "The local document content is available.",
         }
     if "create_file" in action_schemas:
         path = (
@@ -2089,10 +2079,8 @@ def _next_action_json_example(
             else "experiments/multi_agent/orchestrator_executor/workspace/executor_note.md"
         )
         return {
-            "action": "create_file",
+            "action_name": "create_file",
             "parameters": {"path": path, "content": "Local group note.\n"},
-            "reason": "Create a safe local note for the assigned task.",
-            "expected_result": "The note is written under an allowed project path.",
         }
     for action_name in sorted(action_schemas):
         schema = action_schemas[action_name]
@@ -2110,17 +2098,13 @@ def _next_action_json_example(
             path = sorted(safe_write_path_examples)[0]
         if path is not None:
             return {
-                "action": action_name,
+                "action_name": action_name,
                 "parameters": {"path": path},
-                "reason": "Create a safe local artifact for the assigned task.",
-                "expected_result": "The artifact path is valid under the controlled workspace.",
             }
     action_name = sorted(action_schemas)[0] if action_schemas else "read_file"
     return {
-        "action": action_name,
+        "action_name": action_name,
         "parameters": {},
-        "reason": "Select the safest available action for the assigned task.",
-        "expected_result": "A valid local action is selected.",
     }
 
 
@@ -3110,7 +3094,7 @@ def _maybe_precreate_missing_docx_for_append(
         return DocxAppendPrecreateResult()
 
     precreate_action = NextAction(
-        action="office_create_docx",
+        action_name="office_create_docx",
         parameters={
             "path": normalized_path,
             "paragraphs": [],
@@ -3119,8 +3103,6 @@ def _maybe_precreate_missing_docx_for_append(
                 "precreate_reason": "append_target_missing",
             },
         },
-        reason="Create a controlled missing DOCX target before appending.",
-        expected_result="A minimal DOCX exists for the append action.",
     )
     output = bridge.execute_next_action(
         precreate_action,
@@ -3221,7 +3203,7 @@ def _repair_executor_action(
 
 def _update_state_history(state: AgentState, attempt: ExecutorActionAttempt) -> None:
     if attempt.next_action:
-        action = attempt.next_action["action"]
+        action = str(attempt.next_action.get("action_name") or attempt.next_action.get("action"))
         params = dict(attempt.next_action.get("parameters") or {})
     else:
         action = "invalid_or_missing_action"
@@ -3297,7 +3279,7 @@ def _activity_steps_from_attempts(attempts: list[ExecutorActionAttempt]) -> list
         steps.append(
             ActivityTrajectoryStep(
                 step_index=attempt.agent_step_index,
-                action=str(attempt.next_action["action"]),
+                action=str(attempt.next_action.get("action_name") or attempt.next_action.get("action")),
                 parameters=dict(attempt.next_action.get("parameters") or {}),
                 success=attempt.error_type is None,
                 status="success" if attempt.error_type is None else "failure",

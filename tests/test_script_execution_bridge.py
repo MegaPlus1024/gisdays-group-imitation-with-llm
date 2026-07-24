@@ -31,10 +31,8 @@ def test_validation_failure_prevents_helper_dispatch(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr("src.agent.script_execution_bridge.run_file_activity", fail_if_called)
 
     action = NextAction(
-        action="read_file",
+        action_name="read_file",
         parameters={},
-        reason="test",
-        expected_result="test",
     )
     out = bridge.execute_next_action(action)
     assert out.success is False
@@ -53,10 +51,8 @@ def test_dispatch_read_file_uses_tmp_path(tmp_path: Path) -> None:
         registry=_registry(),
     )
     action = NextAction(
-        action="read_file",
+        action_name="read_file",
         parameters={"path": "docs/x.txt"},
-        reason="need file",
-        expected_result="content",
     )
     out = bridge.execute_next_action(action)
     assert out.success is True
@@ -74,10 +70,8 @@ def test_dispatch_unsupported_action_returns_dispatch_failed(tmp_path: Path) -> 
         registry=None,
     )
     action = NextAction(
-        action="unknown_action_name",
+        action_name="unknown_action_name",
         parameters={},
-        reason="test",
-        expected_result="test",
     )
     out = bridge.execute_next_action(action)
     assert out.success is False
@@ -95,10 +89,8 @@ def test_normalized_result_present_when_enabled(tmp_path: Path) -> None:
         )
     )
     action = NextAction(
-        action="run_shell_command",
+        action_name="run_shell_command",
         parameters={"command": "python -m pytest -q", "simulate": True},
-        reason="dry run",
-        expected_result="simulated output",
     )
     out = bridge.execute_next_action(action)
     assert out.dispatched is True
@@ -120,10 +112,8 @@ def test_shell_helper_can_be_monkeypatched(tmp_path: Path, monkeypatch: pytest.M
 
     monkeypatch.setattr("src.agent.script_execution_bridge.run_shell_command_activity", fake_shell)
     action = NextAction(
-        action="run_shell_command",
+        action_name="run_shell_command",
         parameters={"command": "python -m pytest -q"},
-        reason="test patch",
-        expected_result="patched",
     )
     out = bridge.execute_next_action(action)
     assert out.success is True

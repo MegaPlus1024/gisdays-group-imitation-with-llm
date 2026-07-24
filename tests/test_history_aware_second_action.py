@@ -44,10 +44,8 @@ def _success_result(action: str, params: dict[str, Any], status: str = "selected
         success=True,
         status=status,  # type: ignore[arg-type]
         next_action=NextAction(
-            action=action,
+            action_name=action,
             parameters=params,
-            reason="r",
-            expected_result="e",
         ),
     )
 
@@ -94,10 +92,8 @@ def test_load_history_aware_selection_config() -> None:
 
 def test_next_action_to_history_entry_fields() -> None:
     action = NextAction(
-        action="read_file",
+        action_name="read_file",
         parameters={"path": "docs/ai/runtime_path_v1.md"},
-        reason="r",
-        expected_result="e",
     )
     entry = next_action_to_history_entry(action, step_index=2)
     assert entry.step == 2
@@ -109,7 +105,7 @@ def test_build_state_with_history_entry_returns_new_state_and_preserves_original
     state = _state()
     original_history = copy.deepcopy(state.history)
     action = NextAction(
-        action="read_file", parameters={"path": "a"}, reason="r", expected_result="e"
+        action_name="read_file", parameters={"path": "a"}
     )
     entry = next_action_to_history_entry(action, step_index=state.current_step)
     new_state = build_state_with_history_entry(state, entry)
@@ -121,7 +117,7 @@ def test_build_state_with_history_entry_returns_new_state_and_preserves_original
 def test_build_state_with_history_entry_increments_current_step() -> None:
     state = _state()
     action = NextAction(
-        action="read_file", parameters={"path": "a"}, reason="r", expected_result="e"
+        action_name="read_file", parameters={"path": "a"}
     )
     entry = next_action_to_history_entry(action, step_index=state.current_step)
     new_state = build_state_with_history_entry(state, entry)
@@ -129,14 +125,14 @@ def test_build_state_with_history_entry_increments_current_step() -> None:
 
 
 def test_actions_exactly_equal_true_for_same_action_and_parameters() -> None:
-    a = NextAction(action="x", parameters={"p": 1}, reason="r1", expected_result="e1")
-    b = NextAction(action="x", parameters={"p": 1}, reason="r2", expected_result="e2")
+    a = NextAction(action_name="x", parameters={"p": 1})
+    b = NextAction(action_name="x", parameters={"p": 1})
     assert actions_exactly_equal(a, b) is True
 
 
 def test_actions_exactly_equal_false_for_different_parameters() -> None:
-    a = NextAction(action="x", parameters={"p": 1}, reason="r1", expected_result="e1")
-    b = NextAction(action="x", parameters={"p": 2}, reason="r2", expected_result="e2")
+    a = NextAction(action_name="x", parameters={"p": 1})
+    b = NextAction(action_name="x", parameters={"p": 2})
     assert actions_exactly_equal(a, b) is False
 
 

@@ -17,19 +17,15 @@ SCENARIO = "configs/evaluation_scenarios/office_worker_basic_session.json"
 
 def _read_file_action() -> dict[str, object]:
     return {
-        "action": "read_file",
+        "action_name": "read_file",
         "parameters": {"path": "docs/ai/model_registry.md"},
-        "reason": "Read a documented local project file before deciding the next step.",
-        "expected_result": "The model registry text is available.",
     }
 
 
 def _read_file_action_missing_path() -> dict[str, object]:
     return {
-        "action": "read_file",
+        "action_name": "read_file",
         "parameters": {},
-        "reason": "Try to read a file but omit the required path.",
-        "expected_result": "The registry rejects the action.",
     }
 
 
@@ -122,10 +118,8 @@ def test_unknown_action_is_validation_failure(tmp_path: Path) -> None:
             tmp_path,
             scripted_actions=[
                 {
-                    "action": "unknown_action",
+                    "action_name": "unknown_action",
                     "parameters": {},
-                    "reason": "Exercise validation failure path.",
-                    "expected_result": "The registry rejects the action.",
                 }
             ],
         )
@@ -222,13 +216,11 @@ def test_write_action_outside_workspace_is_rejected_without_writing_docs(tmp_pat
             tmp_path,
             scripted_actions=[
                 {
-                    "action": "create_file",
+                    "action_name": "create_file",
                     "parameters": {
                         "path": "docs/ai/should_not_be_written_by_runner.md",
                         "content": "This should be blocked by workspace policy.",
                     },
-                    "reason": "Exercise workspace write protection.",
-                    "expected_result": "The write is rejected before execution.",
                 }
             ],
         )
@@ -244,13 +236,11 @@ def test_write_action_outside_workspace_is_rejected_without_writing_docs(tmp_pat
 
 def test_duplicate_validation_issue_codes_do_not_crash_stop_summary(tmp_path: Path) -> None:
     action = {
-        "action": "create_file",
+        "action_name": "create_file",
         "parameters": {
             "path": "docs/ai/model_registry.md",
             "content": "This should be blocked by workspace policy.",
         },
-        "reason": "Exercise duplicate safety issue handling.",
-        "expected_result": "The write is rejected before execution.",
     }
     result = ExperimentScenarioRunner(
         _config(
@@ -275,7 +265,7 @@ def test_no_execute_actions_saves_selection_without_bridge_execution(tmp_path: P
 
     assert result.steps[0].parse_success is True
     assert result.steps[0].execution_attempted is False
-    assert selected[0]["next_action"]["action"] == "read_file"
+    assert selected[0]["next_action"]["action_name"] == "read_file"
     assert execution_results == []
 
 

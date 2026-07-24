@@ -42,7 +42,7 @@ def _fake_history(
             "group_step_index": 1,
             "agent_id": "document_summary_agent",
             "task_id": "task_1",
-            "action": "office_create_docx",
+            "action_name": "office_create_docx",
             "status": "success",
             "summary": summary,
             "artifact_paths": artifact_paths or ["artifacts/office_documents/offline_basic/summary.docx"],
@@ -137,28 +137,24 @@ class OfficeDocumentExecutorProvider:
         del task, state, group_step_index, agent_step_index, out_dir, project_root
         if agent.agent_id == "document_summary_agent":
             action = {
-                "action": "office_create_docx",
+                "action_name": "office_create_docx",
                 "parameters": {
                     "path": f"{OFFICE_WORKSPACE_ROOT}/office_documents/offline_basic/summary.docx",
                     "title": "Offline fake summary",
                     "paragraphs": ["Validation-only fake pipeline smoke."],
                 },
-                "reason": "Select an allowlisted DOCX action without executing it.",
-                "expected_result": "The action validates and is not executed.",
             }
         else:
             action = {
-                "action": "office_create_xlsx",
+                "action_name": "office_create_xlsx",
                 "parameters": {
                     "path": f"{OFFICE_WORKSPACE_ROOT}/office_documents/offline_basic/tasks.xlsx",
                     "sheet_name": "Tasks",
                     "headers": ["Task", "Status"],
                     "rows": [["Smoke validation", "Planned"]],
                 },
-                "reason": "Select an allowlisted XLSX action without executing it.",
-                "expected_result": "The action validates and is not executed.",
             }
-        self.calls.append({"agent_id": agent.agent_id, "action": action["action"]})
+        self.calls.append({"agent_id": agent.agent_id, "action_name": action["action_name"]})
         return ExecutorProviderResult(
             raw_model_output=json.dumps(action, ensure_ascii=False),
             metadata={"provider": "office_document_fake_executor", "agent_id": agent.agent_id},

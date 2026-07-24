@@ -42,9 +42,9 @@ def test_disable_thinking_prefix_is_applied_to_user_prompt() -> None:
 
 
 def test_extract_assistant_content_valid() -> None:
-    response = {"choices": [{"message": {"content": '{"action":"read_file","reason":"r","expected_result":"e","parameters":{}}'}}]}
+    response = {"choices": [{"message": {"content": '{"action_name":"read_file","parameters":{}}'}}]}
     text = LocalLLMClient.extract_assistant_content(response)
-    assert text.startswith('{"action":"read_file"')
+    assert text.startswith('{"action_name":"read_file"')
 
 
 def test_extract_assistant_content_rejects_missing_choices() -> None:
@@ -69,7 +69,7 @@ def test_empty_content_with_reasoning_has_structured_diagnostics() -> None:
 
 
 def test_parse_next_action_text_accepts_valid_json() -> None:
-    text = '{"action":"read_file","parameters":{},"reason":"need file","expected_result":"file content"}'
+    text = '{"action_name":"read_file","parameters":{}}'
     action = LocalLLMClient.parse_next_action_text(text)
     assert isinstance(action, NextAction)
     assert action.action == "read_file"
@@ -82,7 +82,12 @@ def test_parse_next_action_text_rejects_invalid_json() -> None:
 
 def test_parse_next_action_text_rejects_schema_invalid_json() -> None:
     with pytest.raises(LocalLLMValidationError):
-        LocalLLMClient.parse_next_action_text('{"action":"","parameters":{},"reason":"x","expected_result":"y"}')
+        LocalLLMClient.parse_next_action_text('{"action_name":"","parameters":{}}')
+
+
+def test_parse_next_action_text_rejects_legacy_action_wire_key() -> None:
+    with pytest.raises(LocalLLMValidationError):
+        LocalLLMClient.parse_next_action_text('{"action":"read_file","parameters":{}}')
 
 
 def test_generate_next_action_returns_next_action_with_mocked_http(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -97,7 +102,7 @@ def test_generate_next_action_returns_next_action_with_mocked_http(monkeypatch: 
                 "choices": [
                     {
                         "message": {
-                            "content": '{"action":"read_file","parameters":{},"reason":"inspect state","expected_result":"read complete"}'
+                            "content": '{"action_name":"read_file","parameters":{}}'
                         }
                     }
                 ]

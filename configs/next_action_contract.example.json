@@ -1,8 +1,6 @@
 {
-  "action": "read_file",
-  "parameters": {
-    "path": "docs/ai/model_registry.md"
-  },
-  "reason": "Need the model registry details to reference model identity in the next report update.",
-  "expected_result": "The file content is available for extracting model metadata references."
+    "action_name":  "read_file",
+    "parameters":  {
+                       "path":  "docs/ai/model_registry.md"
+                   }
 }

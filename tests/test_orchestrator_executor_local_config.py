@@ -85,10 +85,8 @@ def test_local_mode_providers_receive_separate_base_urls(
             return pipeline.ExecutorProviderResult(
                 raw_model_output=json.dumps(
                     {
-                        "action": "read_file",
+                        "action_name": "read_file",
                         "parameters": {"path": "docs/ai/model_research_metadata.md"},
-                        "reason": "Read a local documentation file.",
-                        "expected_result": "The local file is available.",
                     }
                 )
             )

@@ -289,10 +289,8 @@ def test_local_policy_adapts_one_next_action_not_workflow_json() -> None:
         def generate_next_action(self, agent_state):  # type: ignore[no-untyped-def]
             calls.append(agent_state)
             return NextAction(
-                action="finish",
+                action_name="finish",
                 parameters={},
-                reason="done",
-                expected_result="complete",
             )
 
     policy = LocalOpenAIModelPolicy(  # type: ignore[arg-type]
@@ -306,8 +304,6 @@ def test_local_policy_adapts_one_next_action_not_workflow_json() -> None:
     assert action == Action(
         tool_name="finish",
         parameters={},
-        reason="done",
-        expected_result="complete",
     )
     assert len(calls) == 1
     assert "Return exactly one action object" in calls[0]["instruction"]

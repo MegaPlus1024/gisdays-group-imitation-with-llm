@@ -52,10 +52,8 @@ def _selection_success() -> ActionSelectionResult:
         success=True,
         status="selected",
         next_action=NextAction(
-            action="read_file",
+            action_name="read_file",
             parameters={"path": "docs/ai/runtime_path_v1.md"},
-            reason="Need context.",
-            expected_result="Read file content.",
         ),
     )
 
@@ -84,10 +82,8 @@ def _selection_validation_failed(issue_code: str) -> ActionSelectionResult:
         success=False,
         status="validation_failed",
         next_action=NextAction(
-            action="read_file",
+            action_name="read_file",
             parameters={"path": "docs/x.md"},
-            reason="r",
-            expected_result="e",
         ),
         validation_result=validation,
         error_type="validation_failed",

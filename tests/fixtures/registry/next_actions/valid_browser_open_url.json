@@ -1,8 +1,6 @@
 {
-  "action": "browser_open_url",
-  "parameters": {
-    "url": "http://localhost:8080"
-  },
-  "reason": "Need to open local test endpoint.",
-  "expected_result": "Browser opens localhost URL."
+    "action_name":  "browser_open_url",
+    "parameters":  {
+                       "url":  "http://localhost:8080"
+                   }
 }

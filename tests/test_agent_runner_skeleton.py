@@ -108,10 +108,8 @@ def test_runner_step_result_pending_execution_requires_next_action() -> None:
 
 def test_runner_run_result_counts_steps() -> None:
     action = NextAction(
-        action="read_file",
+        action_name="read_file",
         parameters={"path": "docs/ai/model_registry.md"},
-        reason="Need context",
-        expected_result="content",
     )
     steps = [
         RunnerStepResult(
@@ -175,10 +173,8 @@ def test_run_one_step_pending_execution_for_valid_action() -> None:
 def test_run_one_step_validation_failed_for_unknown_action() -> None:
     registry = load_script_registry("configs/script_registry.example.json")
     action = NextAction(
-        action="non_existing_action",
+        action_name="non_existing_action",
         parameters={},
-        reason="x",
-        expected_result="y",
     )
     runner = AgentRunner(
         agent=FakeSuccessAgent(action),  # type: ignore[arg-type]
@@ -194,10 +190,8 @@ def test_run_one_step_validation_failed_for_unknown_action() -> None:
 def test_run_one_step_validation_failed_for_forbidden_path() -> None:
     registry = load_script_registry("configs/script_registry.example.json")
     action = NextAction(
-        action="read_file",
+        action_name="read_file",
         parameters={"path": "models/gguf/first_model.gguf"},
-        reason="x",
-        expected_result="y",
     )
     runner = AgentRunner(
         agent=FakeSuccessAgent(action),  # type: ignore[arg-type]
@@ -264,10 +258,8 @@ def test_run_one_step_accepts_explicit_step_index() -> None:
 
 def test_validate_actions_false_returns_pending_execution_without_registry() -> None:
     action = NextAction(
-        action="non_existing_action",
+        action_name="non_existing_action",
         parameters={},
-        reason="x",
-        expected_result="y",
     )
     runner = AgentRunner(
         agent=FakeSuccessAgent(action),  # type: ignore[arg-type]
@@ -295,10 +287,8 @@ def test_run_returns_pending_execution_on_valid_action() -> None:
 def test_run_returns_validation_failed_on_invalid_action() -> None:
     registry = load_script_registry("configs/script_registry.example.json")
     action = NextAction(
-        action="read_file",
+        action_name="read_file",
         parameters={"path": "models/gguf/second_model.gguf"},
-        reason="x",
-        expected_result="y",
     )
     runner = AgentRunner(
         agent=FakeSuccessAgent(action),  # type: ignore[arg-type]

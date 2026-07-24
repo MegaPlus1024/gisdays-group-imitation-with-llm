@@ -1,8 +1,6 @@
 {
-  "action": "read_file",
-  "parameters": {
-    "path": 123
-  },
-  "reason": "Wrong type for path.",
-  "expected_result": "Should fail parameter type validation."
+    "action_name":  "read_file",
+    "parameters":  {
+                       "path":  123
+                   }
 }

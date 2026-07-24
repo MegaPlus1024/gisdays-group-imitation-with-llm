@@ -41,10 +41,8 @@ def mk_selected(agent_id: str, action: str, params: dict[str, Any] | None = None
         success=True,
         status="selected",
         next_action=NextAction(
-            action=action,
+            action_name=action,
             parameters=params or {},
-            reason=f"Choose {action}",
-            expected_result=f"{action} planned",
         ),
         metadata={},
     )
@@ -80,10 +78,8 @@ def mk_validation_failed(agent_id: str, action: str = "run_shell_command") -> Ac
         success=False,
         status="validation_failed",
         next_action=NextAction(
-            action=action,
+            action_name=action,
             parameters={},
-            reason="test",
-            expected_result="test",
         ),
         validation_result=validation,
         error_type="validation_failed",
@@ -137,8 +133,8 @@ def test_trajectory_run_result_selected_actions_returns_names() -> None:
 
 
 def test_next_action_repeated_detects_exact_repeat() -> None:
-    n1 = NextAction(action="read_file", parameters={"path": "a"}, reason="r", expected_result="e")
-    n2 = NextAction(action="read_file", parameters={"path": "a"}, reason="r2", expected_result="e2")
+    n1 = NextAction(action_name="read_file", parameters={"path": "a"})
+    n2 = NextAction(action_name="read_file", parameters={"path": "a"})
     assert next_action_repeated(n2, [n1]) is True
 
 

@@ -67,7 +67,7 @@ def test_duplicate_safety_roots_rejected() -> None:
 def test_valid_read_file_action_accepted() -> None:
     reg = load_script_registry("configs/script_registry.example.json")
     action = parse_next_action_text(
-        '{"action":"read_file","parameters":{"path":"docs/ai/model_registry.md"},"reason":"r","expected_result":"e"}'
+        '{"action_name":"read_file","parameters":{"path":"docs/ai/model_registry.md"}}'
     )
     result = validate_next_action_against_registry(action, reg)
     assert result.accepted is True
@@ -76,7 +76,7 @@ def test_valid_read_file_action_accepted() -> None:
 def test_unknown_action_rejected() -> None:
     reg = load_script_registry("configs/script_registry.example.json")
     action = parse_next_action_text(
-        '{"action":"unknown_x","parameters":{},"reason":"r","expected_result":"e"}'
+        '{"action_name":"unknown_x","parameters":{}}'
     )
     result = validate_next_action_against_registry(action, reg)
     assert result.accepted is False
@@ -86,7 +86,7 @@ def test_unknown_action_rejected() -> None:
 def test_missing_required_path_rejected() -> None:
     reg = load_script_registry("configs/script_registry.example.json")
     action = parse_next_action_text(
-        '{"action":"read_file","parameters":{},"reason":"r","expected_result":"e"}'
+        '{"action_name":"read_file","parameters":{}}'
     )
     result = validate_next_action_against_registry(action, reg)
     assert result.accepted is False
@@ -96,7 +96,7 @@ def test_missing_required_path_rejected() -> None:
 def test_unknown_parameter_rejected() -> None:
     reg = load_script_registry("configs/script_registry.example.json")
     action = parse_next_action_text(
-        '{"action":"read_file","parameters":{"path":"docs/ai/model_registry.md","x":1},"reason":"r","expected_result":"e"}'
+        '{"action_name":"read_file","parameters":{"path":"docs/ai/model_registry.md","x":1}}'
     )
     result = validate_next_action_against_registry(action, reg)
     assert result.accepted is False
@@ -106,7 +106,7 @@ def test_unknown_parameter_rejected() -> None:
 def test_wrong_parameter_type_rejected() -> None:
     reg = load_script_registry("configs/script_registry.example.json")
     action = parse_next_action_text(
-        '{"action":"read_file","parameters":{"path":123},"reason":"r","expected_result":"e"}'
+        '{"action_name":"read_file","parameters":{"path":123}}'
     )
     result = validate_next_action_against_registry(action, reg)
     assert result.accepted is False
@@ -116,7 +116,7 @@ def test_wrong_parameter_type_rejected() -> None:
 def test_forbidden_model_path_rejected() -> None:
     reg = load_script_registry("configs/script_registry.example.json")
     action = parse_next_action_text(
-        '{"action":"read_file","parameters":{"path":"models/gguf/first_model.gguf"},"reason":"r","expected_result":"e"}'
+        '{"action_name":"read_file","parameters":{"path":"models/gguf/first_model.gguf"}}'
     )
     result = validate_next_action_against_registry(action, reg)
     assert result.accepted is False
@@ -126,7 +126,7 @@ def test_forbidden_model_path_rejected() -> None:
 def test_create_file_into_src_rejected() -> None:
     reg = load_script_registry("configs/script_registry.example.json")
     action = parse_next_action_text(
-        '{"action":"create_file","parameters":{"path":"src/new_file.py","content":"x"},"reason":"r","expected_result":"e"}'
+        '{"action_name":"create_file","parameters":{"path":"src/new_file.py","content":"x"}}'
     )
     result = validate_next_action_against_registry(action, reg)
     assert result.accepted is False
@@ -136,7 +136,7 @@ def test_create_file_into_src_rejected() -> None:
 def test_valid_run_shell_command_accepted() -> None:
     reg = load_script_registry("configs/script_registry.example.json")
     action = parse_next_action_text(
-        '{"action":"run_shell_command","parameters":{"command":"python -m pytest -q"},"reason":"r","expected_result":"e"}'
+        '{"action_name":"run_shell_command","parameters":{"command":"python -m pytest -q"}}'
     )
     result = validate_next_action_against_registry(action, reg)
     assert result.accepted is True
@@ -145,7 +145,7 @@ def test_valid_run_shell_command_accepted() -> None:
 def test_unsafe_shell_command_rejected() -> None:
     reg = load_script_registry("configs/script_registry.example.json")
     action = parse_next_action_text(
-        '{"action":"run_shell_command","parameters":{"command":"Remove-Item -Recurse -Force ."},"reason":"r","expected_result":"e"}'
+        '{"action_name":"run_shell_command","parameters":{"command":"Remove-Item -Recurse -Force ."}}'
     )
     result = validate_next_action_against_registry(action, reg)
     assert result.accepted is False
@@ -155,7 +155,7 @@ def test_unsafe_shell_command_rejected() -> None:
 def test_shell_command_not_in_allowlist_rejected() -> None:
     reg = load_script_registry("configs/script_registry.example.json")
     action = parse_next_action_text(
-        '{"action":"run_shell_command","parameters":{"command":"python unknown.py"},"reason":"r","expected_result":"e"}'
+        '{"action_name":"run_shell_command","parameters":{"command":"python unknown.py"}}'
     )
     result = validate_next_action_against_registry(action, reg)
     assert result.accepted is False
@@ -166,7 +166,7 @@ def test_role_template_can_forbid_action() -> None:
     reg = load_script_registry("configs/script_registry.example.json")
     role = load_role_template("configs/roles/office_worker.example.json")
     action = parse_next_action_text(
-        '{"action":"run_shell_command","parameters":{"command":"python -m pytest -q"},"reason":"r","expected_result":"e"}'
+        '{"action_name":"run_shell_command","parameters":{"command":"python -m pytest -q"}}'
     )
     result = validate_next_action_against_registry(action, reg, role)
     assert result.accepted is False
@@ -177,7 +177,7 @@ def test_role_allowed_roots_constrain_path_access() -> None:
     reg = load_script_registry("configs/script_registry.example.json")
     role = load_role_template("configs/roles/office_worker.example.json")
     action = parse_next_action_text(
-        '{"action":"read_file","parameters":{"path":"src/agent/state.py"},"reason":"r","expected_result":"e"}'
+        '{"action_name":"read_file","parameters":{"path":"src/agent/state.py"}}'
     )
     result = validate_next_action_against_registry(action, reg, role)
     assert result.accepted is False

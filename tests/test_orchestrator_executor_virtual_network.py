@@ -78,10 +78,8 @@ class CapturingExecutorProvider:
         del task, group_step_index, agent_step_index, out_dir, project_root
         self.states.setdefault(agent.agent_id, state.to_prompt_context())
         action = {
-            "action": "read_file",
+            "action_name": "read_file",
             "parameters": {"path": "docs/ai/model_research_metadata.md"},
-            "reason": "Read safe local metadata while preserving virtual network context.",
-            "expected_result": "The local metadata is available for the assigned task.",
         }
         return ExecutorProviderResult(
             raw_model_output=json.dumps(action, ensure_ascii=False),
@@ -107,17 +105,13 @@ class StaticBrowserActionExecutorProvider:
         del task, state, group_step_index, agent_step_index, out_dir, project_root
         if agent.agent_id == "office_agent":
             action = {
-                "action": "browser_open_url",
+                "action_name": "browser_open_url",
                 "parameters": {"url": self.office_url},
-                "reason": "Validate a URL-bearing action against virtual network policy.",
-                "expected_result": "The URL action is accepted or denied by metadata policy.",
             }
         else:
             action = {
-                "action": "read_file",
+                "action_name": "read_file",
                 "parameters": {"path": "docs/ai/model_research_metadata.md"},
-                "reason": "Read safe local metadata for the developer task.",
-                "expected_result": "The local metadata is available.",
             }
         return ExecutorProviderResult(
             raw_model_output=json.dumps(action, ensure_ascii=False),

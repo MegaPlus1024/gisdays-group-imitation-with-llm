@@ -17,12 +17,10 @@ from agent.schemas import NextAction
 
 
 def test_parse_next_action_text_accepts_valid_object() -> None:
-    text = (
-        '{"action":"read_file","parameters":{"path":"docs/ai/model_registry.md"},'
-        '"reason":"Need model registry context.","expected_result":"File read completes."}'
-    )
+    text = '{"action_name":"read_file","parameters":{"path":"docs/ai/model_registry.md"}}'
     result = parse_next_action_text(text)
     assert isinstance(result, NextAction)
+    assert result.action_name == "read_file"
     assert result.action == "read_file"
 
 
@@ -37,23 +35,26 @@ def test_parse_next_action_text_rejects_non_object_json() -> None:
 
 
 def test_parse_next_action_text_rejects_markdown_fenced_json() -> None:
-    fenced = '```json\n{"action":"read_file","parameters":{},"reason":"r","expected_result":"e"}\n```'
+    fenced = '```json\n{"action_name":"read_file","parameters":{}}\n```'
     with pytest.raises(NextActionJSONError):
         parse_next_action_text(fenced)
 
 
 def test_parse_next_action_text_rejects_empty_required_fields() -> None:
     with pytest.raises(NextActionValidationError):
-        parse_next_action_text(
-            '{"action":"   ","parameters":{},"reason":"ok","expected_result":"ok"}'
-        )
+        parse_next_action_text('{"action_name":"   ","parameters":{}}')
 
 
 def test_parse_next_action_text_rejects_extra_fields() -> None:
     with pytest.raises(NextActionValidationError):
         parse_next_action_text(
-            '{"action":"read_file","parameters":{},"reason":"ok","expected_result":"ok","extra":"x"}'
+            '{"action_name":"read_file","parameters":{},"reason":"ok"}'
         )
+
+
+def test_parse_next_action_text_rejects_legacy_action_wire_key() -> None:
+    with pytest.raises(NextActionValidationError):
+        parse_next_action_text('{"action":"read_file","parameters":{}}')
 
 
 def test_next_action_contract_example_json_is_valid() -> None:

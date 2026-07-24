@@ -114,10 +114,8 @@ class ValidExecutorProvider:
         return ExecutorProviderResult(
             raw_model_output=json.dumps(
                 {
-                    "action": "read_file",
+                    "action_name": "read_file",
                     "parameters": {"path": "docs/ai/model_research_metadata.md"},
-                    "reason": "Read local model metadata.",
-                    "expected_result": "The local model metadata is available.",
                 }
             )
         )

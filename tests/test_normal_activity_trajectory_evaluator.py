@@ -97,8 +97,8 @@ def test_find_expected_sequence_matches_ordered_subsequence() -> None:
 
 def test_trajectory_steps_from_next_actions() -> None:
     actions = [
-        NextAction(action="read_file", parameters={"path": "a"}, reason="r1", expected_result="e1"),
-        NextAction(action="create_file", parameters={"path": "b", "content": "x"}, reason="r2", expected_result="e2"),
+        NextAction(action_name="read_file", parameters={"path": "a"}),
+        NextAction(action_name="create_file", parameters={"path": "b", "content": "x"}),
     ]
     steps = trajectory_steps_from_next_actions(actions)
     assert len(steps) == 2

@@ -102,68 +102,68 @@ def test_registry_contains_required_script_families() -> None:
 
 
 def test_valid_read_file_is_accepted() -> None:
-    action = _next_action('{"action":"read_file","parameters":{"path":"docs/ai/model_registry.md"},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"read_file","parameters":{"path":"docs/ai/model_registry.md"}}')
     result = validate_next_action_against_registry(action, _registry())
     assert result.accepted is True
 
 
 def test_valid_create_file_is_accepted() -> None:
-    action = _next_action('{"action":"create_file","parameters":{"path":"docs/ai/new_note.md","content":"x"},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"create_file","parameters":{"path":"docs/ai/new_note.md","content":"x"}}')
     result = validate_next_action_against_registry(action, _registry())
     assert result.accepted is True
 
 
 def test_valid_append_file_is_accepted() -> None:
-    action = _next_action('{"action":"append_file","parameters":{"path":"docs/ai/new_note.md","content":"x"},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"append_file","parameters":{"path":"docs/ai/new_note.md","content":"x"}}')
     result = validate_next_action_against_registry(action, _registry())
     assert result.accepted is True
 
 
 def test_valid_list_directory_is_accepted() -> None:
-    action = _next_action('{"action":"list_directory","parameters":{"path":"docs/ai/"},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"list_directory","parameters":{"path":"docs/ai/"}}')
     result = validate_next_action_against_registry(action, _registry())
     assert result.accepted is True
 
 
 def test_valid_browser_open_url_is_accepted_registry_level() -> None:
-    action = _next_action('{"action":"browser_open_url","parameters":{"url":"https://example.com"},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"browser_open_url","parameters":{"url":"https://example.com"}}')
     result = validate_next_action_against_registry(action, _registry())
     assert result.accepted is True
 
 
 def test_valid_office_create_document_stub_is_accepted() -> None:
-    action = _next_action('{"action":"office_create_document_stub","parameters":{"path":"docs/office/doc.txt","title":"t","body":"b"},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"office_create_document_stub","parameters":{"path":"docs/office/doc.txt","title":"t","body":"b"}}')
     result = validate_next_action_against_registry(action, _registry())
     assert result.accepted is True
 
 
 def test_valid_run_shell_command_is_accepted() -> None:
-    action = _next_action('{"action":"run_shell_command","parameters":{"command":"python -m pytest -q"},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"run_shell_command","parameters":{"command":"python -m pytest -q"}}')
     result = validate_next_action_against_registry(action, _registry())
     assert result.accepted is True
 
 
 def test_unknown_action_rejected() -> None:
-    action = _next_action('{"action":"not_real","parameters":{},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"not_real","parameters":{}}')
     result = validate_next_action_against_registry(action, _registry())
     assert result.accepted is False
     assert "unknown_action" in _issue_codes(result)
 
 
 def test_missing_required_parameter_rejected() -> None:
-    action = _next_action('{"action":"read_file","parameters":{},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"read_file","parameters":{}}')
     result = validate_next_action_against_registry(action, _registry())
     assert "missing_required_parameter" in _issue_codes(result)
 
 
 def test_unknown_parameter_rejected() -> None:
-    action = _next_action('{"action":"read_file","parameters":{"path":"docs/ai/model_registry.md","x":1},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"read_file","parameters":{"path":"docs/ai/model_registry.md","x":1}}')
     result = validate_next_action_against_registry(action, _registry())
     assert "unknown_parameter" in _issue_codes(result)
 
 
 def test_wrong_string_parameter_type_rejected() -> None:
-    action = _next_action('{"action":"read_file","parameters":{"path":5},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"read_file","parameters":{"path":5}}')
     result = validate_next_action_against_registry(action, _registry())
     assert "wrong_parameter_type" in _issue_codes(result)
 
@@ -186,7 +186,7 @@ def test_wrong_integer_number_boolean_object_array_types_rejected() -> None:
             )
         ],
     )
-    action = _next_action('{"action":"typed","parameters":{"i":true,"n":false,"b":"x","o":[],"a":{}},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"typed","parameters":{"i":true,"n":false,"b":"x","o":[],"a":{}}}')
     result = validate_next_action_against_registry(action, registry)
     assert result.accepted is False
     assert "wrong_parameter_type" in _issue_codes(result)
@@ -208,10 +208,10 @@ def test_string_min_length_and_max_length_enforced() -> None:
             )
         ],
     )
-    action_short = _next_action('{"action":"sized","parameters":{"p":"a"},"reason":"r","expected_result":"e"}')
+    action_short = _next_action('{"action_name":"sized","parameters":{"p":"a"}}')
     res_short = validate_next_action_against_registry(action_short, registry)
     assert "string_too_short" in _issue_codes(res_short)
-    action_long = _next_action('{"action":"sized","parameters":{"p":"abcde"},"reason":"r","expected_result":"e"}')
+    action_long = _next_action('{"action_name":"sized","parameters":{"p":"abcde"}}')
     res_long = validate_next_action_against_registry(action_long, registry)
     assert "string_too_long" in _issue_codes(res_long)
 
@@ -232,69 +232,69 @@ def test_allowed_values_enforced() -> None:
             )
         ],
     )
-    action = _next_action('{"action":"allowed","parameters":{"p":"z"},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"allowed","parameters":{"p":"z"}}')
     result = validate_next_action_against_registry(action, registry)
     assert "value_not_allowed" in _issue_codes(result)
 
 
 def test_absolute_path_rejected() -> None:
-    action = _next_action('{"action":"read_file","parameters":{"path":"/etc/passwd"},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"read_file","parameters":{"path":"/etc/passwd"}}')
     result = validate_next_action_against_registry(action, _registry())
     assert "unsafe_path" in _issue_codes(result)
 
 
 def test_windows_drive_path_rejected() -> None:
-    action = _next_action('{"action":"read_file","parameters":{"path":"C:/tmp/a.txt"},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"read_file","parameters":{"path":"C:/tmp/a.txt"}}')
     result = validate_next_action_against_registry(action, _registry())
     assert "unsafe_path" in _issue_codes(result)
 
 
 def test_path_traversal_rejected() -> None:
-    action = _next_action('{"action":"read_file","parameters":{"path":"docs/../secrets.txt"},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"read_file","parameters":{"path":"docs/../secrets.txt"}}')
     result = validate_next_action_against_registry(action, _registry())
     assert "unsafe_path" in _issue_codes(result)
 
 
 def test_forbidden_model_path_rejected() -> None:
-    action = _next_action('{"action":"read_file","parameters":{"path":"models/gguf/first_model.gguf"},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"read_file","parameters":{"path":"models/gguf/first_model.gguf"}}')
     result = validate_next_action_against_registry(action, _registry())
     assert "forbidden_path" in _issue_codes(result)
 
 
 def test_path_outside_allowed_roots_rejected() -> None:
-    action = _next_action('{"action":"create_file","parameters":{"path":"tmp/out.txt","content":"x"},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"create_file","parameters":{"path":"tmp/out.txt","content":"x"}}')
     result = validate_next_action_against_registry(action, _registry())
     assert "path_outside_allowed_roots" in _issue_codes(result)
 
 
 def test_unsafe_shell_command_rejected() -> None:
-    action = _next_action('{"action":"run_shell_command","parameters":{"command":"Remove-Item -Recurse -Force ."},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"run_shell_command","parameters":{"command":"Remove-Item -Recurse -Force ."}}')
     result = validate_next_action_against_registry(action, _registry())
     assert "unsafe_command" in _issue_codes(result)
 
 
 def test_shell_command_with_andand_rejected() -> None:
-    action = _next_action('{"action":"run_shell_command","parameters":{"command":"python -m pytest -q && echo ok"},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"run_shell_command","parameters":{"command":"python -m pytest -q && echo ok"}}')
     result = validate_next_action_against_registry(action, _registry())
     assert "unsafe_command" in _issue_codes(result)
 
 
 def test_non_allowlisted_shell_command_rejected() -> None:
-    action = _next_action('{"action":"run_shell_command","parameters":{"command":"python -V"},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"run_shell_command","parameters":{"command":"python -V"}}')
     result = validate_next_action_against_registry(action, _registry())
     assert "command_not_allowlisted" in _issue_codes(result)
 
 
 def test_office_worker_role_can_forbid_run_shell_command() -> None:
     role = load_role_template("configs/roles/office_worker.example.json")
-    action = _next_action('{"action":"run_shell_command","parameters":{"command":"python -m pytest -q"},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"run_shell_command","parameters":{"command":"python -m pytest -q"}}')
     result = validate_next_action_against_registry(action, _registry(), role_template=role)
     assert "action_forbidden_by_role" in _issue_codes(result)
 
 
 def test_role_allowed_file_roots_constrain_path_access() -> None:
     role = load_role_template("configs/roles/office_worker.example.json")
-    action = _next_action('{"action":"read_file","parameters":{"path":"src/agent/state.py"},"reason":"r","expected_result":"e"}')
+    action = _next_action('{"action_name":"read_file","parameters":{"path":"src/agent/state.py"}}')
     result = validate_next_action_against_registry(action, _registry(), role_template=role)
     assert "path_outside_allowed_roots" in _issue_codes(result)
 

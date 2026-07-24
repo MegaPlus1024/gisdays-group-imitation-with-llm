@@ -105,10 +105,8 @@ def _assert_safe_relative_reference(value: str) -> None:
 
 def _next_action(action: str) -> NextAction:
     return NextAction(
-        action=action,
+        action_name=action,
         parameters=VALID_PARAMETERS[action],
-        reason="config validation",
-        expected_result="action validates against registry and role allowlists",
     )
 
 
