@@ -1252,6 +1252,179 @@ def test_recovery_note_read_satisfies_required_recovery_and_records_evidence(
     assert evidence["recovery_action_name"] == "read_file"
 
 
+def test_wait_for_dependency_tracks_producer_progress_before_guard(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/dependency_wait_progress"
+    note_path = f"{output_dir}/research_note.txt"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff",
+        trial_id="dependency_wait_progress",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        max_turns=16,
+    )
+    runtime.limits = RuntimeLimits(
+        max_turns_total=16,
+        max_turns_per_agent=8,
+        max_failures_per_agent=6,
+        max_identical_actions=2,
+    )
+    runtime.policies["research_agent"] = PerfectFakePolicy(
+        (
+            Action(
+                "browser_article_open",
+                {"url": "https://fixture.local/articles/long-horizon"},
+            ),
+            Action("browser_article_read", {}),
+            Action("browser_article_read", {}),
+            Action(
+                "browser_article_extract",
+                {"heading": "Ownership"},
+            ),
+            Action(
+                "browser_article_extract",
+                {"heading": "Status"},
+            ),
+            Action(
+                "create_file",
+                {
+                    "path": note_path,
+                    "content": (
+                        "Ownership: office worker\n"
+                        "Status: Version v3.2 is approved under the "
+                        "workspace policy.\n"
+                    ),
+                },
+            ),
+        )
+    )
+    runtime.policies["operator_agent"] = PerfectFakePolicy(
+        (
+            Action(
+                "office_fixture_read",
+                {"field": "owner"},
+            ),
+            Action(
+                "read_file",
+                {"path": note_path},
+            ),
+            Action(
+                "wait_for_dependency",
+                {"dependency_id": "research_note"},
+            ),
+            Action(
+                "wait_for_dependency",
+                {"dependency_id": "research_note"},
+            ),
+            Action(
+                "wait_for_dependency",
+                {"dependency_id": "research_note"},
+            ),
+            Action(
+                "read_file",
+                {"path": note_path},
+            ),
+        )
+    )
+
+    for _ in range(12):
+        runtime.step()
+
+    operator = runtime.states["operator_agent"]
+    wait_events = [
+        event
+        for event in operator.history
+        if event.action
+        and event.action.tool_name == "wait_for_dependency"
+    ]
+
+    assert len(wait_events) == 3
+    assert all(event.observation.success for event in wait_events)
+    assert operator.stop_reason != "repetition_guard"
+    assert operator._same_action_count == 1
+    assert operator.history[-1].action is not None
+    assert operator.history[-1].action.tool_name == "read_file"
+    assert operator.history[-1].observation.success is True
+    assert "research_note_read" in operator.memory["task_progress"][
+        "completed_requirements"
+    ]
+
+
+def test_wait_for_dependency_without_progress_still_triggers_guard(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/dependency_wait_no_progress"
+    note_path = f"{output_dir}/research_note.txt"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff",
+        trial_id="dependency_wait_no_progress",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        max_turns=12,
+    )
+    runtime.limits = RuntimeLimits(
+        max_turns_total=12,
+        max_turns_per_agent=8,
+        max_failures_per_agent=6,
+        max_identical_actions=2,
+    )
+    runtime.policies["research_agent"] = PerfectFakePolicy(
+        (
+            Action(
+                "browser_article_open",
+                {"url": "https://fixture.local/articles/long-horizon"},
+            ),
+            Action("browser_article_read", {}),
+            Action("browser_article_read", {}),
+            Action(
+                "browser_article_scroll",
+                {"pages": 1},
+            ),
+            Action("browser_article_read", {}),
+        )
+    )
+    runtime.policies["operator_agent"] = PerfectFakePolicy(
+        (
+            Action(
+                "office_fixture_read",
+                {"field": "owner"},
+            ),
+            Action(
+                "read_file",
+                {"path": note_path},
+            ),
+            Action(
+                "wait_for_dependency",
+                {"dependency_id": "research_note"},
+            ),
+            Action(
+                "wait_for_dependency",
+                {"dependency_id": "research_note"},
+            ),
+            Action(
+                "wait_for_dependency",
+                {"dependency_id": "research_note"},
+            ),
+        )
+    )
+
+    for _ in range(10):
+        runtime.step()
+
+    operator = runtime.states["operator_agent"]
+
+    assert operator.stop_reason == "repetition_guard"
+    assert operator._same_action_count == 3
+    assert operator.history[-1].action is not None
+    assert operator.history[-1].action.tool_name == "wait_for_dependency"
+    assert operator.history[-1].observation.success is False
+    assert (
+        operator.history[-1].observation.error_code
+        == "repeated_action_detected"
+    )
+
+
 def test_bounded_repetition_guard_stops_repeating_agent() -> None:
     runtime = build_long_horizon_trial_runtime(
         scenario_id="bounded_repetition_and_role_guard",

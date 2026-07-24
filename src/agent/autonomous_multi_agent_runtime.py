@@ -1072,12 +1072,83 @@ class AutonomousMultiAgentRuntime:
                         and self._fact_readable_by(state.agent_id, key)
                     ),
                 }
+        if action.tool_name == "wait_for_dependency":
+            dependency_id = action.parameters.get("dependency_id")
+            if isinstance(dependency_id, str):
+                payload["dependency_state"] = self._dependency_repetition_state(
+                    state,
+                    dependency_id,
+                )
         return json.dumps(
             payload,
             ensure_ascii=True,
             sort_keys=True,
             separators=(",", ":"),
         )
+
+    def _dependency_repetition_state(
+        self,
+        state: AgentState,
+        dependency_id: str,
+    ) -> dict[str, Any]:
+        dependency = next(
+            (
+                item
+                for item in state.profile.dependencies
+                if item.get("dependency_id") == dependency_id
+            ),
+            None,
+        )
+        if not isinstance(dependency, Mapping):
+            return {
+                "dependency_id": dependency_id,
+                "declared": False,
+            }
+
+        dependency_state: dict[str, Any] = {
+            "dependency_id": dependency_id,
+            "declared": True,
+            "kind": dependency.get("kind"),
+        }
+
+        producer_agent = dependency.get("producer_agent")
+        if isinstance(producer_agent, str):
+            dependency_state["producer_agent"] = producer_agent
+            producer_state = self.states.get(producer_agent)
+            if producer_state is not None:
+                producer_progress = producer_state.memory.get(
+                    "task_progress",
+                    {},
+                )
+                completed_requirements = producer_progress.get(
+                    "completed_requirements",
+                    [],
+                )
+                dependency_state["producer_status"] = producer_state.status
+                dependency_state["producer_completed_requirements"] = sorted(
+                    item
+                    for item in completed_requirements
+                    if isinstance(item, str)
+                )
+
+        kind = dependency.get("kind")
+        if kind == "file":
+            path = dependency.get("path")
+            dependency_state["available"] = (
+                isinstance(path, str)
+                and path in self.shared_environment.known_files
+            )
+        elif kind == "shared_fact":
+            key = dependency.get("key")
+            dependency_state["available"] = (
+                isinstance(key, str)
+                and key in self.shared_environment.facts
+                and self._fact_readable_by(state.agent_id, key)
+            )
+        else:
+            dependency_state["available"] = False
+
+        return dependency_state
 
     def _record_failure(
         self,
