@@ -175,6 +175,7 @@ class AgentState:
     actions_failed: int = 0
     validation_rejections: int = 0
     recovered_failures: int = 0
+    non_progress_failure_streak: int = 0
     history: list[HistoryEvent] = field(default_factory=list)
     last_observation: Observation | None = None
     memory: dict[str, Any] = field(default_factory=dict)
@@ -197,6 +198,7 @@ class AgentState:
             "actions_failed": self.actions_failed,
             "validation_rejections": self.validation_rejections,
             "recovered_failures": self.recovered_failures,
+            "non_progress_failure_streak": self.non_progress_failure_streak,
             "history": [event.to_dict() for event in self.history],
             "last_observation": (
                 self.last_observation.to_dict() if self.last_observation else None
@@ -907,6 +909,7 @@ class AutonomousMultiAgentRuntime:
             )
             state.actions_succeeded += 1
             self.actions_succeeded += 1
+            state.non_progress_failure_streak = 0
             if previous_failed:
                 state.recovered_failures += 1
                 self.recovered_failures += 1
@@ -1066,14 +1069,21 @@ class AutonomousMultiAgentRuntime:
         input_tokens: int | None = None,
         output_tokens: int | None = None,
     ) -> RuntimeStepResult:
+        completed_before = self._completed_requirement_ids(state)
         state.actions_failed += 1
         self.actions_failed += 1
         if validation:
             state.validation_rejections += 1
             self.validation_rejections += 1
         self._record_event(state, action, observation)
+        completed_after = self._completed_requirement_ids(state)
+        requirements_advanced = sorted(completed_after - completed_before)
+        if requirements_advanced:
+            state.non_progress_failure_streak = 0
+        else:
+            state.non_progress_failure_streak += 1
         if (
-            state.actions_failed >= self.limits.max_failures_per_agent
+            state.non_progress_failure_streak >= self.limits.max_failures_per_agent
             and state.status == "ready"
         ):
             state.status = "quarantined"
@@ -1155,7 +1165,7 @@ class AutonomousMultiAgentRuntime:
         )
 
     def _refresh_agent_context(self, state: AgentState) -> None:
-        completed = [item["id"] for item in state.profile.completion_requirements if self._requirement_met(state, item)]
+        completed = sorted(self._completed_requirement_ids(state))
         unmet = [item["id"] for item in state.profile.completion_requirements if item["id"] not in completed]
         requirement_contracts = [
             self._requirement_contract(state, item, item["id"] in completed)
@@ -1574,6 +1584,13 @@ class AutonomousMultiAgentRuntime:
             self._event_satisfies_requirement(state, requirement, index)
             for index in range(len(state.history))
         )
+
+    def _completed_requirement_ids(self, state: AgentState) -> set[str]:
+        return {
+            str(requirement["id"])
+            for requirement in state.profile.completion_requirements
+            if self._requirement_met(state, requirement)
+        }
 
     def _event_satisfies_requirement(
         self,

@@ -20,6 +20,7 @@ from src.agent.autonomous_multi_agent_runtime import (
     Observation,
     PolicyError,
     PerfectFakePolicy,
+    RuntimeLimits,
     ToolResult,
     ToolSpec,
 )
@@ -1051,6 +1052,106 @@ def test_wait_fact_read_and_validation_do_not_satisfy_required_file_recovery() -
         item["resource_id"] == "recovery_note"
         for item in finish_event.observation.metadata["related_available_resources"]
     )
+
+
+def test_requirement_advancing_missing_file_failure_does_not_trigger_failure_limit() -> None:
+    output_dir = "artifacts/canonical_multi_agent_long_horizon/progress_failure_limit"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery",
+        trial_id="progress_failure_limit",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        max_turns=12,
+    )
+    runtime.limits = RuntimeLimits(
+        max_turns_total=12,
+        max_turns_per_agent=8,
+        max_failures_per_agent=3,
+        max_identical_actions=2,
+    )
+    runtime.policies["document_agent"] = PerfectFakePolicy((Action("finish"),))
+    runtime.policies["verification_agent"] = PerfectFakePolicy(
+        (
+            Action("finish"),
+            Action("office_fixture_read", {"field": "owner"}),
+            Action("read_file", {"path": f"{output_dir}/missing_input.txt"}),
+            Action(
+                "read_file",
+                {"path": "tests/fixtures/canonical_multi_agent/recovery_note.txt"},
+            ),
+        )
+    )
+
+    _step_until_agent_history(runtime, "verification_agent", 1)
+    _step_until_agent_history(runtime, "verification_agent", 2)
+    expected_failure = _step_until_agent_history(runtime, "verification_agent", 3)
+
+    verifier = runtime.states["verification_agent"]
+    assert expected_failure.observation is not None
+    assert expected_failure.observation.success is False
+    assert expected_failure.observation.error_code == "file_not_found"
+    assert verifier.status == "ready"
+    assert verifier.stop_reason is None
+    assert verifier.actions_failed == 3
+    assert verifier.non_progress_failure_streak == 0
+    assert "recoverable_error_seen" in verifier.memory["task_progress"]["completed_requirements"]
+
+    recovery = _step_until_agent_history(runtime, "verification_agent", 4)
+
+    assert recovery.observation is not None
+    assert recovery.observation.success is True
+    assert verifier.status == "ready"
+    assert verifier.actions_failed == 3
+    assert verifier.recovered_failures == 1
+    assert verifier.non_progress_failure_streak == 0
+    assert "recovery_completed" in verifier.memory["task_progress"]["completed_requirements"]
+
+
+def test_repeated_expected_missing_file_after_progress_counts_toward_failure_limit() -> None:
+    output_dir = "artifacts/canonical_multi_agent_long_horizon/repeated_expected_error"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery",
+        trial_id="repeated_expected_error",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        max_turns=12,
+    )
+    runtime.limits = RuntimeLimits(
+        max_turns_total=12,
+        max_turns_per_agent=8,
+        max_failures_per_agent=2,
+        max_identical_actions=4,
+    )
+    runtime.policies["document_agent"] = PerfectFakePolicy((Action("finish"),))
+    runtime.policies["verification_agent"] = PerfectFakePolicy(
+        (
+            Action("read_file", {"path": f"{output_dir}/missing_input.txt"}),
+            Action("read_file", {"path": f"{output_dir}/missing_input.txt"}),
+            Action("read_file", {"path": f"{output_dir}/missing_input.txt"}),
+        )
+    )
+
+    first = _step_until_agent_history(runtime, "verification_agent", 1)
+    second = _step_until_agent_history(runtime, "verification_agent", 2)
+
+    verifier = runtime.states["verification_agent"]
+    assert first.observation is not None
+    assert first.observation.error_code == "file_not_found"
+    assert "recoverable_error_seen" in verifier.memory["task_progress"]["completed_requirements"]
+    assert verifier.actions_failed == 2
+    assert verifier.non_progress_failure_streak == 1
+    assert verifier.status == "ready"
+
+    third = _step_until_agent_history(runtime, "verification_agent", 3)
+
+    assert second.observation is not None
+    assert second.observation.error_code == "file_not_found"
+    assert third.observation is not None
+    assert third.observation.error_code == "file_not_found"
+    assert verifier.actions_failed == 3
+    assert verifier.non_progress_failure_streak == 2
+    assert verifier.status == "quarantined"
+    assert verifier.stop_reason == "failure_limit"
 
 
 def test_recovery_note_read_satisfies_required_recovery_and_records_evidence(
