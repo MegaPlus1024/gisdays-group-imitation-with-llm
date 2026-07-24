@@ -1309,7 +1309,7 @@ def _run_runtime_with_trace(
                 "normalized_value_match": observation_metadata.get("normalized_value_match"),
                 "pending_dependency_ids": [item.get("dependency_id") for item in progress.get("pending_dependencies", [])],
                 "terminal_allowed": bool(progress.get("terminal_allowed", False)),
-                "model_protocol": _bounded_value(protocol, limit=500),
+                "model_protocol": _bounded_value(protocol, limit=2500),
             }
         )
     return trace

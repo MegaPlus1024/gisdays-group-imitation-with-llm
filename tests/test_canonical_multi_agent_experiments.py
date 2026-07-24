@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from src.agent import llm_client
 from src.agent.autonomous_multi_agent_runtime import (
     Action,
     AgentProfile,
@@ -85,6 +86,53 @@ def _load_trace(summary: dict[str, object]) -> list[dict[str, object]]:
         json.loads(line)
         for line in (PROJECT_ROOT / relative).read_text(encoding="utf-8").splitlines()
     ]
+
+
+def _install_fake_openai_response(
+    monkeypatch: pytest.MonkeyPatch,
+    payload: dict[str, object],
+) -> None:
+    class FakeHTTPClient:
+        def __init__(self, *, timeout: float, trust_env: bool) -> None:
+            self.timeout = timeout
+            self.trust_env = trust_env
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):  # type: ignore[no-untyped-def]
+            return None
+
+        def post(self, url: str, json: dict[str, object]):  # type: ignore[no-untyped-def]
+            del json
+            return llm_client.httpx.Response(
+                200,
+                json=payload,
+                request=llm_client.httpx.Request("POST", url),
+            )
+
+    monkeypatch.setattr(llm_client.httpx, "Client", FakeHTTPClient)
+
+
+def _openai_chat_payload(
+    content: str,
+    *,
+    usage: dict[str, object] | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "id": "chatcmpl-canonical-test",
+        "model": "first_model",
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop",
+            }
+        ],
+    }
+    if usage is not None:
+        payload["usage"] = usage
+    return payload
 
 
 def _step_until_agent_history(
@@ -1175,6 +1223,165 @@ def test_non_local_model_endpoint_is_rejected_before_contact() -> None:
         )
 
     assert client.called is False
+
+
+def test_canonical_group_trace_records_fenced_json_parse_diagnostics_and_usage(
+    artifact_output_dir: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    content = '```json\n{"action":"finish","parameters":{},"reason":"done","expected_result":"finished"}\n```'
+    _install_fake_openai_response(
+        monkeypatch,
+        _openai_chat_payload(
+            content,
+            usage={"prompt_tokens": 29, "completion_tokens": 11, "total_tokens": 40},
+        ),
+    )
+
+    summary = run_long_horizon_trial(
+        experiment_id="pytest_canonical_parse_diagnostics",
+        scenario_id="article_file_handoff",
+        trial_index=1,
+        model_id="first_model",
+        output_dir=artifact_output_dir,
+        project_root=PROJECT_ROOT,
+        max_turns=1,
+        allow_model_execution=True,
+        model_policy_settings={"model_id": "first_model"},
+    )
+    trace = _load_trace(summary)
+    event = trace[0]
+    protocol = event["model_protocol"]
+    rendered = json.dumps(trace, ensure_ascii=False)
+
+    assert event["tool_error_code"] == "invalid_action_json"
+    assert event["input_tokens"] == 29
+    assert event["output_tokens"] == 11
+    assert summary["trial_metrics"]["input_tokens_total"] == 29
+    assert summary["trial_metrics"]["output_tokens_total"] == 11
+    assert protocol["content_preview"].startswith("```json\\n")
+    assert len(protocol["content_preview"]) <= 512
+    assert protocol["content_first_non_whitespace_character"] == "`"
+    assert protocol["content_has_markdown_fence"] is True
+    assert protocol["content_has_think_tag"] is False
+    assert protocol["json_error_line"] == 1
+    assert protocol["json_error_column"] == 1
+    assert protocol["json_error_position"] == 0
+    assert protocol["usage_present"] is True
+    assert protocol["usage_prompt_tokens"] == 29
+    assert protocol["usage_completion_tokens"] == 11
+    assert protocol["usage_total_tokens"] == 40
+    assert "usage_keys" not in protocol
+    assert "messages" not in rendered
+    assert "available_actions" not in rendered
+    assert "Return exactly one" not in rendered
+
+
+def test_canonical_group_trace_records_prose_prefix_without_tolerant_extraction(
+    artifact_output_dir: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    content = 'Sure, here is the action:\n{"action":"finish","parameters":{},"reason":"done","expected_result":"finished"}'
+    _install_fake_openai_response(
+        monkeypatch,
+        _openai_chat_payload(content, usage={"prompt_tokens": 7, "other": 3}),
+    )
+
+    summary = run_long_horizon_trial(
+        experiment_id="pytest_canonical_parse_diagnostics",
+        scenario_id="article_file_handoff",
+        trial_index=1,
+        model_id="first_model",
+        output_dir=artifact_output_dir,
+        project_root=PROJECT_ROOT,
+        max_turns=1,
+        allow_model_execution=True,
+        model_policy_settings={"model_id": "first_model"},
+    )
+    event = _load_trace(summary)[0]
+    protocol = event["model_protocol"]
+
+    assert event["tool_error_code"] == "invalid_action_json"
+    assert event["input_tokens"] == 7
+    assert event["output_tokens"] is None
+    assert protocol["content_preview"].startswith("Sure, here is the action:\\n")
+    assert protocol["content_first_non_whitespace_character"] == "S"
+    assert protocol["content_has_markdown_fence"] is False
+    assert protocol["json_error_line"] == 1
+    assert protocol["json_error_column"] == 1
+    assert protocol["json_error_position"] == 0
+    assert protocol["usage_present"] is True
+    assert protocol["usage_prompt_tokens"] == 7
+    assert protocol["usage_completion_tokens"] is None
+    assert protocol["usage_total_tokens"] is None
+    assert protocol["usage_keys"] == ["other", "prompt_tokens"]
+
+
+def test_canonical_group_trace_valid_json_behavior_and_missing_usage(
+    artifact_output_dir: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    content = json.dumps(
+        {
+            "action": "finish",
+            "parameters": {},
+            "reason": "complete",
+            "expected_result": "finished",
+        }
+    )
+    _install_fake_openai_response(monkeypatch, _openai_chat_payload(content))
+
+    summary = run_long_horizon_trial(
+        experiment_id="pytest_canonical_parse_diagnostics",
+        scenario_id="article_file_handoff",
+        trial_index=1,
+        model_id="first_model",
+        output_dir=artifact_output_dir,
+        project_root=PROJECT_ROOT,
+        max_turns=1,
+        allow_model_execution=True,
+        model_policy_settings={"model_id": "first_model"},
+    )
+    event = _load_trace(summary)[0]
+    protocol = event["model_protocol"]
+
+    assert event["action_name"] == "finish"
+    assert event["tool_error_code"] == "completion_requirements_unmet"
+    assert "content_preview" not in protocol
+    assert "json_error_line" not in protocol
+    assert protocol["usage_present"] is False
+    assert protocol["usage_prompt_tokens"] is None
+    assert protocol["usage_completion_tokens"] is None
+    assert protocol["usage_total_tokens"] is None
+    assert event["input_tokens"] is None
+    assert event["output_tokens"] is None
+
+
+def test_canonical_group_trace_parse_preview_is_bounded_and_escaped(
+    artifact_output_dir: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    content = "\x00\x01" + ("x" * 700)
+    _install_fake_openai_response(monkeypatch, _openai_chat_payload(content))
+
+    summary = run_long_horizon_trial(
+        experiment_id="pytest_canonical_parse_diagnostics",
+        scenario_id="article_file_handoff",
+        trial_index=1,
+        model_id="first_model",
+        output_dir=artifact_output_dir,
+        project_root=PROJECT_ROOT,
+        max_turns=1,
+        allow_model_execution=True,
+        model_policy_settings={"model_id": "first_model"},
+    )
+    protocol = _load_trace(summary)[0]["model_protocol"]
+    preview = protocol["content_preview"]
+
+    assert len(preview) <= 512
+    assert "\\u0000\\u0001" in preview
+    assert "\x00" not in preview
+    assert "\x01" not in preview
 
 
 def test_group_trace_is_globally_ordered_complete_and_sanitized(

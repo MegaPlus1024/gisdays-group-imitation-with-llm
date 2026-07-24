@@ -1,4 +1,6 @@
 from __future__ import annotations
+import json
+import re
 from typing import Any
 
 import httpx
@@ -35,6 +37,14 @@ class LocalLLMJSONError(LocalLLMClientError):
 
     error_code = "invalid_action_json"
 
+    def __init__(
+        self,
+        message: str,
+        diagnostics: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.diagnostics = dict(diagnostics or {})
+
 
 class LocalLLMValidationError(LocalLLMClientError):
     """Model JSON failed schema validation."""
@@ -66,6 +76,12 @@ class LocalLLMClient:
         self.disable_thinking = disable_thinking
         self.no_think_prefix = no_think_prefix.strip()
         self.last_usage: dict[str, int] = {}
+        self.last_usage_diagnostics: dict[str, Any] = {
+            "usage_present": False,
+            "usage_prompt_tokens": None,
+            "usage_completion_tokens": None,
+            "usage_total_tokens": None,
+        }
         self.last_diagnostics: dict[str, Any] = {}
 
     def _build_messages(self, agent_state: dict[str, Any]) -> list[dict[str, str]]:
@@ -139,7 +155,13 @@ class LocalLLMClient:
         try:
             return parse_next_action_contract_text(text)
         except NextActionJSONError as exc:
-            raise LocalLLMJSONError(str(exc)) from exc
+            json_error = exc.__cause__ if isinstance(exc.__cause__, json.JSONDecodeError) else None
+            diagnostics = (
+                _content_parse_failure_diagnostics(text, json_error)
+                if json_error is not None
+                else _content_parse_failure_diagnostics(text, None)
+            )
+            raise LocalLLMJSONError(str(exc), diagnostics) from exc
         except NextActionValidationError as exc:
             raise LocalLLMValidationError(
                 f"Output JSON failed NextAction validation: {exc}"
@@ -147,6 +169,12 @@ class LocalLLMClient:
 
     def generate_next_action(self, agent_state: dict[str, Any]) -> NextAction:
         self.last_usage = {}
+        self.last_usage_diagnostics = {
+            "usage_present": False,
+            "usage_prompt_tokens": None,
+            "usage_completion_tokens": None,
+            "usage_total_tokens": None,
+        }
         self.last_diagnostics = {}
         payload = self._build_payload(agent_state)
         try:
@@ -158,13 +186,78 @@ class LocalLLMClient:
             raise LocalLLMRequestError(f"Local runtime request failed: {exc}") from exc
 
         usage = response_json.get("usage")
-        if isinstance(usage, dict):
-            self.last_usage = {
-                key: int(value)
-                for key, value in usage.items()
-                if key in {"prompt_tokens", "completion_tokens", "total_tokens"}
-                and isinstance(value, int)
-                and value >= 0
-            }
+        self.last_usage_diagnostics = _usage_diagnostics(usage)
+        self.last_usage = {
+            key: value
+            for key, value in {
+                "prompt_tokens": self.last_usage_diagnostics["usage_prompt_tokens"],
+                "completion_tokens": self.last_usage_diagnostics["usage_completion_tokens"],
+                "total_tokens": self.last_usage_diagnostics["usage_total_tokens"],
+            }.items()
+            if isinstance(value, int)
+        }
         text = self._extract_assistant_content_with_diagnostics(response_json)
-        return self.parse_next_action_text(text)
+        try:
+            return self.parse_next_action_text(text)
+        except LocalLLMJSONError as exc:
+            self.last_diagnostics.update(exc.diagnostics)
+            raise
+
+
+def _content_parse_failure_diagnostics(
+    content: str,
+    exc: json.JSONDecodeError | None,
+) -> dict[str, Any]:
+    stripped = content.lstrip()
+    diagnostics = {
+        "content_preview": _safe_model_content_preview(content, limit=512),
+        "content_first_non_whitespace_character": stripped[:1] or None,
+        "content_has_markdown_fence": "```" in content,
+        "content_has_think_tag": bool(re.search(r"</?think\b", content, flags=re.IGNORECASE)),
+        "json_error_line": None,
+        "json_error_column": None,
+        "json_error_position": None,
+    }
+    if exc is not None:
+        diagnostics.update(
+            {
+                "json_error_line": exc.lineno,
+                "json_error_column": exc.colno,
+                "json_error_position": exc.pos,
+            }
+        )
+    return diagnostics
+
+
+def _safe_model_content_preview(content: str, *, limit: int = 512) -> str:
+    preview = content[:limit]
+    preview = re.sub(r"[A-Za-z]:[\\/][^\s\"']+", "<absolute_path>", preview)
+    preview = re.sub(r"(?<!\w)/(?:[^\s\"']+/)+[^\s\"']+", "<absolute_path>", preview)
+    escaped = json.dumps(preview, ensure_ascii=True)[1:-1]
+    return escaped[:limit]
+
+
+def _usage_diagnostics(usage: Any) -> dict[str, Any]:
+    diagnostics: dict[str, Any] = {
+        "usage_present": isinstance(usage, dict),
+        "usage_prompt_tokens": None,
+        "usage_completion_tokens": None,
+        "usage_total_tokens": None,
+    }
+    if not isinstance(usage, dict):
+        return diagnostics
+    diagnostics["usage_prompt_tokens"] = _safe_usage_int(usage.get("prompt_tokens"))
+    diagnostics["usage_completion_tokens"] = _safe_usage_int(usage.get("completion_tokens"))
+    diagnostics["usage_total_tokens"] = _safe_usage_int(usage.get("total_tokens"))
+    recognized = {"prompt_tokens", "completion_tokens", "total_tokens"}
+    if any(key not in usage for key in recognized) or any(
+        key in usage and _safe_usage_int(usage.get(key)) is None for key in recognized
+    ):
+        diagnostics["usage_keys"] = sorted(str(key) for key in usage.keys() if isinstance(key, str))[:20]
+    return diagnostics
+
+
+def _safe_usage_int(value: Any) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return None
+    return value

@@ -574,26 +574,17 @@ class LocalOpenAIModelPolicy:
             )
         except Exception as exc:  # preserve structured local-client diagnostics.
             diagnostics = getattr(self.client, "last_diagnostics", {})
-            self.last_protocol_diagnostics = {
-                "disable_thinking": self.disable_thinking,
-                "no_think_prefix_used": bool(
-                    diagnostics.get("no_think_prefix_used", False)
-                ),
-                "content_length": diagnostics.get("content_length", 0),
-                "reasoning_content_length": diagnostics.get("reasoning_content_length", 0),
-                "finish_reason": diagnostics.get("finish_reason"),
-                "response_id": diagnostics.get("response_id"),
-            }
+            usage = getattr(self.client, "last_usage", {})
+            self.last_input_tokens = (
+                usage.get("prompt_tokens") if isinstance(usage, Mapping) else None
+            )
+            self.last_output_tokens = (
+                usage.get("completion_tokens") if isinstance(usage, Mapping) else None
+            )
+            self.last_protocol_diagnostics = self._protocol_diagnostics(diagnostics)
             raise PolicyError(str(exc), getattr(exc, "error_code", "policy_error")) from exc
         diagnostics = getattr(self.client, "last_diagnostics", {})
-        self.last_protocol_diagnostics = {
-            "disable_thinking": self.disable_thinking,
-            "no_think_prefix_used": bool(diagnostics.get("no_think_prefix_used", False)),
-            "content_length": diagnostics.get("content_length", 0),
-            "reasoning_content_length": diagnostics.get("reasoning_content_length", 0),
-            "finish_reason": diagnostics.get("finish_reason"),
-            "response_id": diagnostics.get("response_id"),
-        }
+        self.last_protocol_diagnostics = self._protocol_diagnostics(diagnostics)
         if not isinstance(next_action, NextAction):
             raise PolicyError(
                 "Local model client returned a non-NextAction result.",
@@ -612,6 +603,39 @@ class LocalOpenAIModelPolicy:
             reason=next_action.reason,
             expected_result=next_action.expected_result,
         )
+
+    def _protocol_diagnostics(self, diagnostics: Mapping[str, Any]) -> dict[str, Any]:
+        protocol = {
+            "disable_thinking": self.disable_thinking,
+            "no_think_prefix_used": bool(diagnostics.get("no_think_prefix_used", False)),
+            "content_length": diagnostics.get("content_length", 0),
+            "reasoning_content_length": diagnostics.get("reasoning_content_length", 0),
+            "finish_reason": diagnostics.get("finish_reason"),
+            "response_id": diagnostics.get("response_id"),
+        }
+        for key in (
+            "content_preview",
+            "content_first_non_whitespace_character",
+            "content_has_markdown_fence",
+            "content_has_think_tag",
+            "json_error_line",
+            "json_error_column",
+            "json_error_position",
+        ):
+            if key in diagnostics:
+                protocol[key] = diagnostics.get(key)
+        usage_diagnostics = getattr(self.client, "last_usage_diagnostics", {})
+        if isinstance(usage_diagnostics, Mapping):
+            for key in (
+                "usage_present",
+                "usage_prompt_tokens",
+                "usage_completion_tokens",
+                "usage_total_tokens",
+                "usage_keys",
+            ):
+                if key in usage_diagnostics:
+                    protocol[key] = usage_diagnostics.get(key)
+        return protocol
 
 
 @dataclass(frozen=True)
