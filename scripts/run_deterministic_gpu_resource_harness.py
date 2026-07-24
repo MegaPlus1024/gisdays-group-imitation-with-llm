@@ -168,7 +168,7 @@ class PhaseSampler:
             raise ValueError("interval_seconds must be positive")
         self.interval_seconds = interval_seconds
         self.samples: list[dict[str, Any]] = []
-        self._phase = "not_started"
+        self._phase = "baseline_without_server"
         self._server_pid: int | None = None
         self._lock = threading.Lock()
         self._stop = threading.Event()
@@ -499,6 +499,109 @@ def evaluate_gpu_offload_evidence(
     }
 
 
+def evaluate_idle_stability(
+    telemetry_samples: list[dict[str, Any]],
+    *,
+    required_consecutive_samples: int = 4,
+    max_gpu_utilization_percent: float = 10.0,
+    max_vram_change_mb: float = 32.0,
+) -> dict[str, Any]:
+    if required_consecutive_samples <= 0:
+        raise ValueError("required_consecutive_samples must be positive")
+    if max_gpu_utilization_percent < 0:
+        raise ValueError("max_gpu_utilization_percent must be non-negative")
+    if max_vram_change_mb < 0:
+        raise ValueError("max_vram_change_mb must be non-negative")
+
+    usable = [
+        sample
+        for sample in telemetry_samples
+        if sample.get("gpu_telemetry_available") is True
+        and isinstance(sample.get("used_vram_mb"), (int, float))
+        and isinstance(sample.get("gpu_utilization_percent"), (int, float))
+    ]
+    tail = usable[-required_consecutive_samples:]
+    utilization_values = [
+        float(sample["gpu_utilization_percent"])
+        for sample in tail
+    ]
+    vram_values = [float(sample["used_vram_mb"]) for sample in tail]
+    enough_samples = len(tail) == required_consecutive_samples
+    peak_utilization = safe_max(utilization_values)
+    vram_span = (
+        round(max(vram_values) - min(vram_values), 6)
+        if vram_values
+        else None
+    )
+    utilization_stable = bool(
+        enough_samples
+        and peak_utilization is not None
+        and peak_utilization <= max_gpu_utilization_percent
+    )
+    vram_stable = bool(
+        enough_samples
+        and vram_span is not None
+        and vram_span <= max_vram_change_mb
+    )
+    reasons: list[str] = []
+    if not enough_samples:
+        reasons.append("insufficient_gpu_telemetry_samples")
+    if enough_samples and not utilization_stable:
+        reasons.append("gpu_utilization_above_idle_threshold")
+    if enough_samples and not vram_stable:
+        reasons.append("vram_not_stable")
+    return {
+        "stable": bool(enough_samples and utilization_stable and vram_stable),
+        "required_consecutive_samples": required_consecutive_samples,
+        "usable_sample_count": len(usable),
+        "evaluated_sample_count": len(tail),
+        "max_gpu_utilization_percent": max_gpu_utilization_percent,
+        "observed_peak_gpu_utilization_percent": peak_utilization,
+        "max_vram_change_mb": max_vram_change_mb,
+        "observed_vram_span_mb": vram_span,
+        "reasons": reasons,
+    }
+
+
+def wait_for_idle_stability(
+    *,
+    timeout_seconds: float,
+    sample_interval_seconds: float,
+    required_consecutive_samples: int,
+    max_gpu_utilization_percent: float,
+    max_vram_change_mb: float,
+) -> dict[str, Any]:
+    if timeout_seconds <= 0:
+        raise ValueError("timeout_seconds must be positive")
+    if sample_interval_seconds <= 0:
+        raise ValueError("sample_interval_seconds must be positive")
+
+    started = time.monotonic()
+    telemetry_samples: list[dict[str, Any]] = []
+    last_evaluation: dict[str, Any] | None = None
+    while time.monotonic() - started < timeout_seconds:
+        telemetry = collect_gpu_telemetry()
+        telemetry_samples.append(telemetry)
+        last_evaluation = evaluate_idle_stability(
+            telemetry_samples,
+            required_consecutive_samples=required_consecutive_samples,
+            max_gpu_utilization_percent=max_gpu_utilization_percent,
+            max_vram_change_mb=max_vram_change_mb,
+        )
+        if last_evaluation["stable"]:
+            return {
+                **last_evaluation,
+                "elapsed_seconds": round(time.monotonic() - started, 6),
+                "telemetry_samples": telemetry_samples,
+            }
+        time.sleep(sample_interval_seconds)
+
+    raise TimeoutError(
+        "GPU idle stabilization timeout: "
+        + json.dumps(last_evaluation or {}, ensure_ascii=False, sort_keys=True)
+    )
+
+
 def flatten_sample(sample: dict[str, Any]) -> dict[str, Any]:
     gpu = sample.get("gpu") if isinstance(sample.get("gpu"), dict) else {}
     return {
@@ -790,15 +893,34 @@ def post_chat(
     }
 
 
-def terminate_process(process: subprocess.Popen[Any]) -> None:
-    if process.poll() is not None:
-        return
+def terminate_process(process: subprocess.Popen[Any]) -> dict[str, Any]:
+    initial_return_code = process.poll()
+    if initial_return_code is not None:
+        return {
+            "initiated_by_harness": False,
+            "method": "already_exited",
+            "forced_kill": False,
+            "return_code": initial_return_code,
+            "process_stopped": True,
+        }
+
     process.terminate()
+    method = "terminate"
+    forced_kill = False
     try:
         process.wait(timeout=15)
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait(timeout=10)
+        method = "kill_after_terminate_timeout"
+        forced_kill = True
+    return {
+        "initiated_by_harness": True,
+        "method": method,
+        "forced_kill": forced_kill,
+        "return_code": process.returncode,
+        "process_stopped": process.poll() is not None,
+    }
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -820,6 +942,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sample-interval-seconds", type=float, default=0.5)
     parser.add_argument("--baseline-seconds", type=float, default=3.0)
     parser.add_argument("--loaded-idle-seconds", type=float, default=5.0)
+    parser.add_argument(
+        "--idle-stabilization-timeout-seconds",
+        type=float,
+        default=30.0,
+    )
+    parser.add_argument("--idle-stable-samples", type=int, default=4)
+    parser.add_argument(
+        "--idle-max-gpu-utilization-percent",
+        type=float,
+        default=10.0,
+    )
+    parser.add_argument("--idle-max-vram-change-mb", type=float, default=32.0)
     parser.add_argument("--post-idle-seconds", type=float, default=2.0)
     parser.add_argument("--warmup-runs", type=int, default=3)
     parser.add_argument("--runs-per-case", type=int, default=10)
@@ -846,6 +980,14 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.warmup_runs < 0 or args.runs_per_case <= 0:
         raise ValueError("warmup runs must be >= 0 and runs per case must be > 0")
+    if args.idle_stabilization_timeout_seconds <= 0:
+        raise ValueError("idle stabilization timeout must be positive")
+    if args.idle_stable_samples <= 0:
+        raise ValueError("idle stable samples must be positive")
+    if args.idle_max_gpu_utilization_percent < 0:
+        raise ValueError("idle GPU utilization threshold must be non-negative")
+    if args.idle_max_vram_change_mb < 0:
+        raise ValueError("idle VRAM change threshold must be non-negative")
 
     model_path = Path(args.model_path).resolve()
     server_path = Path(args.server_path).resolve()
@@ -906,6 +1048,14 @@ def main(argv: list[str] | None = None) -> int:
         "sample_interval_seconds": args.sample_interval_seconds,
         "baseline_seconds": args.baseline_seconds,
         "loaded_idle_seconds": args.loaded_idle_seconds,
+        "idle_stabilization": {
+            "timeout_seconds": args.idle_stabilization_timeout_seconds,
+            "required_consecutive_samples": args.idle_stable_samples,
+            "max_gpu_utilization_percent": (
+                args.idle_max_gpu_utilization_percent
+            ),
+            "max_vram_change_mb": args.idle_max_vram_change_mb,
+        },
         "post_idle_seconds": args.post_idle_seconds,
         "warmup_runs": args.warmup_runs,
         "runs_per_case": args.runs_per_case,
@@ -942,11 +1092,14 @@ def main(argv: list[str] | None = None) -> int:
     request_records: list[dict[str, Any]] = []
     models_payload: dict[str, Any] | None = None
     smoke_record: dict[str, Any] | None = None
+    idle_stabilization: dict[str, Any] | None = None
+    shutdown_result: dict[str, Any] | None = None
     fatal_error: dict[str, Any] | None = None
 
     import httpx
 
     client = httpx.Client(timeout=args.timeout_seconds, trust_env=False)
+    sampler.set_phase("baseline_without_server")
     sampler.start()
     try:
         if endpoint_is_live(client, models_url):
@@ -954,7 +1107,6 @@ def main(argv: list[str] | None = None) -> int:
                 f"Endpoint is already live before baseline: {models_url}"
             )
 
-        sampler.set_phase("baseline_without_server")
         time.sleep(args.baseline_seconds)
 
         sampler.set_phase("server_loading")
@@ -978,6 +1130,17 @@ def main(argv: list[str] | None = None) -> int:
             raise RuntimeError(
                 f"Expected model id {args.model_id!r}; received {model_ids!r}"
             )
+
+        idle_stabilization = wait_for_idle_stability(
+            timeout_seconds=args.idle_stabilization_timeout_seconds,
+            sample_interval_seconds=args.sample_interval_seconds,
+            required_consecutive_samples=args.idle_stable_samples,
+            max_gpu_utilization_percent=(
+                args.idle_max_gpu_utilization_percent
+            ),
+            max_vram_change_mb=args.idle_max_vram_change_mb,
+        )
+        write_json(out_dir / "idle_stabilization.json", idle_stabilization)
 
         sampler.set_phase("loaded_idle")
         time.sleep(args.loaded_idle_seconds)
@@ -1132,9 +1295,9 @@ def main(argv: list[str] | None = None) -> int:
         write_json(out_dir / "error.json", fatal_error)
     finally:
         sampler.stop()
-        client.close()
         if process is not None:
-            terminate_process(process)
+            shutdown_result = terminate_process(process)
+        client.close()
         stdout_handle.close()
         stderr_handle.close()
 
@@ -1153,6 +1316,14 @@ def main(argv: list[str] | None = None) -> int:
     validation_failures: list[str] = []
     if not gpu_offload_evidence["verified"]:
         validation_failures.append("actual_gpu_offload_not_verified")
+    if not isinstance(idle_stabilization, dict) or not idle_stabilization.get(
+        "stable"
+    ):
+        validation_failures.append("loaded_idle_not_stabilized")
+    if isinstance(shutdown_result, dict) and not shutdown_result.get(
+        "process_stopped"
+    ):
+        validation_failures.append("server_process_not_stopped")
     status = (
         "succeeded"
         if fatal_error is None
@@ -1169,7 +1340,13 @@ def main(argv: list[str] | None = None) -> int:
         "model_id": args.model_id,
         "project_commit": manifest["project_commit"],
         "server_pid": process.pid if process is not None else None,
-        "server_return_code": process.returncode if process is not None else None,
+        "server_return_code": (
+            shutdown_result.get("return_code")
+            if isinstance(shutdown_result, dict)
+            else (process.returncode if process is not None else None)
+        ),
+        "shutdown": shutdown_result,
+        "idle_stabilization": idle_stabilization,
         "models_response_model_ids": (
             model_ids_from_response(models_payload)
             if isinstance(models_payload, dict)
@@ -1206,6 +1383,10 @@ def main(argv: list[str] | None = None) -> int:
   --ctx-size {args.ctx_size} `
   --gpu-layers {args.gpu_layers} `
   --parallel 1 `
+  --idle-stabilization-timeout-seconds {args.idle_stabilization_timeout_seconds} `
+  --idle-stable-samples {args.idle_stable_samples} `
+  --idle-max-gpu-utilization-percent {args.idle_max_gpu_utilization_percent} `
+  --idle-max-vram-change-mb {args.idle_max_vram_change_mb} `
   --out-dir "{out_dir}"
 ```
 """

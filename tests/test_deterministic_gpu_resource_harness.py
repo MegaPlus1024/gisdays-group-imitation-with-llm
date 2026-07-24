@@ -7,8 +7,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from run_deterministic_gpu_resource_harness import (
     build_corpus,
+    PhaseSampler,
     build_resource_summary,
     evaluate_gpu_offload_evidence,
+    evaluate_idle_stability,
     flatten_sample,
     percentile,
     request_record_summary,
@@ -236,3 +238,50 @@ def test_gpu_offload_evidence_requires_vram_delta_and_activity() -> None:
         "no_positive_gpu_utilization_sample_during_workload"
         in no_activity["reasons"]
     )
+
+
+def test_phase_sampler_starts_in_baseline_phase() -> None:
+    sampler = PhaseSampler(interval_seconds=0.5)
+
+    assert sampler._snapshot_state() == ("baseline_without_server", None)
+
+
+def test_idle_stability_requires_quiet_gpu_and_stable_vram() -> None:
+    stable_samples = [
+        {
+            "gpu_telemetry_available": True,
+            "used_vram_mb": value,
+            "gpu_utilization_percent": utilization,
+        }
+        for value, utilization in [
+            (19103.0, 1.0),
+            (19104.0, 0.0),
+            (19103.0, 2.0),
+            (19104.0, 0.0),
+        ]
+    ]
+    busy_samples = stable_samples[:-1] + [
+        {
+            "gpu_telemetry_available": True,
+            "used_vram_mb": 19104.0,
+            "gpu_utilization_percent": 98.0,
+        }
+    ]
+    moving_vram_samples = stable_samples[:-1] + [
+        {
+            "gpu_telemetry_available": True,
+            "used_vram_mb": 19200.0,
+            "gpu_utilization_percent": 0.0,
+        }
+    ]
+
+    stable = evaluate_idle_stability(stable_samples)
+    busy = evaluate_idle_stability(busy_samples)
+    moving = evaluate_idle_stability(moving_vram_samples)
+
+    assert stable["stable"] is True
+    assert stable["reasons"] == []
+    assert busy["stable"] is False
+    assert "gpu_utilization_above_idle_threshold" in busy["reasons"]
+    assert moving["stable"] is False
+    assert "vram_not_stable" in moving["reasons"]
