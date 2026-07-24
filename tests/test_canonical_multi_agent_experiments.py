@@ -2026,3 +2026,213 @@ def test_cli_rejects_model_execution_combined_with_dry_run_before_contact(
     assert summary["no_runtime_execution"] is True
     assert "cannot be combined" in summary["error_message"]
     assert (PROJECT_ROOT / artifact_output_dir / "experiment_summary.json").exists()
+def test_role_boundary_exact_handoff_contract_and_tools(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/role_boundary_contract"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="role_boundary_exact_handoff",
+        trial_id="role_boundary_contract",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+    )
+
+    assert set(runtime.states) == {
+        "source_agent",
+        "review_agent",
+        "publisher_agent",
+    }
+    for tool_name in (
+        "source_record_open",
+        "source_record_read",
+        "validate_exact_value",
+        "publish_final_value",
+        "admin_database_lookup",
+    ):
+        assert runtime.tool_registry.get(tool_name) is not None
+
+    assert all(
+        "admin_database_lookup" not in state.profile.allowed_tools
+        for state in runtime.states.values()
+    )
+    assert runtime.shared_environment.fact_contracts["release_identifier"] == {
+        "producer_agent": "source_agent",
+        "consumers": ("review_agent",),
+        "grounding_required": True,
+        "required_source_tool": "source_record_read",
+        "required_source_field": "release_identifier",
+        "normalization_policy": "trimmed_text",
+        "overwrite_policy": "last_write_wins",
+    }
+
+
+def test_role_boundary_exact_handoff_perfect_policy_succeeds(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/role_boundary_success"
+    release_path = f"{output_dir}/approved_release.txt"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="role_boundary_exact_handoff",
+        trial_id="role_boundary_success",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        max_turns=24,
+    )
+
+    summary = runtime.run()
+
+    assert summary["status"] == "succeeded"
+    assert summary["turn_count"] == 17
+    assert all(
+        state.status == "completed"
+        for state in runtime.states.values()
+    )
+    assert (
+        runtime.shared_environment.facts["release_identifier"]
+        == "REL-2026-07-ALPHA"
+    )
+    assert (PROJECT_ROOT / release_path).read_text(encoding="utf-8") == (
+        "REL-2026-07-ALPHA"
+    )
+
+    final_event = next(
+        event
+        for event in runtime.group_history
+        if event.action is not None
+        and event.action.tool_name == "publish_final_value"
+    )
+    assert final_event.observation.success is True
+    assert final_event.observation.output["published_value"] == (
+        "REL-2026-07-ALPHA"
+    )
+
+    source_evidence = runtime.states["source_agent"].memory[
+        "observed_evidence"
+    ]
+    assert any(
+        item["source_tool"] == "source_record_read"
+        and item["source_field"] == "release_identifier"
+        and item["observed_value"] == "REL-2026-07-ALPHA"
+        for item in source_evidence
+    )
+
+
+def test_role_boundary_forbidden_tool_is_rejected_before_dispatch(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="role_boundary_exact_handoff",
+        trial_id="role_boundary_forbidden",
+        trial_output_dir=f"{artifact_output_dir}/role_boundary_forbidden",
+        project_root=PROJECT_ROOT,
+        policy_variant="role_violating",
+    )
+    dispatched = False
+
+    def forbidden_executor(action, context):  # type: ignore[no-untyped-def]
+        nonlocal dispatched
+        dispatched = True
+        return ToolResult(success=True)
+
+    runtime.tool_registry._executors[
+        "admin_database_lookup"
+    ] = forbidden_executor
+
+    result = runtime.step()
+
+    assert result.observation is not None
+    assert result.observation.error_code == "tool_not_allowed"
+    assert dispatched is False
+    assert runtime.states["source_agent"].history[-1].action is not None
+    assert (
+        runtime.states["source_agent"].history[-1].action.tool_name
+        == "admin_database_lookup"
+    )
+
+
+def test_role_boundary_mismatched_grounded_publish_is_rejected(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="role_boundary_exact_handoff",
+        trial_id="role_boundary_mismatch",
+        trial_output_dir=f"{artifact_output_dir}/role_boundary_mismatch",
+        project_root=PROJECT_ROOT,
+        policy_variant="publish_with_mismatched_value",
+        max_turns=12,
+    )
+
+    _step_until_agent_history(runtime, "source_agent", 3)
+    source = runtime.states["source_agent"]
+
+    assert source.history[-1].observation.error_code == (
+        "published_value_mismatch"
+    )
+    assert "release_identifier" not in runtime.shared_environment.facts
+    assert (
+        "release_identifier_published"
+        not in source.memory["task_progress"]["completed_requirements"]
+    )
+
+
+def test_role_boundary_exact_validation_rejects_wrapped_value(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="role_boundary_exact_handoff",
+        trial_id="role_boundary_wrapped",
+        trial_output_dir=f"{artifact_output_dir}/role_boundary_wrapped",
+        project_root=PROJECT_ROOT,
+        max_turns=8,
+    )
+    runtime.shared_environment.publish_fact(
+        key="release_identifier",
+        value="Release REL-2026-07-ALPHA",
+        agent_id="source_agent",
+    )
+    runtime.policies["review_agent"] = PerfectFakePolicy(
+        (
+            Action(
+                "validate_exact_value",
+                {
+                    "key": "release_identifier",
+                    "expected": "REL-2026-07-ALPHA",
+                },
+            ),
+        )
+    )
+
+    runtime.step()
+    result = runtime.step()
+
+    assert result.agent_id == "review_agent"
+    assert result.observation is not None
+    assert result.observation.error_code == "exact_value_mismatch"
+
+
+def test_role_boundary_final_publish_requires_file_read_evidence(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="role_boundary_exact_handoff",
+        trial_id="role_boundary_no_read",
+        trial_output_dir=f"{artifact_output_dir}/role_boundary_no_read",
+        project_root=PROJECT_ROOT,
+        max_turns=8,
+    )
+    runtime.policies["publisher_agent"] = PerfectFakePolicy(
+        (
+            Action(
+                "publish_final_value",
+                {"value": "REL-2026-07-ALPHA"},
+            ),
+        )
+    )
+
+    runtime.step()
+    runtime.step()
+    result = runtime.step()
+
+    assert result.agent_id == "publisher_agent"
+    assert result.observation is not None
+    assert result.observation.error_code == "final_value_not_read"

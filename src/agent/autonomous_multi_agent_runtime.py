@@ -1450,7 +1450,10 @@ class AutonomousMultiAgentRuntime:
         event_index: int,
     ) -> list[dict[str, Any]]:
         output = observation.output
-        if action.tool_name == "office_fixture_read" and isinstance(output, Mapping):
+        if action.tool_name in {
+            "office_fixture_read",
+            "source_record_read",
+        } and isinstance(output, Mapping):
             field = output.get("field")
             if isinstance(field, str) and "value" in output:
                 return [
