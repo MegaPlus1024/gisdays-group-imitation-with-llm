@@ -970,6 +970,158 @@ def test_invalid_json_is_rejected() -> None:
     assert excinfo.value.error_code == "model_response_invalid_json"
 
 
+def test_fenced_json_remains_invalid_and_records_parse_diagnostics() -> None:
+    content = '```json\n{"step_id":"done","action_name":"done","parameters":{},"done":true}\n```'
+    client = FakeChatCompletionClient([ChatCompletionResponse(content=content, finish_reason="stop")])
+    planner = _planner(client=client)
+
+    with pytest.raises(LocalModelLivePlannerError) as excinfo:
+        planner.next_step(OBSERVATION)
+
+    diagnostics = excinfo.value.diagnostics
+    summary = planner.to_summary()
+
+    assert excinfo.value.error_code == "model_response_invalid_json"
+    assert diagnostics["content_preview"].startswith("```json\\n")
+    assert diagnostics["content_first_non_whitespace_character"] == "`"
+    assert diagnostics["content_has_markdown_fence"] is True
+    assert diagnostics["content_has_think_tag"] is False
+    assert diagnostics["json_error_line"] == 1
+    assert diagnostics["json_error_column"] == 1
+    assert diagnostics["json_error_position"] == 0
+    assert summary["last_error_diagnostics"]["content_has_markdown_fence"] is True
+
+
+def test_prose_prefixed_json_remains_invalid_and_records_first_character() -> None:
+    content = 'Sure, here is the action:\n{"step_id":"done","action_name":"done","parameters":{},"done":true}'
+    client = FakeChatCompletionClient([ChatCompletionResponse(content=content, finish_reason="stop")])
+    planner = _planner(client=client)
+
+    with pytest.raises(LocalModelLivePlannerError) as excinfo:
+        planner.next_step(OBSERVATION)
+
+    diagnostics = excinfo.value.diagnostics
+
+    assert excinfo.value.error_code == "model_response_invalid_json"
+    assert diagnostics["content_preview"].startswith("Sure, here is the action:\\n")
+    assert diagnostics["content_first_non_whitespace_character"] == "S"
+    assert diagnostics["content_has_markdown_fence"] is False
+    assert diagnostics["json_error_line"] == 1
+    assert diagnostics["json_error_column"] == 1
+    assert diagnostics["json_error_position"] == 0
+
+
+def test_valid_json_still_parses_without_parse_failure_diagnostics() -> None:
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"done","action_name":"done","parameters":{},"expected_text":"","done":true}',
+                finish_reason="stop",
+            )
+        ]
+    )
+    planner = _planner(client=client)
+
+    step = planner.next_step(OBSERVATION)
+    summary = planner.to_summary()
+
+    assert step is not None
+    assert step.done is True
+    assert summary["last_error_code"] is None
+    assert summary["last_error_diagnostics"] == {}
+
+
+def test_parse_failure_preview_is_bounded_and_escapes_control_characters() -> None:
+    content = ("\x00\x01" + "x" * 700) + ' {"step_id":"done"}'
+    client = FakeChatCompletionClient([ChatCompletionResponse(content=content, finish_reason="stop")])
+    planner = _planner(client=client)
+
+    with pytest.raises(LocalModelLivePlannerError) as excinfo:
+        planner.next_step(OBSERVATION)
+
+    preview = excinfo.value.diagnostics["content_preview"]
+
+    assert len(preview) <= 512
+    assert "\\u0000\\u0001" in preview
+    assert "\x00" not in preview
+    assert "\x01" not in preview
+
+
+def test_parse_failure_records_think_tag_without_accepting_content() -> None:
+    content = "<think>draft</think>\n{\"step_id\":\"done\"}"
+    client = FakeChatCompletionClient([ChatCompletionResponse(content=content, finish_reason="stop")])
+    planner = _planner(client=client)
+
+    with pytest.raises(LocalModelLivePlannerError) as excinfo:
+        planner.next_step(OBSERVATION)
+
+    assert excinfo.value.error_code == "model_response_invalid_json"
+    assert excinfo.value.diagnostics["content_first_non_whitespace_character"] == "<"
+    assert excinfo.value.diagnostics["content_has_think_tag"] is True
+
+
+def test_response_preview_extracts_usage_fields_when_present() -> None:
+    raw_response = {
+        "id": "chatcmpl-test",
+        "model": "third_model",
+        "choices": [],
+        "usage": {"prompt_tokens": 11, "completion_tokens": 7, "total_tokens": 18},
+    }
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"done","action_name":"done","parameters":{},"expected_text":"","done":true}',
+                finish_reason="stop",
+                model="third_model",
+                raw_response=raw_response,
+            )
+        ]
+    )
+    planner = _planner(client=client)
+
+    planner.next_step(OBSERVATION)
+    preview = planner.to_summary()["last_response_preview"]
+
+    assert preview["usage_present"] is True
+    assert preview["usage_prompt_tokens"] == 11
+    assert preview["usage_completion_tokens"] == 7
+    assert preview["usage_total_tokens"] == 18
+    assert "usage_keys" not in preview
+
+
+def test_response_preview_handles_missing_or_unexpected_usage_without_exception() -> None:
+    client = FakeChatCompletionClient(
+        [
+            ChatCompletionResponse(
+                content='{"step_id":"done","action_name":"done","parameters":{},"expected_text":"","done":true}',
+                finish_reason="stop",
+                raw_response={"usage": {"prompt_tokens": "11", "other": 1}},
+            ),
+            ChatCompletionResponse(
+                content='{"step_id":"done","action_name":"done","parameters":{},"expected_text":"","done":true}',
+                finish_reason="stop",
+                raw_response={"id": "chatcmpl-no-usage"},
+            ),
+        ]
+    )
+    planner = _planner(client=client)
+
+    planner.next_step(OBSERVATION)
+    unexpected_preview = planner.to_summary()["last_response_preview"]
+    planner.next_step(OBSERVATION)
+    missing_preview = planner.to_summary()["last_response_preview"]
+
+    assert unexpected_preview["usage_present"] is True
+    assert unexpected_preview["usage_prompt_tokens"] is None
+    assert unexpected_preview["usage_completion_tokens"] is None
+    assert unexpected_preview["usage_total_tokens"] is None
+    assert unexpected_preview["usage_keys"] == ["other", "prompt_tokens"]
+    assert missing_preview["usage_present"] is False
+    assert missing_preview["usage_prompt_tokens"] is None
+    assert missing_preview["usage_completion_tokens"] is None
+    assert missing_preview["usage_total_tokens"] is None
+
+
 def test_full_plan_object_is_rejected() -> None:
     client = FakeChatCompletionClient(
         [

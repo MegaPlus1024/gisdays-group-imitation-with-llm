@@ -465,6 +465,7 @@ class LocalModelLivePlanner:
                     "finish_reason": response.finish_reason,
                     "request_payload_metadata": dict(self.last_request_payload_metadata),
                     "response_text_preview_sanitized": self.last_response_text_preview_sanitized,
+                    **_content_parse_failure_diagnostics(response.content, exc),
                 },
             )
             self._record_error(error)
@@ -664,6 +665,7 @@ class LocalModelLivePlanner:
                     "finish_reason": response.finish_reason,
                     "request_payload_metadata": dict(self.last_request_payload_metadata),
                     "response_text_preview_sanitized": self.last_response_text_preview_sanitized,
+                    **_content_parse_failure_diagnostics(response.content, exc),
                 },
             )
             self.last_repair_error_code = error.error_code
@@ -1214,10 +1216,58 @@ def _request_preview(request: ChatCompletionRequest) -> dict[str, Any]:
 
 
 def _response_preview(response: ChatCompletionResponse) -> dict[str, Any]:
-    return {
+    preview = {
         "model": response.model,
         "finish_reason": response.finish_reason,
     }
+    preview.update(_usage_diagnostics(response.raw_response))
+    return preview
+
+
+def _content_parse_failure_diagnostics(content: str, exc: json.JSONDecodeError) -> dict[str, Any]:
+    stripped = content.lstrip()
+    return {
+        "content_preview": _safe_model_content_preview(content, limit=512),
+        "content_first_non_whitespace_character": stripped[:1] or None,
+        "content_has_markdown_fence": "```" in content,
+        "content_has_think_tag": bool(re.search(r"</?think\b", content, flags=re.IGNORECASE)),
+        "json_error_line": exc.lineno,
+        "json_error_column": exc.colno,
+        "json_error_position": exc.pos,
+    }
+
+
+def _safe_model_content_preview(content: str, *, limit: int = 512) -> str:
+    preview = content[:limit]
+    escaped = json.dumps(preview, ensure_ascii=True)[1:-1]
+    return escaped[:limit]
+
+
+def _usage_diagnostics(raw_response: Mapping[str, Any] | None) -> dict[str, Any]:
+    usage = raw_response.get("usage") if isinstance(raw_response, Mapping) else None
+    diagnostics: dict[str, Any] = {
+        "usage_present": isinstance(usage, Mapping),
+        "usage_prompt_tokens": None,
+        "usage_completion_tokens": None,
+        "usage_total_tokens": None,
+    }
+    if not isinstance(usage, Mapping):
+        return diagnostics
+    diagnostics["usage_prompt_tokens"] = _safe_usage_int(usage.get("prompt_tokens"))
+    diagnostics["usage_completion_tokens"] = _safe_usage_int(usage.get("completion_tokens"))
+    diagnostics["usage_total_tokens"] = _safe_usage_int(usage.get("total_tokens"))
+    recognized = {"prompt_tokens", "completion_tokens", "total_tokens"}
+    if any(key not in usage for key in recognized) or any(
+        key in usage and _safe_usage_int(usage.get(key)) is None for key in recognized
+    ):
+        diagnostics["usage_keys"] = sorted(str(key) for key in usage.keys() if isinstance(key, str))[:20]
+    return diagnostics
+
+
+def _safe_usage_int(value: Any) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
 
 
 def _endpoint_path(url: str) -> str:
