@@ -681,6 +681,82 @@ def test_grounded_publish_validation_failure_modes() -> None:
         assert result.observation.metadata["grounding_valid"] is False
 
 
+def test_shared_read_fact_retry_after_publish_in_canonical_round_robin() -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery",
+        trial_id="shared_fact_retry_after_publish",
+        trial_output_dir=(
+            "artifacts/canonical_multi_agent_long_horizon/"
+            "shared_fact_retry_after_publish"
+        ),
+        project_root=PROJECT_ROOT,
+        max_turns=12,
+    )
+    runtime.limits = RuntimeLimits(
+        max_turns_total=12,
+        max_turns_per_agent=8,
+        max_failures_per_agent=6,
+        max_identical_actions=2,
+    )
+    runtime.policies["document_agent"] = PerfectFakePolicy(
+        (
+            Action("office_fixture_read", {"field": "version"}),
+            Action("office_fixture_read", {"field": "owner"}),
+            Action(
+                "shared_publish_fact",
+                {
+                    "key": "review_owner",
+                    "value": "office worker",
+                    "evidence_id": "ev_document_agent_1_owner",
+                },
+            ),
+        )
+    )
+    runtime.policies["verification_agent"] = PerfectFakePolicy(
+        (
+            Action("shared_read_fact", {"key": "review_owner"}),
+            Action("shared_read_fact", {"key": "review_owner"}),
+            Action("shared_read_fact", {"key": "review_owner"}),
+        )
+    )
+
+    _step_until_agent_history(runtime, "verification_agent", 3)
+
+    verifier = runtime.states["verification_agent"]
+    observations = [event.observation for event in verifier.history]
+    assert [item.error_code for item in observations[:2]] == [
+        "shared_fact_not_found",
+        "shared_fact_not_found",
+    ]
+    assert observations[2].success is True
+    assert observations[2].error_code is None
+    assert verifier.stop_reason != "repetition_guard"
+    assert verifier._same_action_count == 1
+    assert "review_owner_read" in verifier.memory["task_progress"][
+        "completed_requirements"
+    ]
+
+    publish_index = next(
+        index
+        for index, event in enumerate(runtime.group_history)
+        if event.agent_id == "document_agent"
+        and event.action is not None
+        and event.action.tool_name == "shared_publish_fact"
+    )
+    read_index = next(
+        index
+        for index, event in enumerate(
+            runtime.group_history[publish_index + 1 :],
+            start=publish_index + 1,
+        )
+        if event.agent_id == "verification_agent"
+        and event.action is not None
+        and event.action.tool_name == "shared_read_fact"
+        and event.observation.success is True
+    )
+    assert read_index == publish_index + 1
+
+
 def test_other_agent_evidence_is_rejected() -> None:
     runtime = build_long_horizon_trial_runtime(
         scenario_id="office_shared_fact_recovery",

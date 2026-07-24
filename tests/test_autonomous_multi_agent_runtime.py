@@ -199,6 +199,132 @@ def test_repetition_guard_stops_repeating_policy() -> None:
     assert repeater["actions_succeeded"] == 2
 
 
+def test_shared_fact_retry_after_relevant_publish_bypasses_repetition_guard() -> None:
+    runtime = _shared_fact_retry_runtime(
+        fact_contracts={
+            "review_owner": {
+                "producer_agent": "producer",
+                "consumers": ["consumer"],
+            }
+        },
+        consumer_steps=(
+            Action("shared_read_fact", {"key": "review_owner"}),
+            Action("shared_read_fact", {"key": "review_owner"}),
+            Action("shared_read_fact", {"key": "review_owner"}),
+        ),
+        producer_steps=(
+            Action("noop"),
+            Action(
+                "shared_publish_fact",
+                {"key": "review_owner", "value": "office worker"},
+            ),
+        ),
+    )
+
+    _run_until_agent_history(runtime, "consumer", 3)
+    consumer = runtime.states["consumer"]
+    observations = [event.observation for event in consumer.history]
+
+    assert [item.error_code for item in observations[:2]] == [
+        "shared_fact_not_found",
+        "shared_fact_not_found",
+    ]
+    assert observations[2].success is True
+    assert observations[2].error_code is None
+    assert consumer._same_action_count == 1
+    assert "review_owner_read" in consumer.memory["task_progress"]["completed_requirements"]
+
+
+def test_repeated_missing_shared_fact_without_state_change_still_triggers_guard() -> None:
+    runtime = _shared_fact_retry_runtime(
+        fact_contracts={
+            "review_owner": {
+                "producer_agent": "producer",
+                "consumers": ["consumer"],
+            }
+        },
+        consumer_steps=(
+            Action("shared_read_fact", {"key": "review_owner"}),
+            Action("shared_read_fact", {"key": "review_owner"}),
+            Action("shared_read_fact", {"key": "review_owner"}),
+        ),
+        producer_steps=(Action("noop"), Action("noop"), Action("noop")),
+    )
+
+    _run_until_agent_history(runtime, "consumer", 3)
+    consumer = runtime.states["consumer"]
+
+    assert consumer.history[-1].observation.error_code == "repeated_action_detected"
+    assert consumer.stop_reason == "repetition_guard"
+    assert consumer._same_action_count == 3
+
+
+def test_unrelated_shared_fact_publish_does_not_exempt_repeated_missing_key() -> None:
+    runtime = _shared_fact_retry_runtime(
+        fact_contracts={
+            "review_owner": {
+                "producer_agent": "producer",
+                "consumers": ["consumer"],
+            },
+            "review_status": {
+                "producer_agent": "producer",
+                "consumers": ["consumer"],
+            },
+        },
+        consumer_steps=(
+            Action("shared_read_fact", {"key": "review_owner"}),
+            Action("shared_read_fact", {"key": "review_owner"}),
+            Action("shared_read_fact", {"key": "review_owner"}),
+        ),
+        producer_steps=(
+            Action(
+                "shared_publish_fact",
+                {"key": "review_status", "value": "approved"},
+            ),
+            Action("noop"),
+        ),
+    )
+
+    _run_until_agent_history(runtime, "consumer", 3)
+    consumer = runtime.states["consumer"]
+
+    assert "review_status" in runtime.shared_environment.facts
+    assert "review_owner" not in runtime.shared_environment.facts
+    assert consumer.history[-1].observation.error_code == "repeated_action_detected"
+    assert consumer.stop_reason == "repetition_guard"
+
+
+def test_unreadable_shared_fact_publish_does_not_exempt_repeated_read() -> None:
+    runtime = _shared_fact_retry_runtime(
+        fact_contracts={
+            "review_owner": {
+                "producer_agent": "producer",
+                "consumers": [],
+            }
+        },
+        consumer_steps=(
+            Action("shared_read_fact", {"key": "review_owner"}),
+            Action("shared_read_fact", {"key": "review_owner"}),
+            Action("shared_read_fact", {"key": "review_owner"}),
+        ),
+        producer_steps=(
+            Action(
+                "shared_publish_fact",
+                {"key": "review_owner", "value": "office worker"},
+            ),
+            Action("noop"),
+        ),
+    )
+
+    _run_until_agent_history(runtime, "consumer", 3)
+    consumer = runtime.states["consumer"]
+
+    assert "review_owner" in runtime.shared_environment.facts
+    assert consumer.history[0].observation.error_code == "shared_fact_not_readable"
+    assert consumer.history[-1].observation.error_code == "repeated_action_detected"
+    assert consumer.stop_reason == "repetition_guard"
+
+
 def test_early_stop_policy_is_bounded() -> None:
     registry = _simple_registry()
     runtime = AutonomousMultiAgentRuntime(
@@ -436,6 +562,73 @@ def _simple_registry() -> ToolRegistry:
         lambda action, context: ToolResult(success=True),
     )
     return registry
+
+
+def _shared_fact_retry_runtime(
+    *,
+    fact_contracts: dict[str, dict[str, object]],
+    consumer_steps: tuple[Action, ...],
+    producer_steps: tuple[Action, ...],
+) -> AutonomousMultiAgentRuntime:
+    registry, _ = build_default_tool_registry(project_root=PROJECT_ROOT)
+    registry.register(
+        ToolSpec(
+            name="noop",
+            description="No-op fixture action.",
+            family="test",
+        ),
+        lambda action, context: ToolResult(success=True, output={"status": "ok"}),
+    )
+    return AutonomousMultiAgentRuntime(
+        runtime_id="shared_fact_retry_guard",
+        profiles=(
+            AgentProfile(
+                agent_id="consumer",
+                role="Consumer",
+                goal="Read a shared fact.",
+                allowed_tools=("shared_read_fact",),
+                completion_requirements=(
+                    {
+                        "id": "review_owner_read",
+                        "kind": "fact_read",
+                        "key": "review_owner",
+                    },
+                ),
+            ),
+            AgentProfile(
+                agent_id="producer",
+                role="Producer",
+                goal="Publish a shared fact.",
+                allowed_tools=("noop", "shared_publish_fact"),
+            ),
+        ),
+        policies={
+            "consumer": PerfectFakePolicy(consumer_steps),
+            "producer": PerfectFakePolicy(producer_steps),
+        },
+        tool_registry=registry,
+        limits=RuntimeLimits(
+            max_turns_total=12,
+            max_turns_per_agent=6,
+            max_failures_per_agent=6,
+            max_identical_actions=2,
+        ),
+        shared_environment=SharedEnvironment(fact_contracts=fact_contracts),
+    )
+
+
+def _run_until_agent_history(
+    runtime: AutonomousMultiAgentRuntime,
+    agent_id: str,
+    history_len: int,
+) -> None:
+    for _ in range(20):
+        if len(runtime.states[agent_id].history) >= history_len:
+            return
+        if runtime.status != "running":
+            return
+        runtime.step()
+    raise AssertionError(f"{agent_id} did not reach history length {history_len}")
 
 
 def _state_for(profile: AgentProfile) -> AgentState:

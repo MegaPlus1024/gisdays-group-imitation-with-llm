@@ -857,7 +857,7 @@ class AutonomousMultiAgentRuntime:
                 output_tokens=output_tokens,
             )
 
-        signature = action.signature()
+        signature = self._repetition_signature(state, action)
         if signature == state._last_action_signature:
             state._same_action_count += 1
         else:
@@ -1056,6 +1056,28 @@ class AutonomousMultiAgentRuntime:
             if advertised and (not isinstance(path, str) or path not in advertised):
                 return Observation(False, action.tool_name, error_code="path_not_advertised", error_message="Path is outside the advertised scenario contract.")
         return None
+
+    def _repetition_signature(self, state: AgentState, action: Action) -> str:
+        payload: dict[str, Any] = {
+            "tool_name": action.tool_name,
+            "parameters": _jsonable(action.parameters),
+        }
+        if action.tool_name == "shared_read_fact":
+            key = action.parameters.get("key")
+            if isinstance(key, str):
+                payload["shared_fact_state"] = {
+                    "key": key,
+                    "readable_published": (
+                        key in self.shared_environment.facts
+                        and self._fact_readable_by(state.agent_id, key)
+                    ),
+                }
+        return json.dumps(
+            payload,
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
 
     def _record_failure(
         self,
