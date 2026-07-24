@@ -37,6 +37,7 @@ from src.agent.canonical_multi_agent_experiments import (
     run_long_horizon_experiment,
     run_long_horizon_trial,
 )
+from src.agent.prompt_contract import PromptBuilder
 from src.agent.schemas import NextAction
 
 
@@ -763,6 +764,94 @@ def test_grounded_publish_allows_trimmed_value_and_rejects_alias() -> None:
 
     assert failed.observation is not None
     assert failed.observation.error_code == "published_value_mismatch"
+
+
+def test_published_value_mismatch_recovery_metadata_reaches_next_model_prompt() -> None:
+    class CapturingClient:
+        base_url = "http://127.0.0.1:8082/v1"
+        last_usage: dict[str, int] = {}
+        last_diagnostics: dict[str, object] = {}
+        last_usage_diagnostics: dict[str, object] = {}
+
+        def __init__(self) -> None:
+            self.states: list[dict[str, object]] = []
+            self.messages: list[list[dict[str, str]]] = []
+            self.actions = [
+                NextAction(
+                    action_name="browser_article_open",
+                    parameters={"url": "https://fixture.local/articles/long-horizon"},
+                ),
+                NextAction(action_name="browser_article_read", parameters={}),
+                NextAction(
+                    action_name="browser_article_scroll",
+                    parameters={"pages": 1},
+                ),
+                NextAction(
+                    action_name="browser_article_extract",
+                    parameters={"heading": "Ownership"},
+                ),
+                NextAction(
+                    action_name="shared_publish_fact",
+                    parameters={
+                        "key": "review_owner",
+                        "value": "office worker",
+                        "evidence_id": "ev_research_agent_3_Ownership",
+                    },
+                ),
+                NextAction(action_name="finish", parameters={}),
+            ]
+
+        def generate_next_action(self, agent_state):  # type: ignore[no-untyped-def]
+            self.states.append(agent_state)
+            self.messages.append(PromptBuilder().build_messages(agent_state))
+            index = min(len(self.states) - 1, len(self.actions) - 1)
+            return self.actions[index]
+
+    client = CapturingClient()
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff",
+        trial_id="grounding_prompt_recovery",
+        trial_output_dir="artifacts/canonical_multi_agent_long_horizon/grounding_prompt_recovery",
+        project_root=PROJECT_ROOT,
+        max_turns=16,
+        policy_variant="perfect",
+    )
+    runtime.policies["research_agent"] = LocalOpenAIModelPolicy(  # type: ignore[arg-type]
+        client=client,
+        allow_model_calls=True,
+        disable_thinking=True,
+        response_max_tokens=256,
+        temperature=0.0,
+    )
+
+    _step_until_agent_history(runtime, "research_agent", 5)
+    mismatch = runtime.states["research_agent"].history[-1].observation
+    assert mismatch.error_code == "published_value_mismatch"
+    _step_until_agent_history(runtime, "research_agent", 6)
+
+    next_state = client.states[-1]
+    next_messages = client.messages[-1]
+    prompt_text = json.dumps(next_messages, ensure_ascii=False)
+    recovery = next_state["last_observation"]["metadata"]["grounding_recovery"]  # type: ignore[index]
+
+    assert recovery == {
+        "evidence_id": "ev_research_agent_3_Ownership",
+        "fact_key": "review_owner",
+        "source_tool": "browser_article_extract",
+        "source_field": "Ownership",
+        "exact_evidence_value": "The assigned owner is office worker.",
+        "attempted_value": "office worker",
+        "instruction": (
+            "Use this exact evidence value for the selected evidence_id; "
+            "do not shorten, extract, summarize, or paraphrase it."
+        ),
+    }
+    assert "The assigned owner is office worker." in prompt_text
+    assert "do not shorten, extract, summarize, or paraphrase" in prompt_text
+    assert "office worker" in prompt_text
+    assert "api_key" not in prompt_text.casefold()
+    assert "authorization" not in prompt_text.casefold()
+    assert "raw_response" not in prompt_text.casefold()
 
 
 def test_grounded_fact_storage_inventory_and_finish_guard() -> None:

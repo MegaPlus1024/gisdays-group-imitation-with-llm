@@ -2260,6 +2260,18 @@ def _validate_fact_grounding(
         }
     )
     if observed != published:
+        metadata["grounding_recovery"] = {
+            "evidence_id": evidence_id,
+            "fact_key": action.parameters.get("key"),
+            "source_tool": evidence.get("source_tool"),
+            "source_field": evidence.get("source_field"),
+            "exact_evidence_value": _sanitize_text(observed, limit=500),
+            "attempted_value": _sanitize_text(published, limit=500),
+            "instruction": (
+                "Use this exact evidence value for the selected evidence_id; "
+                "do not shorten, extract, summarize, or paraphrase it."
+            ),
+        }
         return _grounding_failure("published_value_mismatch", metadata, evidence)
     metadata["grounding_valid"] = True
     return {"success": True, "metadata": metadata}
