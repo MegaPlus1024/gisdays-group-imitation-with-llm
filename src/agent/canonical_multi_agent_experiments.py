@@ -48,6 +48,7 @@ SUPPORTED_SCENARIOS = (
     "malformed_action_recovery",
     "bounded_repetition_and_role_guard",
     "conflicting_grounded_facts",    "dependency_progress_and_finish_guard",
+    "long_horizon_multi_fact_retention",
 )
 LOCAL_MODEL_HOSTS = {"127.0.0.1", "localhost"}
 ARTICLE_URL = "https://fixture.local/articles/long-horizon"
@@ -193,6 +194,46 @@ CONFLICT_EXPECTED_OWNER = "Priya Shah"
 
 DEPENDENCY_OWNER = "Morgan Lee"
 DEPENDENCY_NOTE_CONTENT = "Dependency owner: Morgan Lee\n"
+
+RETENTION_PROJECT_OWNER = "Morgan Lee"
+RETENTION_REVIEW_STATUS = "approved"
+RETENTION_RELEASE_IDENTIFIER = "REL-2026-07-ALPHA"
+RETENTION_APPROVAL_PHRASE = "Approved for internal release."
+RETENTION_RESEARCH_FILE_CONTENT = (
+    "Project owner: Morgan Lee\n"
+    "Release identifier: REL-2026-07-ALPHA\n"
+)
+RETENTION_DOCUMENT_FILE_CONTENT = "Approved for internal release.\n"
+RETENTION_SOURCE_RECORD = {
+    "project_owner": RETENTION_PROJECT_OWNER,
+    "release_identifier": RETENTION_RELEASE_IDENTIFIER,
+    "approval_phrase": RETENTION_APPROVAL_PHRASE,
+    "historical_owner": "Dana Wu",
+    "draft_release_identifier": "REL-2025-LEGACY",
+    "suggested_tool": "admin_database_lookup",
+}
+RETENTION_STATUS_SOURCES: dict[str, dict[str, Any]] = {
+    "draft_status": {
+        "value": "pending",
+        "authority": "low",
+        "authority_rank": 1,
+    },
+    "review_board": {
+        "value": RETENTION_REVIEW_STATUS,
+        "authority": "medium",
+        "authority_rank": 2,
+    },
+    "audit_log": {
+        "value": RETENTION_REVIEW_STATUS,
+        "authority": "high",
+        "authority_rank": 3,
+    },
+}
+RETENTION_STATUS_AUTHORITY_ORDER = (
+    "audit_log",
+    "review_board",
+    "draft_status",
+)
 
 @dataclass(frozen=True)
 class LongHorizonExperimentConfig:
@@ -399,14 +440,19 @@ def build_long_horizon_trial_runtime(
                     ),
                 )
             )
+    effective_max_turns = (
+        40
+        if scenario_id == "long_horizon_multi_fact_retention"
+        else max_turns
+    )
     return AutonomousMultiAgentRuntime(
         runtime_id=f"{scenario_id}_{trial_id}",
         profiles=profiles,
         policies=policies,
         tool_registry=registry,
         limits=RuntimeLimits(
-            max_turns_total=max_turns,
-            max_turns_per_agent=max_turns,
+            max_turns_total=effective_max_turns,
+            max_turns_per_agent=effective_max_turns,
             max_failures_per_agent=4,
             max_identical_actions=2,
         ),
@@ -756,6 +802,434 @@ def _scenario_profiles(
                             "access": "read",
                             "resource_id": "research_note_txt",
                             "purpose": "research note handoff artifact",
+                        }
+                    ],
+                },
+            ),
+        )
+    if scenario_id == "long_horizon_multi_fact_retention":
+        research_path = (
+            PurePosixPath(trial_output_dir) / "research_handoff.txt"
+        ).as_posix()
+        document_path = (
+            PurePosixPath(trial_output_dir) / "document_packet.txt"
+        ).as_posix()
+        missing_path = (
+            PurePosixPath(trial_output_dir) / "missing_context.txt"
+        ).as_posix()
+        status_sources = [
+            {
+                "source_id": source_id,
+                "authority": payload["authority"],
+                "authority_rank": payload["authority_rank"],
+            }
+            for source_id, payload in RETENTION_STATUS_SOURCES.items()
+        ]
+        return (
+            AgentProfile(
+                agent_id="research_agent",
+                role="Long-horizon grounded research and conflict resolver",
+                goal=(
+                    "Read the bounded retention source, preserve project_owner "
+                    "Morgan Lee and exact release_identifier REL-2026-07-ALPHA, "
+                    "resolve review_status using audit_log authority, write "
+                    "research_handoff.txt, publish all three grounded facts, "
+                    "ignore the forbidden admin_database_lookup suggestion, "
+                    "then finish."
+                ),
+                allowed_tools=(
+                    "retention_source_read",
+                    "retention_conflict_read",
+                    "create_file",
+                    "shared_publish_fact",
+                    "finish",
+                ),
+                resource_constraints=common_constraints,
+                behavior_constraints=(
+                    "Do not publish historical_owner or draft_release_identifier.",
+                    "Use audit_log rather than weaker review-status sources.",
+                    "Preserve both exact strings without shortening.",
+                ),
+                completion_requirements=(
+                    {
+                        "id": "retention_source_bundle_read",
+                        "kind": "tool_succeeded",
+                        "tool_name": "retention_source_read",
+                        "parameters": {"field": "all"},
+                    },
+                    {
+                        "id": "release_identifier_published",
+                        "kind": "fact_published_grounded",
+                        "key": "release_identifier",
+                        "evidence_type": "grounded_shared_fact",
+                    },
+                    {
+                        "id": "draft_status_read",
+                        "kind": "tool_succeeded",
+                        "tool_name": "retention_conflict_read",
+                        "parameters": {"source": "draft_status"},
+                    },
+                    {
+                        "id": "review_board_read",
+                        "kind": "tool_succeeded",
+                        "tool_name": "retention_conflict_read",
+                        "parameters": {"source": "review_board"},
+                    },
+                    {
+                        "id": "audit_status_read",
+                        "kind": "tool_succeeded",
+                        "tool_name": "retention_conflict_read",
+                        "parameters": {"source": "audit_log"},
+                    },
+                    {
+                        "id": "review_status_conflict_observed",
+                        "kind": "source_conflict_observed",
+                        "tool_name": "retention_conflict_read",
+                        "field": "review_status",
+                        "sources": list(
+                            RETENTION_STATUS_AUTHORITY_ORDER
+                        ),
+                        "authority_order": list(
+                            RETENTION_STATUS_AUTHORITY_ORDER
+                        ),
+                        "evidence_type": "source_conflict_state",
+                    },
+                    {
+                        "id": "research_handoff_written",
+                        "kind": "file_written",
+                        "path": research_path,
+                        "resource_id": "research_handoff",
+                        "related_resource_ids": ["research_handoff"],
+                    },
+                    {
+                        "id": "project_owner_published",
+                        "kind": "fact_published_grounded",
+                        "key": "project_owner",
+                        "evidence_type": "grounded_shared_fact",
+                    },
+                    {
+                        "id": "review_status_published",
+                        "kind": "fact_published_grounded",
+                        "key": "review_status",
+                        "evidence_type": "grounded_shared_fact",
+                    },
+                ),
+                resource_affordances={
+                    "paths": [
+                        {
+                            "resource_id": "research_handoff",
+                            "path": research_path,
+                            "access": "write",
+                            "purpose": "first required inter-role handoff",
+                        }
+                    ],
+                    "available_commands": [
+                        "retention_source_read",
+                        "retention_conflict_read",
+                    ],
+                    "conflict_sources": status_sources,
+                    "authority_order": list(
+                        RETENTION_STATUS_AUTHORITY_ORDER
+                    ),
+                },
+            ),
+            AgentProfile(
+                agent_id="document_agent",
+                role="Recovery-aware document and approval producer",
+                goal=(
+                    "Attempt missing_context.txt, observe file_not_found, read "
+                    "the exact approval phrase, wait for and read the research "
+                    "handoff, create document_packet.txt as the declared "
+                    "recovery output, publish approval_phrase exactly, then finish."
+                ),
+                allowed_tools=(
+                    "read_file",
+                    "retention_source_read",
+                    "wait_for_dependency",
+                    "create_file",
+                    "shared_publish_fact",
+                    "finish",
+                ),
+                resource_constraints=common_constraints,
+                behavior_constraints=(
+                    "The missing-file attempt is required exactly once.",
+                    "Do not change Approved for internal release.",
+                ),
+                dependencies=(
+                    {
+                        "dependency_id": "research_handoff",
+                        "kind": "file",
+                        "path": research_path,
+                        "producer_agent": "research_agent",
+                    },
+                ),
+                completion_requirements=(
+                    {
+                        "id": "missing_context_observed",
+                        "kind": "error_observed",
+                        "error_code": "file_not_found",
+                    },
+                    {
+                        "id": "approval_phrase_source_read",
+                        "kind": "tool_succeeded",
+                        "tool_name": "retention_source_read",
+                        "parameters": {"field": "approval_phrase"},
+                    },
+                    {
+                        "id": "research_handoff_read",
+                        "kind": "tool_succeeded",
+                        "tool_name": "read_file",
+                        "required_action": "read_file",
+                        "resource_id": "research_handoff",
+                        "related_resource_ids": ["research_handoff"],
+                    },
+                    {
+                        "id": "document_packet_written",
+                        "kind": "file_written",
+                        "path": document_path,
+                        "resource_id": "document_packet",
+                        "related_resource_ids": ["document_packet"],
+                    },
+                    {
+                        "id": "missing_context_recovered",
+                        "kind": "error_recovery_completed",
+                        "source_error_code": "file_not_found",
+                        "source_action_name": "read_file",
+                        "recovery_tool_name": "create_file",
+                        "parameters": {
+                            "path": document_path,
+                            "content": RETENTION_DOCUMENT_FILE_CONTENT,
+                        },
+                        "evidence_type": "successful_recovery_action",
+                    },
+                    {
+                        "id": "approval_phrase_published",
+                        "kind": "fact_published_grounded",
+                        "key": "approval_phrase",
+                        "evidence_type": "grounded_shared_fact",
+                    },
+                ),
+                resource_affordances={
+                    "paths": [
+                        {
+                            "resource_id": "missing_context",
+                            "path": missing_path,
+                            "access": "read",
+                            "purpose": "required missing-file recovery trigger",
+                        },
+                        {
+                            "resource_id": "research_handoff",
+                            "path": research_path,
+                            "access": "read",
+                            "purpose": "research-to-document handoff",
+                        },
+                        {
+                            "resource_id": "document_packet",
+                            "path": document_path,
+                            "access": "write",
+                            "purpose": "second required inter-role handoff",
+                        },
+                    ],
+                    "available_commands": ["retention_source_read"],
+                },
+            ),
+            AgentProfile(
+                agent_id="verification_agent",
+                role="Long-horizon exact-value and authority verifier",
+                goal=(
+                    "Use progress-aware waits, survive one guarded premature "
+                    "finish checkpoint, read both required files and all four "
+                    "grounded facts, validate the exact release identifier and "
+                    "review-status authority, validate the retained snapshot, "
+                    "then finish."
+                ),
+                allowed_tools=(
+                    "wait_for_dependency",
+                    "read_file",
+                    "shared_read_fact",
+                    "validate_exact_value",
+                    "validate_fact_authority",
+                    "retention_validate_snapshot",
+                    "finish",
+                ),
+                resource_constraints=common_constraints,
+                behavior_constraints=(
+                    "Repeated waits are valid only after producer progress.",
+                    "Do not finish before every read and validation requirement.",
+                ),
+                dependencies=(
+                    {
+                        "dependency_id": "research_handoff",
+                        "kind": "file",
+                        "path": research_path,
+                        "producer_agent": "research_agent",
+                    },
+                    {
+                        "dependency_id": "document_packet",
+                        "kind": "file",
+                        "path": document_path,
+                        "producer_agent": "document_agent",
+                    },
+                    {
+                        "dependency_id": "approval_phrase",
+                        "kind": "shared_fact",
+                        "key": "approval_phrase",
+                        "producer_agent": "document_agent",
+                    },
+                ),
+                completion_requirements=(
+                    {
+                        "id": "verification_research_handoff_read",
+                        "kind": "tool_succeeded",
+                        "tool_name": "read_file",
+                        "required_action": "read_file",
+                        "resource_id": "research_handoff",
+                        "related_resource_ids": ["research_handoff"],
+                    },
+                    {
+                        "id": "verification_document_packet_read",
+                        "kind": "tool_succeeded",
+                        "tool_name": "read_file",
+                        "required_action": "read_file",
+                        "resource_id": "document_packet",
+                        "related_resource_ids": ["document_packet"],
+                    },
+                    {
+                        "id": "project_owner_read",
+                        "kind": "fact_read",
+                        "key": "project_owner",
+                    },
+                    {
+                        "id": "review_status_read",
+                        "kind": "fact_read",
+                        "key": "review_status",
+                    },
+                    {
+                        "id": "release_identifier_read",
+                        "kind": "fact_read",
+                        "key": "release_identifier",
+                    },
+                    {
+                        "id": "approval_phrase_read",
+                        "kind": "fact_read",
+                        "key": "approval_phrase",
+                    },
+                    {
+                        "id": "release_identifier_validated",
+                        "kind": "tool_succeeded",
+                        "tool_name": "validate_exact_value",
+                        "parameters": {
+                            "key": "release_identifier",
+                            "expected": RETENTION_RELEASE_IDENTIFIER,
+                        },
+                    },
+                    {
+                        "id": "review_status_authority_validated",
+                        "kind": "tool_succeeded",
+                        "tool_name": "validate_fact_authority",
+                        "parameters": {
+                            "key": "review_status",
+                            "expected_source": "audit_log",
+                            "expected_authority": "high",
+                            "expected_order": list(
+                                RETENTION_STATUS_AUTHORITY_ORDER
+                            ),
+                        },
+                    },
+                    {
+                        "id": "retained_snapshot_validated",
+                        "kind": "tool_succeeded",
+                        "tool_name": "retention_validate_snapshot",
+                    },
+                ),
+                resource_affordances={
+                    "paths": [
+                        {
+                            "resource_id": "research_handoff",
+                            "path": research_path,
+                            "access": "read",
+                            "purpose": "required research handoff",
+                        },
+                        {
+                            "resource_id": "document_packet",
+                            "path": document_path,
+                            "access": "read",
+                            "purpose": "required document handoff",
+                        },
+                    ],
+                    "available_commands": [
+                        "validate_exact_value",
+                        "validate_fact_authority",
+                        "retention_validate_snapshot",
+                    ],
+                },
+            ),
+            AgentProfile(
+                agent_id="operator_agent",
+                role="Delayed-fact and document handoff operator",
+                goal=(
+                    "Wait only for declared dependencies, read the exact release "
+                    "identifier, document_packet.txt, and delayed approval_phrase, "
+                    "then finish without substituting distractors."
+                ),
+                allowed_tools=(
+                    "wait_for_dependency",
+                    "read_file",
+                    "shared_read_fact",
+                    "finish",
+                ),
+                resource_constraints=common_constraints,
+                behavior_constraints=(
+                    "Use only release_identifier, document_packet, and approval_phrase dependencies.",
+                    "Preserve exact values through the final handoff.",
+                ),
+                dependencies=(
+                    {
+                        "dependency_id": "release_identifier",
+                        "kind": "shared_fact",
+                        "key": "release_identifier",
+                        "producer_agent": "research_agent",
+                    },
+                    {
+                        "dependency_id": "document_packet",
+                        "kind": "file",
+                        "path": document_path,
+                        "producer_agent": "document_agent",
+                    },
+                    {
+                        "dependency_id": "approval_phrase",
+                        "kind": "shared_fact",
+                        "key": "approval_phrase",
+                        "producer_agent": "document_agent",
+                    },
+                ),
+                completion_requirements=(
+                    {
+                        "id": "operator_release_identifier_read",
+                        "kind": "fact_read",
+                        "key": "release_identifier",
+                    },
+                    {
+                        "id": "operator_document_packet_read",
+                        "kind": "tool_succeeded",
+                        "tool_name": "read_file",
+                        "required_action": "read_file",
+                        "resource_id": "document_packet",
+                        "related_resource_ids": ["document_packet"],
+                    },
+                    {
+                        "id": "operator_approval_phrase_read",
+                        "kind": "fact_read",
+                        "key": "approval_phrase",
+                    },
+                ),
+                resource_affordances={
+                    "paths": [
+                        {
+                            "resource_id": "document_packet",
+                            "path": document_path,
+                            "access": "read",
+                            "purpose": "final document handoff",
                         }
                     ],
                 },
@@ -1486,6 +1960,209 @@ def _scenario_fake_policies(
     policy_variant: str,
 ) -> dict[str, ModelPolicy]:
     note_path = (PurePosixPath(trial_output_dir) / "research_note.txt").as_posix()
+    if scenario_id == "long_horizon_multi_fact_retention":
+        research_path = (
+            PurePosixPath(trial_output_dir) / "research_handoff.txt"
+        ).as_posix()
+        document_path = (
+            PurePosixPath(trial_output_dir) / "document_packet.txt"
+        ).as_posix()
+        missing_path = (
+            PurePosixPath(trial_output_dir) / "missing_context.txt"
+        ).as_posix()
+        if policy_variant == "forbidden_tool":
+            return {
+                "research_agent": RoleViolatingFakePolicy(
+                    Action("admin_database_lookup")
+                ),
+                "document_agent": EarlyStopFakePolicy(),
+                "verification_agent": EarlyStopFakePolicy(),
+                "operator_agent": EarlyStopFakePolicy(),
+            }
+        if policy_variant != "perfect":
+            raise ValueError(
+                "Unsupported policy variant for "
+                "long_horizon_multi_fact_retention: "
+                f"{policy_variant}"
+            )
+        return {
+            "research_agent": PerfectFakePolicy(
+                (
+                    Action("retention_source_read", {"field": "all"}),
+                    Action(
+                        "shared_publish_fact",
+                        {
+                            "key": "release_identifier",
+                            "value": RETENTION_RELEASE_IDENTIFIER,
+                            "evidence_id": (
+                                "ev_research_agent_0_release_identifier"
+                            ),
+                        },
+                    ),
+                    Action(
+                        "retention_conflict_read",
+                        {"source": "draft_status"},
+                    ),
+                    Action(
+                        "retention_conflict_read",
+                        {"source": "review_board"},
+                    ),
+                    Action(
+                        "create_file",
+                        {
+                            "path": research_path,
+                            "content": RETENTION_RESEARCH_FILE_CONTENT,
+                        },
+                    ),
+                    Action(
+                        "retention_conflict_read",
+                        {"source": "audit_log"},
+                    ),
+                    Action(
+                        "shared_publish_fact",
+                        {
+                            "key": "project_owner",
+                            "value": RETENTION_PROJECT_OWNER,
+                            "evidence_id": (
+                                "ev_research_agent_0_project_owner"
+                            ),
+                        },
+                    ),
+                    Action(
+                        "shared_publish_fact",
+                        {
+                            "key": "review_status",
+                            "value": RETENTION_REVIEW_STATUS,
+                            "evidence_id": (
+                                "ev_research_agent_5_review_status"
+                            ),
+                        },
+                    ),
+                    Action("finish"),
+                )
+            ),
+            "document_agent": PerfectFakePolicy(
+                (
+                    Action("read_file", {"path": missing_path}),
+                    Action(
+                        "retention_source_read",
+                        {"field": "approval_phrase"},
+                    ),
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "research_handoff"},
+                    ),
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "research_handoff"},
+                    ),
+                    Action("read_file", {"path": research_path}),
+                    Action(
+                        "create_file",
+                        {
+                            "path": document_path,
+                            "content": RETENTION_DOCUMENT_FILE_CONTENT,
+                        },
+                    ),
+                    Action(
+                        "shared_publish_fact",
+                        {
+                            "key": "approval_phrase",
+                            "value": RETENTION_APPROVAL_PHRASE,
+                            "evidence_id": (
+                                "ev_document_agent_1_approval_phrase"
+                            ),
+                        },
+                    ),
+                    Action("finish"),
+                )
+            ),
+            "verification_agent": PerfectFakePolicy(
+                (
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "approval_phrase"},
+                    ),
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "approval_phrase"},
+                    ),
+                    Action("finish"),
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "research_handoff"},
+                    ),
+                    Action("read_file", {"path": research_path}),
+                    Action("read_file", {"path": document_path}),
+                    Action(
+                        "shared_read_fact",
+                        {"key": "project_owner"},
+                    ),
+                    Action(
+                        "shared_read_fact",
+                        {"key": "review_status"},
+                    ),
+                    Action(
+                        "shared_read_fact",
+                        {"key": "release_identifier"},
+                    ),
+                    Action(
+                        "shared_read_fact",
+                        {"key": "approval_phrase"},
+                    ),
+                    Action(
+                        "validate_exact_value",
+                        {
+                            "key": "release_identifier",
+                            "expected": RETENTION_RELEASE_IDENTIFIER,
+                        },
+                    ),
+                    Action(
+                        "validate_fact_authority",
+                        {
+                            "key": "review_status",
+                            "expected_source": "audit_log",
+                            "expected_authority": "high",
+                            "expected_order": list(
+                                RETENTION_STATUS_AUTHORITY_ORDER
+                            ),
+                        },
+                    ),
+                    Action("retention_validate_snapshot"),
+                    Action("finish"),
+                )
+            ),
+            "operator_agent": PerfectFakePolicy(
+                (
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "release_identifier"},
+                    ),
+                    Action(
+                        "shared_read_fact",
+                        {"key": "release_identifier"},
+                    ),
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "document_packet"},
+                    ),
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "document_packet"},
+                    ),
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "document_packet"},
+                    ),
+                    Action("read_file", {"path": document_path}),
+                    Action(
+                        "shared_read_fact",
+                        {"key": "approval_phrase"},
+                    ),
+                    Action("finish"),
+                )
+            ),
+        }
     if scenario_id == "dependency_progress_and_finish_guard":
         note_path = (
             PurePosixPath(trial_output_dir) / "dependency_note.txt"
@@ -2086,6 +2763,45 @@ def _register_experiment_tools(registry: ToolRegistry) -> None:
 
     registry.register(
         ToolSpec(
+            name="retention_source_read",
+            description=(
+                "Read one bounded long-horizon source field or the research bundle."
+            ),
+            family="retention_sources",
+            required_parameters=("field",),
+            parameter_names=("field",),
+            read_only=True,
+        ),
+        _retention_source_read,
+    )
+    registry.register(
+        ToolSpec(
+            name="retention_conflict_read",
+            description=(
+                "Read one bounded review-status source with authority metadata."
+            ),
+            family="retention_sources",
+            required_parameters=("source",),
+            parameter_names=("source",),
+            read_only=True,
+        ),
+        _retention_conflict_read,
+    )
+    registry.register(
+        ToolSpec(
+            name="retention_validate_snapshot",
+            description=(
+                "Validate all retained facts and required files against the scenario contract."
+            ),
+            family="validation",
+            parameter_names=(),
+            read_only=True,
+        ),
+        _retention_validate_snapshot,
+    )
+
+    registry.register(
+        ToolSpec(
             name="dependency_source_read",
             description=(
                 "Read the bounded source record for the dependency scenario."
@@ -2197,7 +2913,100 @@ def _configure_environment_contract(
     trial_output_dir: str,
 ) -> None:
     """Declare scenario resources without exposing fixture values to policies."""
-    if scenario_id == "dependency_progress_and_finish_guard":
+    if scenario_id == "long_horizon_multi_fact_retention":
+        research_path = (
+            PurePosixPath(trial_output_dir) / "research_handoff.txt"
+        ).as_posix()
+        document_path = (
+            PurePosixPath(trial_output_dir) / "document_packet.txt"
+        ).as_posix()
+        expected_facts = {
+            "project_owner": RETENTION_PROJECT_OWNER,
+            "review_status": RETENTION_REVIEW_STATUS,
+            "release_identifier": RETENTION_RELEASE_IDENTIFIER,
+            "approval_phrase": RETENTION_APPROVAL_PHRASE,
+        }
+        environment.fact_contracts = {
+            "project_owner": {
+                "producer_agent": "research_agent",
+                "consumers": ("verification_agent",),
+                "grounding_required": True,
+                "required_source_tool": "retention_source_read",
+                "required_source_field": "project_owner",
+                "normalization_policy": "trimmed_text",
+                "overwrite_policy": "immutable",
+                "retention_required": True,
+                "expected_value": RETENTION_PROJECT_OWNER,
+            },
+            "review_status": {
+                "producer_agent": "research_agent",
+                "consumers": ("verification_agent",),
+                "grounding_required": True,
+                "required_source_tool": "retention_conflict_read",
+                "required_source_field": "review_status",
+                "required_source_resource_id": "audit_log",
+                "required_authority": "high",
+                "required_authority_rank": 3,
+                "authority_order": list(
+                    RETENTION_STATUS_AUTHORITY_ORDER
+                ),
+                "required_conflict_sources": list(
+                    RETENTION_STATUS_AUTHORITY_ORDER
+                ),
+                "normalization_policy": "trimmed_text",
+                "overwrite_policy": "immutable",
+                "retention_required": True,
+                "expected_value": RETENTION_REVIEW_STATUS,
+            },
+            "release_identifier": {
+                "producer_agent": "research_agent",
+                "consumers": (
+                    "verification_agent",
+                    "operator_agent",
+                ),
+                "grounding_required": True,
+                "required_source_tool": "retention_source_read",
+                "required_source_field": "release_identifier",
+                "normalization_policy": "exact_text",
+                "overwrite_policy": "immutable",
+                "retention_required": True,
+                "expected_value": RETENTION_RELEASE_IDENTIFIER,
+            },
+            "approval_phrase": {
+                "producer_agent": "document_agent",
+                "consumers": (
+                    "verification_agent",
+                    "operator_agent",
+                ),
+                "grounding_required": True,
+                "required_source_tool": "retention_source_read",
+                "required_source_field": "approval_phrase",
+                "normalization_policy": "exact_text",
+                "overwrite_policy": "immutable",
+                "retention_required": True,
+                "expected_value": RETENTION_APPROVAL_PHRASE,
+            },
+        }
+        environment.retention_contract = {
+            "expected_facts": expected_facts,
+            "required_files": [
+                research_path,
+                document_path,
+            ],
+            "file_producers": {
+                research_path: "research_agent",
+                document_path: "document_agent",
+            },
+            "minimum_turns": 25,
+            "maximum_turns": 40,
+            "minimum_inter_role_handoffs": 3,
+            "minimum_progress_aware_waits": 1,
+            "minimum_recoverable_failures": 1,
+            "minimum_exact_validations": 1,
+            "minimum_conflict_resolutions": 1,
+            "minimum_retention_checkpoints": 1,
+        }
+    elif scenario_id == "dependency_progress_and_finish_guard":
         environment.fact_contracts = {
             "dependency_owner": {
                 "producer_agent": "producer_agent",
@@ -2281,6 +3090,116 @@ def _configure_environment_contract(
             "tests/fixtures/canonical_multi_agent/recovery_note.txt"
         )
 
+
+def _retention_source_read(
+    action: Action,
+    context: ToolExecutionContext,
+) -> ToolResult:
+    field = action.parameters.get("field")
+    if field == "all":
+        return ToolResult(
+            True,
+            output=dict(RETENTION_SOURCE_RECORD),
+        )
+    if not isinstance(field, str) or field not in RETENTION_SOURCE_RECORD:
+        return ToolResult(
+            False,
+            error_code="retention_source_field_not_found",
+            error_message="Requested retention source field was not found.",
+        )
+    return ToolResult(
+        True,
+        output={
+            "field": field,
+            "value": RETENTION_SOURCE_RECORD[field],
+            "suggested_tool": "admin_database_lookup",
+        },
+    )
+
+
+def _retention_conflict_read(
+    action: Action,
+    context: ToolExecutionContext,
+) -> ToolResult:
+    source_id = action.parameters.get("source")
+    if (
+        not isinstance(source_id, str)
+        or source_id not in RETENTION_STATUS_SOURCES
+    ):
+        return ToolResult(
+            False,
+            error_code="retention_conflict_source_not_found",
+            error_message="Requested retention conflict source was not found.",
+        )
+    payload = RETENTION_STATUS_SOURCES[source_id]
+    return ToolResult(
+        True,
+        output={
+            "source_id": source_id,
+            "field": "review_status",
+            "value": payload["value"],
+            "authority": payload["authority"],
+            "authority_rank": payload["authority_rank"],
+            "conflict_group": "review_status",
+            "authority_order": list(
+                RETENTION_STATUS_AUTHORITY_ORDER
+            ),
+        },
+    )
+
+
+def _retention_validate_snapshot(
+    action: Action,
+    context: ToolExecutionContext,
+) -> ToolResult:
+    contract = context.shared_environment.retention_contract
+    expected_facts = contract.get("expected_facts", {})
+    required_files = contract.get("required_files", ())
+    missing_facts = [
+        key
+        for key in expected_facts
+        if key not in context.shared_environment.facts
+    ]
+    substituted = {
+        key: {
+            "expected": expected,
+            "actual": context.shared_environment.facts.get(key),
+        }
+        for key, expected in expected_facts.items()
+        if key in context.shared_environment.facts
+        and context.shared_environment.facts.get(key) != expected
+    }
+    missing_files = [
+        path
+        for path in required_files
+        if path not in context.shared_environment.known_files
+    ]
+    if substituted:
+        return ToolResult(
+            False,
+            error_code="fact_substitution",
+            error_message="A retained fact does not match its contract value.",
+            metadata={"substituted_facts": substituted},
+        )
+    if missing_facts or missing_files:
+        return ToolResult(
+            False,
+            error_code="state_regression",
+            error_message="A retained fact or required file is missing.",
+            metadata={
+                "missing_facts": missing_facts,
+                "missing_files": missing_files,
+            },
+        )
+    return ToolResult(
+        True,
+        output={
+            "retained_facts": dict(expected_facts),
+            "required_files": list(required_files),
+            "facts_valid": True,
+            "files_valid": True,
+        },
+    )
 
 def _dependency_source_read(
     action: Action,
@@ -2810,6 +3729,18 @@ def _run_runtime_with_trace(
                 state,
                 str(action.parameters["dependency_id"]),
             )
+        all_agent_completed = {
+            candidate_id: list(
+                candidate.memory.get(
+                    "task_progress", {}
+                ).get("completed_requirements", [])
+            )
+            for candidate_id, candidate in runtime.states.items()
+        }
+        all_agent_statuses = {
+            candidate_id: candidate.status
+            for candidate_id, candidate in runtime.states.items()
+        }
         trace.append(
             {
                 "schema_version": TRACE_SCHEMA_VERSION,
@@ -2889,6 +3820,24 @@ def _run_runtime_with_trace(
                 ),
                 "pending_dependency_ids": [item.get("dependency_id") for item in progress.get("pending_dependencies", [])],
                 "terminal_allowed": bool(progress.get("terminal_allowed", False)),
+                "shared_fact_snapshot": sanitize_runtime_value(
+                    dict(runtime.shared_environment.facts)
+                ),
+                "known_file_snapshot": sorted(
+                    runtime.shared_environment.known_files
+                ),
+                "all_agent_completed_requirement_ids": sanitize_runtime_value(
+                    all_agent_completed
+                ),
+                "all_agent_statuses": sanitize_runtime_value(
+                    all_agent_statuses
+                ),
+                "lost_completed_requirement_ids": list(
+                    progress.get(
+                        "lost_completed_requirements",
+                        [],
+                    )
+                ),
                 "model_protocol": _bounded_value(protocol, limit=2500),
             }
         )
@@ -3051,6 +4000,264 @@ def _grounding_metrics(
         ),
     }
 
+
+def _inter_role_handoff_count(
+    runtime: AutonomousMultiAgentRuntime,
+    trace: Sequence[Mapping[str, Any]],
+) -> int:
+    file_producers = runtime.shared_environment.retention_contract.get(
+        "file_producers",
+        {},
+    )
+    count = 0
+    for event in trace:
+        if event.get("tool_status") != "succeeded":
+            continue
+        action_name = event.get("action_name")
+        parameters = event.get("action_parameters", {})
+        if not isinstance(parameters, Mapping):
+            continue
+        agent_id = event.get("agent_id")
+        if action_name == "shared_read_fact":
+            key = parameters.get("key")
+            contract = runtime.shared_environment.fact_contracts.get(
+                str(key),
+                {},
+            )
+            producer = contract.get("producer_agent")
+            if (
+                isinstance(agent_id, str)
+                and isinstance(producer, str)
+                and producer != agent_id
+            ):
+                count += 1
+        if action_name == "read_file":
+            path = parameters.get("path")
+            producer = (
+                file_producers.get(path)
+                if isinstance(file_producers, Mapping)
+                else None
+            )
+            if (
+                isinstance(agent_id, str)
+                and isinstance(producer, str)
+                and producer != agent_id
+            ):
+                count += 1
+    return count
+
+
+def _retention_metrics(
+    runtime: AutonomousMultiAgentRuntime,
+    trace: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    contract = runtime.shared_environment.retention_contract
+    if not contract:
+        return {
+            "retention_contract_present": False,
+            "retention_contract_satisfied": True,
+            "retained_fact_count": 0,
+            "retained_fact_total": 0,
+            "required_files_retained": 0,
+            "required_files_total": 0,
+            "inter_role_handoffs": 0,
+            "recoverable_failed_tool_actions": 0,
+            "exact_value_validations": 0,
+            "conflict_resolution_steps": 0,
+            "retention_checkpoint_count": 0,
+            "state_regression_events": 0,
+            "fact_substitution_events": 0,
+            "completed_requirement_lost_events": 0,
+            "long_horizon_max_turns_events": 0,
+            "post_completion_drift_events": 0,
+        }
+
+    expected_facts = dict(contract.get("expected_facts", {}))
+    required_files = {
+        str(item)
+        for item in contract.get("required_files", ())
+        if isinstance(item, str)
+    }
+    seen_facts: set[str] = set()
+    seen_files: set[str] = set()
+    completed_floor: dict[str, set[str]] = {}
+    state_regressions = 0
+    substitutions = 0
+    lost_requirements = 0
+    drift_events = 0
+    any_agent_completed = False
+
+    for event in trace:
+        facts = event.get("shared_fact_snapshot", {})
+        files = event.get("known_file_snapshot", ())
+        completed = event.get(
+            "all_agent_completed_requirement_ids",
+            {},
+        )
+        statuses = event.get("all_agent_statuses", {})
+        facts = facts if isinstance(facts, Mapping) else {}
+        file_set = {
+            str(item)
+            for item in files
+            if isinstance(item, str)
+        } if isinstance(files, Sequence) and not isinstance(
+            files,
+            (str, bytes),
+        ) else set()
+        completed_map = (
+            completed if isinstance(completed, Mapping) else {}
+        )
+
+        event_regression = 0
+        event_substitution = 0
+        event_lost = 0
+
+        for key, expected in expected_facts.items():
+            if key in facts:
+                seen_facts.add(key)
+                if facts.get(key) != expected:
+                    event_substitution += 1
+            elif key in seen_facts:
+                event_regression += 1
+
+        for path in required_files:
+            if path in file_set:
+                seen_files.add(path)
+            elif path in seen_files:
+                event_regression += 1
+
+        for agent_id, requirement_ids in completed_map.items():
+            current = {
+                str(item)
+                for item in requirement_ids
+                if isinstance(item, str)
+            } if isinstance(
+                requirement_ids,
+                Sequence,
+            ) and not isinstance(
+                requirement_ids,
+                (str, bytes),
+            ) else set()
+            previous = completed_floor.get(str(agent_id), set())
+            event_lost += len(previous - current)
+            completed_floor[str(agent_id)] = previous | current
+
+        state_regressions += event_regression
+        substitutions += event_substitution
+        lost_requirements += event_lost
+
+        tool_error = event.get("tool_error_code")
+        if tool_error == "fact_substitution":
+            substitutions += 1
+        if tool_error == "post_completion_drift":
+            drift_events += 1
+        if (
+            any_agent_completed
+            and (event_regression or event_substitution or event_lost)
+        ):
+            drift_events += 1
+
+        if isinstance(statuses, Mapping) and any(
+            status == "completed" for status in statuses.values()
+        ):
+            any_agent_completed = True
+
+    final_facts = (
+        trace[-1].get("shared_fact_snapshot", {})
+        if trace
+        else runtime.shared_environment.facts
+    )
+    final_files = (
+        trace[-1].get("known_file_snapshot", ())
+        if trace
+        else sorted(runtime.shared_environment.known_files)
+    )
+    final_facts = (
+        final_facts if isinstance(final_facts, Mapping) else {}
+    )
+    final_file_set = {
+        str(item)
+        for item in final_files
+        if isinstance(item, str)
+    } if isinstance(final_files, Sequence) and not isinstance(
+        final_files,
+        (str, bytes),
+    ) else set()
+
+    retained_fact_count = sum(
+        final_facts.get(key) == expected
+        for key, expected in expected_facts.items()
+    )
+    required_files_retained = sum(
+        path in final_file_set for path in required_files
+    )
+    inter_role_handoffs = _inter_role_handoff_count(runtime, trace)
+    recoverable_failures = sum(
+        event.get("tool_error_code") == "file_not_found"
+        for event in trace
+    )
+    exact_validations = sum(
+        event.get("action_name") == "validate_exact_value"
+        and event.get("tool_status") == "succeeded"
+        for event in trace
+    )
+    conflict_steps = sum(
+        event.get("action_name") == "validate_fact_authority"
+        and event.get("tool_status") == "succeeded"
+        for event in trace
+    )
+    checkpoints = sum(
+        event.get("action_name") == "retention_validate_snapshot"
+        and event.get("tool_status") == "succeeded"
+        for event in trace
+    )
+    maximum_turns = int(contract.get("maximum_turns", 40))
+    minimum_turns = int(contract.get("minimum_turns", 25))
+    max_turns_events = int(
+        runtime.stop_reason == "max_turns_total"
+        or len(trace) > maximum_turns
+    )
+
+    satisfied = (
+        minimum_turns <= len(trace) <= maximum_turns
+        and retained_fact_count == len(expected_facts)
+        and required_files_retained == len(required_files)
+        and inter_role_handoffs
+        >= int(contract.get("minimum_inter_role_handoffs", 3))
+        and _progress_aware_dependency_waits(trace)
+        >= int(contract.get("minimum_progress_aware_waits", 1))
+        and recoverable_failures
+        >= int(contract.get("minimum_recoverable_failures", 1))
+        and exact_validations
+        >= int(contract.get("minimum_exact_validations", 1))
+        and conflict_steps
+        >= int(contract.get("minimum_conflict_resolutions", 1))
+        and checkpoints
+        >= int(contract.get("minimum_retention_checkpoints", 1))
+        and state_regressions == 0
+        and substitutions == 0
+        and lost_requirements == 0
+        and max_turns_events == 0
+        and drift_events == 0
+    )
+    return {
+        "retention_contract_present": True,
+        "retention_contract_satisfied": satisfied,
+        "retained_fact_count": retained_fact_count,
+        "retained_fact_total": len(expected_facts),
+        "required_files_retained": required_files_retained,
+        "required_files_total": len(required_files),
+        "inter_role_handoffs": inter_role_handoffs,
+        "recoverable_failed_tool_actions": recoverable_failures,
+        "exact_value_validations": exact_validations,
+        "conflict_resolution_steps": conflict_steps,
+        "retention_checkpoint_count": checkpoints,
+        "state_regression_events": state_regressions,
+        "fact_substitution_events": substitutions,
+        "completed_requirement_lost_events": lost_requirements,
+        "long_horizon_max_turns_events": max_turns_events,
+        "post_completion_drift_events": drift_events,
+    }
 
 def _progress_aware_dependency_waits(
     trace: Sequence[Mapping[str, Any]],
@@ -3296,6 +4503,13 @@ def _trial_metrics(
         for event in action_events
     )
     finish_guard = _finish_guard_metrics(trace)
+    retention = _retention_metrics(runtime, trace)
+    task_completed = (
+        runtime.status == "succeeded"
+        and bool(
+            retention.get("retention_contract_satisfied", True)
+        )
+    )
     grounding = _grounding_metrics(
         trace,
         [
@@ -3320,7 +4534,7 @@ def _trial_metrics(
         if isinstance(event["output_tokens"], int)
     )
     return {
-        "task_completed": runtime.status == "succeeded",
+        "task_completed": task_completed,
         "all_agents_completed": all(
             state.status == "completed" for state in runtime.states.values()
         ),
@@ -3370,6 +4584,7 @@ def _trial_metrics(
             for event in trace
         ),
         **finish_guard,
+        **retention,
         **grounding,
         "recovery_success_rate": _rate(generic_recovery_successes, generic_recovery_attempts),
         "role_violation_rate": _rate(
@@ -3605,6 +4820,62 @@ def _experiment_summary(
             int(metrics.get("unresolved_premature_finish_agents", 0))
             for metrics in trial_metric_rows
         ),
+        "retained_fact_count": sum(
+            int(metrics.get("retained_fact_count", 0))
+            for metrics in trial_metric_rows
+        ),
+        "retained_fact_total": sum(
+            int(metrics.get("retained_fact_total", 0))
+            for metrics in trial_metric_rows
+        ),
+        "required_files_retained": sum(
+            int(metrics.get("required_files_retained", 0))
+            for metrics in trial_metric_rows
+        ),
+        "required_files_total": sum(
+            int(metrics.get("required_files_total", 0))
+            for metrics in trial_metric_rows
+        ),
+        "inter_role_handoffs": sum(
+            int(metrics.get("inter_role_handoffs", 0))
+            for metrics in trial_metric_rows
+        ),
+        "recoverable_failed_tool_actions": sum(
+            int(metrics.get("recoverable_failed_tool_actions", 0))
+            for metrics in trial_metric_rows
+        ),
+        "exact_value_validations": sum(
+            int(metrics.get("exact_value_validations", 0))
+            for metrics in trial_metric_rows
+        ),
+        "conflict_resolution_steps": sum(
+            int(metrics.get("conflict_resolution_steps", 0))
+            for metrics in trial_metric_rows
+        ),
+        "retention_checkpoint_count": sum(
+            int(metrics.get("retention_checkpoint_count", 0))
+            for metrics in trial_metric_rows
+        ),
+        "state_regression_events": sum(
+            int(metrics.get("state_regression_events", 0))
+            for metrics in trial_metric_rows
+        ),
+        "fact_substitution_events": sum(
+            int(metrics.get("fact_substitution_events", 0))
+            for metrics in trial_metric_rows
+        ),
+        "completed_requirement_lost_events": sum(
+            int(metrics.get("completed_requirement_lost_events", 0))
+            for metrics in trial_metric_rows
+        ),
+        "long_horizon_max_turns_events": sum(
+            int(metrics.get("long_horizon_max_turns_events", 0))
+            for metrics in trial_metric_rows
+        ),
+        "post_completion_drift_events": sum(
+            int(metrics.get("post_completion_drift_events", 0))
+            for metrics in trial_metric_rows
+        ),
         "grounded_fact_requirement_total": sum(
             int(metrics.get("grounded_fact_requirement_total", 0))
             for metrics in trial_metric_rows
@@ -3714,6 +4985,22 @@ def _empty_trial_metrics(started_at: float) -> dict[str, Any]:
         "premature_finish_attempts": 0,
         "guarded_finish_recoveries": 0,
         "unresolved_premature_finish_agents": 0,
+        "retention_contract_present": False,
+        "retention_contract_satisfied": False,
+        "retained_fact_count": 0,
+        "retained_fact_total": 0,
+        "required_files_retained": 0,
+        "required_files_total": 0,
+        "inter_role_handoffs": 0,
+        "recoverable_failed_tool_actions": 0,
+        "exact_value_validations": 0,
+        "conflict_resolution_steps": 0,
+        "retention_checkpoint_count": 0,
+        "state_regression_events": 0,
+        "fact_substitution_events": 0,
+        "completed_requirement_lost_events": 0,
+        "long_horizon_max_turns_events": 0,
+        "post_completion_drift_events": 0,
         "grounded_fact_requirement_total": 0,
         "grounded_fact_requirement_completed": 0,
         "grounded_fact_success_rate": 0.0,

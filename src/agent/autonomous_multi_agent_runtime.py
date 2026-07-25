@@ -247,6 +247,7 @@ class SharedEnvironment:
         default_factory=dict
     )
     fact_contracts: dict[str, dict[str, Any]] = field(default_factory=dict)
+    retention_contract: dict[str, Any] = field(default_factory=dict)
     known_files: set[str] = field(default_factory=set)
 
     def publish_fact(
@@ -285,6 +286,7 @@ class SharedEnvironment:
         return {
             "fact_keys": sorted(self.facts),
             "fact_contracts": _sanitize_value(self.fact_contracts),
+            "retention_contract": _sanitize_value(self.retention_contract),
             "shared_fact_metadata": _sanitize_value(self.shared_fact_metadata),
             "known_files": sorted(self.known_files),
             "resource_transitions": _sanitize_value(self.resource_transitions),
@@ -1309,6 +1311,21 @@ class AutonomousMultiAgentRuntime:
 
     def _refresh_agent_context(self, state: AgentState) -> None:
         completed = sorted(self._completed_requirement_ids(state))
+        completed_set = set(completed)
+        historically_completed = {
+            str(item)
+            for item in state.memory.get(
+                "historically_completed_requirements",
+                [],
+            )
+            if isinstance(item, str)
+        }
+        lost_completed = sorted(
+            historically_completed - completed_set
+        )
+        state.memory["historically_completed_requirements"] = sorted(
+            historically_completed | completed_set
+        )
         unmet = [item["id"] for item in state.profile.completion_requirements if item["id"] not in completed]
         requirement_contracts = [
             self._requirement_contract(state, item, item["id"] in completed)
@@ -1373,6 +1390,13 @@ class AutonomousMultiAgentRuntime:
             "completion_requirements": _sanitize_value(state.profile.completion_requirements),
             "requirement_contracts": _sanitize_value(requirement_contracts),
             "completed_requirements": completed,
+            "historically_completed_requirements": list(
+                state.memory.get(
+                    "historically_completed_requirements",
+                    [],
+                )
+            ),
+            "lost_completed_requirements": lost_completed,
             "unmet_requirements": unmet,
             "unmet_requirement_contracts": _sanitize_value(unmet_contracts),
             "pending_dependencies": pending,
@@ -1632,6 +1656,7 @@ class AutonomousMultiAgentRuntime:
             "office_fixture_read",
             "source_record_read",
             "dependency_owner_extract",
+            "retention_source_read",
         } and isinstance(output, Mapping):
             field = output.get("field")
             if isinstance(field, str) and "value" in output:
@@ -1659,7 +1684,10 @@ class AutonomousMultiAgentRuntime:
                     if isinstance(value, (str, int, float, bool))
                 ]
         if (
-            action.tool_name == "conflict_source_read"
+            action.tool_name in {
+                "conflict_source_read",
+                "retention_conflict_read",
+            }
             and isinstance(output, Mapping)
         ):
             source_id = output.get("source_id")
@@ -1965,12 +1993,16 @@ class AutonomousMultiAgentRuntime:
             for item in requirement.get("authority_order", ())
             if isinstance(item, str)
         ]
+        required_tool_name = str(
+            requirement.get("tool_name")
+            or "conflict_source_read"
+        )
         observed: dict[str, dict[str, Any]] = {}
 
         for event in state.history[: index + 1]:
             if (
                 event.action is None
-                or event.action.tool_name != "conflict_source_read"
+                or event.action.tool_name != required_tool_name
                 or not event.observation.success
                 or not isinstance(event.observation.output, Mapping)
             ):
@@ -2599,6 +2631,40 @@ def _publish_fact(action: Action, context: ToolExecutionContext) -> ToolResult:
         )
     if contract and contract.get("producer_agent") != context.agent_state.agent_id:
         return ToolResult(False, error_code="shared_fact_publish_not_allowed", error_message="This agent is not the declared producer for the fact.")
+    if (
+        contract
+        and contract.get("overwrite_policy") == "immutable"
+        and key in context.shared_environment.facts
+    ):
+        policy = str(
+            contract.get("normalization_policy", "trimmed_text")
+        )
+        existing_value = _normalize_fact_value(
+            context.shared_environment.facts[key],
+            policy,
+        )
+        attempted_value = _normalize_fact_value(
+            action.parameters.get("value"),
+            policy,
+        )
+        error_code = (
+            "post_completion_drift"
+            if existing_value == attempted_value
+            else "fact_substitution"
+        )
+        return ToolResult(
+            False,
+            error_code=error_code,
+            error_message=(
+                "Immutable retained facts cannot be republished."
+            ),
+            metadata={
+                "key": key,
+                "existing_value": existing_value,
+                "attempted_value": attempted_value,
+                "overwrite_policy": "immutable",
+            },
+        )
     required_conflict_sources = {
         str(item)
         for item in (contract or {}).get("required_conflict_sources", ())
@@ -2735,6 +2801,21 @@ def _wait_for_dependency(action: Action, context: ToolExecutionContext) -> ToolR
 
 def _finish(action: Action, context: ToolExecutionContext) -> ToolResult:
     progress = context.agent_state.memory.get("task_progress", {})
+    lost_completed = list(
+        progress.get("lost_completed_requirements", [])
+    )
+    if lost_completed:
+        return ToolResult(
+            False,
+            error_code="completed_requirement_lost",
+            error_message=(
+                "A previously completed requirement is no longer satisfied."
+            ),
+            metadata={
+                "lost_completed_requirement_ids": lost_completed,
+                "terminal_allowed": False,
+            },
+        )
     unmet = list(progress.get("unmet_requirements", []))
     if unmet:
         resources = context.agent_state.memory.get("available_resources", {})

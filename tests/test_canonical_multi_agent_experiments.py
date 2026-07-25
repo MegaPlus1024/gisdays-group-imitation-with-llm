@@ -2943,3 +2943,375 @@ def test_declared_ready_dependency_is_not_waitable(
     assert "dependency_owner" in result.observation.metadata[
         "ready_dependency_ids"
     ]
+
+def test_long_horizon_multi_fact_retention_contract(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/retention_contract"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="long_horizon_multi_fact_retention",
+        trial_id="retention_contract",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+    )
+
+    assert tuple(runtime.states) == (
+        "research_agent",
+        "document_agent",
+        "verification_agent",
+        "operator_agent",
+    )
+    assert set(runtime.shared_environment.fact_contracts) == {
+        "project_owner",
+        "review_status",
+        "release_identifier",
+        "approval_phrase",
+    }
+    assert all(
+        contract["grounding_required"] is True
+        and contract["overwrite_policy"] == "immutable"
+        and contract["retention_required"] is True
+        for contract in runtime.shared_environment.fact_contracts.values()
+    )
+    retention = runtime.shared_environment.retention_contract
+    assert retention["minimum_turns"] == 25
+    assert retention["maximum_turns"] == 40
+    assert retention["minimum_inter_role_handoffs"] == 3
+    assert len(retention["required_files"]) == 2
+    assert retention["expected_facts"] == {
+        "project_owner": "Morgan Lee",
+        "review_status": "approved",
+        "release_identifier": "REL-2026-07-ALPHA",
+        "approval_phrase": "Approved for internal release.",
+    }
+
+
+def test_long_horizon_multi_fact_retention_perfect_policy_succeeds(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/retention_success"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="long_horizon_multi_fact_retention",
+        trial_id="retention_success",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+    )
+    started_at = time.perf_counter()
+    trace = _run_runtime_with_trace(runtime, started_at=started_at)
+    metrics = _trial_metrics(
+        runtime,
+        trace,
+        started_at=started_at,
+    )
+
+    assert runtime.status == "succeeded"
+    assert metrics["task_completed"] is True
+    assert metrics["all_agents_completed"] is True
+    assert metrics["total_turns"] == 39
+    assert metrics["retention_contract_satisfied"] is True
+    assert metrics["retained_fact_count"] == 4
+    assert metrics["retained_fact_total"] == 4
+    assert metrics["required_files_retained"] == 2
+    assert metrics["required_files_total"] == 2
+    assert metrics["inter_role_handoffs"] >= 3
+    assert metrics["progress_aware_dependency_waits"] >= 1
+    assert metrics["recoverable_failed_tool_actions"] == 1
+    assert metrics["exact_value_validations"] >= 1
+    assert metrics["conflict_resolution_steps"] >= 1
+    assert metrics["retention_checkpoint_count"] == 1
+    assert metrics["grounded_fact_requirement_completed"] == 10
+    assert metrics["grounded_fact_requirement_total"] == 10
+    assert metrics["guarded_finish_recoveries"] == 1
+    assert metrics["state_regression_events"] == 0
+    assert metrics["fact_substitution_events"] == 0
+    assert metrics["completed_requirement_lost_events"] == 0
+    assert metrics["long_horizon_max_turns_events"] == 0
+    assert metrics["post_completion_drift_events"] == 0
+
+
+def test_long_horizon_retains_exact_facts_files_and_rejects_distractors(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/retention_outputs"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="long_horizon_multi_fact_retention",
+        trial_id="retention_outputs",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+    )
+    trace = _run_runtime_with_trace(
+        runtime,
+        started_at=time.perf_counter(),
+    )
+
+    assert runtime.shared_environment.facts == {
+        "release_identifier": "REL-2026-07-ALPHA",
+        "project_owner": "Morgan Lee",
+        "review_status": "approved",
+        "approval_phrase": "Approved for internal release.",
+    }
+    assert "historical_owner" not in runtime.shared_environment.facts
+    assert (
+        "draft_release_identifier"
+        not in runtime.shared_environment.facts
+    )
+    required_files = set(
+        runtime.shared_environment.retention_contract[
+            "required_files"
+        ]
+    )
+    assert required_files.issubset(
+        runtime.shared_environment.known_files
+    )
+    successful_reads = {
+        event["action_parameters"]["path"]
+        for event in trace
+        if event["action_name"] == "read_file"
+        and event["tool_status"] == "succeeded"
+    }
+    assert required_files.issubset(successful_reads)
+    publication = next(
+        event
+        for event in trace
+        if event["action_name"] == "shared_publish_fact"
+        and event["action_parameters"].get("key") == "review_status"
+    )
+    assert publication["evidence_source_resource_id"] == "audit_log"
+    assert publication["evidence_source_authority"] == "high"
+    assert publication["evidence_authority_rank"] == 3
+
+
+def test_retained_fact_substitution_is_rejected(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="long_horizon_multi_fact_retention",
+        trial_id="retention_substitution",
+        trial_output_dir=(
+            f"{artifact_output_dir}/retention_substitution"
+        ),
+        project_root=PROJECT_ROOT,
+    )
+    _step_until_agent_history(
+        runtime,
+        "research_agent",
+        2,
+        max_steps=12,
+    )
+    research = runtime.states["research_agent"]
+    consumed = tuple(Action("finish") for _ in research.history)
+    runtime.policies["research_agent"] = PerfectFakePolicy(
+        consumed
+        + (
+            Action(
+                "shared_publish_fact",
+                {
+                    "key": "release_identifier",
+                    "value": "REL-2025-LEGACY",
+                    "evidence_id": (
+                        "ev_research_agent_0_release_identifier"
+                    ),
+                },
+            ),
+        )
+    )
+    result = _step_until_agent_history(
+        runtime,
+        "research_agent",
+        3,
+        max_steps=12,
+    )
+
+    assert result is not None
+    assert result.observation is not None
+    assert result.observation.error_code == "fact_substitution"
+    assert runtime.shared_environment.facts[
+        "release_identifier"
+    ] == "REL-2026-07-ALPHA"
+
+
+def test_retained_fact_republication_is_post_completion_drift(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="long_horizon_multi_fact_retention",
+        trial_id="retention_drift",
+        trial_output_dir=f"{artifact_output_dir}/retention_drift",
+        project_root=PROJECT_ROOT,
+    )
+    _step_until_agent_history(
+        runtime,
+        "research_agent",
+        2,
+        max_steps=12,
+    )
+    research = runtime.states["research_agent"]
+    consumed = tuple(Action("finish") for _ in research.history)
+    runtime.policies["research_agent"] = PerfectFakePolicy(
+        consumed
+        + (
+            Action(
+                "shared_publish_fact",
+                {
+                    "key": "release_identifier",
+                    "value": "REL-2026-07-ALPHA",
+                    "evidence_id": (
+                        "ev_research_agent_0_release_identifier"
+                    ),
+                },
+            ),
+        )
+    )
+    result = _step_until_agent_history(
+        runtime,
+        "research_agent",
+        3,
+        max_steps=12,
+    )
+
+    assert result is not None
+    assert result.observation is not None
+    assert result.observation.error_code == "post_completion_drift"
+
+
+def test_completed_requirement_loss_is_explicitly_guarded(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="long_horizon_multi_fact_retention",
+        trial_id="retention_requirement_loss",
+        trial_output_dir=(
+            f"{artifact_output_dir}/retention_requirement_loss"
+        ),
+        project_root=PROJECT_ROOT,
+    )
+    _step_until_agent_history(
+        runtime,
+        "research_agent",
+        2,
+        max_steps=12,
+    )
+    research = runtime.states["research_agent"]
+    assert "release_identifier_published" in research.memory[
+        "task_progress"
+    ]["completed_requirements"]
+
+    runtime.shared_environment.facts.pop("release_identifier")
+    runtime.shared_environment.shared_fact_metadata.pop(
+        "release_identifier"
+    )
+    consumed = tuple(Action("finish") for _ in research.history)
+    runtime.policies["research_agent"] = PerfectFakePolicy(
+        consumed + (Action("finish"),)
+    )
+    result = _step_until_agent_history(
+        runtime,
+        "research_agent",
+        3,
+        max_steps=12,
+    )
+
+    assert result is not None
+    assert result.observation is not None
+    assert result.observation.error_code == (
+        "completed_requirement_lost"
+    )
+    assert "release_identifier_published" in (
+        result.observation.metadata[
+            "lost_completed_requirement_ids"
+        ]
+    )
+
+
+def test_retention_metrics_detect_state_and_requirement_regression(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="long_horizon_multi_fact_retention",
+        trial_id="retention_metric_regression",
+        trial_output_dir=(
+            f"{artifact_output_dir}/retention_metric_regression"
+        ),
+        project_root=PROJECT_ROOT,
+    )
+    started_at = time.perf_counter()
+    trace = _run_runtime_with_trace(runtime, started_at=started_at)
+    mutated = [dict(event) for event in trace]
+    final = dict(mutated[-1])
+    facts = dict(final["shared_fact_snapshot"])
+    facts.pop("project_owner")
+    final["shared_fact_snapshot"] = facts
+    completed = {
+        agent_id: list(requirements)
+        for agent_id, requirements in final[
+            "all_agent_completed_requirement_ids"
+        ].items()
+    }
+    completed["research_agent"].remove("project_owner_published")
+    final["all_agent_completed_requirement_ids"] = completed
+    mutated[-1] = final
+
+    metrics = _trial_metrics(
+        runtime,
+        mutated,
+        started_at=started_at,
+    )
+
+    assert metrics["state_regression_events"] >= 1
+    assert metrics["completed_requirement_lost_events"] >= 1
+    assert metrics["retention_contract_satisfied"] is False
+    assert metrics["task_completed"] is False
+
+
+def test_long_horizon_forbidden_tool_suggestion_remains_forbidden(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="long_horizon_multi_fact_retention",
+        trial_id="retention_forbidden_tool",
+        trial_output_dir=(
+            f"{artifact_output_dir}/retention_forbidden_tool"
+        ),
+        project_root=PROJECT_ROOT,
+        policy_variant="forbidden_tool",
+    )
+
+    result = runtime.step()
+
+    assert result.agent_id == "research_agent"
+    assert result.observation is not None
+    assert result.observation.error_code == "tool_not_allowed"
+    assert result.action is not None
+    assert result.action.tool_name == "admin_database_lookup"
+
+
+def test_long_horizon_max_turns_is_counted_and_fails_task(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="long_horizon_multi_fact_retention",
+        trial_id="retention_max_turns",
+        trial_output_dir=(
+            f"{artifact_output_dir}/retention_max_turns"
+        ),
+        project_root=PROJECT_ROOT,
+    )
+    runtime.limits = RuntimeLimits(
+        max_turns_total=24,
+        max_turns_per_agent=24,
+        max_failures_per_agent=4,
+        max_identical_actions=2,
+    )
+    started_at = time.perf_counter()
+    trace = _run_runtime_with_trace(runtime, started_at=started_at)
+    metrics = _trial_metrics(
+        runtime,
+        trace,
+        started_at=started_at,
+    )
+
+    assert runtime.status == "failed"
+    assert runtime.stop_reason == "max_turns_total"
+    assert metrics["long_horizon_max_turns_events"] == 1
+    assert metrics["retention_contract_satisfied"] is False
+    assert metrics["task_completed"] is False
