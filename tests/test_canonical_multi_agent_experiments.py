@@ -2656,3 +2656,290 @@ def test_conflicting_grounded_facts_finish_is_guarded(
         "owner_conflict_observed",
         "authoritative_owner_published",
     }
+
+def test_dependency_progress_finish_guard_contract(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/dependency_contract"
+    note_path = f"{output_dir}/dependency_note.txt"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="dependency_progress_and_finish_guard",
+        trial_id="dependency_contract",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+    )
+
+    assert set(runtime.states) == {
+        "producer_agent",
+        "consumer_agent",
+    }
+    producer = runtime.states["producer_agent"]
+    consumer = runtime.states["consumer_agent"]
+    assert producer.profile.allowed_tools == (
+        "dependency_source_read",
+        "dependency_owner_extract",
+        "create_file",
+        "shared_publish_fact",
+        "finish",
+    )
+    assert [item["dependency_id"] for item in consumer.profile.dependencies] == [
+        "dependency_note",
+        "dependency_owner",
+    ]
+    assert consumer.profile.dependencies[0]["path"] == note_path
+    contract = runtime.shared_environment.fact_contracts[
+        "dependency_owner"
+    ]
+    assert contract["producer_agent"] == "producer_agent"
+    assert contract["consumers"] == ("consumer_agent",)
+    assert contract["required_source_tool"] == (
+        "dependency_owner_extract"
+    )
+    assert contract["required_source_field"] == "owner"
+
+
+def test_dependency_progress_finish_guard_perfect_policy_succeeds(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/dependency_success"
+    note_path = f"{output_dir}/dependency_note.txt"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="dependency_progress_and_finish_guard",
+        trial_id="dependency_success",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        max_turns=20,
+    )
+    started_at = time.perf_counter()
+    trace = _run_runtime_with_trace(runtime, started_at=started_at)
+    metrics = _trial_metrics(
+        runtime,
+        trace,
+        started_at=started_at,
+    )
+
+    assert runtime.status == "succeeded"
+    assert all(
+        state.status == "completed"
+        for state in runtime.states.values()
+    )
+    assert runtime.shared_environment.facts[
+        "dependency_owner"
+    ] == "Morgan Lee"
+    assert note_path in runtime.shared_environment.known_files
+    assert metrics["dependency_wait_count"] == 2
+    assert metrics["progress_aware_dependency_waits"] == 1
+    assert metrics["repetition_guard_events"] == 0
+    assert metrics["undeclared_dependency_waits"] == 0
+    assert metrics["premature_finish_attempts"] == 1
+    assert metrics["guarded_finish_recoveries"] == 1
+    assert metrics["unresolved_premature_finish_agents"] == 0
+    assert metrics["unchanged_failed_action_retries"] == 0
+
+
+def test_dependency_wait_trace_records_producer_progress(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="dependency_progress_and_finish_guard",
+        trial_id="dependency_progress_trace",
+        trial_output_dir=(
+            f"{artifact_output_dir}/dependency_progress_trace"
+        ),
+        project_root=PROJECT_ROOT,
+        max_turns=20,
+    )
+    trace = _run_runtime_with_trace(
+        runtime,
+        started_at=time.perf_counter(),
+    )
+    waits = [
+        event
+        for event in trace
+        if event["agent_id"] == "consumer_agent"
+        and event["action_name"] == "wait_for_dependency"
+    ]
+
+    assert len(waits) == 2
+    first = waits[0]["dependency_state"]
+    second = waits[1]["dependency_state"]
+    assert first["declared"] is True
+    assert first["available"] is False
+    assert first["producer_completed_requirements"] == [
+        "dependency_source_read"
+    ]
+    assert second["producer_completed_requirements"] == [
+        "dependency_owner_extracted",
+        "dependency_source_read",
+    ]
+    assert first != second
+    assert all(
+        event["tool_error_code"] != "repeated_action_detected"
+        for event in waits
+    )
+
+
+def test_undeclared_dependency_wait_is_rejected_and_counted(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="dependency_progress_and_finish_guard",
+        trial_id="undeclared_dependency",
+        trial_output_dir=(
+            f"{artifact_output_dir}/undeclared_dependency"
+        ),
+        project_root=PROJECT_ROOT,
+        policy_variant="undeclared_dependency",
+        max_turns=8,
+    )
+    started_at = time.perf_counter()
+    trace = _run_runtime_with_trace(runtime, started_at=started_at)
+    metrics = _trial_metrics(
+        runtime,
+        trace,
+        started_at=started_at,
+    )
+    rejected = next(
+        event
+        for event in trace
+        if event["tool_error_code"] == "undeclared_dependency"
+    )
+
+    assert rejected["agent_id"] == "consumer_agent"
+    assert rejected["action_parameters"] == {
+        "dependency_id": "ghost_dependency"
+    }
+    assert rejected["dependency_state"] == {
+        "dependency_id": "ghost_dependency",
+        "declared": False,
+    }
+    assert metrics["undeclared_dependency_waits"] == 1
+
+
+def test_dependency_wait_without_progress_triggers_guard(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="dependency_progress_and_finish_guard",
+        trial_id="dependency_no_progress",
+        trial_output_dir=(
+            f"{artifact_output_dir}/dependency_no_progress"
+        ),
+        project_root=PROJECT_ROOT,
+        policy_variant="no_progress_wait",
+        max_turns=12,
+    )
+    runtime.limits = RuntimeLimits(
+        max_turns_total=12,
+        max_turns_per_agent=10,
+        max_failures_per_agent=6,
+        max_identical_actions=2,
+    )
+    started_at = time.perf_counter()
+    trace = _run_runtime_with_trace(runtime, started_at=started_at)
+    metrics = _trial_metrics(
+        runtime,
+        trace,
+        started_at=started_at,
+    )
+    consumer = runtime.states["consumer_agent"]
+
+    assert consumer.status == "stopped"
+    assert consumer.stop_reason == "repetition_guard"
+    assert any(
+        event["agent_id"] == "consumer_agent"
+        and event["tool_error_code"] == "repeated_action_detected"
+        for event in trace
+    )
+    assert metrics["repetition_guard_events"] == 1
+    assert metrics["progress_aware_dependency_waits"] == 1
+
+
+def test_dependency_file_precedes_fact_and_finish_is_guarded(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/dependency_finish_guard"
+    note_path = f"{output_dir}/dependency_note.txt"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="dependency_progress_and_finish_guard",
+        trial_id="dependency_finish_guard",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        max_turns=20,
+    )
+
+    for _ in range(5):
+        runtime.step()
+
+    consumer = runtime.states["consumer_agent"]
+    assert note_path in runtime.shared_environment.known_files
+    assert "dependency_owner" not in runtime.shared_environment.facts
+    assert [
+        item["dependency_id"]
+        for item in consumer.memory["task_progress"][
+            "ready_dependencies"
+        ]
+    ] == ["dependency_note"]
+    assert [
+        item["dependency_id"]
+        for item in consumer.memory["task_progress"][
+            "pending_dependencies"
+        ]
+    ] == ["dependency_owner"]
+
+    guarded = runtime.step()
+    assert guarded.agent_id == "consumer_agent"
+    assert guarded.observation is not None
+    assert guarded.observation.error_code == (
+        "completion_requirements_unmet"
+    )
+    assert guarded.observation.metadata["terminal_allowed"] is False
+    assert set(
+        guarded.observation.metadata["unmet_requirement_ids"]
+    ) == {
+        "dependency_note_read",
+        "dependency_owner_read",
+        "dependency_owner_validated",
+    }
+
+
+def test_declared_ready_dependency_is_not_waitable(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/dependency_ready"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="dependency_progress_and_finish_guard",
+        trial_id="dependency_ready",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        max_turns=20,
+    )
+
+    for _ in range(7):
+        runtime.step()
+
+    consumer = runtime.states["consumer_agent"]
+    consumed_policy_slots = tuple(
+        Action("finish")
+        for _ in consumer.history
+    )
+    consumer_policy = PerfectFakePolicy(
+        consumed_policy_slots
+        + (
+            Action(
+                "wait_for_dependency",
+                {"dependency_id": "dependency_owner"},
+            ),
+        )
+    )
+    runtime.policies["consumer_agent"] = consumer_policy
+    result = runtime.step()
+
+    assert result.agent_id == "consumer_agent"
+    assert result.observation is not None
+    assert result.observation.error_code == "dependency_not_pending"
+    assert result.observation.metadata["declared"] is True
+    assert result.observation.metadata["pending"] is False
+    assert "dependency_owner" in result.observation.metadata[
+        "ready_dependency_ids"
+    ]

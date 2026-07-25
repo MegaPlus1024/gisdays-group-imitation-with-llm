@@ -47,7 +47,7 @@ SUPPORTED_SCENARIOS = (
     "role_boundary_exact_handoff",
     "malformed_action_recovery",
     "bounded_repetition_and_role_guard",
-    "conflicting_grounded_facts",
+    "conflicting_grounded_facts",    "dependency_progress_and_finish_guard",
 )
 LOCAL_MODEL_HOSTS = {"127.0.0.1", "localhost"}
 ARTICLE_URL = "https://fixture.local/articles/long-horizon"
@@ -190,6 +190,9 @@ CONFLICT_AUTHORITY_ORDER = (
     "ticket_record",
 )
 CONFLICT_EXPECTED_OWNER = "Priya Shah"
+
+DEPENDENCY_OWNER = "Morgan Lee"
+DEPENDENCY_NOTE_CONTENT = "Dependency owner: Morgan Lee\n"
 
 @dataclass(frozen=True)
 class LongHorizonExperimentConfig:
@@ -755,6 +758,148 @@ def _scenario_profiles(
                             "purpose": "research note handoff artifact",
                         }
                     ],
+                },
+            ),
+        )
+    if scenario_id == "dependency_progress_and_finish_guard":
+        note_path = (
+            PurePosixPath(trial_output_dir) / "dependency_note.txt"
+        ).as_posix()
+        return (
+            AgentProfile(
+                agent_id="producer_agent",
+                role="Dependency producer with explicit milestones",
+                goal=(
+                    "Read the bounded dependency source, extract owner Morgan Lee, "
+                    "write dependency_note.txt, publish dependency_owner from the "
+                    "extraction evidence, then finish."
+                ),
+                allowed_tools=(
+                    "dependency_source_read",
+                    "dependency_owner_extract",
+                    "create_file",
+                    "shared_publish_fact",
+                    "finish",
+                ),
+                resource_constraints=common_constraints,
+                behavior_constraints=(
+                    "Complete milestones in source-read, extraction, file, fact order.",
+                    "Preserve the exact owner value Morgan Lee.",
+                ),
+                completion_requirements=(
+                    {
+                        "id": "dependency_source_read",
+                        "kind": "tool_succeeded",
+                        "tool_name": "dependency_source_read",
+                    },
+                    {
+                        "id": "dependency_owner_extracted",
+                        "kind": "tool_succeeded",
+                        "tool_name": "dependency_owner_extract",
+                    },
+                    {
+                        "id": "dependency_note_written",
+                        "kind": "file_written",
+                        "path": note_path,
+                        "resource_id": "dependency_note",
+                        "related_resource_ids": ["dependency_note"],
+                    },
+                    {
+                        "id": "dependency_owner_published",
+                        "kind": "fact_published_grounded",
+                        "key": "dependency_owner",
+                        "description": (
+                            "Publish dependency_owner exactly from the successful "
+                            "dependency_owner_extract observation."
+                        ),
+                        "evidence_type": "grounded_shared_fact",
+                    },
+                ),
+                resource_affordances={
+                    "paths": [
+                        {
+                            "resource_id": "dependency_note",
+                            "path": note_path,
+                            "access": "write",
+                            "purpose": "required dependency handoff file",
+                        }
+                    ],
+                    "available_commands": [
+                        "dependency_source_read",
+                        "dependency_owner_extract",
+                    ],
+                },
+            ),
+            AgentProfile(
+                agent_id="consumer_agent",
+                role="Progress-aware dependency consumer",
+                goal=(
+                    "Wait only for declared pending dependencies. Read "
+                    "dependency_note.txt and dependency_owner, validate the exact "
+                    "owner Morgan Lee, and finish only after all requirements."
+                ),
+                allowed_tools=(
+                    "read_file",
+                    "shared_read_fact",
+                    "validate_exact_value",
+                    "wait_for_dependency",
+                    "finish",
+                ),
+                resource_constraints=common_constraints,
+                behavior_constraints=(
+                    "Wait only for dependency_note or dependency_owner while pending.",
+                    "Do not finish when either dependency requirement is unmet.",
+                ),
+                dependencies=(
+                    {
+                        "dependency_id": "dependency_note",
+                        "kind": "file",
+                        "path": note_path,
+                        "producer_agent": "producer_agent",
+                    },
+                    {
+                        "dependency_id": "dependency_owner",
+                        "kind": "shared_fact",
+                        "key": "dependency_owner",
+                        "producer_agent": "producer_agent",
+                    },
+                ),
+                completion_requirements=(
+                    {
+                        "id": "dependency_note_read",
+                        "kind": "tool_succeeded",
+                        "tool_name": "read_file",
+                        "required_action": "read_file",
+                        "resource_id": "dependency_note",
+                        "related_resource_ids": ["dependency_note"],
+                    },
+                    {
+                        "id": "dependency_owner_read",
+                        "kind": "fact_read",
+                        "key": "dependency_owner",
+                    },
+                    {
+                        "id": "dependency_owner_validated",
+                        "kind": "tool_succeeded",
+                        "tool_name": "validate_exact_value",
+                        "parameters": {
+                            "key": "dependency_owner",
+                            "expected": DEPENDENCY_OWNER,
+                        },
+                    },
+                ),
+                resource_affordances={
+                    "file_resources": [
+                        {
+                            "resource_id": "dependency_note",
+                            "path": note_path,
+                            "exists": False,
+                            "readable": True,
+                            "writable": False,
+                            "purpose": "producer-created dependency handoff file",
+                        }
+                    ],
+                    "available_commands": ["validate_exact_value"],
                 },
             ),
         )
@@ -1341,6 +1486,109 @@ def _scenario_fake_policies(
     policy_variant: str,
 ) -> dict[str, ModelPolicy]:
     note_path = (PurePosixPath(trial_output_dir) / "research_note.txt").as_posix()
+    if scenario_id == "dependency_progress_and_finish_guard":
+        note_path = (
+            PurePosixPath(trial_output_dir) / "dependency_note.txt"
+        ).as_posix()
+        if policy_variant == "undeclared_dependency":
+            return {
+                "producer_agent": EarlyStopFakePolicy(),
+                "consumer_agent": PerfectFakePolicy(
+                    (
+                        Action(
+                            "wait_for_dependency",
+                            {"dependency_id": "ghost_dependency"},
+                        ),
+                    )
+                ),
+            }
+        if policy_variant == "no_progress_wait":
+            return {
+                "producer_agent": PerfectFakePolicy(
+                    (Action("dependency_source_read"),)
+                ),
+                "consumer_agent": PerfectFakePolicy(
+                    (
+                        Action(
+                            "wait_for_dependency",
+                            {"dependency_id": "dependency_owner"},
+                        ),
+                        Action(
+                            "wait_for_dependency",
+                            {"dependency_id": "dependency_owner"},
+                        ),
+                        Action(
+                            "wait_for_dependency",
+                            {"dependency_id": "dependency_owner"},
+                        ),
+                        Action(
+                            "wait_for_dependency",
+                            {"dependency_id": "dependency_owner"},
+                        ),
+                    )
+                ),
+            }
+        if policy_variant == "early_finish":
+            return {
+                "producer_agent": EarlyStopFakePolicy(),
+                "consumer_agent": PerfectFakePolicy((Action("finish"),)),
+            }
+        if policy_variant != "perfect":
+            raise ValueError(
+                "Unsupported policy variant for "
+                "dependency_progress_and_finish_guard: "
+                f"{policy_variant}"
+            )
+        return {
+            "producer_agent": PerfectFakePolicy(
+                (
+                    Action("dependency_source_read"),
+                    Action("dependency_owner_extract"),
+                    Action(
+                        "create_file",
+                        {
+                            "path": note_path,
+                            "content": DEPENDENCY_NOTE_CONTENT,
+                        },
+                    ),
+                    Action(
+                        "shared_publish_fact",
+                        {
+                            "key": "dependency_owner",
+                            "value": DEPENDENCY_OWNER,
+                            "evidence_id": "ev_producer_agent_1_owner",
+                        },
+                    ),
+                    Action("finish"),
+                )
+            ),
+            "consumer_agent": PerfectFakePolicy(
+                (
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "dependency_owner"},
+                    ),
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "dependency_owner"},
+                    ),
+                    Action("finish"),
+                    Action("read_file", {"path": note_path}),
+                    Action(
+                        "shared_read_fact",
+                        {"key": "dependency_owner"},
+                    ),
+                    Action(
+                        "validate_exact_value",
+                        {
+                            "key": "dependency_owner",
+                            "expected": DEPENDENCY_OWNER,
+                        },
+                    ),
+                    Action("finish"),
+                )
+            ),
+        }
     if scenario_id == "conflicting_grounded_facts":
         research_reads = (
             Action("conflict_source_read", {"source": "policy_page"}),
@@ -1838,6 +2086,31 @@ def _register_experiment_tools(registry: ToolRegistry) -> None:
 
     registry.register(
         ToolSpec(
+            name="dependency_source_read",
+            description=(
+                "Read the bounded source record for the dependency scenario."
+            ),
+            family="dependency_sources",
+            parameter_names=(),
+            read_only=True,
+        ),
+        _dependency_source_read,
+    )
+    registry.register(
+        ToolSpec(
+            name="dependency_owner_extract",
+            description=(
+                "Extract the exact dependency owner after the source is read."
+            ),
+            family="dependency_sources",
+            parameter_names=(),
+            read_only=True,
+        ),
+        _dependency_owner_extract,
+    )
+
+    registry.register(
+        ToolSpec(
             name="conflict_source_read",
             description="Read one bounded contradictory owner source with authority metadata.",
             family="source_conflicts",
@@ -1924,7 +2197,19 @@ def _configure_environment_contract(
     trial_output_dir: str,
 ) -> None:
     """Declare scenario resources without exposing fixture values to policies."""
-    if scenario_id == "conflicting_grounded_facts":
+    if scenario_id == "dependency_progress_and_finish_guard":
+        environment.fact_contracts = {
+            "dependency_owner": {
+                "producer_agent": "producer_agent",
+                "consumers": ("consumer_agent",),
+                "grounding_required": True,
+                "required_source_tool": "dependency_owner_extract",
+                "required_source_field": "owner",
+                "normalization_policy": "trimmed_text",
+                "overwrite_policy": "last_write_wins",
+            }
+        }
+    elif scenario_id == "conflicting_grounded_facts":
         environment.fact_contracts = {
             "owner": {
                 "producer_agent": "research_agent",
@@ -1996,6 +2281,46 @@ def _configure_environment_contract(
             "tests/fixtures/canonical_multi_agent/recovery_note.txt"
         )
 
+
+def _dependency_source_read(
+    action: Action,
+    context: ToolExecutionContext,
+) -> ToolResult:
+    return ToolResult(
+        True,
+        output={
+            "record_id": "dependency-source-001",
+            "status": "loaded",
+        },
+    )
+
+
+def _dependency_owner_extract(
+    action: Action,
+    context: ToolExecutionContext,
+) -> ToolResult:
+    source_seen = any(
+        event.action is not None
+        and event.action.tool_name == "dependency_source_read"
+        and event.observation.success
+        for event in context.agent_state.history
+    )
+    if not source_seen:
+        return ToolResult(
+            False,
+            error_code="dependency_source_not_read",
+            error_message=(
+                "The dependency source must be read before owner extraction."
+            ),
+        )
+    return ToolResult(
+        True,
+        output={
+            "field": "owner",
+            "value": DEPENDENCY_OWNER,
+            "source_record_id": "dependency-source-001",
+        },
+    )
 
 def _conflict_source_read(
     action: Action,
@@ -2472,6 +2797,19 @@ def _run_runtime_with_trace(
             and (bool(requirements_advanced) or bool(progress.get("ready_dependencies", [])))
         )
         observation_metadata = result.observation.metadata
+        dependency_state = None
+        if (
+            action is not None
+            and action.tool_name == "wait_for_dependency"
+            and isinstance(
+                action.parameters.get("dependency_id"),
+                str,
+            )
+        ):
+            dependency_state = runtime._dependency_repetition_state(
+                state,
+                str(action.parameters["dependency_id"]),
+            )
         trace.append(
             {
                 "schema_version": TRACE_SCHEMA_VERSION,
@@ -2545,6 +2883,10 @@ def _run_runtime_with_trace(
                 "grounding_valid": observation_metadata.get("grounding_valid"),
                 "grounding_error_code": observation_metadata.get("grounding_error_code"),
                 "normalized_value_match": observation_metadata.get("normalized_value_match"),
+                "dependency_state": _bounded_value(
+                    dependency_state,
+                    limit=1000,
+                ),
                 "pending_dependency_ids": [item.get("dependency_id") for item in progress.get("pending_dependencies", [])],
                 "terminal_allowed": bool(progress.get("terminal_allowed", False)),
                 "model_protocol": _bounded_value(protocol, limit=2500),
@@ -2709,6 +3051,76 @@ def _grounding_metrics(
         ),
     }
 
+
+def _progress_aware_dependency_waits(
+    trace: Sequence[Mapping[str, Any]],
+) -> int:
+    last_state: dict[tuple[str, str], Any] = {}
+    accepted_after_change = 0
+    for event in trace:
+        if (
+            event.get("action_name") != "wait_for_dependency"
+            or event.get("tool_status") != "succeeded"
+        ):
+            continue
+        parameters = event.get("action_parameters", {})
+        dependency_id = (
+            parameters.get("dependency_id")
+            if isinstance(parameters, Mapping)
+            else None
+        )
+        agent_id = event.get("agent_id")
+        if not isinstance(agent_id, str) or not isinstance(
+            dependency_id,
+            str,
+        ):
+            continue
+        key = (agent_id, dependency_id)
+        current = event.get("dependency_state")
+        if key in last_state and current != last_state[key]:
+            accepted_after_change += 1
+        last_state[key] = current
+    return accepted_after_change
+
+
+def _finish_guard_metrics(
+    trace: Sequence[Mapping[str, Any]],
+) -> dict[str, int]:
+    rejected_by_agent: dict[str, list[int]] = {}
+    successful_by_agent: dict[str, list[int]] = {}
+    for event in trace:
+        if event.get("action_name") != "finish":
+            continue
+        agent_id = event.get("agent_id")
+        event_index = event.get("event_index")
+        if not isinstance(agent_id, str) or not isinstance(
+            event_index,
+            int,
+        ):
+            continue
+        if event.get("tool_error_code") == "completion_requirements_unmet":
+            rejected_by_agent.setdefault(agent_id, []).append(event_index)
+        if event.get("tool_status") == "succeeded":
+            successful_by_agent.setdefault(agent_id, []).append(event_index)
+
+    guarded_recoveries = 0
+    unresolved = 0
+    for agent_id, rejected in rejected_by_agent.items():
+        later_success = any(
+            success_index > min(rejected)
+            for success_index in successful_by_agent.get(agent_id, [])
+        )
+        if later_success:
+            guarded_recoveries += 1
+        else:
+            unresolved += 1
+    return {
+        "premature_finish_attempts": sum(
+            len(items) for items in rejected_by_agent.values()
+        ),
+        "guarded_finish_recoveries": guarded_recoveries,
+        "unresolved_premature_finish_agents": unresolved,
+    }
 
 def _agent_metrics(
     runtime: AutonomousMultiAgentRuntime,
@@ -2883,6 +3295,7 @@ def _trial_metrics(
         event.get("successful_retry_after_resource_state_change") is True
         for event in action_events
     )
+    finish_guard = _finish_guard_metrics(trace)
     grounding = _grounding_metrics(
         trace,
         [
@@ -2943,6 +3356,20 @@ def _trial_metrics(
         "resource_state_transitions": len(runtime.shared_environment.resource_transitions),
         "retries_after_resource_state_change": retries_after_resource_state_change,
         "successful_retries_after_resource_state_change": successful_retries_after_resource_state_change,
+        "dependency_wait_count": sum(
+            event.get("action_name") == "wait_for_dependency"
+            for event in action_events
+        ),
+        "progress_aware_dependency_waits": _progress_aware_dependency_waits(trace),
+        "repetition_guard_events": sum(
+            event.get("tool_error_code") == "repeated_action_detected"
+            for event in trace
+        ),
+        "undeclared_dependency_waits": sum(
+            event.get("tool_error_code") == "undeclared_dependency"
+            for event in trace
+        ),
+        **finish_guard,
         **grounding,
         "recovery_success_rate": _rate(generic_recovery_successes, generic_recovery_attempts),
         "role_violation_rate": _rate(
@@ -3150,6 +3577,34 @@ def _experiment_summary(
             int(metrics.get("source_conflict_unresolved_attempts", 0))
             for metrics in trial_metric_rows
         ),
+        "dependency_wait_count": sum(
+            int(metrics.get("dependency_wait_count", 0))
+            for metrics in trial_metric_rows
+        ),
+        "progress_aware_dependency_waits": sum(
+            int(metrics.get("progress_aware_dependency_waits", 0))
+            for metrics in trial_metric_rows
+        ),
+        "repetition_guard_events": sum(
+            int(metrics.get("repetition_guard_events", 0))
+            for metrics in trial_metric_rows
+        ),
+        "undeclared_dependency_waits": sum(
+            int(metrics.get("undeclared_dependency_waits", 0))
+            for metrics in trial_metric_rows
+        ),
+        "premature_finish_attempts": sum(
+            int(metrics.get("premature_finish_attempts", 0))
+            for metrics in trial_metric_rows
+        ),
+        "guarded_finish_recoveries": sum(
+            int(metrics.get("guarded_finish_recoveries", 0))
+            for metrics in trial_metric_rows
+        ),
+        "unresolved_premature_finish_agents": sum(
+            int(metrics.get("unresolved_premature_finish_agents", 0))
+            for metrics in trial_metric_rows
+        ),
         "grounded_fact_requirement_total": sum(
             int(metrics.get("grounded_fact_requirement_total", 0))
             for metrics in trial_metric_rows
@@ -3252,6 +3707,13 @@ def _empty_trial_metrics(started_at: float) -> dict[str, Any]:
         "missing_provenance_attempts": 0,
         "wrong_authority_selections": 0,
         "source_conflict_unresolved_attempts": 0,
+        "dependency_wait_count": 0,
+        "progress_aware_dependency_waits": 0,
+        "repetition_guard_events": 0,
+        "undeclared_dependency_waits": 0,
+        "premature_finish_attempts": 0,
+        "guarded_finish_recoveries": 0,
+        "unresolved_premature_finish_agents": 0,
         "grounded_fact_requirement_total": 0,
         "grounded_fact_requirement_completed": 0,
         "grounded_fact_success_rate": 0.0,

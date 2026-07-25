@@ -1046,10 +1046,60 @@ class AutonomousMultiAgentRuntime:
                 },
             )
         if action.tool_name == "wait_for_dependency":
-            pending = {item["dependency_id"] for item in state.memory.get("task_progress", {}).get("pending_dependencies", [])}
+            progress = state.memory.get("task_progress", {})
+            declared = {
+                item.get("dependency_id")
+                for item in state.profile.dependencies
+                if isinstance(item.get("dependency_id"), str)
+            }
+            pending = {
+                item.get("dependency_id")
+                for item in progress.get("pending_dependencies", [])
+                if isinstance(item.get("dependency_id"), str)
+            }
+            ready = {
+                item.get("dependency_id")
+                for item in progress.get("ready_dependencies", [])
+                if isinstance(item.get("dependency_id"), str)
+            }
             dependency_id = action.parameters.get("dependency_id")
-            if not isinstance(dependency_id, str) or dependency_id not in pending:
-                return Observation(False, action.tool_name, error_code="dependency_not_pending", error_message="Dependency is not pending for this agent.")
+            if (
+                not isinstance(dependency_id, str)
+                or dependency_id not in declared
+            ):
+                return Observation(
+                    False,
+                    action.tool_name,
+                    error_code="undeclared_dependency",
+                    error_message=(
+                        "Dependency is not declared for this agent."
+                    ),
+                    metadata={
+                        "dependency_id": dependency_id,
+                        "declared_dependency_ids": sorted(declared),
+                        "pending_dependency_ids": sorted(pending),
+                        "ready_dependency_ids": sorted(ready),
+                        "declared": False,
+                        "pending": False,
+                    },
+                )
+            if dependency_id not in pending:
+                return Observation(
+                    False,
+                    action.tool_name,
+                    error_code="dependency_not_pending",
+                    error_message=(
+                        "Dependency is declared but is not currently pending."
+                    ),
+                    metadata={
+                        "dependency_id": dependency_id,
+                        "declared_dependency_ids": sorted(declared),
+                        "pending_dependency_ids": sorted(pending),
+                        "ready_dependency_ids": sorted(ready),
+                        "declared": True,
+                        "pending": False,
+                    },
+                )
         if action.tool_name in {"read_file", "create_file", "append_file"}:
             path = action.parameters.get("path")
             advertised = state.memory.get("available_resources", {}).get("allowed_paths", [])
@@ -1581,6 +1631,7 @@ class AutonomousMultiAgentRuntime:
         if action.tool_name in {
             "office_fixture_read",
             "source_record_read",
+            "dependency_owner_extract",
         } and isinstance(output, Mapping):
             field = output.get("field")
             if isinstance(field, str) and "value" in output:
