@@ -2445,3 +2445,214 @@ def test_repeated_malformed_actions_reach_failure_limit(
     assert [
         event.observation.error_code for event in protocol.history
     ] == ["invalid_action_json"] * 4
+
+def test_conflicting_grounded_facts_contract_and_state(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="conflicting_grounded_facts",
+        trial_id="conflict_contract",
+        trial_output_dir=f"{artifact_output_dir}/conflict_contract",
+        project_root=PROJECT_ROOT,
+    )
+
+    contract = runtime.shared_environment.fact_contracts["owner"]
+    assert contract["producer_agent"] == "research_agent"
+    assert contract["required_source_resource_id"] == "audit_log"
+    assert contract["required_authority"] == "high"
+    assert contract["authority_order"] == [
+        "audit_log",
+        "policy_page",
+        "ticket_record",
+    ]
+    assert set(runtime.states) == {"research_agent", "review_agent"}
+
+
+def test_conflicting_grounded_facts_perfect_policy_succeeds(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="conflicting_grounded_facts",
+        trial_id="conflict_success",
+        trial_output_dir=f"{artifact_output_dir}/conflict_success",
+        project_root=PROJECT_ROOT,
+        max_turns=20,
+    )
+    started_at = time.perf_counter()
+    trace = _run_runtime_with_trace(runtime, started_at=started_at)
+    metrics = _trial_metrics(runtime, trace, started_at=started_at)
+
+    assert runtime.status == "succeeded"
+    assert runtime.shared_environment.facts["owner"] == "Priya Shah"
+    metadata = runtime.shared_environment.shared_fact_metadata["owner"]
+    assert metadata["evidence_source_resource_id"] == "audit_log"
+    assert metadata["evidence_source_authority"] == "high"
+    assert metadata["evidence_authority_rank"] == 3
+    assert metrics["grounded_fact_success_rate"] == 1.0
+    assert metrics["wrong_authority_selections"] == 0
+    assert metrics["ungrounded_publish_attempts"] == 0
+
+
+def test_conflicting_sources_are_explicitly_represented_in_state(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="conflicting_grounded_facts",
+        trial_id="conflict_state",
+        trial_output_dir=f"{artifact_output_dir}/conflict_state",
+        project_root=PROJECT_ROOT,
+        max_turns=20,
+    )
+
+    for _ in range(5):
+        runtime.step()
+
+    research = runtime.states["research_agent"]
+    conflicts = research.memory["task_progress"]["source_conflicts"]
+    assert len(conflicts) == 1
+    assert conflicts[0]["status"] == "complete"
+    assert conflicts[0]["distinct_values"] == [
+        "Dana Wu",
+        "Morgan Lee",
+        "Priya Shah",
+    ]
+    assert conflicts[0]["highest_authority_source"] == "audit_log"
+    assert conflicts[0]["highest_authority_value"] == "Priya Shah"
+    assert "owner_conflict_observed" in research.memory[
+        "task_progress"
+    ]["completed_requirements"]
+
+
+def test_lower_authority_grounded_evidence_is_rejected(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="conflicting_grounded_facts",
+        trial_id="wrong_authority",
+        trial_output_dir=f"{artifact_output_dir}/wrong_authority",
+        project_root=PROJECT_ROOT,
+        policy_variant="wrong_authority",
+        max_turns=16,
+    )
+    started_at = time.perf_counter()
+    trace = _run_runtime_with_trace(runtime, started_at=started_at)
+    metrics = _trial_metrics(runtime, trace, started_at=started_at)
+
+    rejected = next(
+        event
+        for event in trace
+        if event["tool_error_code"] == "wrong_authority_selected"
+    )
+    assert rejected["action_parameters"]["value"] == "Dana Wu"
+    assert rejected["evidence_source_resource_id"] == "policy_page"
+    assert rejected["expected_source_resource_id"] == "audit_log"
+    assert "owner" not in runtime.shared_environment.facts
+    assert metrics["wrong_authority_selections"] == 1
+
+
+def test_review_validates_value_source_and_authority_order(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="conflicting_grounded_facts",
+        trial_id="authority_review",
+        trial_output_dir=f"{artifact_output_dir}/authority_review",
+        project_root=PROJECT_ROOT,
+        max_turns=20,
+    )
+    trace = _run_runtime_with_trace(
+        runtime,
+        started_at=time.perf_counter(),
+    )
+
+    validation = next(
+        event
+        for event in trace
+        if event["agent_id"] == "review_agent"
+        and event["action_name"] == "validate_fact_authority"
+    )
+    assert validation["tool_status"] == "succeeded"
+    output = validation["observation_summary"]["output"]
+    assert output["selected_source"] == "audit_log"
+    assert output["selected_authority"] == "high"
+    assert output["authority_order"] == [
+        "audit_log",
+        "policy_page",
+        "ticket_record",
+    ]
+
+
+def test_authoritative_publish_before_all_sources_is_rejected(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="conflicting_grounded_facts",
+        trial_id="conflict_unresolved",
+        trial_output_dir=f"{artifact_output_dir}/conflict_unresolved",
+        project_root=PROJECT_ROOT,
+        policy_overrides={
+            "research_agent": PerfectFakePolicy(
+                (
+                    Action(
+                        "conflict_source_read",
+                        {"source": "audit_log"},
+                    ),
+                    Action(
+                        "shared_publish_fact",
+                        {
+                            "key": "owner",
+                            "value": "Priya Shah",
+                            "evidence_id": "ev_research_agent_0_owner",
+                        },
+                    ),
+                )
+            ),
+            "review_agent": EarlyStopFakePolicy(),
+        },
+        max_turns=8,
+    )
+
+    runtime.step()
+    runtime.step()
+    rejected = runtime.step()
+    assert rejected.agent_id == "research_agent"
+    assert rejected.observation is not None
+    assert rejected.observation.error_code == "source_conflict_unresolved"
+    assert "owner" not in runtime.shared_environment.facts
+
+
+def test_conflicting_grounded_facts_finish_is_guarded(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="conflicting_grounded_facts",
+        trial_id="conflict_finish_guard",
+        trial_output_dir=f"{artifact_output_dir}/conflict_finish_guard",
+        project_root=PROJECT_ROOT,
+        policy_overrides={
+            "research_agent": PerfectFakePolicy(
+                (
+                    Action(
+                        "conflict_source_read",
+                        {"source": "policy_page"},
+                    ),
+                    Action("finish"),
+                )
+            ),
+            "review_agent": EarlyStopFakePolicy(),
+        },
+        max_turns=8,
+    )
+
+    runtime.step()
+    runtime.step()
+    guarded = runtime.step()
+    assert guarded.agent_id == "research_agent"
+    assert guarded.observation is not None
+    assert guarded.observation.error_code == "completion_requirements_unmet"
+    assert set(guarded.observation.metadata["unmet_requirement_ids"]) == {
+        "ticket_record_read",
+        "audit_log_read",
+        "owner_conflict_observed",
+        "authoritative_owner_published",
+    }

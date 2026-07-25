@@ -47,6 +47,7 @@ SUPPORTED_SCENARIOS = (
     "role_boundary_exact_handoff",
     "malformed_action_recovery",
     "bounded_repetition_and_role_guard",
+    "conflicting_grounded_facts",
 )
 LOCAL_MODEL_HOSTS = {"127.0.0.1", "localhost"}
 ARTICLE_URL = "https://fixture.local/articles/long-horizon"
@@ -165,6 +166,30 @@ class _ProtocolFaultInjectingPolicy:
                 if isinstance(diagnostics, Mapping)
                 else {}
             )
+
+CONFLICT_OWNER_SOURCES: dict[str, dict[str, Any]] = {
+    "policy_page": {
+        "value": "Dana Wu",
+        "authority": "medium",
+        "authority_rank": 2,
+    },
+    "ticket_record": {
+        "value": "Morgan Lee",
+        "authority": "low",
+        "authority_rank": 1,
+    },
+    "audit_log": {
+        "value": "Priya Shah",
+        "authority": "high",
+        "authority_rank": 3,
+    },
+}
+CONFLICT_AUTHORITY_ORDER = (
+    "audit_log",
+    "policy_page",
+    "ticket_record",
+)
+CONFLICT_EXPECTED_OWNER = "Priya Shah"
 
 @dataclass(frozen=True)
 class LongHorizonExperimentConfig:
@@ -316,6 +341,7 @@ def build_long_horizon_trial_runtime(
         "role_violating",
         "early_stop",
         "repeat_malformed",
+        "wrong_authority",
         "publish_without_evidence",
         "publish_with_wrong_evidence",
         "publish_with_mismatched_value",
@@ -729,6 +755,136 @@ def _scenario_profiles(
                             "purpose": "research note handoff artifact",
                         }
                     ],
+                },
+            ),
+        )
+    if scenario_id == "conflicting_grounded_facts":
+        source_descriptors = [
+            {
+                "source_id": source_id,
+                "authority": payload["authority"],
+                "authority_rank": payload["authority_rank"],
+            }
+            for source_id, payload in CONFLICT_OWNER_SOURCES.items()
+        ]
+        return (
+            AgentProfile(
+                agent_id="research_agent",
+                role="Conflicting-source authority resolver",
+                goal=(
+                    "Read policy_page, ticket_record, and audit_log. Preserve "
+                    "their contradictory owner values in state, apply the explicit "
+                    "authority order audit_log > policy_page > ticket_record, "
+                    "publish owner exactly from the audit_log evidence, then finish."
+                ),
+                allowed_tools=(
+                    "conflict_source_read",
+                    "shared_publish_fact",
+                    "finish",
+                ),
+                resource_constraints=common_constraints,
+                behavior_constraints=(
+                    "Read all three declared sources before publication.",
+                    "Do not merge, average, or paraphrase conflicting values.",
+                    "Use only the highest-authority audit_log evidence for owner.",
+                ),
+                completion_requirements=(
+                    {
+                        "id": "policy_page_read",
+                        "kind": "tool_succeeded",
+                        "tool_name": "conflict_source_read",
+                        "parameters": {"source": "policy_page"},
+                    },
+                    {
+                        "id": "ticket_record_read",
+                        "kind": "tool_succeeded",
+                        "tool_name": "conflict_source_read",
+                        "parameters": {"source": "ticket_record"},
+                    },
+                    {
+                        "id": "audit_log_read",
+                        "kind": "tool_succeeded",
+                        "tool_name": "conflict_source_read",
+                        "parameters": {"source": "audit_log"},
+                    },
+                    {
+                        "id": "owner_conflict_observed",
+                        "kind": "source_conflict_observed",
+                        "field": "owner",
+                        "sources": list(CONFLICT_AUTHORITY_ORDER),
+                        "authority_order": list(CONFLICT_AUTHORITY_ORDER),
+                        "evidence_type": "source_conflict_state",
+                    },
+                    {
+                        "id": "authoritative_owner_published",
+                        "kind": "fact_published_grounded",
+                        "key": "owner",
+                        "evidence_type": "grounded_shared_fact",
+                    },
+                ),
+                resource_affordances={
+                    "available_commands": ["conflict_source_read"],
+                    "conflict_sources": source_descriptors,
+                    "authority_order": list(CONFLICT_AUTHORITY_ORDER),
+                },
+            ),
+            AgentProfile(
+                agent_id="review_agent",
+                role="Authority-order reviewer",
+                goal=(
+                    "Wait for owner, read it, validate exact value Priya Shah, "
+                    "validate audit_log provenance and the full authority order, "
+                    "then finish."
+                ),
+                allowed_tools=(
+                    "shared_read_fact",
+                    "validate_exact_value",
+                    "validate_fact_authority",
+                    "wait_for_dependency",
+                    "finish",
+                ),
+                resource_constraints=common_constraints,
+                dependencies=(
+                    {
+                        "dependency_id": "owner",
+                        "kind": "shared_fact",
+                        "key": "owner",
+                        "producer_agent": "research_agent",
+                    },
+                ),
+                completion_requirements=(
+                    {
+                        "id": "authoritative_owner_read",
+                        "kind": "fact_read",
+                        "key": "owner",
+                    },
+                    {
+                        "id": "authoritative_owner_value_validated",
+                        "kind": "tool_succeeded",
+                        "tool_name": "validate_exact_value",
+                        "parameters": {
+                            "key": "owner",
+                            "expected": CONFLICT_EXPECTED_OWNER,
+                        },
+                    },
+                    {
+                        "id": "authoritative_owner_source_validated",
+                        "kind": "tool_succeeded",
+                        "tool_name": "validate_fact_authority",
+                        "parameters": {
+                            "key": "owner",
+                            "expected_source": "audit_log",
+                            "expected_authority": "high",
+                            "expected_order": list(CONFLICT_AUTHORITY_ORDER),
+                        },
+                    },
+                ),
+                resource_affordances={
+                    "available_commands": [
+                        "validate_exact_value",
+                        "validate_fact_authority",
+                    ],
+                    "authority_order": list(CONFLICT_AUTHORITY_ORDER),
                 },
             ),
         )
@@ -1185,6 +1341,78 @@ def _scenario_fake_policies(
     policy_variant: str,
 ) -> dict[str, ModelPolicy]:
     note_path = (PurePosixPath(trial_output_dir) / "research_note.txt").as_posix()
+    if scenario_id == "conflicting_grounded_facts":
+        research_reads = (
+            Action("conflict_source_read", {"source": "policy_page"}),
+            Action("conflict_source_read", {"source": "ticket_record"}),
+            Action("conflict_source_read", {"source": "audit_log"}),
+        )
+        if policy_variant == "wrong_authority":
+            return {
+                "research_agent": PerfectFakePolicy(
+                    research_reads
+                    + (
+                        Action(
+                            "shared_publish_fact",
+                            {
+                                "key": "owner",
+                                "value": "Dana Wu",
+                                "evidence_id": "ev_research_agent_0_owner",
+                            },
+                        ),
+                        Action("finish"),
+                    )
+                ),
+                "review_agent": EarlyStopFakePolicy(),
+            }
+        if policy_variant == "early_stop":
+            return {
+                "research_agent": EarlyStopFakePolicy(),
+                "review_agent": EarlyStopFakePolicy(),
+            }
+        if policy_variant != "perfect":
+            raise ValueError(
+                "Unsupported policy variant for conflicting_grounded_facts: "
+                f"{policy_variant}"
+            )
+        return {
+            "research_agent": PerfectFakePolicy(
+                research_reads
+                + (
+                    Action(
+                        "shared_publish_fact",
+                        {
+                            "key": "owner",
+                            "value": CONFLICT_EXPECTED_OWNER,
+                            "evidence_id": "ev_research_agent_2_owner",
+                        },
+                    ),
+                    Action("finish"),
+                )
+            ),
+            "review_agent": PerfectFakePolicy(
+                (
+                    Action("wait_for_dependency", {"dependency_id": "owner"}),
+                    Action("wait_for_dependency", {"dependency_id": "owner"}),
+                    Action("wait_for_dependency", {"dependency_id": "owner"}),
+                    Action("shared_read_fact", {"key": "owner"}),
+                    Action(
+                        "validate_exact_value",
+                        {"key": "owner", "expected": CONFLICT_EXPECTED_OWNER},
+                    ),
+                    Action(
+                        "validate_fact_authority",
+                        {
+                            "key": "owner",
+                            "expected_source": "audit_log",
+                            "expected_authority": "high",
+                            "expected_order": list(CONFLICT_AUTHORITY_ORDER),
+                        },
+                    ),
+                    Action("finish"),
+                )
+            ),
+        }
     if scenario_id == "malformed_action_recovery":
         if policy_variant == "repeat_malformed":
             return {
@@ -1610,6 +1838,28 @@ def _register_experiment_tools(registry: ToolRegistry) -> None:
 
     registry.register(
         ToolSpec(
+            name="conflict_source_read",
+            description="Read one bounded contradictory owner source with authority metadata.",
+            family="source_conflicts",
+            required_parameters=("source",),
+            parameter_names=("source",),
+            read_only=True,
+        ),
+        _conflict_source_read,
+    )
+    registry.register(
+        ToolSpec(
+            name="validate_fact_authority",
+            description="Validate source, authority, and authority order for one shared fact.",
+            family="validation",
+            required_parameters=("key", "expected_source", "expected_authority", "expected_order"),
+            parameter_names=("key", "expected_source", "expected_authority", "expected_order"),
+            read_only=True,
+        ),
+        _validate_fact_authority,
+    )
+    registry.register(
+        ToolSpec(
             name="source_record_open",
             description="Open the bounded release source record.",
             family="source_records",
@@ -1674,7 +1924,26 @@ def _configure_environment_contract(
     trial_output_dir: str,
 ) -> None:
     """Declare scenario resources without exposing fixture values to policies."""
-    if scenario_id == "malformed_action_recovery":
+    if scenario_id == "conflicting_grounded_facts":
+        environment.fact_contracts = {
+            "owner": {
+                "producer_agent": "research_agent",
+                "consumers": ("review_agent",),
+                "grounding_required": True,
+                "required_source_tool": "conflict_source_read",
+                "required_source_field": "owner",
+                "required_source_resource_id": "audit_log",
+                "required_authority": "high",
+                "required_authority_rank": 3,
+                "authority_order": list(CONFLICT_AUTHORITY_ORDER),
+                "required_conflict_sources": list(
+                    CONFLICT_AUTHORITY_ORDER
+                ),
+                "normalization_policy": "trimmed_text",
+                "overwrite_policy": "last_write_wins",
+            }
+        }
+    elif scenario_id == "malformed_action_recovery":
         environment.fact_contracts = {
             "recovered_release_identifier": {
                 "producer_agent": "protocol_agent",
@@ -1727,6 +1996,132 @@ def _configure_environment_contract(
             "tests/fixtures/canonical_multi_agent/recovery_note.txt"
         )
 
+
+def _conflict_source_read(
+    action: Action,
+    context: ToolExecutionContext,
+) -> ToolResult:
+    source = action.parameters.get("source")
+    if not isinstance(source, str):
+        return ToolResult(
+            False,
+            error_code="invalid_parameter",
+            error_message="source must be a string.",
+        )
+    payload = CONFLICT_OWNER_SOURCES.get(source)
+    if payload is None:
+        return ToolResult(
+            False,
+            error_code="conflict_source_not_found",
+            error_message="The requested conflict source is not declared.",
+            metadata={"source": source},
+        )
+    return ToolResult(
+        True,
+        output={
+            "source_id": source,
+            "field": "owner",
+            "value": payload["value"],
+            "authority": payload["authority"],
+            "authority_rank": payload["authority_rank"],
+            "authority_order": list(CONFLICT_AUTHORITY_ORDER),
+            "conflict_group": "owner",
+        },
+    )
+
+
+def _validate_fact_authority(
+    action: Action,
+    context: ToolExecutionContext,
+) -> ToolResult:
+    key = action.parameters.get("key")
+    expected_source = action.parameters.get("expected_source")
+    expected_authority = action.parameters.get("expected_authority")
+    expected_order = action.parameters.get("expected_order")
+    if (
+        not isinstance(key, str)
+        or not isinstance(expected_source, str)
+        or not isinstance(expected_authority, str)
+        or not isinstance(expected_order, Sequence)
+        or isinstance(expected_order, (str, bytes))
+    ):
+        return ToolResult(
+            False,
+            error_code="invalid_parameter",
+            error_message=(
+                "key, expected_source, expected_authority, and expected_order "
+                "are required."
+            ),
+        )
+    normalized_order = [
+        str(item) for item in expected_order if isinstance(item, str)
+    ]
+    contract = context.shared_environment.fact_contracts.get(key)
+    if contract is None:
+        return ToolResult(
+            False,
+            error_code="fact_key_not_allowed",
+            error_message="The fact has no authority contract.",
+        )
+    if key not in context.shared_environment.facts:
+        return ToolResult(
+            False,
+            error_code="shared_fact_not_found",
+            error_message="The authoritative fact is not available.",
+        )
+    contract_order = list(contract.get("authority_order", ()))
+    metadata = context.shared_environment.shared_fact_metadata.get(key, {})
+    actual_source = metadata.get("evidence_source_resource_id")
+    actual_authority = metadata.get("evidence_source_authority")
+    if normalized_order != contract_order:
+        return ToolResult(
+            False,
+            error_code="authority_order_mismatch",
+            error_message="The supplied authority order is not exact.",
+            metadata={
+                "expected_order": contract_order,
+                "actual_order": normalized_order,
+            },
+        )
+    if (
+        expected_source != contract.get("required_source_resource_id")
+        or expected_authority != contract.get("required_authority")
+        or actual_source != expected_source
+        or actual_authority != expected_authority
+        or not contract_order
+        or contract_order[0] != expected_source
+    ):
+        return ToolResult(
+            False,
+            error_code="wrong_authority_selected",
+            error_message=(
+                "The published fact does not use the highest-authority source."
+            ),
+            metadata={
+                "expected_source": expected_source,
+                "actual_source": actual_source,
+                "expected_authority": expected_authority,
+                "actual_authority": actual_authority,
+                "authority_order": contract_order,
+            },
+        )
+    return ToolResult(
+        True,
+        output={
+            "key": key,
+            "value": context.shared_environment.facts[key],
+            "selected_source": actual_source,
+            "selected_authority": actual_authority,
+            "authority_order": contract_order,
+            "highest_authority_verified": True,
+        },
+        metadata={
+            "selected_source": actual_source,
+            "selected_authority": actual_authority,
+            "authority_order": contract_order,
+            "highest_authority_verified": True,
+        },
+    )
 
 def _source_record_open(
     action: Action,
@@ -2139,6 +2534,13 @@ def _run_runtime_with_trace(
                 "evidence_source_tool": observation_metadata.get("evidence_source_tool"),
                 "evidence_source_field": observation_metadata.get("evidence_source_field"),
                 "evidence_source_event_index": observation_metadata.get("evidence_source_event_index"),
+                "evidence_source_resource_id": observation_metadata.get("evidence_source_resource_id"),
+                "evidence_source_authority": observation_metadata.get("evidence_source_authority"),
+                "evidence_authority_rank": observation_metadata.get("evidence_authority_rank"),
+                "expected_source_resource_id": observation_metadata.get("expected_source_resource_id"),
+                "expected_authority": observation_metadata.get("expected_authority"),
+                "expected_authority_rank": observation_metadata.get("expected_authority_rank"),
+                "authority_order": observation_metadata.get("authority_order"),
                 "grounding_required": observation_metadata.get("grounding_required"),
                 "grounding_valid": observation_metadata.get("grounding_valid"),
                 "grounding_error_code": observation_metadata.get("grounding_error_code"),
@@ -2251,6 +2653,16 @@ def _grounding_metrics(
         for event in publish_events
         if event.get("grounding_error_code") == "published_value_mismatch"
     ]
+    wrong_authority = [
+        event
+        for event in publish_events
+        if event.get("grounding_error_code") == "wrong_authority_selected"
+    ]
+    source_conflict_unresolved = [
+        event
+        for event in events
+        if event.get("tool_error_code") == "source_conflict_unresolved"
+    ]
     ungrounded_attempts = [
         event
         for event in publish_events
@@ -2287,6 +2699,8 @@ def _grounding_metrics(
         "ungrounded_publish_attempts": len(ungrounded_attempts),
         "value_mismatch_attempts": len(mismatched_values),
         "missing_provenance_attempts": len(missing_provenance),
+        "wrong_authority_selections": len(wrong_authority),
+        "source_conflict_unresolved_attempts": len(source_conflict_unresolved),
         "grounded_fact_requirement_total": len(grounded_requirements),
         "grounded_fact_requirement_completed": grounded_completed,
         "grounded_fact_success_rate": _rate(
@@ -2728,6 +3142,14 @@ def _experiment_summary(
             int(metrics.get("missing_provenance_attempts", 0))
             for metrics in trial_metric_rows
         ),
+        "wrong_authority_selections": sum(
+            int(metrics.get("wrong_authority_selections", 0))
+            for metrics in trial_metric_rows
+        ),
+        "source_conflict_unresolved_attempts": sum(
+            int(metrics.get("source_conflict_unresolved_attempts", 0))
+            for metrics in trial_metric_rows
+        ),
         "grounded_fact_requirement_total": sum(
             int(metrics.get("grounded_fact_requirement_total", 0))
             for metrics in trial_metric_rows
@@ -2828,6 +3250,8 @@ def _empty_trial_metrics(started_at: float) -> dict[str, Any]:
         "ungrounded_publish_attempts": 0,
         "value_mismatch_attempts": 0,
         "missing_provenance_attempts": 0,
+        "wrong_authority_selections": 0,
+        "source_conflict_unresolved_attempts": 0,
         "grounded_fact_requirement_total": 0,
         "grounded_fact_requirement_completed": 0,
         "grounded_fact_success_rate": 0.0,

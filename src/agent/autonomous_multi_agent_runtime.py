@@ -1288,6 +1288,7 @@ class AutonomousMultiAgentRuntime:
             if state.agent_id in contract.get("consumers", ()) or state.agent_id == contract.get("producer_agent")
         ]
         observed_evidence = list(state.memory.get("observed_evidence", []))
+        source_conflicts = self._source_conflicts_for_prompt(state)
         state.memory["shared_facts"] = readable_facts
         state.memory["available_resources"] = {
             "article_urls": affordances.get("article_urls", []),
@@ -1303,6 +1304,9 @@ class AutonomousMultiAgentRuntime:
             "observed_evidence": self._evidence_for_prompt(state),
             "publishable_facts": self._publishable_facts_for_prompt(state),
             "available_commands": affordances.get("available_commands", []),
+            "conflict_sources": affordances.get("conflict_sources", []),
+            "authority_order": affordances.get("authority_order", []),
+            "source_conflicts": source_conflicts,
             "guidance": [
                 "Do not repeat an unchanged action against a resource that is still marked unavailable.",
                 "Previously failed actions may be retried when the relevant resource state has changed.",
@@ -1333,41 +1337,163 @@ class AutonomousMultiAgentRuntime:
             ],
             "terminal_allowed": not unmet,
             "required_recovery_evidence": self._required_recovery_evidence(state),
+            "source_conflicts": source_conflicts,
             "unchanged_failed_actions": self._unchanged_failed_actions(state),
         }
 
-    def _evidence_for_prompt(self, state: AgentState) -> list[dict[str, Any]]:
+    def _source_conflicts_for_prompt(
+        self,
+        state: AgentState,
+    ) -> list[dict[str, Any]]:
+        groups: dict[str, list[dict[str, Any]]] = {}
+        for evidence in state.memory.get("observed_evidence", []):
+            if not isinstance(evidence, Mapping):
+                continue
+            conflict_group = evidence.get("conflict_group")
+            source_id = evidence.get("source_resource_id")
+            if not isinstance(conflict_group, str) or not isinstance(
+                source_id,
+                str,
+            ):
+                continue
+            groups.setdefault(conflict_group, []).append(
+                {
+                    "source_id": source_id,
+                    "value": evidence.get("observed_value"),
+                    "normalized_value": evidence.get("normalized_value"),
+                    "authority": evidence.get("source_authority"),
+                    "authority_rank": evidence.get("authority_rank"),
+                    "evidence_id": evidence.get("evidence_id"),
+                }
+            )
+
+        affordances = dict(state.profile.resource_affordances)
+        expected_sources = {
+            str(item.get("source_id"))
+            for item in affordances.get("conflict_sources", [])
+            if isinstance(item, Mapping)
+            and isinstance(item.get("source_id"), str)
+        }
+        authority_order = [
+            str(item)
+            for item in affordances.get("authority_order", [])
+            if isinstance(item, str)
+        ]
+
+        conflicts: list[dict[str, Any]] = []
+        for conflict_group, entries in sorted(groups.items()):
+            distinct_values = sorted(
+                {
+                    str(item.get("normalized_value"))
+                    for item in entries
+                    if item.get("normalized_value") is not None
+                }
+            )
+            if len(distinct_values) < 2:
+                continue
+            ordered_entries = sorted(
+                entries,
+                key=lambda item: (
+                    int(item.get("authority_rank"))
+                    if isinstance(item.get("authority_rank"), int)
+                    else -1,
+                    str(item.get("source_id")),
+                ),
+                reverse=True,
+            )
+            observed_sources = {
+                str(item.get("source_id")) for item in entries
+            }
+            highest = ordered_entries[0] if ordered_entries else {}
+            conflicts.append(
+                {
+                    "conflict_group": conflict_group,
+                    "status": (
+                        "complete"
+                        if expected_sources
+                        and expected_sources.issubset(observed_sources)
+                        else "detected"
+                    ),
+                    "source_count": len(observed_sources),
+                    "distinct_value_count": len(distinct_values),
+                    "distinct_values": distinct_values,
+                    "sources": ordered_entries,
+                    "authority_order": authority_order,
+                    "highest_authority_source": highest.get("source_id"),
+                    "highest_authority_value": highest.get("value"),
+                    "highest_authority": highest.get("authority"),
+                    "highest_authority_rank": highest.get("authority_rank"),
+                }
+            )
+        return _sanitize_value(conflicts)
+
+    def _evidence_for_prompt(
+        self,
+        state: AgentState,
+    ) -> list[dict[str, Any]]:
         prompt_items: list[dict[str, Any]] = []
         for evidence in state.memory.get("observed_evidence", []):
             if not isinstance(evidence, Mapping):
                 continue
-            prompt_items.append(
-                {
-                    "evidence_id": evidence.get("evidence_id"),
-                    "source_tool": evidence.get("source_tool"),
-                    "source_field": evidence.get("source_field"),
-                    "safe_value_preview": _sanitize_text(
-                        str(evidence.get("observed_value", "")),
-                        limit=120,
-                    ),
-                    "compatible_fact_keys": self._compatible_fact_keys(
-                        state,
-                        evidence,
-                    ),
-                }
-            )
+            item: dict[str, Any] = {
+                "evidence_id": evidence.get("evidence_id"),
+                "source_tool": evidence.get("source_tool"),
+                "source_field": evidence.get("source_field"),
+                "safe_value_preview": _sanitize_text(
+                    str(evidence.get("observed_value", "")),
+                    limit=120,
+                ),
+                "compatible_fact_keys": self._compatible_fact_keys(
+                    state,
+                    evidence,
+                ),
+            }
+            for key in (
+                "source_resource_id",
+                "source_authority",
+                "authority_rank",
+                "conflict_group",
+                "authority_order",
+            ):
+                if key in evidence:
+                    item[key] = evidence.get(key)
+            prompt_items.append(item)
         return _sanitize_value(prompt_items)
 
-    def _publishable_facts_for_prompt(self, state: AgentState) -> list[dict[str, Any]]:
+    def _publishable_facts_for_prompt(
+        self,
+        state: AgentState,
+    ) -> list[dict[str, Any]]:
         publishable: list[dict[str, Any]] = []
-        for key, contract in sorted(self.shared_environment.fact_contracts.items()):
+        for key, contract in sorted(
+            self.shared_environment.fact_contracts.items()
+        ):
             if contract.get("producer_agent") != state.agent_id:
                 continue
             publishable.append(
                 {
                     "key": key,
-                    "required_source_type": contract.get("required_source_tool"),
-                    "required_source_field": contract.get("required_source_field"),
+                    "required_source_type": contract.get(
+                        "required_source_tool"
+                    ),
+                    "required_source_field": contract.get(
+                        "required_source_field"
+                    ),
+                    "required_source_resource_id": contract.get(
+                        "required_source_resource_id"
+                    ),
+                    "required_authority": contract.get(
+                        "required_authority"
+                    ),
+                    "required_authority_rank": contract.get(
+                        "required_authority_rank"
+                    ),
+                    "authority_order": list(
+                        contract.get("authority_order", ())
+                    ),
+                    "required_conflict_sources": list(
+                        contract.get("required_conflict_sources", ())
+                    ),
                     "candidate_evidence_ids": [
                         item.get("evidence_id")
                         for item in state.memory.get("observed_evidence", [])
@@ -1377,9 +1503,11 @@ class AutonomousMultiAgentRuntime:
                     "grounding_required": bool(
                         contract.get("grounding_required", False)
                     ),
-                    "published_status": "published"
-                    if key in self.shared_environment.facts
-                    else "pending",
+                    "published_status": (
+                        "published"
+                        if key in self.shared_environment.facts
+                        else "pending"
+                    ),
                 }
             )
         return _sanitize_value(publishable)
@@ -1479,6 +1607,38 @@ class AutonomousMultiAgentRuntime:
                     for key, value in output.items()
                     if isinstance(value, (str, int, float, bool))
                 ]
+        if (
+            action.tool_name == "conflict_source_read"
+            and isinstance(output, Mapping)
+        ):
+            source_id = output.get("source_id")
+            field = output.get("field")
+            if (
+                isinstance(source_id, str)
+                and isinstance(field, str)
+                and "value" in output
+            ):
+                record = self._observed_evidence_record(
+                    state,
+                    action,
+                    event_index,
+                    source_field=field,
+                    observed_value=output.get("value"),
+                    source_resource_id=source_id,
+                )
+                if isinstance(output.get("authority"), str):
+                    record["source_authority"] = output.get("authority")
+                if isinstance(output.get("authority_rank"), int):
+                    record["authority_rank"] = output.get("authority_rank")
+                if isinstance(output.get("conflict_group"), str):
+                    record["conflict_group"] = output.get("conflict_group")
+                if isinstance(output.get("authority_order"), Sequence):
+                    record["authority_order"] = [
+                        str(item)
+                        for item in output.get("authority_order", ())
+                        if isinstance(item, str)
+                    ]
+                return [record]
         if action.tool_name == "browser_article_extract" and isinstance(output, Mapping):
             section = output.get("section")
             if isinstance(section, Mapping):
@@ -1723,6 +1883,10 @@ class AutonomousMultiAgentRuntime:
             )
         if kind == "fact_read":
             return bool(event.action and event.action.tool_name == "shared_read_fact" and event.action.parameters.get("key") == requirement.get("key") and event.observation.success)
+        if kind == "source_conflict_observed":
+            return self._event_satisfies_source_conflict(
+                state, requirement, index
+            )
         if kind == "error_observed":
             return event.observation.error_code == requirement.get("error_code")
         if kind == "error_recovery_completed":
@@ -1732,6 +1896,68 @@ class AutonomousMultiAgentRuntime:
         if kind == "recovery_completed":
             return self._event_satisfies_required_recovery(state, requirement, index)
         return False
+
+    def _event_satisfies_source_conflict(
+        self,
+        state: AgentState,
+        requirement: Mapping[str, Any],
+        index: int,
+    ) -> bool:
+        required_sources = {
+            str(item)
+            for item in requirement.get("sources", ())
+            if isinstance(item, str)
+        }
+        required_field = requirement.get("field")
+        authority_order = [
+            str(item)
+            for item in requirement.get("authority_order", ())
+            if isinstance(item, str)
+        ]
+        observed: dict[str, dict[str, Any]] = {}
+
+        for event in state.history[: index + 1]:
+            if (
+                event.action is None
+                or event.action.tool_name != "conflict_source_read"
+                or not event.observation.success
+                or not isinstance(event.observation.output, Mapping)
+            ):
+                continue
+            output = event.observation.output
+            source_id = output.get("source_id")
+            field = output.get("field")
+            if not isinstance(source_id, str):
+                continue
+            if isinstance(required_field, str) and field != required_field:
+                continue
+            observed[source_id] = {
+                "value": output.get("value"),
+                "authority_rank": output.get("authority_rank"),
+            }
+
+        if required_sources and not required_sources.issubset(observed):
+            return False
+        values = {
+            _normalize_fact_value(item.get("value"), "trimmed_text")
+            for item in observed.values()
+        }
+        if len(values) < 2:
+            return False
+        if authority_order:
+            ranked = sorted(
+                observed.items(),
+                key=lambda pair: (
+                    int(pair[1].get("authority_rank"))
+                    if isinstance(pair[1].get("authority_rank"), int)
+                    else -1,
+                    pair[0],
+                ),
+                reverse=True,
+            )
+            if not ranked or ranked[0][0] != authority_order[0]:
+                return False
+        return True
 
     def _event_satisfies_error_recovery(
         self,
@@ -2322,6 +2548,43 @@ def _publish_fact(action: Action, context: ToolExecutionContext) -> ToolResult:
         )
     if contract and contract.get("producer_agent") != context.agent_state.agent_id:
         return ToolResult(False, error_code="shared_fact_publish_not_allowed", error_message="This agent is not the declared producer for the fact.")
+    required_conflict_sources = {
+        str(item)
+        for item in (contract or {}).get("required_conflict_sources", ())
+        if isinstance(item, str)
+    }
+    if required_conflict_sources:
+        matching_evidence = [
+            item
+            for item in context.agent_state.memory.get("observed_evidence", [])
+            if isinstance(item, Mapping)
+            and item.get("source_tool") == contract.get("required_source_tool")
+            and str(item.get("source_field", "")).casefold()
+            == str(contract.get("required_source_field", "")).casefold()
+        ]
+        observed_sources = {
+            str(item.get("source_resource_id"))
+            for item in matching_evidence
+            if isinstance(item.get("source_resource_id"), str)
+        }
+        observed_values = {
+            _normalize_fact_value(item.get("observed_value"), "trimmed_text")
+            for item in matching_evidence
+        }
+        if (
+            not required_conflict_sources.issubset(observed_sources)
+            or len(observed_values) < 2
+        ):
+            return ToolResult(
+                False,
+                error_code="source_conflict_unresolved",
+                error_message="All declared contradictory sources must be observed before publication.",
+                metadata={
+                    "required_conflict_sources": sorted(required_conflict_sources),
+                    "observed_conflict_sources": sorted(observed_sources),
+                    "distinct_observed_values": len(observed_values),
+                },
+            )
     grounding = _validate_fact_grounding(action, context, contract)
     if not grounding["success"]:
         return ToolResult(
@@ -2345,6 +2608,10 @@ def _publish_fact(action: Action, context: ToolExecutionContext) -> ToolResult:
                 "evidence_source_tool": grounding["metadata"].get("evidence_source_tool"),
                 "evidence_source_field": grounding["metadata"].get("evidence_source_field"),
                 "evidence_source_event_index": grounding["metadata"].get("evidence_source_event_index"),
+                "evidence_source_resource_id": grounding["metadata"].get("evidence_source_resource_id"),
+                "evidence_source_authority": grounding["metadata"].get("evidence_source_authority"),
+                "evidence_authority_rank": grounding["metadata"].get("evidence_authority_rank"),
+                "authority_order": grounding["metadata"].get("authority_order", []),
                 "grounding_required": grounding["metadata"].get("grounding_required", False),
                 "grounding_status": "grounded" if grounding["metadata"].get("grounding_valid") else "not_required",
                 "grounding_error": None,
@@ -2399,6 +2666,10 @@ def _read_fact(action: Action, context: ToolExecutionContext) -> ToolResult:
             "value": value,
             "grounded": metadata.get("grounding_status") == "grounded",
             "evidence_source_tool": metadata.get("evidence_source_tool"),
+            "evidence_source_resource_id": metadata.get("evidence_source_resource_id"),
+            "evidence_source_authority": metadata.get("evidence_source_authority"),
+            "evidence_authority_rank": metadata.get("evidence_authority_rank"),
+            "authority_order": metadata.get("authority_order", []),
             "published_event_index": metadata.get("published_event_index"),
         },
     )
@@ -2466,8 +2737,44 @@ def _validate_fact_grounding(
         return _grounding_failure("evidence_not_found", metadata)
     if evidence.get("agent_id") != context.agent_state.agent_id:
         return _grounding_failure("evidence_not_owned", metadata, evidence)
-    if contract and not _evidence_matches_contract(evidence, contract):
-        return _grounding_failure("evidence_source_mismatch", metadata, evidence)
+    if contract:
+        source_contract = {
+            "required_source_tool": contract.get("required_source_tool"),
+            "required_source_field": contract.get("required_source_field"),
+        }
+        if not _evidence_matches_contract(evidence, source_contract):
+            return _grounding_failure(
+                "evidence_source_mismatch", metadata, evidence
+            )
+        authority_contract = {
+            "required_source_resource_id": contract.get(
+                "required_source_resource_id"
+            ),
+            "required_authority": contract.get("required_authority"),
+            "required_authority_rank": contract.get(
+                "required_authority_rank"
+            ),
+        }
+        if not _evidence_matches_contract(evidence, authority_contract):
+            metadata.update(
+                {
+                    "expected_source_resource_id": contract.get(
+                        "required_source_resource_id"
+                    ),
+                    "expected_authority": contract.get(
+                        "required_authority"
+                    ),
+                    "expected_authority_rank": contract.get(
+                        "required_authority_rank"
+                    ),
+                    "authority_order": list(
+                        contract.get("authority_order", ())
+                    ),
+                }
+            )
+            return _grounding_failure(
+                "wrong_authority_selected", metadata, evidence
+            )
     policy = str(contract.get("normalization_policy", "trimmed_text")) if contract else "trimmed_text"
     observed = _normalize_fact_value(evidence.get("observed_value"), policy)
     published = _normalize_fact_value(action.parameters.get("value"), policy)
@@ -2476,6 +2783,10 @@ def _validate_fact_grounding(
             "evidence_source_tool": evidence.get("source_tool"),
             "evidence_source_field": evidence.get("source_field"),
             "evidence_source_event_index": evidence.get("source_event_index"),
+            "evidence_source_resource_id": evidence.get("source_resource_id"),
+            "evidence_source_authority": evidence.get("source_authority"),
+            "evidence_authority_rank": evidence.get("authority_rank"),
+            "authority_order": list(contract.get("authority_order", ())) if contract else [],
             "normalized_observed_value_preview": _sanitize_text(observed, limit=120),
             "normalized_published_value": published,
             "normalized_published_value_preview": _sanitize_text(published, limit=120),
@@ -2513,6 +2824,9 @@ def _grounding_failure(
                 "evidence_source_tool": evidence.get("source_tool"),
                 "evidence_source_field": evidence.get("source_field"),
                 "evidence_source_event_index": evidence.get("source_event_index"),
+                "evidence_source_resource_id": evidence.get("source_resource_id"),
+                "evidence_source_authority": evidence.get("source_authority"),
+                "evidence_authority_rank": evidence.get("authority_rank"),
             }
         )
     return {"success": False, "error_code": error_code, "metadata": _sanitize_value(payload)}
@@ -2534,9 +2848,23 @@ def _evidence_matches_contract(
 ) -> bool:
     required_tool = contract.get("required_source_tool")
     required_field = contract.get("required_source_field")
+    required_resource = contract.get("required_source_resource_id")
+    required_authority = contract.get("required_authority")
+    required_rank = contract.get("required_authority_rank")
+
     if required_tool and evidence.get("source_tool") != required_tool:
         return False
-    if required_field and str(evidence.get("source_field", "")).casefold() != str(required_field).casefold():
+    if (
+        required_field
+        and str(evidence.get("source_field", "")).casefold()
+        != str(required_field).casefold()
+    ):
+        return False
+    if required_resource and evidence.get("source_resource_id") != required_resource:
+        return False
+    if required_authority and evidence.get("source_authority") != required_authority:
+        return False
+    if isinstance(required_rank, int) and evidence.get("authority_rank") != required_rank:
         return False
     return True
 
@@ -2743,6 +3071,8 @@ def _requirement_description(requirement: Mapping[str, Any]) -> str:
         return "Publish the declared shared fact with provenance from a matching own observation."
     if kind == "fact_read":
         return "Read the declared shared fact after it is available."
+    if kind == "source_conflict_observed":
+        return "Observe all declared contradictory sources and identify the highest-authority source."
     if kind == "error_observed":
         return f"Observe the expected recoverable error {requirement.get('error_code')}."
     if kind == "recovery_completed":
@@ -2762,6 +3092,8 @@ def _requirement_outcome(requirement: Mapping[str, Any]) -> str:
         return "declared shared fact key is published with valid evidence provenance"
     if kind == "fact_read":
         return "declared shared fact key is read successfully"
+    if kind == "source_conflict_observed":
+        return "all declared conflicting sources are observed and the authority order is represented"
     if kind == "error_observed":
         return "expected recoverable error is observed"
     if kind == "recovery_completed":
