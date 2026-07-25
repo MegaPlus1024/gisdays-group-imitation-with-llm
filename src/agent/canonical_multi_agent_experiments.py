@@ -30,6 +30,7 @@ from .autonomous_multi_agent_runtime import (
     build_default_tool_registry,
     sanitize_runtime_value,
 )
+from .autonomous_multi_agent_runtime import PolicyError
 from .evaluation_models import resolve_evaluation_model
 from .llm_client import LocalLLMClient
 
@@ -44,6 +45,7 @@ SUPPORTED_SCENARIOS = (
     "article_file_handoff",
     "office_shared_fact_recovery",
     "role_boundary_exact_handoff",
+    "malformed_action_recovery",
     "bounded_repetition_and_role_guard",
 )
 LOCAL_MODEL_HOSTS = {"127.0.0.1", "localhost"}
@@ -73,6 +75,96 @@ ROLE_BOUNDARY_RELEASE_ID = "REL-2026-07-ALPHA"
 ROLE_BOUNDARY_SOURCE_RECORD = {
     "release_identifier": ROLE_BOUNDARY_RELEASE_ID,
 }
+
+class _ProtocolFaultInjectingPolicy:
+    """Inject deterministic protocol faults, then delegate normal decisions."""
+
+    _MALFORMED_CONTENT = '{"action_name":"source_record_open","parameters":'
+
+    def __init__(
+        self,
+        delegate: ModelPolicy,
+        *,
+        repeat_malformed: bool = False,
+    ) -> None:
+        self.delegate = delegate
+        self.repeat_malformed = repeat_malformed
+        self._malformed_injected = False
+        self._unknown_parameter_injected = False
+        self.model_execution_attempted = False
+        self.last_input_tokens: int | None = None
+        self.last_output_tokens: int | None = None
+        self.last_protocol_diagnostics: dict[str, Any] = {}
+
+    def next_action(
+        self,
+        agent_state: Any,
+        observation: Any,
+        allowed_tools: Any,
+    ) -> Action | None:
+        self.model_execution_attempted = False
+        self.last_input_tokens = None
+        self.last_output_tokens = None
+        self.last_protocol_diagnostics = {}
+        if self.repeat_malformed or not self._malformed_injected:
+            self._malformed_injected = True
+            content = self._MALFORMED_CONTENT
+            self.last_protocol_diagnostics = {
+                "content_length": len(content),
+                "reasoning_content_length": 0,
+                "finish_reason": "stop",
+                "content_preview": content,
+                "content_first_non_whitespace_character": "{",
+                "content_has_markdown_fence": False,
+                "content_has_think_tag": False,
+                "json_error_line": 1,
+                "json_error_column": len(content) + 1,
+                "json_error_position": len(content),
+                "fault_injected": True,
+                "fault_type": "malformed_action_json",
+            }
+            raise PolicyError(
+                "Invalid JSON output: injected malformed action object.",
+                "invalid_action_json",
+            )
+        if (
+            not self._unknown_parameter_injected
+            and observation is not None
+            and observation.success is True
+            and observation.tool_name == "source_record_open"
+        ):
+            self._unknown_parameter_injected = True
+            return Action(
+                "source_record_read",
+                {
+                    "field": "release_identifier",
+                    "unexpected": "must_be_rejected",
+                },
+                reason="Injected valid action with one undeclared parameter.",
+                expected_result="unknown_parameter",
+            )
+        try:
+            return self.delegate.next_action(
+                agent_state, observation, allowed_tools
+            )
+        finally:
+            self.model_execution_attempted = bool(
+                getattr(self.delegate, "model_execution_attempted", False)
+            )
+            self.last_input_tokens = getattr(
+                self.delegate, "last_input_tokens", None
+            )
+            self.last_output_tokens = getattr(
+                self.delegate, "last_output_tokens", None
+            )
+            diagnostics = getattr(
+                self.delegate, "last_protocol_diagnostics", {}
+            )
+            self.last_protocol_diagnostics = (
+                dict(diagnostics)
+                if isinstance(diagnostics, Mapping)
+                else {}
+            )
 
 @dataclass(frozen=True)
 class LongHorizonExperimentConfig:
@@ -223,6 +315,7 @@ def build_long_horizon_trial_runtime(
         "repeating",
         "role_violating",
         "early_stop",
+        "repeat_malformed",
         "publish_without_evidence",
         "publish_with_wrong_evidence",
         "publish_with_mismatched_value",
@@ -264,6 +357,19 @@ def build_long_horizon_trial_runtime(
         )
     if policy_overrides:
         policies.update(policy_overrides)
+    if scenario_id == "malformed_action_recovery":
+        protocol_policy = policies["protocol_agent"]
+        if not isinstance(
+            protocol_policy, _ProtocolFaultInjectingPolicy
+        ):
+            policies["protocol_agent"] = (
+                _ProtocolFaultInjectingPolicy(
+                    protocol_policy,
+                    repeat_malformed=(
+                        policy_variant == "repeat_malformed"
+                    ),
+                )
+            )
     return AutonomousMultiAgentRuntime(
         runtime_id=f"{scenario_id}_{trial_id}",
         profiles=profiles,
@@ -626,6 +732,125 @@ def _scenario_profiles(
                 },
             ),
         )
+    if scenario_id == "malformed_action_recovery":
+        return (
+            AgentProfile(
+                agent_id="protocol_agent",
+                role="Protocol-fault recovery source agent",
+                goal=(
+                    "Recover from the injected malformed action error, open the "
+                    "source record, recover from one rejected unknown parameter, "
+                    "read the exact release identifier, publish it with your own "
+                    "evidence, then finish."
+                ),
+                allowed_tools=(
+                    "source_record_open",
+                    "source_record_read",
+                    "shared_publish_fact",
+                    "finish",
+                ),
+                resource_constraints=common_constraints,
+                behavior_constraints=(
+                    "Return one raw action object per turn.",
+                    "After an error, change the next action or parameters.",
+                    "Do not add undeclared parameters.",
+                    "Publish only the exact observed release identifier.",
+                ),
+                completion_requirements=(
+                    {
+                        "id": "malformed_action_recovered",
+                        "kind": "error_recovery_completed",
+                        "source_error_code": "invalid_action_json",
+                        "recovery_tool_name": "source_record_open",
+                        "description": (
+                            "After invalid_action_json, successfully open the "
+                            "bounded source record."
+                        ),
+                        "evidence_type": "successful_recovery_action",
+                        "satisfied_by_outcome": (
+                            "source_record_open succeeds after invalid_action_json"
+                        ),
+                    },
+                    {
+                        "id": "unknown_parameter_recovered",
+                        "kind": "error_recovery_completed",
+                        "source_error_code": "unknown_parameter",
+                        "source_action_name": "source_record_read",
+                        "recovery_tool_name": "source_record_read",
+                        "parameters": {"field": "release_identifier"},
+                        "description": (
+                            "After source_record_read is rejected for an unknown "
+                            "parameter, retry with only the declared field."
+                        ),
+                        "evidence_type": "successful_recovery_action",
+                        "satisfied_by_outcome": (
+                            "source_record_read succeeds with the declared field"
+                        ),
+                    },
+                    {
+                        "id": "recovered_release_identifier_published",
+                        "kind": "fact_published_grounded",
+                        "key": "recovered_release_identifier",
+                        "description": (
+                            "Publish the exact recovered release identifier with "
+                            "source_record_read provenance."
+                        ),
+                        "evidence_type": "grounded_shared_fact",
+                        "satisfied_by_outcome": (
+                            "recovered_release_identifier is grounded and published"
+                        ),
+                    },
+                ),
+                resource_affordances={
+                    "available_commands": [
+                        "source_record_open",
+                        "source_record_read",
+                    ],
+                },
+            ),
+            AgentProfile(
+                agent_id="recovery_consumer_agent",
+                role="Recovered fact consumer",
+                goal=(
+                    "Wait for the recovered grounded release identifier, read it, "
+                    "validate exact equality, then finish."
+                ),
+                allowed_tools=(
+                    "shared_read_fact",
+                    "validate_exact_value",
+                    "wait_for_dependency",
+                    "finish",
+                ),
+                resource_constraints=common_constraints,
+                dependencies=(
+                    {
+                        "dependency_id": "recovered_release_identifier",
+                        "kind": "shared_fact",
+                        "key": "recovered_release_identifier",
+                        "producer_agent": "protocol_agent",
+                    },
+                ),
+                completion_requirements=(
+                    {
+                        "id": "recovered_release_identifier_read",
+                        "kind": "fact_read",
+                        "key": "recovered_release_identifier",
+                    },
+                    {
+                        "id": "recovered_release_identifier_validated",
+                        "kind": "tool_succeeded",
+                        "tool_name": "validate_exact_value",
+                        "parameters": {
+                            "key": "recovered_release_identifier",
+                            "expected": ROLE_BOUNDARY_RELEASE_ID,
+                        },
+                    },
+                ),
+                resource_affordances={
+                    "available_commands": ["validate_exact_value"],
+                },
+            ),
+        )
     if scenario_id == "role_boundary_exact_handoff":
         release_path = (
             PurePosixPath(trial_output_dir) / "approved_release.txt"
@@ -960,6 +1185,76 @@ def _scenario_fake_policies(
     policy_variant: str,
 ) -> dict[str, ModelPolicy]:
     note_path = (PurePosixPath(trial_output_dir) / "research_note.txt").as_posix()
+    if scenario_id == "malformed_action_recovery":
+        if policy_variant == "repeat_malformed":
+            return {
+                "protocol_agent": EarlyStopFakePolicy(),
+                "recovery_consumer_agent": EarlyStopFakePolicy(),
+            }
+        if policy_variant == "early_stop":
+            return {
+                "protocol_agent": EarlyStopFakePolicy(),
+                "recovery_consumer_agent": EarlyStopFakePolicy(),
+            }
+        if policy_variant != "perfect":
+            raise ValueError(
+                "Unsupported policy variant for malformed_action_recovery: "
+                f"{policy_variant}"
+            )
+        return {
+            "protocol_agent": PerfectFakePolicy(
+                (
+                    Action("source_record_open"),
+                    Action(
+                        "source_record_read",
+                        {"field": "release_identifier"},
+                    ),
+                    Action(
+                        "shared_publish_fact",
+                        {
+                            "key": "recovered_release_identifier",
+                            "value": ROLE_BOUNDARY_RELEASE_ID,
+                            "evidence_id": (
+                                "ev_protocol_agent_3_release_identifier"
+                            ),
+                        },
+                    ),
+                    Action("finish"),
+                )
+            ),
+            "recovery_consumer_agent": PerfectFakePolicy(
+                (
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "recovered_release_identifier"},
+                    ),
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "recovered_release_identifier"},
+                    ),
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "recovered_release_identifier"},
+                    ),
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "recovered_release_identifier"},
+                    ),
+                    Action(
+                        "shared_read_fact",
+                        {"key": "recovered_release_identifier"},
+                    ),
+                    Action(
+                        "validate_exact_value",
+                        {
+                            "key": "recovered_release_identifier",
+                            "expected": ROLE_BOUNDARY_RELEASE_ID,
+                        },
+                    ),
+                    Action("finish"),
+                )
+            ),
+        }
     if scenario_id == "role_boundary_exact_handoff":
         release_path = (
             PurePosixPath(trial_output_dir) / "approved_release.txt"
@@ -1379,7 +1674,19 @@ def _configure_environment_contract(
     trial_output_dir: str,
 ) -> None:
     """Declare scenario resources without exposing fixture values to policies."""
-    if scenario_id == "role_boundary_exact_handoff":
+    if scenario_id == "malformed_action_recovery":
+        environment.fact_contracts = {
+            "recovered_release_identifier": {
+                "producer_agent": "protocol_agent",
+                "consumers": ("recovery_consumer_agent",),
+                "grounding_required": True,
+                "required_source_tool": "source_record_read",
+                "required_source_field": "release_identifier",
+                "normalization_policy": "trimmed_text",
+                "overwrite_policy": "last_write_wins",
+            }
+        }
+    elif scenario_id == "role_boundary_exact_handoff":
         environment.fact_contracts = {
             "release_identifier": {
                 "producer_agent": "source_agent",
@@ -1743,9 +2050,8 @@ def _run_runtime_with_trace(
             last_failure.pop(agent_id, None)
         policy = runtime.policies[agent_id]
         model_call_index: int | None = None
-        if (
-            isinstance(policy, LocalOpenAIModelPolicy)
-            and policy.model_execution_attempted
+        if bool(
+            getattr(policy, "model_execution_attempted", False)
         ):
             model_call_count += 1
             model_call_index = model_call_count

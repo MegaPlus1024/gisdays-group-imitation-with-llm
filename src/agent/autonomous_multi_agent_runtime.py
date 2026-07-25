@@ -1725,9 +1725,52 @@ class AutonomousMultiAgentRuntime:
             return bool(event.action and event.action.tool_name == "shared_read_fact" and event.action.parameters.get("key") == requirement.get("key") and event.observation.success)
         if kind == "error_observed":
             return event.observation.error_code == requirement.get("error_code")
+        if kind == "error_recovery_completed":
+            return self._event_satisfies_error_recovery(
+                state, requirement, index
+            )
         if kind == "recovery_completed":
             return self._event_satisfies_required_recovery(state, requirement, index)
         return False
+
+    def _event_satisfies_error_recovery(
+        self,
+        state: AgentState,
+        requirement: Mapping[str, Any],
+        index: int,
+    ) -> bool:
+        event = state.history[index]
+        if not event.action or not event.observation.success:
+            return False
+        recovery_tool_name = requirement.get("recovery_tool_name")
+        if (
+            isinstance(recovery_tool_name, str)
+            and event.action.tool_name != recovery_tool_name
+        ):
+            return False
+        parameters = requirement.get("parameters", {})
+        if not isinstance(parameters, Mapping):
+            return False
+        if any(
+            event.action.parameters.get(key) != value
+            for key, value in parameters.items()
+        ):
+            return False
+        source_error_code = requirement.get("source_error_code")
+        if not isinstance(source_error_code, str):
+            return False
+        source_action_name = requirement.get("source_action_name")
+        return any(
+            prior.observation.error_code == source_error_code
+            and (
+                not isinstance(source_action_name, str)
+                or (
+                    prior.action is not None
+                    and prior.action.tool_name == source_action_name
+                )
+            )
+            for prior in state.history[:index]
+        )
 
     def _event_satisfies_required_recovery(
         self,
@@ -1757,25 +1800,87 @@ class AutonomousMultiAgentRuntime:
             return prior.action.parameters.get("path") != event.action.parameters.get("path")
         return False
 
-    def _required_recovery_evidence(self, state: AgentState) -> list[dict[str, Any]]:
+    def _required_recovery_evidence(
+        self,
+        state: AgentState,
+    ) -> list[dict[str, Any]]:
         evidence: list[dict[str, Any]] = []
         for requirement in state.profile.completion_requirements:
-            if requirement.get("kind") != "recovery_completed":
+            kind = requirement.get("kind")
+            if kind == "error_recovery_completed":
+                for index in range(len(state.history)):
+                    if not self._event_satisfies_error_recovery(
+                        state, requirement, index
+                    ):
+                        continue
+                    source_error_code = requirement.get("source_error_code")
+                    source_action_name = requirement.get("source_action_name")
+                    source_index = None
+                    for prior_index in range(index - 1, -1, -1):
+                        prior = state.history[prior_index]
+                        if prior.observation.error_code != source_error_code:
+                            continue
+                        if (
+                            isinstance(source_action_name, str)
+                            and (
+                                prior.action is None
+                                or prior.action.tool_name != source_action_name
+                            )
+                        ):
+                            continue
+                        source_index = prior_index
+                        break
+                    event = state.history[index]
+                    evidence.append(
+                        {
+                            "requirement_id": requirement.get("id"),
+                            "source_failure_event_index": source_index,
+                            "recovery_event_index": index,
+                            "source_error_code": source_error_code,
+                            "failed_action_name": (
+                                state.history[source_index].action.tool_name
+                                if source_index is not None
+                                and state.history[source_index].action is not None
+                                else None
+                            ),
+                            "recovery_action_name": (
+                                event.action.tool_name if event.action else None
+                            ),
+                            "recovery_parameters": (
+                                dict(event.action.parameters)
+                                if event.action is not None
+                                else {}
+                            ),
+                        }
+                    )
+                    break
+                continue
+            if kind != "recovery_completed":
                 continue
             for index in range(len(state.history)):
-                if not self._event_satisfies_required_recovery(state, requirement, index):
+                if not self._event_satisfies_required_recovery(
+                    state, requirement, index
+                ):
                     continue
-                source_error_code = requirement.get("source_error_code", "file_not_found")
+                source_error_code = requirement.get(
+                    "source_error_code", "file_not_found"
+                )
                 source_resource_id = requirement.get("source_resource_id")
                 source_path = self._resource_path(state, source_resource_id)
                 source_index = None
                 failed_resource_id = source_resource_id
                 for prior_index, prior in enumerate(state.history[:index]):
-                    if prior.observation.error_code != source_error_code or prior.action is None:
+                    if (
+                        prior.observation.error_code != source_error_code
+                        or prior.action is None
+                    ):
                         continue
                     if prior.action.tool_name != requirement.get("tool_name"):
                         continue
-                    if source_path is not None and prior.action.parameters.get("path") != source_path:
+                    if (
+                        source_path is not None
+                        and prior.action.parameters.get("path") != source_path
+                    ):
                         continue
                     source_index = prior_index
                     break
@@ -1787,11 +1892,16 @@ class AutonomousMultiAgentRuntime:
                         "recovery_event_index": index,
                         "source_error_code": source_error_code,
                         "failed_resource_id": failed_resource_id,
-                        "recovery_resource_id": requirement.get("recovery_resource_id"),
-                        "recovery_action_name": event.action.tool_name if event.action else None,
+                        "recovery_resource_id": requirement.get(
+                            "recovery_resource_id"
+                        ),
+                        "recovery_action_name": (
+                            event.action.tool_name if event.action else None
+                        ),
                     }
                 )
         return _sanitize_value(evidence)
+
 
     def _resource_bound_tool_succeeded(
         self,

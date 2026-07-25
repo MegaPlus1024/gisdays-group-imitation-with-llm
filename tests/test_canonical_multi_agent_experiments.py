@@ -13,6 +13,7 @@ import pytest
 from src.agent import llm_client
 from src.agent.autonomous_multi_agent_runtime import (
     Action,
+    EarlyStopFakePolicy,
     AgentProfile,
     AgentState,
     HistoryEvent,
@@ -2236,3 +2237,211 @@ def test_role_boundary_final_publish_requires_file_read_evidence(
     assert result.agent_id == "publisher_agent"
     assert result.observation is not None
     assert result.observation.error_code == "final_value_not_read"
+
+def test_malformed_action_recovery_contract_and_fault_injection(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="malformed_action_recovery",
+        trial_id="malformed_contract",
+        trial_output_dir=f"{artifact_output_dir}/malformed_contract",
+        project_root=PROJECT_ROOT,
+    )
+
+    assert set(runtime.states) == {
+        "protocol_agent",
+        "recovery_consumer_agent",
+    }
+    assert type(runtime.policies["protocol_agent"]).__name__ == (
+        "_ProtocolFaultInjectingPolicy"
+    )
+    requirements = {
+        item["id"]: item
+        for item in runtime.states[
+            "protocol_agent"
+        ].profile.completion_requirements
+    }
+    assert requirements["malformed_action_recovered"][
+        "kind"
+    ] == "error_recovery_completed"
+    assert requirements["unknown_parameter_recovered"][
+        "source_error_code"
+    ] == "unknown_parameter"
+    assert runtime.shared_environment.fact_contracts[
+        "recovered_release_identifier"
+    ]["required_source_tool"] == "source_record_read"
+
+
+def test_malformed_action_recovery_perfect_policy_succeeds(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="malformed_action_recovery",
+        trial_id="malformed_success",
+        trial_output_dir=f"{artifact_output_dir}/malformed_success",
+        project_root=PROJECT_ROOT,
+        max_turns=20,
+    )
+    started_at = time.perf_counter()
+    trace = _run_runtime_with_trace(runtime, started_at=started_at)
+    metrics = _trial_metrics(runtime, trace, started_at=started_at)
+
+    assert runtime.status == "succeeded"
+    assert runtime.shared_environment.facts[
+        "recovered_release_identifier"
+    ] == "REL-2026-07-ALPHA"
+    assert metrics["required_recoveries_total"] == 2
+    assert metrics["required_recoveries_completed"] == 2
+    assert metrics["required_recovery_success_rate"] == 1.0
+    assert metrics["grounded_fact_requirement_total"] == 2
+    assert metrics["grounded_fact_requirement_completed"] == 2
+    assert metrics["grounded_fact_success_rate"] == 1.0
+    assert metrics["unchanged_failed_action_retries"] == 0
+    assert [
+        event["tool_error_code"]
+        for event in trace
+        if event["tool_error_code"]
+    ] == ["invalid_action_json", "unknown_parameter"]
+
+
+def test_malformed_action_is_not_auto_repaired_and_recovers(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="malformed_action_recovery",
+        trial_id="malformed_trace",
+        trial_output_dir=f"{artifact_output_dir}/malformed_trace",
+        project_root=PROJECT_ROOT,
+        max_turns=20,
+    )
+    trace = _run_runtime_with_trace(
+        runtime, started_at=time.perf_counter()
+    )
+
+    malformed = trace[0]
+    assert malformed["agent_id"] == "protocol_agent"
+    assert malformed["action_name"] is None
+    assert malformed["action_allowed"] is None
+    assert malformed["tool_status"] == "skipped"
+    assert malformed["tool_error_code"] == "invalid_action_json"
+    assert malformed["model_protocol"]["fault_injected"] is True
+    assert malformed["model_protocol"]["content_has_markdown_fence"] is False
+
+    recovered = next(
+        event
+        for event in trace
+        if event["agent_id"] == "protocol_agent"
+        and event["action_name"] == "source_record_open"
+        and event["tool_status"] == "succeeded"
+    )
+    assert recovered["recovery_from_event_index"] == 0
+    assert recovered["generic_recovery_source_event_index"] == 0
+    assert "malformed_action_recovered" in recovered[
+        "requirements_advanced"
+    ]
+
+
+def test_unknown_parameter_is_rejected_before_dispatch_then_corrected(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="malformed_action_recovery",
+        trial_id="unknown_parameter_recovery",
+        trial_output_dir=f"{artifact_output_dir}/unknown_parameter_recovery",
+        project_root=PROJECT_ROOT,
+        max_turns=20,
+    )
+    original = runtime.tool_registry._executors["source_record_read"]
+    dispatched_parameters: list[dict[str, object]] = []
+
+    def counting_executor(action, context):  # type: ignore[no-untyped-def]
+        dispatched_parameters.append(dict(action.parameters))
+        return original(action, context)
+
+    runtime.tool_registry._executors[
+        "source_record_read"
+    ] = counting_executor
+    trace = _run_runtime_with_trace(
+        runtime, started_at=time.perf_counter()
+    )
+
+    rejected = next(
+        event for event in trace
+        if event["tool_error_code"] == "unknown_parameter"
+    )
+    assert rejected["action_parameters"]["unexpected"] == (
+        "must_be_rejected"
+    )
+    assert rejected["observation_summary"]["metadata"][
+        "unknown_parameters"
+    ] == ["unexpected"]
+
+    corrected = next(
+        event
+        for event in trace
+        if event["agent_id"] == "protocol_agent"
+        and event["action_name"] == "source_record_read"
+        and event["tool_status"] == "succeeded"
+    )
+    assert corrected["action_parameters"] == {
+        "field": "release_identifier"
+    }
+    assert corrected["recovery_from_event_index"] == rejected["event_index"]
+    assert "unknown_parameter_recovered" in corrected[
+        "requirements_advanced"
+    ]
+    assert dispatched_parameters == [{"field": "release_identifier"}]
+
+
+def test_malformed_action_recovery_finish_is_guarded(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="malformed_action_recovery",
+        trial_id="malformed_finish_guard",
+        trial_output_dir=f"{artifact_output_dir}/malformed_finish_guard",
+        project_root=PROJECT_ROOT,
+        policy_overrides={
+            "protocol_agent": PerfectFakePolicy((Action("finish"),)),
+            "recovery_consumer_agent": EarlyStopFakePolicy(),
+        },
+        max_turns=8,
+    )
+
+    first = runtime.step()
+    assert first.observation is not None
+    assert first.observation.error_code == "invalid_action_json"
+    runtime.step()
+    guarded = runtime.step()
+    assert guarded.observation is not None
+    assert guarded.observation.error_code == "completion_requirements_unmet"
+    assert set(
+        guarded.observation.metadata["unmet_requirement_ids"]
+    ) == {
+        "malformed_action_recovered",
+        "unknown_parameter_recovered",
+        "recovered_release_identifier_published",
+    }
+
+
+def test_repeated_malformed_actions_reach_failure_limit(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="malformed_action_recovery",
+        trial_id="repeat_malformed",
+        trial_output_dir=f"{artifact_output_dir}/repeat_malformed",
+        project_root=PROJECT_ROOT,
+        policy_variant="repeat_malformed",
+        max_turns=12,
+    )
+
+    summary = runtime.run()
+    protocol = runtime.states["protocol_agent"]
+    assert summary["status"] == "failed"
+    assert protocol.status == "quarantined"
+    assert protocol.stop_reason == "failure_limit"
+    assert protocol.non_progress_failure_streak == 4
+    assert [
+        event.observation.error_code for event in protocol.history
+    ] == ["invalid_action_json"] * 4
