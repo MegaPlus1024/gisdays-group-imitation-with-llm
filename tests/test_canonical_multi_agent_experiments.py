@@ -3315,3 +3315,145 @@ def test_long_horizon_max_turns_is_counted_and_fails_task(
     assert metrics["long_horizon_max_turns_events"] == 1
     assert metrics["retention_contract_satisfied"] is False
     assert metrics["task_completed"] is False
+
+def test_long_horizon_parameter_domains_are_advertised(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="long_horizon_multi_fact_retention",
+        trial_id="retention_parameter_domains",
+        trial_output_dir=(
+            f"{artifact_output_dir}/retention_parameter_domains"
+        ),
+        project_root=PROJECT_ROOT,
+    )
+
+    research = runtime.states[
+        "research_agent"
+    ].profile.resource_affordances
+    source_fields = research["command_parameters"][
+        "retention_source_read"
+    ]["field"]
+    assert source_fields == [
+        "all",
+        "approval_phrase",
+        "draft_release_identifier",
+        "historical_owner",
+        "project_owner",
+        "release_identifier",
+        "suggested_tool",
+    ]
+    assert research["command_parameters"][
+        "retention_conflict_read"
+    ]["source"] == [
+        "audit_log",
+        "review_board",
+        "draft_status",
+    ]
+
+    document = runtime.states[
+        "document_agent"
+    ].profile.resource_affordances
+    assert document["command_parameters"][
+        "retention_source_read"
+    ]["field"] == source_fields
+
+    verification = runtime.states[
+        "verification_agent"
+    ].profile.resource_affordances
+    assert verification["command_parameters"][
+        "shared_read_fact"
+    ]["key"] == [
+        "project_owner",
+        "review_status",
+        "release_identifier",
+        "approval_phrase",
+    ]
+
+    operator = runtime.states[
+        "operator_agent"
+    ].profile.resource_affordances
+    assert operator["command_parameters"][
+        "shared_read_fact"
+    ]["key"] == [
+        "release_identifier",
+        "approval_phrase",
+    ]
+
+
+def test_long_horizon_invalid_parameters_advertise_valid_values(
+    artifact_output_dir: str,
+) -> None:
+    source_runtime = build_long_horizon_trial_runtime(
+        scenario_id="long_horizon_multi_fact_retention",
+        trial_id="retention_invalid_source_field",
+        trial_output_dir=(
+            f"{artifact_output_dir}/retention_invalid_source_field"
+        ),
+        project_root=PROJECT_ROOT,
+        policy_overrides={
+            "research_agent": PerfectFakePolicy(
+                (
+                    Action(
+                        "retention_source_read",
+                        {"field": "owner"},
+                    ),
+                )
+            ),
+        },
+    )
+
+    source_result = source_runtime.step()
+
+    assert source_result.agent_id == "research_agent"
+    assert source_result.observation is not None
+    assert source_result.observation.error_code == (
+        "retention_source_field_not_found"
+    )
+    assert source_result.observation.metadata == {
+        "requested_field": "owner",
+        "valid_fields": [
+            "all",
+            "approval_phrase",
+            "draft_release_identifier",
+            "historical_owner",
+            "project_owner",
+            "release_identifier",
+            "suggested_tool",
+        ],
+    }
+
+    conflict_runtime = build_long_horizon_trial_runtime(
+        scenario_id="long_horizon_multi_fact_retention",
+        trial_id="retention_invalid_conflict_source",
+        trial_output_dir=(
+            f"{artifact_output_dir}/retention_invalid_conflict_source"
+        ),
+        project_root=PROJECT_ROOT,
+        policy_overrides={
+            "research_agent": PerfectFakePolicy(
+                (
+                    Action(
+                        "retention_conflict_read",
+                        {"source": "status"},
+                    ),
+                )
+            ),
+        },
+    )
+
+    conflict_result = conflict_runtime.step()
+
+    assert conflict_result.agent_id == "research_agent"
+    assert conflict_result.observation is not None
+    assert conflict_result.observation.error_code == (
+        "retention_conflict_source_not_found"
+    )
+    assert conflict_result.observation.metadata == {
+        "requested_source": "status",
+        "valid_sources": [
+            "audit_log",
+            "review_board",
+            "draft_status",
+        ],
+    }

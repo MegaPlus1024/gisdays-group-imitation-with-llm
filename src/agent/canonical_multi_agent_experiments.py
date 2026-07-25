@@ -927,6 +927,19 @@ def _scenario_profiles(
                         "retention_source_read",
                         "retention_conflict_read",
                     ],
+                    "command_parameters": {
+                        "retention_source_read": {
+                            "field": [
+                                "all",
+                                *sorted(RETENTION_SOURCE_RECORD),
+                            ],
+                        },
+                        "retention_conflict_read": {
+                            "source": list(
+                                RETENTION_STATUS_AUTHORITY_ORDER
+                            ),
+                        },
+                    },
                     "conflict_sources": status_sources,
                     "authority_order": list(
                         RETENTION_STATUS_AUTHORITY_ORDER
@@ -1031,6 +1044,14 @@ def _scenario_profiles(
                         },
                     ],
                     "available_commands": ["retention_source_read"],
+                    "command_parameters": {
+                        "retention_source_read": {
+                            "field": [
+                                "all",
+                                *sorted(RETENTION_SOURCE_RECORD),
+                            ],
+                        },
+                    },
                 },
             ),
             AgentProfile(
@@ -1158,9 +1179,26 @@ def _scenario_profiles(
                         },
                     ],
                     "available_commands": [
+                        "shared_read_fact",
                         "validate_exact_value",
                         "validate_fact_authority",
                         "retention_validate_snapshot",
+                    ],
+                    "command_parameters": {
+                        "shared_read_fact": {
+                            "key": [
+                                "project_owner",
+                                "review_status",
+                                "release_identifier",
+                                "approval_phrase",
+                            ],
+                        },
+                    },
+                    "expected_shared_fact_keys": [
+                        "project_owner",
+                        "review_status",
+                        "release_identifier",
+                        "approval_phrase",
                     ],
                 },
             ),
@@ -1231,6 +1269,19 @@ def _scenario_profiles(
                             "access": "read",
                             "purpose": "final document handoff",
                         }
+                    ],
+                    "available_commands": ["shared_read_fact"],
+                    "command_parameters": {
+                        "shared_read_fact": {
+                            "key": [
+                                "release_identifier",
+                                "approval_phrase",
+                            ],
+                        },
+                    },
+                    "expected_shared_fact_keys": [
+                        "release_identifier",
+                        "approval_phrase",
                     ],
                 },
             ),
@@ -3106,6 +3157,13 @@ def _retention_source_read(
             False,
             error_code="retention_source_field_not_found",
             error_message="Requested retention source field was not found.",
+            metadata={
+                "requested_field": field,
+                "valid_fields": [
+                    "all",
+                    *sorted(RETENTION_SOURCE_RECORD),
+                ],
+            },
         )
     return ToolResult(
         True,
@@ -3130,6 +3188,12 @@ def _retention_conflict_read(
             False,
             error_code="retention_conflict_source_not_found",
             error_message="Requested retention conflict source was not found.",
+            metadata={
+                "requested_source": source_id,
+                "valid_sources": list(
+                    RETENTION_STATUS_AUTHORITY_ORDER
+                ),
+            },
         )
     payload = RETENTION_STATUS_SOURCES[source_id]
     return ToolResult(
