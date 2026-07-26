@@ -37,6 +37,7 @@ from src.agent.canonical_multi_agent_experiments import (
     TRIAL_SUMMARY_SCHEMA_VERSION,
     _bounded_value,
     _experiment_summary,
+    _resolved_model_settings,
     _retention_metrics,
     _run_runtime_with_trace,
     _trace_capability_metrics,
@@ -58,6 +59,9 @@ CONFIG_PATH = (
     / "canonical_multi_agent_long_horizon.example.json"
 )
 V2_CONFIG_PATH = PROJECT_ROOT / "configs" / "behavioral_benchmark_v2.example.json"
+V2_CHALLENGER_CONFIG_PATH = (
+    PROJECT_ROOT / "configs" / "behavioral_benchmark_v2_qwen3_6_27b_q5_k_m.json"
+)
 
 
 @pytest.fixture
@@ -203,6 +207,143 @@ def test_behavioral_benchmark_v2_config_lists_seven_v2_scenarios() -> None:
     assert json.loads(V2_CONFIG_PATH.read_text(encoding="utf-8"))[
         "schema_version"
     ] == CONFIG_SCHEMA_VERSION
+
+
+def test_legacy_model_profile_without_base_url_uses_registry_endpoint() -> None:
+    config = load_long_horizon_experiment_config(V2_CONFIG_PATH)
+
+    settings = _resolved_model_settings(
+        "third_model",
+        config.model_profile,
+        project_root=PROJECT_ROOT,
+    )
+
+    assert "base_url" not in config.model_profile
+    assert settings["model_id"] == "third_model"
+    assert settings["api_model"] == "third_model"
+    assert settings["base_url"] == "http://127.0.0.1:8082/v1"
+    assert settings["response_max_tokens"] == 512
+    assert settings["temperature"] == 0.0
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    (
+        "http://127.0.0.1:8085/v1",
+        "http://localhost:8085/v1",
+    ),
+)
+def test_explicit_localhost_model_profile_base_url_is_accepted(
+    base_url: str,
+) -> None:
+    settings = _resolved_model_settings(
+        "qwen3_6_27b_q5_k_m",
+        {
+            "model_id": "qwen3_6_27b_q5_k_m",
+            "base_url": base_url,
+            "disable_thinking": True,
+            "no_think_prefix": "/no_think",
+            "response_max_tokens": 512,
+            "temperature": 0.0,
+            "timeout_seconds": 120.0,
+        },
+        project_root=PROJECT_ROOT,
+    )
+
+    assert settings["model_id"] == "qwen3_6_27b_q5_k_m"
+    assert settings["api_model"] == "qwen3_6_27b_q5_k_m"
+    assert settings["base_url"] == base_url
+    assert settings["disable_thinking"] is True
+    assert settings["no_think_prefix"] == "/no_think"
+    assert settings["response_max_tokens"] == 512
+    assert settings["timeout_seconds"] == 120.0
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    (
+        "https://example.com/v1",
+        "http://192.168.1.10:8080/v1",
+        "file:///tmp/model",
+        "http://user:pass@127.0.0.1:8085/v1",
+        "not a url",
+        "http://127.0.0.1:8085/v1?api_key=supersecret",
+        "http://127.0.0.1:8085/v1#fragment",
+        "http://127.0.0.1/v1",
+        "http://127.0.0.1:0/v1",
+        "http://127.0.0.1:65536/v1",
+        "http://localhost.example.com:8085/v1",
+        "http://[::1]:8085/v1",
+        "http://%31%32%37.0.0.1:8085/v1",
+        "http://localhost.:8085/v1",
+        "http://127.0.0.1:8085\\v1",
+        " http://127.0.0.1:8085/v1 ",
+        "http://:8085/v1",
+        "http://2130706433:8085/v1",
+        "http://127.0.0.1:8085",
+    ),
+)
+def test_explicit_model_profile_base_url_rejects_unsafe_urls(
+    base_url: str,
+) -> None:
+    with pytest.raises(ValueError):
+        _resolved_model_settings(
+            "qwen3_6_27b_q5_k_m",
+            {"model_id": "qwen3_6_27b_q5_k_m", "base_url": base_url},
+            project_root=PROJECT_ROOT,
+        )
+
+
+def test_challenger_behavioral_benchmark_v2_config_loads_and_resolves() -> None:
+    config = load_long_horizon_experiment_config(V2_CHALLENGER_CONFIG_PATH)
+    settings = _resolved_model_settings(
+        "qwen3_6_27b_q5_k_m",
+        config.model_profile,
+        project_root=PROJECT_ROOT,
+    )
+
+    assert config.experiment_id == (
+        "behavioral_benchmark_v2_qwen3_6_27b_q5_k_m_challenger"
+    )
+    assert config.scenario_ids == ("long_horizon_multi_fact_retention",)
+    assert config.trials_per_scenario == 1
+    assert config.max_turns_per_trial == 40
+    assert config.scheduler == "round_robin"
+    assert config.fixture_only is False
+    assert config.model_execution is True
+    assert config.output_dir == (
+        "artifacts/challenger_qwen3_6_27b_q5_k_m/v207_pilot_01"
+    )
+    assert settings["model_id"] == "qwen3_6_27b_q5_k_m"
+    assert settings["api_model"] == "qwen3_6_27b_q5_k_m"
+    assert settings["base_url"] == "http://127.0.0.1:8085/v1"
+
+
+def test_challenger_config_dry_run_does_not_call_model_endpoint(
+    artifact_output_dir: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FailingHTTPClient:
+        def __init__(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            raise AssertionError("dry-run must not create an HTTP client")
+
+    monkeypatch.setattr(llm_client.httpx, "Client", FailingHTTPClient)
+    config = load_long_horizon_experiment_config(V2_CHALLENGER_CONFIG_PATH)
+
+    summary = run_long_horizon_experiment(
+        config,
+        project_root=PROJECT_ROOT,
+        dry_run=True,
+        output_dir=artifact_output_dir,
+    )
+
+    assert summary["status"] == "succeeded"
+    assert summary["model_ids"] == ["qwen3_6_27b_q5_k_m"]
+    assert summary["model_execution"] is False
+    assert summary["real_browser_execution"] is False
+    assert summary["playwright_execution"] is False
+    assert summary["browser_opened"] is False
+    assert summary["fixture_only"] is True
 
 
 def test_behavioral_benchmark_v2_registry_builds_new_and_legacy_ids(

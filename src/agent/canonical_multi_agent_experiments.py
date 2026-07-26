@@ -279,12 +279,17 @@ class LongHorizonExperimentConfig:
             raise ValueError("max_turns_per_trial must be at least 10.")
         if self.scheduler != "round_robin":
             raise ValueError("Only round_robin scheduler is supported.")
-        if not self.fixture_only:
-            raise ValueError("Canonical long-horizon experiments are fixture-only.")
+        if not self.fixture_only and not self.model_execution:
+            raise ValueError(
+                "fixture_only=false is only allowed for explicit local-model "
+                "challenger configs."
+            )
         _relative_artifact_path(self.output_dir)
         model_id = self.model_profile.get("model_id")
         if not isinstance(model_id, str) or not model_id.strip():
             raise ValueError("model_profile.model_id must be non-empty.")
+        if "base_url" in self.model_profile:
+            _validate_local_model_base_url(self.model_profile.get("base_url"))
         if self.agents.get("source") != "canonical_scenario_definitions":
             raise ValueError(
                 "agents.source must be canonical_scenario_definitions."
@@ -4447,26 +4452,88 @@ def _resolved_model_settings(
     *,
     project_root: str | Path,
 ) -> dict[str, Any]:
-    spec = resolve_evaluation_model(
-        model_id,
-        Path(project_root) / "configs" / "evaluation_models.json",
-    )
-    base_url = str(profile.get("base_url") or spec.base_url).rstrip("/")
-    parsed = urlparse(base_url)
-    if parsed.scheme not in {"http", "https"} or parsed.hostname not in LOCAL_MODEL_HOSTS:
-        raise ValueError("Local model endpoint host is not allowed.")
+    explicit_base_url = _explicit_model_base_url(profile)
+    spec = None
+    if explicit_base_url is None:
+        spec = resolve_evaluation_model(
+            model_id,
+            Path(project_root) / "configs" / "evaluation_models.json",
+        )
+        base_url = _validate_local_model_base_url(spec.base_url)
+        api_model = spec.api_model or spec.model_name
+    else:
+        base_url = _validate_local_model_base_url(explicit_base_url)
+        try:
+            spec = resolve_evaluation_model(
+                model_id,
+                Path(project_root) / "configs" / "evaluation_models.json",
+            )
+        except KeyError:
+            spec = None
+        api_model = model_id
     return {
         "model_id": model_id,
         "base_url": base_url,
-        "api_model": spec.api_model or spec.model_name,
-        "timeout_seconds": float(profile.get("timeout_seconds", spec.timeout_seconds)),
+        "api_model": api_model,
+        "timeout_seconds": float(
+            profile.get(
+                "timeout_seconds",
+                spec.timeout_seconds if spec is not None else 120.0,
+            )
+        ),
         "disable_thinking": bool(profile.get("disable_thinking", True)),
         "no_think_prefix": str(profile.get("no_think_prefix", "/no_think")),
         "response_max_tokens": int(
-            profile.get("response_max_tokens", spec.max_tokens)
+            profile.get(
+                "response_max_tokens",
+                spec.max_tokens if spec is not None else 512,
+            )
         ),
-        "temperature": float(profile.get("temperature", spec.temperature)),
+        "temperature": float(
+            profile.get(
+                "temperature",
+                spec.temperature if spec is not None else 0.0,
+            )
+        ),
     }
+
+
+def _explicit_model_base_url(profile: Mapping[str, Any]) -> str | None:
+    if "base_url" not in profile:
+        return None
+    value = profile.get("base_url")
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("model_profile.base_url must be a non-empty string.")
+    return value
+
+
+def _validate_local_model_base_url(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("model_profile.base_url must be a non-empty string.")
+    if value != value.strip():
+        raise ValueError("Local model endpoint must not include surrounding whitespace.")
+    base_url = value.rstrip("/")
+    parsed = urlparse(base_url)
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("Local model endpoint port is invalid.") from exc
+    if parsed.scheme != "http":
+        raise ValueError("Local model endpoint scheme must be http.")
+    if parsed.hostname not in LOCAL_MODEL_HOSTS:
+        raise ValueError("Local model endpoint host is not allowed.")
+    if parsed.username or parsed.password:
+        raise ValueError("Local model endpoint must not include userinfo.")
+    if port is None:
+        raise ValueError("Local model endpoint must include an explicit port.")
+    if port <= 0:
+        raise ValueError("Local model endpoint port must be between 1 and 65535.")
+    if parsed.params or parsed.query or parsed.fragment:
+        raise ValueError("Local model endpoint must not include params, query, or fragment.")
+    normalized_path = parsed.path.rstrip("/")
+    if normalized_path != "/v1":
+        raise ValueError("Local model endpoint base_url must be the /v1 base path.")
+    return f"http://{parsed.hostname}:{port}/v1"
 
 
 def _run_runtime_with_trace(
