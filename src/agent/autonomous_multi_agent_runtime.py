@@ -249,6 +249,7 @@ class SharedEnvironment:
     fact_contracts: dict[str, dict[str, Any]] = field(default_factory=dict)
     retention_contract: dict[str, Any] = field(default_factory=dict)
     known_files: set[str] = field(default_factory=set)
+    fixture_records: dict[str, Any] = field(default_factory=dict)
 
     def publish_fact(
         self,
@@ -286,6 +287,7 @@ class SharedEnvironment:
         return {
             "fact_keys": sorted(self.facts),
             "fact_contracts": _sanitize_value(self.fact_contracts),
+            "fixture_records": _sanitize_value(self.fixture_records),
             "retention_contract": _sanitize_value(self.retention_contract),
             "shared_fact_metadata": _sanitize_value(self.shared_fact_metadata),
             "known_files": sorted(self.known_files),

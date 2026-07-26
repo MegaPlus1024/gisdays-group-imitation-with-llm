@@ -22,6 +22,7 @@ from src.agent.autonomous_multi_agent_runtime import (
     PolicyError,
     PerfectFakePolicy,
     RuntimeLimits,
+    SharedEnvironment,
     ToolResult,
     ToolSpec,
 )
@@ -33,6 +34,7 @@ from src.agent.canonical_multi_agent_experiments import (
     TRACE_SCHEMA_VERSION,
     TRIAL_SUMMARY_SCHEMA_VERSION,
     _bounded_value,
+    _retention_metrics,
     _run_runtime_with_trace,
     _trial_metrics,
     build_long_horizon_trial_runtime,
@@ -589,6 +591,11 @@ def test_office_shared_fact_recovery_v2_contract_and_affordances(
         "review_owner",
         "approval_phrase",
     }
+    assert runtime.shared_environment.retention_contract == {}
+    assert runtime.shared_environment.fixture_records["office_record"] == {
+        "owner": "Morgan Lee",
+        "approval_phrase": "Approved for internal release.",
+    }
     assert document.profile.allowed_tools == (
         "office_fixture_read",
         "shared_publish_fact",
@@ -704,6 +711,86 @@ def test_office_shared_fact_recovery_v2_contract_and_affordances(
     assert "create_file" not in json.dumps(recommended)
 
 
+def test_fixture_records_do_not_activate_retention_metrics() -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery_v2",
+        trial_id="office_v2_fixture_isolation",
+        trial_output_dir="artifacts/canonical_multi_agent_long_horizon/fixture_isolation",
+        project_root=PROJECT_ROOT,
+    )
+
+    metrics = _retention_metrics(runtime, [])
+
+    assert SharedEnvironment().fixture_records == {}
+    assert runtime.shared_environment.retention_contract == {}
+    assert runtime.shared_environment.fixture_records["office_record"] == {
+        "owner": "Morgan Lee",
+        "approval_phrase": "Approved for internal release.",
+    }
+    assert metrics["retention_contract_present"] is False
+    assert metrics["retention_contract_satisfied"] is True
+
+
+def test_office_shared_fact_recovery_v2_recovery_after_early_read_succeeds(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/office_v2_recovery_after_early_read"
+    missing_path = f"{output_dir}/missing_input.txt"
+    recovery_path = "tests/fixtures/canonical_multi_agent/recovery_note.txt"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery_v2",
+        trial_id="office_v2_recovery_after_early_read",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        policy_overrides={
+            "verification_agent": PerfectFakePolicy(
+                (
+                    Action("read_file", {"path": recovery_path}),
+                    Action("read_file", {"path": missing_path}),
+                    Action("read_file", {"path": recovery_path}),
+                    Action("shared_read_fact", {"key": "review_owner"}),
+                    Action("shared_read_fact", {"key": "approval_phrase"}),
+                    Action(
+                        "validate_exact_value",
+                        {
+                            "key": "approval_phrase",
+                            "expected": "Approved for internal release.",
+                        },
+                    ),
+                    Action("finish"),
+                )
+            )
+        },
+    )
+
+    trace = _run_runtime_with_trace(runtime, started_at=time.perf_counter())
+    trial_metrics = _trial_metrics(
+        runtime,
+        trace,
+        started_at=time.perf_counter(),
+    )
+
+    assert runtime.status == "succeeded"
+    assert trial_metrics["task_completed"] is True
+    assert trial_metrics["retention_contract_present"] is False
+    assert trial_metrics["retention_contract_satisfied"] is True
+    verifier_reads = [
+        event
+        for event in trace
+        if event["agent_id"] == "verification_agent"
+        and event["action_name"] == "read_file"
+    ]
+    assert [event["action_parameters"]["path"] for event in verifier_reads] == [
+        recovery_path,
+        missing_path,
+        recovery_path,
+    ]
+    assert any(
+        event["tool_error_code"] == "file_not_found"
+        for event in verifier_reads
+    )
+
+
 def test_office_shared_fact_recovery_v2_perfect_policy_succeeds(
     artifact_output_dir: str,
 ) -> None:
@@ -772,10 +859,36 @@ def test_office_shared_fact_recovery_v2_perfect_policy_succeeds(
         artifact_output_dir,
         trial_index=2,
     )
+    assert metric_summary["status"] == "succeeded"
+    assert metric_summary["error_code"] is None
+    assert metric_summary["trial_metrics"]["task_completed"] is True
     verification_metrics = metric_summary["agent_metrics"]["verification_agent"]
     assert verification_metrics["required_recoveries_total"] == 1
     assert verification_metrics["required_recoveries_completed"] == 1
     assert verification_metrics["unchanged_failed_action_retries"] == 0
+
+
+def test_non_retention_runtime_failure_still_fails_trial(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery_v2",
+        trial_id="office_v2_runtime_failure",
+        trial_output_dir=f"{artifact_output_dir}/office_v2_runtime_failure",
+        project_root=PROJECT_ROOT,
+        policy_variant="finish_before_recovery",
+    )
+    trace = _run_runtime_with_trace(runtime, started_at=time.perf_counter())
+    trial_metrics = _trial_metrics(
+        runtime,
+        trace,
+        started_at=time.perf_counter(),
+    )
+
+    assert runtime.status == "failed"
+    assert trial_metrics["retention_contract_present"] is False
+    assert trial_metrics["retention_contract_satisfied"] is True
+    assert trial_metrics["task_completed"] is False
 
 
 def test_office_shared_fact_recovery_v2_negative_paths(

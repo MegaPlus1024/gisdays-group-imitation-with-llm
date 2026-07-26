@@ -3830,7 +3830,7 @@ def _configure_environment_contract(
             "tests/fixtures/canonical_multi_agent/recovery_note.txt"
         )
     elif scenario_id == "office_shared_fact_recovery_v2":
-        environment.retention_contract["office_record"] = dict(
+        environment.fixture_records["office_record"] = dict(
             OFFICE_RECOVERY_V2_RECORD
         )
         environment.known_files.add(
@@ -3871,6 +3871,7 @@ def _configure_environment_contract(
             }
         }
     elif scenario_id == "office_shared_fact_recovery":
+        environment.fixture_records["office_record"] = dict(OFFICE_RECORD)
         environment.fact_contracts = {
             f"review_{field}": {
                 "producer_agent": "document_agent",
@@ -4331,7 +4332,7 @@ def _office_fixture_read(
     action: Action,
     context: ToolExecutionContext,
 ) -> ToolResult:
-    office_record = context.shared_environment.retention_contract.get(
+    office_record = context.shared_environment.fixture_records.get(
         "office_record",
         OFFICE_RECORD,
     )
