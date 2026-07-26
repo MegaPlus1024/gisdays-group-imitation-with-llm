@@ -1371,6 +1371,15 @@ class AutonomousMultiAgentRuntime:
             "observed_evidence": self._evidence_for_prompt(state),
             "publishable_facts": self._publishable_facts_for_prompt(state),
             "available_commands": affordances.get("available_commands", []),
+            "command_parameters": _sanitize_value(
+                affordances.get("command_parameters", {})
+            ),
+            "expected_shared_fact_keys": _sanitize_value(
+                affordances.get("expected_shared_fact_keys", [])
+            ),
+            "recommended_actions": _sanitize_value(
+                affordances.get("recommended_actions", [])
+            ),
             "conflict_sources": affordances.get("conflict_sources", []),
             "authority_order": affordances.get("authority_order", []),
             "source_conflicts": source_conflicts,
@@ -1853,6 +1862,14 @@ class AutonomousMultiAgentRuntime:
             "status": "completed" if completed else "unmet",
             "evidence_type": requirement.get("evidence_type") or requirement.get("kind"),
             "dependency_ids": list(requirement.get("dependency_ids", ())),
+            "required_action": requirement.get("required_action")
+            or requirement.get("tool_name")
+            or requirement.get("action_name"),
+            "required_parameters": _sanitize_value(
+                requirement.get("parameters", {})
+                if isinstance(requirement.get("parameters"), Mapping)
+                else {}
+            ),
             "satisfied_by_outcome": _sanitize_text(
                 str(requirement.get("satisfied_by_outcome") or _requirement_outcome(requirement))
             ),

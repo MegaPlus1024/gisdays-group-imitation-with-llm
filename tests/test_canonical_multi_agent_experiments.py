@@ -2986,6 +2986,154 @@ def test_long_horizon_multi_fact_retention_contract(
     }
 
 
+def test_long_horizon_requirement_action_and_recommended_action_export(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="long_horizon_multi_fact_retention",
+        trial_id="retention_action_export",
+        trial_output_dir=f"{artifact_output_dir}/retention_action_export",
+        project_root=PROJECT_ROOT,
+    )
+
+    research_state = runtime.states["research_agent"]
+    runtime._refresh_agent_context(research_state)
+    progress = research_state.memory["task_progress"]
+    contracts = {
+        item["requirement_id"]: item
+        for item in progress["requirement_contracts"]
+    }
+    source_contract = contracts["retention_source_bundle_read"]
+    assert source_contract["required_action"] == "retention_source_read"
+    assert source_contract["required_parameters"] == {"field": "all"}
+
+    recommended = research_state.memory["available_resources"][
+        "recommended_actions"
+    ]
+    assert {
+        "requirement_id": "retention_source_bundle_read",
+        "action_name": "retention_source_read",
+        "parameters": {"field": "all"},
+    } in recommended
+    assert research_state.memory["available_resources"][
+        "command_parameters"
+    ]["retention_source_read"]["field"][0] == "all"
+
+
+def test_long_horizon_consumer_dependencies_and_wait_affordances(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="long_horizon_multi_fact_retention",
+        trial_id="retention_dependency_affordances",
+        trial_output_dir=(
+            f"{artifact_output_dir}/retention_dependency_affordances"
+        ),
+        project_root=PROJECT_ROOT,
+    )
+
+    verification = runtime.states["verification_agent"]
+    runtime._refresh_agent_context(verification)
+    shared_dependencies = {
+        item["dependency_id"]: item
+        for item in verification.profile.dependencies
+        if item.get("kind") == "shared_fact"
+    }
+    for dependency_id in (
+        "project_owner",
+        "review_status",
+        "release_identifier",
+    ):
+        assert shared_dependencies[dependency_id]["key"] == dependency_id
+        assert (
+            shared_dependencies[dependency_id]["producer_agent"]
+            == "research_agent"
+        )
+
+    verification_resources = verification.memory["available_resources"]
+    assert "wait_for_dependency" in verification_resources[
+        "available_commands"
+    ]
+    assert verification_resources["command_parameters"][
+        "wait_for_dependency"
+    ]["dependency_id"] == [
+        "research_handoff",
+        "document_packet",
+        "project_owner",
+        "review_status",
+        "release_identifier",
+        "approval_phrase",
+    ]
+
+    operator = runtime.states["operator_agent"]
+    runtime._refresh_agent_context(operator)
+    operator_resources = operator.memory["available_resources"]
+    assert "wait_for_dependency" in operator_resources[
+        "available_commands"
+    ]
+    assert operator_resources["command_parameters"][
+        "wait_for_dependency"
+    ]["dependency_id"] == [
+        "release_identifier",
+        "document_packet",
+        "approval_phrase",
+    ]
+
+
+def test_long_horizon_shared_fact_waits_are_executable(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="long_horizon_multi_fact_retention",
+        trial_id="retention_executable_waits",
+        trial_output_dir=f"{artifact_output_dir}/retention_executable_waits",
+        project_root=PROJECT_ROOT,
+        policy_overrides={
+            "verification_agent": PerfectFakePolicy(
+                (
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "review_status"},
+                    ),
+                )
+            ),
+            "operator_agent": PerfectFakePolicy(
+                (
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "release_identifier"},
+                    ),
+                )
+            ),
+        },
+    )
+
+    verification_result = _step_until_agent_history(
+        runtime,
+        "verification_agent",
+        1,
+        max_steps=8,
+    )
+    operator_result = _step_until_agent_history(
+        runtime,
+        "operator_agent",
+        1,
+        max_steps=8,
+    )
+
+    assert verification_result is not None
+    assert verification_result.observation is not None
+    assert verification_result.observation.success is True
+    assert verification_result.observation.error_code is None
+    assert verification_result.observation.output["status"] == "waiting"
+
+    assert operator_result is not None
+    assert operator_result.observation is not None
+    assert operator_result.observation.success is True
+    assert operator_result.observation.error_code is None
+    assert operator_result.observation.output["status"] == "waiting"
+
+
 def test_long_horizon_multi_fact_retention_perfect_policy_succeeds(
     artifact_output_dir: str,
 ) -> None:

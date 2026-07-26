@@ -944,6 +944,13 @@ def _scenario_profiles(
                     "authority_order": list(
                         RETENTION_STATUS_AUTHORITY_ORDER
                     ),
+                    "recommended_actions": [
+                        {
+                            "requirement_id": "retention_source_bundle_read",
+                            "action_name": "retention_source_read",
+                            "parameters": {"field": "all"},
+                        }
+                    ],
                 },
             ),
             AgentProfile(
@@ -1043,13 +1050,19 @@ def _scenario_profiles(
                             "purpose": "second required inter-role handoff",
                         },
                     ],
-                    "available_commands": ["retention_source_read"],
+                    "available_commands": [
+                        "retention_source_read",
+                        "wait_for_dependency",
+                    ],
                     "command_parameters": {
                         "retention_source_read": {
                             "field": [
                                 "all",
                                 *sorted(RETENTION_SOURCE_RECORD),
                             ],
+                        },
+                        "wait_for_dependency": {
+                            "dependency_id": ["research_handoff"],
                         },
                     },
                 },
@@ -1090,6 +1103,24 @@ def _scenario_profiles(
                         "kind": "file",
                         "path": document_path,
                         "producer_agent": "document_agent",
+                    },
+                    {
+                        "dependency_id": "project_owner",
+                        "kind": "shared_fact",
+                        "key": "project_owner",
+                        "producer_agent": "research_agent",
+                    },
+                    {
+                        "dependency_id": "review_status",
+                        "kind": "shared_fact",
+                        "key": "review_status",
+                        "producer_agent": "research_agent",
+                    },
+                    {
+                        "dependency_id": "release_identifier",
+                        "kind": "shared_fact",
+                        "key": "release_identifier",
+                        "producer_agent": "research_agent",
                     },
                     {
                         "dependency_id": "approval_phrase",
@@ -1179,6 +1210,7 @@ def _scenario_profiles(
                         },
                     ],
                     "available_commands": [
+                        "wait_for_dependency",
                         "shared_read_fact",
                         "validate_exact_value",
                         "validate_fact_authority",
@@ -1187,6 +1219,16 @@ def _scenario_profiles(
                     "command_parameters": {
                         "shared_read_fact": {
                             "key": [
+                                "project_owner",
+                                "review_status",
+                                "release_identifier",
+                                "approval_phrase",
+                            ],
+                        },
+                        "wait_for_dependency": {
+                            "dependency_id": [
+                                "research_handoff",
+                                "document_packet",
                                 "project_owner",
                                 "review_status",
                                 "release_identifier",
@@ -1270,11 +1312,21 @@ def _scenario_profiles(
                             "purpose": "final document handoff",
                         }
                     ],
-                    "available_commands": ["shared_read_fact"],
+                    "available_commands": [
+                        "wait_for_dependency",
+                        "shared_read_fact",
+                    ],
                     "command_parameters": {
                         "shared_read_fact": {
                             "key": [
                                 "release_identifier",
+                                "approval_phrase",
+                            ],
+                        },
+                        "wait_for_dependency": {
+                            "dependency_id": [
+                                "release_identifier",
+                                "document_packet",
                                 "approval_phrase",
                             ],
                         },
