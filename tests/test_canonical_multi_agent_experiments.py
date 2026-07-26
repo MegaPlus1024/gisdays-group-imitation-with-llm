@@ -594,6 +594,17 @@ def test_office_shared_fact_recovery_v2_contract_and_affordances(
         "shared_publish_fact",
         "finish",
     )
+    assert verifier.profile.allowed_tools == (
+        "read_file",
+        "shared_read_fact",
+        "validate_exact_value",
+        "wait_for_dependency",
+        "finish",
+    )
+    assert "create_file" not in verifier.profile.allowed_tools
+    assert "append_file" not in verifier.profile.allowed_tools
+    assert "office_fixture_read" not in verifier.profile.allowed_tools
+    assert "shared_publish_fact" not in verifier.profile.allowed_tools
     assert verifier.profile.dependencies == (
         {
             "dependency_id": "review_owner",
@@ -612,23 +623,85 @@ def test_office_shared_fact_recovery_v2_contract_and_affordances(
         item["requirement_id"]: item
         for item in verifier.memory["task_progress"]["requirement_contracts"]
     }
+    missing_path = f"{output_dir}/missing_input.txt"
+    recovery_path = "tests/fixtures/canonical_multi_agent/recovery_note.txt"
     assert contracts["missing_input_observed"]["evidence_type"] == (
         "error_observed"
     )
-    assert contracts["recovery_completed"]["required_action"] == "create_file"
+    assert contracts["missing_input_observed"]["required_action"] == "read_file"
+    assert contracts["missing_input_observed"]["required_parameters"] == {
+        "path": missing_path
+    }
+    assert contracts["missing_input_observed"]["expected_error_code"] == (
+        "file_not_found"
+    )
+    assert contracts["recovery_completed"]["required_action"] == "read_file"
+    assert contracts["recovery_completed"]["required_parameters"] == {
+        "path": recovery_path
+    }
+    assert contracts["recovery_completed"]["source_error_observed"] is False
+    assert contracts["recovery_completed"]["recovery_action_completed"] is False
+    assert contracts["recovery_completed"]["missing_source_action"] == {
+        "action_name": "read_file",
+        "parameters": {"path": missing_path},
+        "expected_error_code": "file_not_found",
+        "resource_id": "missing_input",
+    }
+    assert contracts["recovery_completed"]["missing_recovery_action"] == {
+        "action_name": "read_file",
+        "parameters": {"path": recovery_path},
+        "resource_id": "recovery_note",
+    }
     assert contracts["approval_phrase_validated"]["required_parameters"] == {
         "key": "approval_phrase",
         "expected": "Approved for internal release.",
     }
     resources = verifier.memory["available_resources"]
-    assert "wait_for_dependency" in resources["available_commands"]
+    assert resources["available_commands"] == [
+        "wait_for_dependency",
+        "read_file",
+        "shared_read_fact",
+        "validate_exact_value",
+    ]
+    assert "create_file" not in resources["available_commands"]
     assert resources["command_parameters"]["wait_for_dependency"][
         "dependency_id"
     ] == ["review_owner", "approval_phrase"]
+    assert resources["command_parameters"]["read_file"]["path"] == [
+        missing_path,
+        recovery_path,
+    ]
     assert resources["command_parameters"]["shared_read_fact"]["key"] == [
         "review_owner",
         "approval_phrase",
     ]
+    assert "owner" not in resources["expected_shared_fact_keys"]
+    assert "owner" not in resources["command_parameters"]["shared_read_fact"]["key"]
+    resource_index = {
+        item["resource_id"]: item for item in resources["file_resources"]
+    }
+    assert resource_index["missing_input"]["path"] == missing_path
+    assert resource_index["missing_input"]["exists"] is False
+    assert resource_index["missing_input"]["writable"] is False
+    assert resource_index["recovery_note"]["path"] == recovery_path
+    assert resource_index["recovery_note"]["exists"] is True
+    assert resource_index["recovery_note"]["readable"] is True
+    assert resource_index["recovery_note"]["writable"] is False
+    assert (PROJECT_ROOT / recovery_path).exists()
+    recommended = resources["recommended_actions"]
+    assert recommended[:2] == [
+        {
+            "requirement_id": "missing_input_observed",
+            "action_name": "read_file",
+            "parameters": {"path": missing_path},
+        },
+        {
+            "requirement_id": "recovery_completed",
+            "action_name": "read_file",
+            "parameters": {"path": recovery_path},
+        },
+    ]
+    assert "create_file" not in json.dumps(recommended)
 
 
 def test_office_shared_fact_recovery_v2_perfect_policy_succeeds(
@@ -659,11 +732,50 @@ def test_office_shared_fact_recovery_v2_perfect_policy_succeeds(
     }.issubset(set(verifier_progress["completed_requirements"]))
     assert runtime.states["verification_agent"].actions_failed == 1
     assert runtime.states["verification_agent"].recovered_failures == 1
+    verifier_history = runtime.states["verification_agent"].history
+    file_not_found_events = [
+        event
+        for event in verifier_history
+        if event.observation.error_code == "file_not_found"
+    ]
+    assert len(file_not_found_events) == 1
+    missing_index = verifier_history.index(file_not_found_events[0])
+    recovery_index = next(
+        index
+        for index, event in enumerate(verifier_history)
+        if event.action is not None
+        and event.action.tool_name == "read_file"
+        and event.action.parameters.get("path")
+        == "tests/fixtures/canonical_multi_agent/recovery_note.txt"
+        and event.observation.success
+    )
+    assert missing_index < recovery_index
+    completed_contracts = {
+        item["requirement_id"]: item
+        for item in verifier_progress["requirement_contracts"]
+        if item["status"] == "completed"
+    }
+    assert completed_contracts["recovery_completed"][
+        "source_error_observed"
+    ] is True
+    assert completed_contracts["recovery_completed"][
+        "recovery_action_completed"
+    ] is True
+    assert len(file_not_found_events) == 1
     assert runtime.states["verification_agent"].non_progress_failure_streak == 0
     assert not any(
         event.observation.error_code == "post_completion_drift"
         for event in runtime.group_history
     )
+    metric_summary = _run_trial(
+        "office_shared_fact_recovery_v2",
+        artifact_output_dir,
+        trial_index=2,
+    )
+    verification_metrics = metric_summary["agent_metrics"]["verification_agent"]
+    assert verification_metrics["required_recoveries_total"] == 1
+    assert verification_metrics["required_recoveries_completed"] == 1
+    assert verification_metrics["unchanged_failed_action_retries"] == 0
 
 
 def test_office_shared_fact_recovery_v2_negative_paths(
@@ -732,6 +844,183 @@ def test_office_shared_fact_recovery_v2_negative_paths(
     assert wrong_phrase.states["verification_agent"].history[
         -1
     ].observation.error_code == "exact_value_mismatch"
+
+
+def test_office_shared_fact_recovery_v2_create_file_cannot_recover(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/office_v2_create_file"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery_v2",
+        trial_id="office_v2_create_file",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        policy_overrides={
+            "verification_agent": PerfectFakePolicy(
+                (
+                    Action("read_file", {"path": f"{output_dir}/missing_input.txt"}),
+                    Action(
+                        "create_file",
+                        {
+                            "path": f"{output_dir}/recovery_note.txt",
+                            "content": "not a valid recovery",
+                        },
+                    ),
+                    Action("finish"),
+                )
+            )
+        },
+    )
+
+    _step_until_agent_history(runtime, "verification_agent", 3, max_steps=8)
+    verifier = runtime.states["verification_agent"]
+    assert verifier.history[1].observation.error_code == "tool_not_allowed"
+    progress = verifier.memory["task_progress"]
+    assert "missing_input_observed" in progress["completed_requirements"]
+    assert "recovery_completed" not in progress["completed_requirements"]
+
+
+def test_office_shared_fact_recovery_v2_recovery_read_must_follow_failure(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/office_v2_recovery_first"
+    recovery_path = "tests/fixtures/canonical_multi_agent/recovery_note.txt"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery_v2",
+        trial_id="office_v2_recovery_first",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        policy_overrides={
+            "verification_agent": PerfectFakePolicy(
+                (
+                    Action("read_file", {"path": recovery_path}),
+                    Action("read_file", {"path": f"{output_dir}/missing_input.txt"}),
+                    Action("finish"),
+                )
+            )
+        },
+    )
+
+    _step_until_agent_history(runtime, "verification_agent", 3, max_steps=8)
+    progress = runtime.states["verification_agent"].memory["task_progress"]
+    assert "missing_input_observed" in progress["completed_requirements"]
+    assert "recovery_completed" not in progress["completed_requirements"]
+
+
+def test_office_shared_fact_recovery_v2_wrong_recovery_path_does_not_recover(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/office_v2_wrong_recovery"
+    wrong_path = "README.md"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery_v2",
+        trial_id="office_v2_wrong_recovery",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        policy_overrides={
+            "verification_agent": PerfectFakePolicy(
+                (
+                    Action("read_file", {"path": f"{output_dir}/missing_input.txt"}),
+                    Action("read_file", {"path": wrong_path}),
+                    Action("read_file", {"path": f"{output_dir}/missing_input.txt"}),
+                    Action("finish"),
+                )
+            )
+        },
+    )
+    verifier = runtime.states["verification_agent"]
+    runtime.shared_environment.known_files.add(wrong_path)
+    verifier.profile.resource_affordances["paths"] = [
+        *verifier.profile.resource_affordances["paths"],
+        {
+            "resource_id": "unrelated_recovery_note",
+            "path": wrong_path,
+            "access": "read",
+            "purpose": "unrelated existing file",
+        },
+    ]
+    verifier.profile.resource_affordances["file_resources"] = [
+        *verifier.profile.resource_affordances["file_resources"],
+        {
+            "resource_id": "unrelated_recovery_note",
+            "path": wrong_path,
+            "exists": True,
+            "readable": True,
+            "writable": False,
+            "purpose": "unrelated existing file",
+        },
+    ]
+    verifier.profile.resource_affordances["command_parameters"]["read_file"][
+        "path"
+    ] = [
+        f"{output_dir}/missing_input.txt",
+        "tests/fixtures/canonical_multi_agent/recovery_note.txt",
+        wrong_path,
+    ]
+
+    _step_until_agent_history(runtime, "verification_agent", 4, max_steps=10)
+    progress = verifier.memory["task_progress"]
+    assert "missing_input_observed" in progress["completed_requirements"]
+    assert "recovery_completed" not in progress["completed_requirements"]
+
+
+def test_office_shared_fact_recovery_v2_guarded_finish_metadata_lists_recovery_actions(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/office_v2_finish_metadata"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery_v2",
+        trial_id="office_v2_finish_metadata",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        policy_overrides={
+            "verification_agent": PerfectFakePolicy(
+                (
+                    Action("wait_for_dependency", {"dependency_id": "review_owner"}),
+                    Action("shared_read_fact", {"key": "review_owner"}),
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "approval_phrase"},
+                    ),
+                    Action("shared_read_fact", {"key": "approval_phrase"}),
+                    Action(
+                        "validate_exact_value",
+                        {
+                            "key": "approval_phrase",
+                            "expected": "Approved for internal release.",
+                        },
+                    ),
+                    Action("finish"),
+                )
+            )
+        },
+    )
+
+    for _ in range(12):
+        runtime.step()
+    finish_event = next(
+        event
+        for event in runtime.states["verification_agent"].history
+        if event.action is not None and event.action.tool_name == "finish"
+    )
+    assert finish_event.observation.error_code == "completion_requirements_unmet"
+    unmet = {
+        item["requirement_id"]: item
+        for item in finish_event.observation.metadata["unmet_requirement_contracts"]
+    }
+    assert set(unmet) == {"missing_input_observed", "recovery_completed"}
+    assert unmet["missing_input_observed"]["required_action"] == "read_file"
+    assert unmet["missing_input_observed"]["required_parameters"] == {
+        "path": f"{output_dir}/missing_input.txt"
+    }
+    assert unmet["recovery_completed"]["required_action"] == "read_file"
+    assert unmet["recovery_completed"]["required_parameters"] == {
+        "path": "tests/fixtures/canonical_multi_agent/recovery_note.txt"
+    }
+    assert "create_file" not in json.dumps(finish_event.observation.metadata)
+    assert "owner" not in runtime.states["verification_agent"].memory[
+        "available_resources"
+    ]["expected_shared_fact_keys"]
 
 
 def test_article_contract_advertises_exact_url_without_fixture_values() -> None:

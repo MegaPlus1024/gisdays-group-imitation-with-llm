@@ -1905,6 +1905,14 @@ class AutonomousMultiAgentRuntime:
             contract["resource_states"] = states
             if len(states) == 1:
                 contract["resource_state"] = states[0]
+        if requirement.get("kind") == "error_observed":
+            contract["expected_error_code"] = requirement.get("error_code")
+        if requirement.get("kind") == "recovery_completed":
+            recovery_status = self._required_recovery_status(
+                state,
+                requirement,
+            )
+            contract.update(recovery_status)
         if requirement.get("kind") == "file_written_from_observations":
             status = self._file_observation_content_status(state, requirement)
             contract["required_observations"] = _sanitize_value(
@@ -2006,7 +2014,9 @@ class AutonomousMultiAgentRuntime:
                 state, requirement, index
             )
         if kind == "error_observed":
-            return event.observation.error_code == requirement.get("error_code")
+            if event.observation.error_code != requirement.get("error_code"):
+                return False
+            return self._event_matches_action_contract(event, requirement)
         if kind == "error_recovery_completed":
             return self._event_satisfies_error_recovery(
                 state, requirement, index
@@ -2014,6 +2024,29 @@ class AutonomousMultiAgentRuntime:
         if kind == "recovery_completed":
             return self._event_satisfies_required_recovery(state, requirement, index)
         return False
+
+    def _event_matches_action_contract(
+        self,
+        event: HistoryEvent,
+        requirement: Mapping[str, Any],
+    ) -> bool:
+        required_action = (
+            requirement.get("required_action")
+            or requirement.get("tool_name")
+            or requirement.get("action_name")
+        )
+        if isinstance(required_action, str):
+            if event.action is None or event.action.tool_name != required_action:
+                return False
+        parameters = requirement.get("parameters", {})
+        if isinstance(parameters, Mapping):
+            if event.action is None and parameters:
+                return False
+            if event.action is not None:
+                for key, value in parameters.items():
+                    if event.action.parameters.get(key) != value:
+                        return False
+        return True
 
     def _event_satisfies_observation_backed_file(
         self,
@@ -2234,6 +2267,59 @@ class AutonomousMultiAgentRuntime:
                 continue
             return prior.action.parameters.get("path") != event.action.parameters.get("path")
         return False
+
+    def _required_recovery_status(
+        self,
+        state: AgentState,
+        requirement: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        source_error_code = requirement.get("source_error_code", "file_not_found")
+        source_resource_id = requirement.get("source_resource_id")
+        recovery_resource_id = requirement.get("recovery_resource_id")
+        source_path = self._resource_path(state, source_resource_id)
+        recovery_path = self._resource_path(state, recovery_resource_id)
+        tool_name = requirement.get("tool_name")
+        if not isinstance(tool_name, str):
+            tool_name = str(requirement.get("required_action") or "")
+
+        source_error_observed = False
+        recovery_action_completed = False
+        for index, event in enumerate(state.history):
+            if (
+                event.action is not None
+                and event.action.tool_name == tool_name
+                and event.observation.error_code == source_error_code
+                and (
+                    source_path is None
+                    or event.action.parameters.get("path") == source_path
+                )
+            ):
+                source_error_observed = True
+                continue
+            if not source_error_observed:
+                continue
+            if self._event_satisfies_required_recovery(state, requirement, index):
+                recovery_action_completed = True
+                break
+        missing_source_action = {
+            "action_name": tool_name or None,
+            "parameters": {"path": source_path} if source_path is not None else {},
+            "expected_error_code": source_error_code,
+            "resource_id": source_resource_id,
+        }
+        missing_recovery_action = {
+            "action_name": tool_name or None,
+            "parameters": {"path": recovery_path} if recovery_path is not None else {},
+            "resource_id": recovery_resource_id,
+        }
+        return _sanitize_value(
+            {
+                "source_error_observed": source_error_observed,
+                "recovery_action_completed": recovery_action_completed,
+                "missing_source_action": missing_source_action,
+                "missing_recovery_action": missing_recovery_action,
+            }
+        )
 
     def _required_recovery_evidence(
         self,

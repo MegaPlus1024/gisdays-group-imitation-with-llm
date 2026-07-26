@@ -947,7 +947,7 @@ def _scenario_profiles(
         )
     if scenario_id == "office_shared_fact_recovery_v2":
         missing_path = (PurePosixPath(trial_output_dir) / "missing_input.txt").as_posix()
-        recovery_path = (PurePosixPath(trial_output_dir) / "recovery_note.txt").as_posix()
+        recovery_path = "tests/fixtures/canonical_multi_agent/recovery_note.txt"
         return (
             AgentProfile(
                 agent_id="document_agent",
@@ -1010,7 +1010,6 @@ def _scenario_profiles(
                 ),
                 allowed_tools=(
                     "read_file",
-                    "create_file",
                     "shared_read_fact",
                     "validate_exact_value",
                     "wait_for_dependency",
@@ -1035,20 +1034,20 @@ def _scenario_profiles(
                     {
                         "id": "missing_input_observed",
                         "kind": "error_observed",
+                        "required_action": "read_file",
                         "error_code": "file_not_found",
+                        "parameters": {"path": missing_path},
                         "related_resource_ids": ["missing_input"],
                     },
                     {
                         "id": "recovery_completed",
-                        "kind": "error_recovery_completed",
-                        "required_action": "create_file",
+                        "kind": "recovery_completed",
+                        "required_action": "read_file",
+                        "tool_name": "read_file",
                         "source_error_code": "file_not_found",
-                        "source_action_name": "read_file",
-                        "recovery_tool_name": "create_file",
-                        "parameters": {
-                            "path": recovery_path,
-                            "content": OFFICE_RECOVERY_V2_NOTE_CONTENT,
-                        },
+                        "source_resource_id": "missing_input",
+                        "recovery_resource_id": "recovery_note",
+                        "parameters": {"path": recovery_path},
                         "related_resource_ids": [
                             "missing_input",
                             "recovery_note",
@@ -1076,7 +1075,10 @@ def _scenario_profiles(
                     },
                 ),
                 resource_affordances={
-                    "allowed_file_roots": [trial_output_dir],
+                    "allowed_file_roots": [
+                        trial_output_dir,
+                        "tests/fixtures/canonical_multi_agent",
+                    ],
                     "paths": [
                         {
                             "resource_id": "missing_input",
@@ -1087,14 +1089,31 @@ def _scenario_profiles(
                         {
                             "resource_id": "recovery_note",
                             "path": recovery_path,
-                            "access": "write",
-                            "purpose": "required v2 recovery note",
+                            "access": "read",
+                            "purpose": "required v2 existing recovery note",
+                        },
+                    ],
+                    "file_resources": [
+                        {
+                            "resource_id": "missing_input",
+                            "path": missing_path,
+                            "exists": False,
+                            "readable": False,
+                            "writable": False,
+                            "purpose": "required v2 missing-file trigger",
+                        },
+                        {
+                            "resource_id": "recovery_note",
+                            "path": recovery_path,
+                            "exists": True,
+                            "readable": True,
+                            "writable": False,
+                            "purpose": "required v2 existing recovery note",
                         },
                     ],
                     "available_commands": [
                         "wait_for_dependency",
                         "read_file",
-                        "create_file",
                         "shared_read_fact",
                         "validate_exact_value",
                     ],
@@ -1105,8 +1124,7 @@ def _scenario_profiles(
                                 "approval_phrase",
                             ],
                         },
-                        "read_file": {"path": [missing_path]},
-                        "create_file": {"path": [recovery_path]},
+                        "read_file": {"path": [missing_path, recovery_path]},
                         "shared_read_fact": {
                             "key": ["review_owner", "approval_phrase"],
                         },
@@ -1122,6 +1140,16 @@ def _scenario_profiles(
                         "approval_phrase",
                     ],
                     "recommended_actions": [
+                        {
+                            "requirement_id": "missing_input_observed",
+                            "action_name": "read_file",
+                            "parameters": {"path": missing_path},
+                        },
+                        {
+                            "requirement_id": "recovery_completed",
+                            "action_name": "read_file",
+                            "parameters": {"path": recovery_path},
+                        },
                         {
                             "requirement_id": "approval_phrase_validated",
                             "action_name": "validate_exact_value",
@@ -2608,7 +2636,7 @@ def _scenario_fake_policies(
         }
     if scenario_id == "office_shared_fact_recovery_v2":
         missing_path = (PurePosixPath(trial_output_dir) / "missing_input.txt").as_posix()
-        recovery_path = (PurePosixPath(trial_output_dir) / "recovery_note.txt").as_posix()
+        recovery_path = "tests/fixtures/canonical_multi_agent/recovery_note.txt"
         document_steps = (
             Action("office_fixture_read", {"field": "owner"}),
             Action(
@@ -2632,13 +2660,7 @@ def _scenario_fake_policies(
         )
         verifier_steps = (
             Action("read_file", {"path": missing_path}),
-            Action(
-                "create_file",
-                {
-                    "path": recovery_path,
-                    "content": OFFICE_RECOVERY_V2_NOTE_CONTENT,
-                },
-            ),
+            Action("read_file", {"path": recovery_path}),
             Action("shared_read_fact", {"key": "review_owner"}),
             Action("shared_read_fact", {"key": "approval_phrase"}),
             Action(
@@ -2663,26 +2685,14 @@ def _scenario_fake_policies(
         elif policy_variant == "one_fact_only":
             verifier_steps = (
                 Action("read_file", {"path": missing_path}),
-                Action(
-                    "create_file",
-                    {
-                        "path": recovery_path,
-                        "content": OFFICE_RECOVERY_V2_NOTE_CONTENT,
-                    },
-                ),
+                Action("read_file", {"path": recovery_path}),
                 Action("shared_read_fact", {"key": "review_owner"}),
                 Action("finish"),
             )
         elif policy_variant == "wrong_approval_phrase":
             verifier_steps = (
                 Action("read_file", {"path": missing_path}),
-                Action(
-                    "create_file",
-                    {
-                        "path": recovery_path,
-                        "content": OFFICE_RECOVERY_V2_NOTE_CONTENT,
-                    },
-                ),
+                Action("read_file", {"path": recovery_path}),
                 Action("shared_read_fact", {"key": "review_owner"}),
                 Action("shared_read_fact", {"key": "approval_phrase"}),
                 Action(
@@ -3822,6 +3832,9 @@ def _configure_environment_contract(
     elif scenario_id == "office_shared_fact_recovery_v2":
         environment.retention_contract["office_record"] = dict(
             OFFICE_RECOVERY_V2_RECORD
+        )
+        environment.known_files.add(
+            "tests/fixtures/canonical_multi_agent/recovery_note.txt"
         )
         environment.fact_contracts = {
             "review_owner": {
