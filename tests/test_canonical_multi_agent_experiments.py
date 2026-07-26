@@ -28,6 +28,7 @@ from src.agent.autonomous_multi_agent_runtime import (
 from src.agent.canonical_multi_agent_experiments import (
     CONFIG_SCHEMA_VERSION,
     EXPERIMENT_SUMMARY_SCHEMA_VERSION,
+    SUPPORTED_SCENARIOS,
     TRACE_SCHEMA_VERSION,
     TRIAL_SUMMARY_SCHEMA_VERSION,
     _bounded_value,
@@ -49,6 +50,7 @@ CONFIG_PATH = (
     / "configs"
     / "canonical_multi_agent_long_horizon.example.json"
 )
+V2_CONFIG_PATH = PROJECT_ROOT / "configs" / "behavioral_benchmark_v2.example.json"
 
 
 @pytest.fixture
@@ -175,6 +177,361 @@ def test_example_config_loads_with_safe_defaults() -> None:
     assert json.loads(CONFIG_PATH.read_text(encoding="utf-8"))["schema_version"] == (
         CONFIG_SCHEMA_VERSION
     )
+
+
+def test_behavioral_benchmark_v2_config_lists_seven_v2_scenarios() -> None:
+    config = load_long_horizon_experiment_config(V2_CONFIG_PATH)
+
+    assert config.experiment_id == "behavioral_benchmark_v2"
+    assert config.scenario_ids == (
+        "article_file_handoff_v2",
+        "office_shared_fact_recovery_v2",
+        "role_boundary_exact_handoff",
+        "malformed_action_recovery",
+        "conflicting_grounded_facts",
+        "dependency_progress_and_finish_guard",
+        "long_horizon_multi_fact_retention",
+    )
+    assert config.trials_per_scenario == 5
+    assert json.loads(V2_CONFIG_PATH.read_text(encoding="utf-8"))[
+        "schema_version"
+    ] == CONFIG_SCHEMA_VERSION
+
+
+def test_behavioral_benchmark_v2_registry_builds_new_and_legacy_ids(
+    artifact_output_dir: str,
+) -> None:
+    assert "article_file_handoff_v2" in SUPPORTED_SCENARIOS
+    assert "office_shared_fact_recovery_v2" in SUPPORTED_SCENARIOS
+
+    for scenario_id in (
+        "article_file_handoff",
+        "office_shared_fact_recovery",
+        "article_file_handoff_v2",
+        "office_shared_fact_recovery_v2",
+    ):
+        runtime = build_long_horizon_trial_runtime(
+            scenario_id=scenario_id,
+            trial_id=f"{scenario_id}_build",
+            trial_output_dir=f"{artifact_output_dir}/{scenario_id}",
+            project_root=PROJECT_ROOT,
+        )
+        assert scenario_id in runtime.runtime_id
+        assert tuple(runtime.states)
+
+
+def test_article_file_handoff_v2_contract_and_affordances(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/article_v2_contract"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff_v2",
+        trial_id="article_v2_contract",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+    )
+    research = runtime.states["research_agent"]
+    operator = runtime.states["operator_agent"]
+    runtime._refresh_agent_context(research)
+    runtime._refresh_agent_context(operator)
+
+    assert research.profile.allowed_tools == (
+        "browser_article_open",
+        "browser_article_read",
+        "browser_article_extract",
+        "create_file",
+        "shared_publish_fact",
+        "finish",
+    )
+    assert operator.profile.allowed_tools == (
+        "read_file",
+        "shared_read_fact",
+        "wait_for_dependency",
+        "finish",
+    )
+    contracts = {
+        item["requirement_id"]: item
+        for item in research.memory["task_progress"]["requirement_contracts"]
+    }
+    assert contracts["article_opened"]["required_action"] == "browser_article_open"
+    assert contracts["article_opened"]["required_parameters"] == {
+        "url": "https://fixture.local/articles/long-horizon"
+    }
+    assert contracts["review_owner_published"]["fact_key"] == "review_owner"
+    assert runtime.shared_environment.fact_contracts["review_owner"][
+        "expected_value"
+    ] == "The assigned owner is office worker."
+    resources = research.memory["available_resources"]
+    assert resources["article_urls"] == [
+        "https://fixture.local/articles/long-horizon"
+    ]
+    assert resources["command_parameters"]["browser_article_extract"][
+        "heading"
+    ] == ["Ownership", "Status"]
+    assert "office worker" not in json.dumps(resources)
+    assert operator.profile.dependencies == (
+        {
+            "dependency_id": "research_note",
+            "kind": "file",
+            "path": f"{output_dir}/research_note.txt",
+            "producer_agent": "research_agent",
+        },
+        {
+            "dependency_id": "review_owner",
+            "kind": "shared_fact",
+            "key": "review_owner",
+            "producer_agent": "research_agent",
+        },
+    )
+    assert operator.memory["available_resources"]["command_parameters"][
+        "wait_for_dependency"
+    ]["dependency_id"] == ["research_note", "review_owner"]
+
+
+def test_article_file_handoff_v2_perfect_policy_succeeds(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff_v2",
+        trial_id="article_v2_success",
+        trial_output_dir=f"{artifact_output_dir}/article_v2_success",
+        project_root=PROJECT_ROOT,
+    )
+    summary = runtime.run()
+
+    assert summary["status"] == "succeeded"
+    assert runtime.shared_environment.facts["review_owner"] == (
+        "The assigned owner is office worker."
+    )
+    assert summary["per_agent"]["research_agent"]["status"] == "completed"
+    assert summary["per_agent"]["operator_agent"]["status"] == "completed"
+    assert runtime.states["research_agent"].actions_failed == 0
+    assert runtime.states["operator_agent"].actions_failed == 0
+    assert not any(
+        event.observation.error_code == "tool_not_allowed"
+        for event in runtime.group_history
+    )
+    assert runtime.shared_environment.shared_fact_metadata["review_owner"][
+        "grounding_status"
+    ] == "grounded"
+
+
+def test_article_file_handoff_v2_negative_paths(
+    artifact_output_dir: str,
+) -> None:
+    abbreviated = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff_v2",
+        trial_id="article_v2_abbreviated",
+        trial_output_dir=f"{artifact_output_dir}/article_v2_abbreviated",
+        project_root=PROJECT_ROOT,
+        policy_variant="abbreviated_publication",
+    )
+    _step_until_agent_history(abbreviated, "research_agent", 4)
+    assert abbreviated.states["research_agent"].history[-1].observation.error_code == (
+        "published_value_mismatch"
+    )
+
+    historical = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff_v2",
+        trial_id="article_v2_historical",
+        trial_output_dir=f"{artifact_output_dir}/article_v2_historical",
+        project_root=PROJECT_ROOT,
+        policy_variant="historical_owner_substitution",
+    )
+    _step_until_agent_history(historical, "research_agent", 4)
+    assert historical.states["research_agent"].history[-1].observation.error_code == (
+        "published_value_mismatch"
+    )
+
+    premature = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff_v2",
+        trial_id="article_v2_premature",
+        trial_output_dir=f"{artifact_output_dir}/article_v2_premature",
+        project_root=PROJECT_ROOT,
+        policy_variant="premature_operator_finish",
+    )
+    premature.step()
+    result = premature.step()
+    assert result.agent_id == "operator_agent"
+    assert result.observation.error_code == "completion_requirements_unmet"
+
+    unrelated = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff_v2",
+        trial_id="article_v2_unrelated",
+        trial_output_dir=f"{artifact_output_dir}/article_v2_unrelated",
+        project_root=PROJECT_ROOT,
+        policy_variant="unrelated_file_read",
+    )
+    for _ in range(12):
+        unrelated.step()
+    operator_progress = unrelated.states["operator_agent"].memory["task_progress"]
+    assert "research_note_read" not in operator_progress[
+        "completed_requirements"
+    ]
+
+
+def test_office_shared_fact_recovery_v2_contract_and_affordances(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/office_v2_contract"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery_v2",
+        trial_id="office_v2_contract",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+    )
+    document = runtime.states["document_agent"]
+    verifier = runtime.states["verification_agent"]
+    runtime._refresh_agent_context(document)
+    runtime._refresh_agent_context(verifier)
+
+    assert set(runtime.shared_environment.fact_contracts) == {
+        "review_owner",
+        "approval_phrase",
+    }
+    assert document.profile.allowed_tools == (
+        "office_fixture_read",
+        "shared_publish_fact",
+        "finish",
+    )
+    assert verifier.profile.dependencies == (
+        {
+            "dependency_id": "review_owner",
+            "kind": "shared_fact",
+            "key": "review_owner",
+            "producer_agent": "document_agent",
+        },
+        {
+            "dependency_id": "approval_phrase",
+            "kind": "shared_fact",
+            "key": "approval_phrase",
+            "producer_agent": "document_agent",
+        },
+    )
+    contracts = {
+        item["requirement_id"]: item
+        for item in verifier.memory["task_progress"]["requirement_contracts"]
+    }
+    assert contracts["missing_input_observed"]["evidence_type"] == (
+        "error_observed"
+    )
+    assert contracts["recovery_completed"]["required_action"] == "create_file"
+    assert contracts["approval_phrase_validated"]["required_parameters"] == {
+        "key": "approval_phrase",
+        "expected": "Approved for internal release.",
+    }
+    resources = verifier.memory["available_resources"]
+    assert "wait_for_dependency" in resources["available_commands"]
+    assert resources["command_parameters"]["wait_for_dependency"][
+        "dependency_id"
+    ] == ["review_owner", "approval_phrase"]
+    assert resources["command_parameters"]["shared_read_fact"]["key"] == [
+        "review_owner",
+        "approval_phrase",
+    ]
+
+
+def test_office_shared_fact_recovery_v2_perfect_policy_succeeds(
+    artifact_output_dir: str,
+) -> None:
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery_v2",
+        trial_id="office_v2_success",
+        trial_output_dir=f"{artifact_output_dir}/office_v2_success",
+        project_root=PROJECT_ROOT,
+    )
+    summary = runtime.run()
+
+    assert summary["status"] == "succeeded"
+    assert runtime.shared_environment.facts == {
+        "review_owner": "Morgan Lee",
+        "approval_phrase": "Approved for internal release.",
+    }
+    verifier_progress = runtime.states["verification_agent"].memory[
+        "task_progress"
+    ]
+    assert {
+        "missing_input_observed",
+        "recovery_completed",
+        "review_owner_read",
+        "approval_phrase_read",
+        "approval_phrase_validated",
+    }.issubset(set(verifier_progress["completed_requirements"]))
+    assert runtime.states["verification_agent"].actions_failed == 1
+    assert runtime.states["verification_agent"].recovered_failures == 1
+    assert runtime.states["verification_agent"].non_progress_failure_streak == 0
+    assert not any(
+        event.observation.error_code == "post_completion_drift"
+        for event in runtime.group_history
+    )
+
+
+def test_office_shared_fact_recovery_v2_negative_paths(
+    artifact_output_dir: str,
+) -> None:
+    finish = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery_v2",
+        trial_id="office_v2_finish",
+        trial_output_dir=f"{artifact_output_dir}/office_v2_finish",
+        project_root=PROJECT_ROOT,
+        policy_variant="finish_before_recovery",
+    )
+    finish.step()
+    result = finish.step()
+    assert result.observation.error_code == "completion_requirements_unmet"
+
+    retry = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery_v2",
+        trial_id="office_v2_retry",
+        trial_output_dir=f"{artifact_output_dir}/office_v2_retry",
+        project_root=PROJECT_ROOT,
+        policy_variant="unchanged_missing_retry",
+    )
+    _step_until_agent_history(retry, "verification_agent", 3, max_steps=8)
+    progress = retry.states["verification_agent"].memory["task_progress"]
+    assert "recovery_completed" not in progress["completed_requirements"]
+
+    undeclared = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery_v2",
+        trial_id="office_v2_undeclared",
+        trial_output_dir=f"{artifact_output_dir}/office_v2_undeclared",
+        project_root=PROJECT_ROOT,
+        policy_variant="undeclared_shared_key",
+    )
+    undeclared.step()
+    result = undeclared.step()
+    assert result.observation.error_code == "fact_key_not_allowed"
+
+    one_fact = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery_v2",
+        trial_id="office_v2_one_fact",
+        trial_output_dir=f"{artifact_output_dir}/office_v2_one_fact",
+        project_root=PROJECT_ROOT,
+        policy_variant="one_fact_only",
+    )
+    for _ in range(12):
+        one_fact.step()
+    finish_event = next(
+        event
+        for event in one_fact.states["verification_agent"].history
+        if event.action is not None and event.action.tool_name == "finish"
+    )
+    assert finish_event.observation.error_code == "completion_requirements_unmet"
+    assert "approval_phrase_read" in finish_event.observation.metadata[
+        "unmet_requirement_ids"
+    ]
+
+    wrong_phrase = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery_v2",
+        trial_id="office_v2_wrong_phrase",
+        trial_output_dir=f"{artifact_output_dir}/office_v2_wrong_phrase",
+        project_root=PROJECT_ROOT,
+        policy_variant="wrong_approval_phrase",
+    )
+    _step_until_agent_history(wrong_phrase, "verification_agent", 5, max_steps=12)
+    assert wrong_phrase.states["verification_agent"].history[
+        -1
+    ].observation.error_code == "exact_value_mismatch"
 
 
 def test_article_contract_advertises_exact_url_without_fixture_values() -> None:

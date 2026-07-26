@@ -43,11 +43,14 @@ TRIAL_SUMMARY_SCHEMA_VERSION = "canonical_multi_agent_long_horizon_trial_summary
 TRACE_SCHEMA_VERSION = "canonical_multi_agent_group_trace_event_v1"
 SUPPORTED_SCENARIOS = (
     "article_file_handoff",
+    "article_file_handoff_v2",
     "office_shared_fact_recovery",
+    "office_shared_fact_recovery_v2",
     "role_boundary_exact_handoff",
     "malformed_action_recovery",
     "bounded_repetition_and_role_guard",
-    "conflicting_grounded_facts",    "dependency_progress_and_finish_guard",
+    "conflicting_grounded_facts",
+    "dependency_progress_and_finish_guard",
     "long_horizon_multi_fact_retention",
 )
 LOCAL_MODEL_HOSTS = {"127.0.0.1", "localhost"}
@@ -59,6 +62,18 @@ OFFICE_RECORD = {
     "status": "approved",
     "policy_anchor": "fixture-backed workspace policy",
 }
+OFFICE_RECOVERY_V2_RECORD = {
+    "owner": "Morgan Lee",
+    "approval_phrase": "Approved for internal release.",
+}
+ARTICLE_V2_PROJECT_CODE = "AR-204"
+ARTICLE_V2_OWNER_VALUE = "The assigned owner is office worker."
+ARTICLE_V2_NOTE_CONTENT = (
+    "Owner evidence: The assigned owner is office worker.\n"
+    "Status: approved\n"
+    "Project code: AR-204\n"
+)
+OFFICE_RECOVERY_V2_NOTE_CONTENT = "Recovered missing input for approval review.\n"
 DEFAULT_METRICS = (
     "turns",
     "model_calls",
@@ -701,6 +716,395 @@ def _scenario_profiles(
         "one action per turn",
         "do not repeat failed actions unchanged",
     )
+    if scenario_id == "article_file_handoff_v2":
+        note_path = (PurePosixPath(trial_output_dir) / "research_note.txt").as_posix()
+        return (
+            AgentProfile(
+                agent_id="research_agent",
+                role="V2 article evidence reader and handoff author",
+                goal=(
+                    "Open the exact fixture article, read it, extract Ownership and "
+                    "Status, write research_note.txt with grounded owner/status/"
+                    "project-code evidence, publish review_owner exactly from the "
+                    "Ownership evidence, then finish."
+                ),
+                allowed_tools=(
+                    "browser_article_open",
+                    "browser_article_read",
+                    "browser_article_extract",
+                    "create_file",
+                    "shared_publish_fact",
+                    "finish",
+                ),
+                resource_constraints=common_constraints,
+                behavior_constraints=(
+                    "Do not publish the abbreviated owner value office worker.",
+                    "Do not use the historical owner distractor.",
+                ),
+                completion_requirements=(
+                    {
+                        "id": "article_opened",
+                        "kind": "tool_succeeded",
+                        "tool_name": "browser_article_open",
+                        "parameters": {"url": ARTICLE_URL},
+                    },
+                    {
+                        "id": "article_read",
+                        "kind": "tool_succeeded",
+                        "tool_name": "browser_article_read",
+                    },
+                    {
+                        "id": "ownership_extracted",
+                        "kind": "tool_succeeded",
+                        "tool_name": "browser_article_extract",
+                        "parameters": {"heading": "Ownership"},
+                    },
+                    {
+                        "id": "status_extracted",
+                        "kind": "tool_succeeded",
+                        "tool_name": "browser_article_extract",
+                        "parameters": {"heading": "Status"},
+                    },
+                    {
+                        "id": "research_note_written",
+                        "kind": "file_written",
+                        "path": note_path,
+                        "resource_id": "research_note_txt",
+                        "related_resource_ids": ["research_note_txt"],
+                    },
+                    {
+                        "id": "review_owner_published",
+                        "kind": "fact_published_grounded",
+                        "key": "review_owner",
+                        "expected_value": ARTICLE_V2_OWNER_VALUE,
+                        "description": (
+                            "Publish review_owner exactly from the Ownership "
+                            "article extraction."
+                        ),
+                        "evidence_type": "grounded_shared_fact",
+                    },
+                ),
+                resource_affordances={
+                    "article_urls": [ARTICLE_URL],
+                    "article_title_hints": [
+                        "Overview",
+                        "Ownership",
+                        "Status",
+                        "Project",
+                    ],
+                    "recommended_start_url": ARTICLE_URL,
+                    "allowed_file_roots": [trial_output_dir],
+                    "paths": [
+                        {
+                            "path": note_path,
+                            "access": "write",
+                            "resource_id": "research_note_txt",
+                            "purpose": "required v2 research handoff note",
+                        }
+                    ],
+                    "available_commands": [
+                        "browser_article_open",
+                        "browser_article_read",
+                        "browser_article_extract",
+                        "create_file",
+                        "shared_publish_fact",
+                    ],
+                    "command_parameters": {
+                        "browser_article_open": {"url": [ARTICLE_URL]},
+                        "browser_article_extract": {
+                            "heading": ["Ownership", "Status"],
+                        },
+                        "create_file": {"path": [note_path]},
+                        "shared_publish_fact": {"key": ["review_owner"]},
+                    },
+                    "expected_shared_fact_keys": ["review_owner"],
+                    "recommended_actions": [
+                        {
+                            "requirement_id": "article_opened",
+                            "action_name": "browser_article_open",
+                            "parameters": {"url": ARTICLE_URL},
+                        },
+                        {
+                            "requirement_id": "ownership_extracted",
+                            "action_name": "browser_article_extract",
+                            "parameters": {"heading": "Ownership"},
+                        },
+                        {
+                            "requirement_id": "status_extracted",
+                            "action_name": "browser_article_extract",
+                            "parameters": {"heading": "Status"},
+                        },
+                        {
+                            "requirement_id": "research_note_written",
+                            "action_name": "create_file",
+                            "parameters": {"path": note_path},
+                        },
+                    ],
+                },
+            ),
+            AgentProfile(
+                agent_id="operator_agent",
+                role="V2 article handoff verifier",
+                goal=(
+                    "Wait for declared dependencies as needed, read the exact "
+                    "research_note.txt handoff and review_owner shared fact, then "
+                    "finish only after both are complete."
+                ),
+                allowed_tools=(
+                    "read_file",
+                    "shared_read_fact",
+                    "wait_for_dependency",
+                    "finish",
+                ),
+                resource_constraints=common_constraints,
+                dependencies=(
+                    {
+                        "dependency_id": "research_note",
+                        "kind": "file",
+                        "path": note_path,
+                        "producer_agent": "research_agent",
+                    },
+                    {
+                        "dependency_id": "review_owner",
+                        "kind": "shared_fact",
+                        "key": "review_owner",
+                        "producer_agent": "research_agent",
+                    },
+                ),
+                completion_requirements=(
+                    {
+                        "id": "research_note_read",
+                        "kind": "tool_succeeded",
+                        "tool_name": "read_file",
+                        "required_action": "read_file",
+                        "resource_id": "research_note_txt",
+                        "parameters": {"path": note_path},
+                        "related_resource_ids": ["research_note_txt"],
+                    },
+                    {
+                        "id": "review_owner_read",
+                        "kind": "fact_read",
+                        "key": "review_owner",
+                    },
+                ),
+                resource_affordances={
+                    "allowed_file_roots": [trial_output_dir],
+                    "paths": [
+                        {
+                            "path": note_path,
+                            "access": "read",
+                            "resource_id": "research_note_txt",
+                            "purpose": "required v2 research handoff note",
+                        }
+                    ],
+                    "available_commands": [
+                        "wait_for_dependency",
+                        "read_file",
+                        "shared_read_fact",
+                    ],
+                    "command_parameters": {
+                        "wait_for_dependency": {
+                            "dependency_id": [
+                                "research_note",
+                                "review_owner",
+                            ],
+                        },
+                        "read_file": {"path": [note_path]},
+                        "shared_read_fact": {"key": ["review_owner"]},
+                    },
+                    "expected_shared_fact_keys": ["review_owner"],
+                },
+            ),
+        )
+    if scenario_id == "office_shared_fact_recovery_v2":
+        missing_path = (PurePosixPath(trial_output_dir) / "missing_input.txt").as_posix()
+        recovery_path = (PurePosixPath(trial_output_dir) / "recovery_note.txt").as_posix()
+        return (
+            AgentProfile(
+                agent_id="document_agent",
+                role="V2 office shared-fact publisher",
+                goal=(
+                    "Read owner and approval phrase from the office fixture, "
+                    "publish review_owner and approval_phrase with grounded "
+                    "evidence, then finish."
+                ),
+                allowed_tools=(
+                    "office_fixture_read",
+                    "shared_publish_fact",
+                    "finish",
+                ),
+                resource_constraints=common_constraints,
+                completion_requirements=(
+                    {
+                        "id": "review_owner_published",
+                        "kind": "fact_published_grounded",
+                        "key": "review_owner",
+                        "expected_value": "Morgan Lee",
+                        "evidence_type": "grounded_shared_fact",
+                    },
+                    {
+                        "id": "approval_phrase_published",
+                        "kind": "fact_published_grounded",
+                        "key": "approval_phrase",
+                        "expected_value": "Approved for internal release.",
+                        "evidence_type": "grounded_shared_fact",
+                    },
+                ),
+                resource_affordances={
+                    "office_fixture_fields": ["owner", "approval_phrase"],
+                    "available_commands": [
+                        "office_fixture_read",
+                        "shared_publish_fact",
+                    ],
+                    "command_parameters": {
+                        "office_fixture_read": {
+                            "field": ["owner", "approval_phrase"],
+                        },
+                        "shared_publish_fact": {
+                            "key": ["review_owner", "approval_phrase"],
+                        },
+                    },
+                    "expected_shared_fact_keys": [
+                        "review_owner",
+                        "approval_phrase",
+                    ],
+                },
+            ),
+            AgentProfile(
+                agent_id="verification_agent",
+                role="V2 recovery and shared-fact verifier",
+                goal=(
+                    "Attempt missing_input.txt, recover with the advertised "
+                    "recovery note, wait for and read review_owner and "
+                    "approval_phrase, validate the exact approval phrase, then "
+                    "finish."
+                ),
+                allowed_tools=(
+                    "read_file",
+                    "create_file",
+                    "shared_read_fact",
+                    "validate_exact_value",
+                    "wait_for_dependency",
+                    "finish",
+                ),
+                resource_constraints=common_constraints,
+                dependencies=(
+                    {
+                        "dependency_id": "review_owner",
+                        "kind": "shared_fact",
+                        "key": "review_owner",
+                        "producer_agent": "document_agent",
+                    },
+                    {
+                        "dependency_id": "approval_phrase",
+                        "kind": "shared_fact",
+                        "key": "approval_phrase",
+                        "producer_agent": "document_agent",
+                    },
+                ),
+                completion_requirements=(
+                    {
+                        "id": "missing_input_observed",
+                        "kind": "error_observed",
+                        "error_code": "file_not_found",
+                        "related_resource_ids": ["missing_input"],
+                    },
+                    {
+                        "id": "recovery_completed",
+                        "kind": "error_recovery_completed",
+                        "required_action": "create_file",
+                        "source_error_code": "file_not_found",
+                        "source_action_name": "read_file",
+                        "recovery_tool_name": "create_file",
+                        "parameters": {
+                            "path": recovery_path,
+                            "content": OFFICE_RECOVERY_V2_NOTE_CONTENT,
+                        },
+                        "related_resource_ids": [
+                            "missing_input",
+                            "recovery_note",
+                        ],
+                        "evidence_type": "successful_recovery_action",
+                    },
+                    {
+                        "id": "review_owner_read",
+                        "kind": "fact_read",
+                        "key": "review_owner",
+                    },
+                    {
+                        "id": "approval_phrase_read",
+                        "kind": "fact_read",
+                        "key": "approval_phrase",
+                    },
+                    {
+                        "id": "approval_phrase_validated",
+                        "kind": "tool_succeeded",
+                        "tool_name": "validate_exact_value",
+                        "parameters": {
+                            "key": "approval_phrase",
+                            "expected": "Approved for internal release.",
+                        },
+                    },
+                ),
+                resource_affordances={
+                    "allowed_file_roots": [trial_output_dir],
+                    "paths": [
+                        {
+                            "resource_id": "missing_input",
+                            "path": missing_path,
+                            "access": "read",
+                            "purpose": "required v2 missing-file trigger",
+                        },
+                        {
+                            "resource_id": "recovery_note",
+                            "path": recovery_path,
+                            "access": "write",
+                            "purpose": "required v2 recovery note",
+                        },
+                    ],
+                    "available_commands": [
+                        "wait_for_dependency",
+                        "read_file",
+                        "create_file",
+                        "shared_read_fact",
+                        "validate_exact_value",
+                    ],
+                    "command_parameters": {
+                        "wait_for_dependency": {
+                            "dependency_id": [
+                                "review_owner",
+                                "approval_phrase",
+                            ],
+                        },
+                        "read_file": {"path": [missing_path]},
+                        "create_file": {"path": [recovery_path]},
+                        "shared_read_fact": {
+                            "key": ["review_owner", "approval_phrase"],
+                        },
+                        "validate_exact_value": {
+                            "key": ["approval_phrase"],
+                            "expected": [
+                                "Approved for internal release.",
+                            ],
+                        },
+                    },
+                    "expected_shared_fact_keys": [
+                        "review_owner",
+                        "approval_phrase",
+                    ],
+                    "recommended_actions": [
+                        {
+                            "requirement_id": "approval_phrase_validated",
+                            "action_name": "validate_exact_value",
+                            "parameters": {
+                                "key": "approval_phrase",
+                                "expected": "Approved for internal release.",
+                            },
+                        }
+                    ],
+                },
+            ),
+        )
     if scenario_id == "article_file_handoff":
         note_path = (PurePosixPath(trial_output_dir) / "research_note.txt").as_posix()
         return (
@@ -2063,6 +2467,207 @@ def _scenario_fake_policies(
     policy_variant: str,
 ) -> dict[str, ModelPolicy]:
     note_path = (PurePosixPath(trial_output_dir) / "research_note.txt").as_posix()
+    if scenario_id == "article_file_handoff_v2":
+        research_steps = (
+            Action("browser_article_open", {"url": ARTICLE_URL}),
+            Action("browser_article_read"),
+            Action("browser_article_extract", {"heading": "Ownership"}),
+            Action("browser_article_extract", {"heading": "Status"}),
+            Action(
+                "create_file",
+                {
+                    "path": note_path,
+                    "content": ARTICLE_V2_NOTE_CONTENT,
+                },
+            ),
+            Action(
+                "shared_publish_fact",
+                {
+                    "key": "review_owner",
+                    "value": ARTICLE_V2_OWNER_VALUE,
+                    "evidence_id": "ev_research_agent_2_Ownership",
+                },
+            ),
+            Action("finish"),
+        )
+        if policy_variant == "abbreviated_publication":
+            research_steps = (
+                Action("browser_article_open", {"url": ARTICLE_URL}),
+                Action("browser_article_read"),
+                Action("browser_article_extract", {"heading": "Ownership"}),
+                Action(
+                    "shared_publish_fact",
+                    {
+                        "key": "review_owner",
+                        "value": "office worker",
+                        "evidence_id": "ev_research_agent_2_Ownership",
+                    },
+                ),
+            )
+        elif policy_variant == "historical_owner_substitution":
+            research_steps = (
+                Action("browser_article_open", {"url": ARTICLE_URL}),
+                Action("browser_article_read"),
+                Action("browser_article_extract", {"heading": "Ownership"}),
+                Action(
+                    "shared_publish_fact",
+                    {
+                        "key": "review_owner",
+                        "value": "historical owner",
+                        "evidence_id": "ev_research_agent_2_Ownership",
+                    },
+                ),
+            )
+        elif policy_variant == "premature_operator_finish":
+            return {
+                "research_agent": PerfectFakePolicy(research_steps),
+                "operator_agent": PerfectFakePolicy((Action("finish"),)),
+            }
+        elif policy_variant == "unrelated_file_read":
+            return {
+                "research_agent": PerfectFakePolicy(research_steps),
+                "operator_agent": PerfectFakePolicy(
+                    (
+                        Action(
+                            "read_file",
+                            {
+                                "path": (
+                                    "tests/fixtures/canonical_multi_agent/"
+                                    "recovery_note.txt"
+                                )
+                            },
+                        ),
+                        Action("shared_read_fact", {"key": "review_owner"}),
+                        Action("finish"),
+                    )
+                ),
+            }
+        elif policy_variant != "perfect":
+            raise ValueError(
+                f"Unsupported policy variant for article_file_handoff_v2: {policy_variant}"
+            )
+        return {
+            "research_agent": PerfectFakePolicy(research_steps),
+            "operator_agent": PerfectFakePolicy(
+                (
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "research_note"},
+                    ),
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "research_note"},
+                    ),
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "research_note"},
+                    ),
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "research_note"},
+                    ),
+                    Action("read_file", {"path": note_path}),
+                    Action("shared_read_fact", {"key": "review_owner"}),
+                    Action("finish"),
+                )
+            ),
+        }
+    if scenario_id == "office_shared_fact_recovery_v2":
+        missing_path = (PurePosixPath(trial_output_dir) / "missing_input.txt").as_posix()
+        recovery_path = (PurePosixPath(trial_output_dir) / "recovery_note.txt").as_posix()
+        document_steps = (
+            Action("office_fixture_read", {"field": "owner"}),
+            Action(
+                "shared_publish_fact",
+                {
+                    "key": "review_owner",
+                    "value": "Morgan Lee",
+                    "evidence_id": "ev_document_agent_0_owner",
+                },
+            ),
+            Action("office_fixture_read", {"field": "approval_phrase"}),
+            Action(
+                "shared_publish_fact",
+                {
+                    "key": "approval_phrase",
+                    "value": "Approved for internal release.",
+                    "evidence_id": "ev_document_agent_2_approval_phrase",
+                },
+            ),
+            Action("finish"),
+        )
+        verifier_steps = (
+            Action("read_file", {"path": missing_path}),
+            Action(
+                "create_file",
+                {
+                    "path": recovery_path,
+                    "content": OFFICE_RECOVERY_V2_NOTE_CONTENT,
+                },
+            ),
+            Action("shared_read_fact", {"key": "review_owner"}),
+            Action("shared_read_fact", {"key": "approval_phrase"}),
+            Action(
+                "validate_exact_value",
+                {
+                    "key": "approval_phrase",
+                    "expected": "Approved for internal release.",
+                },
+            ),
+            Action("finish"),
+        )
+        if policy_variant == "finish_before_recovery":
+            verifier_steps = (Action("finish"),)
+        elif policy_variant == "unchanged_missing_retry":
+            verifier_steps = (
+                Action("read_file", {"path": missing_path}),
+                Action("read_file", {"path": missing_path}),
+                Action("finish"),
+            )
+        elif policy_variant == "undeclared_shared_key":
+            verifier_steps = (Action("shared_read_fact", {"key": "review_status"}),)
+        elif policy_variant == "one_fact_only":
+            verifier_steps = (
+                Action("read_file", {"path": missing_path}),
+                Action(
+                    "create_file",
+                    {
+                        "path": recovery_path,
+                        "content": OFFICE_RECOVERY_V2_NOTE_CONTENT,
+                    },
+                ),
+                Action("shared_read_fact", {"key": "review_owner"}),
+                Action("finish"),
+            )
+        elif policy_variant == "wrong_approval_phrase":
+            verifier_steps = (
+                Action("read_file", {"path": missing_path}),
+                Action(
+                    "create_file",
+                    {
+                        "path": recovery_path,
+                        "content": OFFICE_RECOVERY_V2_NOTE_CONTENT,
+                    },
+                ),
+                Action("shared_read_fact", {"key": "review_owner"}),
+                Action("shared_read_fact", {"key": "approval_phrase"}),
+                Action(
+                    "validate_exact_value",
+                    {
+                        "key": "approval_phrase",
+                        "expected": "Approved",
+                    },
+                ),
+            )
+        elif policy_variant != "perfect":
+            raise ValueError(
+                "Unsupported policy variant for "
+                f"office_shared_fact_recovery_v2: {policy_variant}"
+            )
+        return {
+            "document_agent": PerfectFakePolicy(document_steps),
+            "verification_agent": PerfectFakePolicy(verifier_steps),
+        }
     if scenario_id == "long_horizon_multi_fact_retention":
         research_path = (
             PurePosixPath(trial_output_dir) / "research_handoff.txt"
@@ -3164,6 +3769,48 @@ def _configure_environment_contract(
                 "overwrite_policy": "last_write_wins",
             }
         }
+    elif scenario_id == "article_file_handoff_v2":
+        environment.fact_contracts = {
+            "review_owner": {
+                "producer_agent": "research_agent",
+                "consumers": ("operator_agent",),
+                "grounding_required": True,
+                "required_source_tool": "browser_article_extract",
+                "required_source_field": "Ownership",
+                "normalization_policy": "trimmed_text",
+                "overwrite_policy": "last_write_wins",
+                "expected_value": ARTICLE_V2_OWNER_VALUE,
+            }
+        }
+        environment.known_files.add(
+            "tests/fixtures/canonical_multi_agent/recovery_note.txt"
+        )
+    elif scenario_id == "office_shared_fact_recovery_v2":
+        environment.retention_contract["office_record"] = dict(
+            OFFICE_RECOVERY_V2_RECORD
+        )
+        environment.fact_contracts = {
+            "review_owner": {
+                "producer_agent": "document_agent",
+                "consumers": ("verification_agent",),
+                "grounding_required": True,
+                "required_source_tool": "office_fixture_read",
+                "required_source_field": "owner",
+                "normalization_policy": "trimmed_text",
+                "overwrite_policy": "last_write_wins",
+                "expected_value": "Morgan Lee",
+            },
+            "approval_phrase": {
+                "producer_agent": "document_agent",
+                "consumers": ("verification_agent",),
+                "grounding_required": True,
+                "required_source_tool": "office_fixture_read",
+                "required_source_field": "approval_phrase",
+                "normalization_policy": "trimmed_text",
+                "overwrite_policy": "last_write_wins",
+                "expected_value": "Approved for internal release.",
+            },
+        }
     elif scenario_id == "article_file_handoff":
         environment.fact_contracts = {
             "review_owner": {
@@ -3637,10 +4284,16 @@ def _office_fixture_read(
     action: Action,
     context: ToolExecutionContext,
 ) -> ToolResult:
+    office_record = context.shared_environment.retention_contract.get(
+        "office_record",
+        OFFICE_RECORD,
+    )
+    if not isinstance(office_record, Mapping):
+        office_record = OFFICE_RECORD
     field_name = action.parameters.get("field")
     if field_name == "all":
-        return ToolResult(success=True, output=dict(OFFICE_RECORD))
-    if not isinstance(field_name, str) or field_name not in OFFICE_RECORD:
+        return ToolResult(success=True, output=dict(office_record))
+    if not isinstance(field_name, str) or field_name not in office_record:
         return ToolResult(
             success=False,
             error_code="office_fixture_field_not_found",
@@ -3648,7 +4301,7 @@ def _office_fixture_read(
         )
     return ToolResult(
         success=True,
-        output={"field": field_name, "value": OFFICE_RECORD[field_name]},
+        output={"field": field_name, "value": office_record[field_name]},
     )
 
 
@@ -3701,6 +4354,14 @@ def _article_catalog() -> dict[str, tuple[dict[str, str], ...]]:
             {
                 "heading": "Status",
                 "text": "Version v3.2 is approved under the workspace policy.",
+            },
+            {
+                "heading": "Project",
+                "text": "Project code AR-204 is in the approved packet.",
+            },
+            {
+                "heading": "History",
+                "text": "Historical owner records are distractors for this task.",
             },
         )
     }

@@ -2773,6 +2773,13 @@ def _read_fact(action: Action, context: ToolExecutionContext) -> ToolResult:
             error_message="key must be a string.",
         )
     contract = context.shared_environment.fact_contracts.get(key)
+    if context.shared_environment.fact_contracts and contract is None:
+        return ToolResult(
+            False,
+            error_code="fact_key_not_allowed",
+            error_message="Fact key is not declared in the scenario contract.",
+            metadata={"key": key},
+        )
     if contract and context.agent_state.agent_id not in contract.get("consumers", ()) and context.agent_state.agent_id != contract.get("producer_agent"):
         return ToolResult(False, error_code="shared_fact_not_readable", error_message="This agent cannot read the declared fact.")
     try:
