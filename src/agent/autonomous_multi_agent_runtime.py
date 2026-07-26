@@ -1905,6 +1905,22 @@ class AutonomousMultiAgentRuntime:
             contract["resource_states"] = states
             if len(states) == 1:
                 contract["resource_state"] = states[0]
+        if requirement.get("kind") == "file_written_from_observations":
+            status = self._file_observation_content_status(state, requirement)
+            contract["required_observations"] = _sanitize_value(
+                requirement.get("required_observations", [])
+            )
+            contract["required_source_fields"] = [
+                item.get("field")
+                for item in contract["required_observations"]
+                if isinstance(item, Mapping)
+            ]
+            contract["missing_observation_fields"] = status[
+                "missing_observation_fields"
+            ]
+            contract["missing_content_fields"] = status[
+                "missing_content_fields"
+            ]
         return contract
 
     def _last_requirement_progress_index(
@@ -1961,6 +1977,12 @@ class AutonomousMultiAgentRuntime:
             return bool(event.action and event.action.tool_name == requirement.get("tool_name") and event.observation.success and all(event.action.parameters.get(key) == value for key, value in dict(requirement.get("parameters", {})).items()))
         if kind == "file_written":
             return bool(event.action and event.action.tool_name in {"create_file", "append_file"} and event.observation.success and event.action.parameters.get("path") == requirement.get("path"))
+        if kind == "file_written_from_observations":
+            return self._event_satisfies_observation_backed_file(
+                state,
+                requirement,
+                index,
+            )
         if kind == "fact_published":
             if not (event.action and event.action.tool_name == "shared_publish_fact" and event.observation.success and event.action.parameters.get("key") == requirement.get("key")):
                 return False
@@ -1992,6 +2014,93 @@ class AutonomousMultiAgentRuntime:
         if kind == "recovery_completed":
             return self._event_satisfies_required_recovery(state, requirement, index)
         return False
+
+    def _event_satisfies_observation_backed_file(
+        self,
+        state: AgentState,
+        requirement: Mapping[str, Any],
+        index: int,
+    ) -> bool:
+        event = state.history[index]
+        if (
+            event.action is None
+            or event.action.tool_name not in {"create_file", "append_file"}
+            or not event.observation.success
+            or event.action.parameters.get("path") != requirement.get("path")
+        ):
+            return False
+        return self._file_observation_content_status(
+            state,
+            requirement,
+            event=event,
+        )["satisfied"]
+
+    def _file_observation_content_status(
+        self,
+        state: AgentState,
+        requirement: Mapping[str, Any],
+        *,
+        event: HistoryEvent | None = None,
+    ) -> dict[str, Any]:
+        required = requirement.get("required_observations", [])
+        if not isinstance(required, Sequence) or isinstance(required, (str, bytes)):
+            required = []
+        if event is None:
+            for index in range(len(state.history) - 1, -1, -1):
+                candidate = state.history[index]
+                if (
+                    candidate.action is not None
+                    and candidate.action.tool_name in {"create_file", "append_file"}
+                    and candidate.observation.success
+                    and candidate.action.parameters.get("path") == requirement.get("path")
+                ):
+                    event = candidate
+                    break
+        content = ""
+        if event is not None and event.action is not None:
+            raw_content = event.action.parameters.get("content")
+            if isinstance(raw_content, str):
+                content = _normalize_fact_value(raw_content, "trimmed_text")
+        missing_observation_fields: list[str] = []
+        missing_content_fields: list[str] = []
+        for item in required:
+            if not isinstance(item, Mapping):
+                continue
+            tool_name = item.get("tool_name")
+            field = item.get("field")
+            if not isinstance(tool_name, str) or not isinstance(field, str):
+                continue
+            evidence = next(
+                (
+                    evidence_item
+                    for evidence_item in state.memory.get("observed_evidence", [])
+                    if isinstance(evidence_item, Mapping)
+                    and evidence_item.get("agent_id") == state.agent_id
+                    and evidence_item.get("source_tool") == tool_name
+                    and evidence_item.get("source_field") == field
+                ),
+                None,
+            )
+            if evidence is None:
+                missing_observation_fields.append(field)
+                continue
+            observed = _normalize_fact_value(
+                evidence.get("normalized_value")
+                if evidence.get("normalized_value") is not None
+                else evidence.get("observed_value"),
+                "trimmed_text",
+            )
+            if observed not in content:
+                missing_content_fields.append(field)
+        return {
+            "satisfied": (
+                event is not None
+                and not missing_observation_fields
+                and not missing_content_fields
+            ),
+            "missing_observation_fields": missing_observation_fields,
+            "missing_content_fields": missing_content_fields,
+        }
 
     def _event_satisfies_source_conflict(
         self,

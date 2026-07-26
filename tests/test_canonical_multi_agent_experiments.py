@@ -26,6 +26,7 @@ from src.agent.autonomous_multi_agent_runtime import (
     ToolSpec,
 )
 from src.agent.canonical_multi_agent_experiments import (
+    ARTICLE_URL,
     CONFIG_SCHEMA_VERSION,
     EXPERIMENT_SUMMARY_SCHEMA_VERSION,
     SUPPORTED_SCENARIOS,
@@ -257,6 +258,20 @@ def test_article_file_handoff_v2_contract_and_affordances(
     assert contracts["article_opened"]["required_parameters"] == {
         "url": "https://fixture.local/articles/long-horizon"
     }
+    assert contracts["project_code_extracted"]["required_action"] == (
+        "browser_article_extract"
+    )
+    assert contracts["project_code_extracted"]["required_parameters"] == {
+        "heading": "Project Code"
+    }
+    assert contracts["research_note_written"]["evidence_type"] == (
+        "file_written_from_observations"
+    )
+    assert contracts["research_note_written"]["required_source_fields"] == [
+        "Ownership",
+        "Status",
+        "Project Code",
+    ]
     assert contracts["review_owner_published"]["fact_key"] == "review_owner"
     assert runtime.shared_environment.fact_contracts["review_owner"][
         "expected_value"
@@ -267,7 +282,16 @@ def test_article_file_handoff_v2_contract_and_affordances(
     ]
     assert resources["command_parameters"]["browser_article_extract"][
         "heading"
-    ] == ["Ownership", "Status"]
+    ] == ["Ownership", "Status", "Project Code"]
+    initial_prompt_memory = json.dumps(
+        {
+            "available_resources": research.memory["available_resources"],
+            "task_progress": research.memory["task_progress"],
+            "resource_affordances": research.profile.resource_affordances,
+        },
+        sort_keys=True,
+    )
+    assert "AR-204" not in initial_prompt_memory
     assert "office worker" not in json.dumps(resources)
     assert operator.profile.dependencies == (
         {
@@ -303,8 +327,28 @@ def test_article_file_handoff_v2_perfect_policy_succeeds(
     assert runtime.shared_environment.facts["review_owner"] == (
         "The assigned owner is office worker."
     )
+    note_path = (
+        PROJECT_ROOT
+        / f"{artifact_output_dir}/article_v2_success/research_note.txt"
+    )
+    note = note_path.read_text(encoding="utf-8")
+    assert "owner: The assigned owner is office worker." in note
+    assert "status: Version v3.2 is approved under the workspace policy." in note
+    assert "project-code: AR-204" in note
+    operator_reads = [
+        event
+        for event in runtime.states["operator_agent"].history
+        if event.action is not None
+        and event.action.tool_name == "read_file"
+        and event.action.parameters.get("path", "").endswith("research_note.txt")
+        and event.observation.success
+    ]
+    assert operator_reads
     assert summary["per_agent"]["research_agent"]["status"] == "completed"
     assert summary["per_agent"]["operator_agent"]["status"] == "completed"
+    for state in runtime.states.values():
+        progress = state.memory["task_progress"]
+        assert not progress["unmet_requirements"]
     assert runtime.states["research_agent"].actions_failed == 0
     assert runtime.states["operator_agent"].actions_failed == 0
     assert not any(
@@ -367,6 +411,162 @@ def test_article_file_handoff_v2_negative_paths(
     operator_progress = unrelated.states["operator_agent"].memory["task_progress"]
     assert "research_note_read" not in operator_progress[
         "completed_requirements"
+    ]
+
+
+def test_article_file_handoff_v2_note_requires_observed_project_code(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/article_v2_missing_project"
+    note_path = f"{output_dir}/research_note.txt"
+    incomplete_note = (
+        "owner: The assigned owner is office worker.\n"
+        "status: Version v3.2 is approved under the workspace policy.\n"
+    )
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff_v2",
+        trial_id="article_v2_missing_project",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        policy_overrides={
+            "research_agent": PerfectFakePolicy(
+                (
+                    Action("browser_article_open", {"url": ARTICLE_URL}),
+                    Action("browser_article_read"),
+                    Action("browser_article_extract", {"heading": "Ownership"}),
+                    Action("browser_article_extract", {"heading": "Status"}),
+                    Action(
+                        "browser_article_extract",
+                        {"heading": "Project Code"},
+                    ),
+                    Action(
+                        "create_file",
+                        {"path": note_path, "content": incomplete_note},
+                    ),
+                    Action("finish"),
+                )
+            ),
+            "operator_agent": EarlyStopFakePolicy(),
+        },
+    )
+
+    _step_until_agent_history(runtime, "research_agent", 6, max_steps=12)
+    research = runtime.states["research_agent"]
+    progress = research.memory["task_progress"]
+
+    assert research.history[-1].action.tool_name == "create_file"
+    assert research.history[-1].observation.success is True
+    assert "research_note_written" not in progress["completed_requirements"]
+    result = _step_until_agent_history(runtime, "research_agent", 7, max_steps=12)
+    assert result.observation.error_code == "completion_requirements_unmet"
+    unmet = {
+        item["requirement_id"]: item
+        for item in result.observation.metadata["unmet_requirement_contracts"]
+    }
+    assert unmet["research_note_written"]["missing_content_fields"] == [
+        "Project Code"
+    ]
+
+
+def test_article_file_handoff_v2_rejects_substituted_project_code(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/article_v2_substituted_project"
+    note_path = f"{output_dir}/research_note.txt"
+    substituted_note = (
+        "owner: The assigned owner is office worker.\n"
+        "status: Version v3.2 is approved under the workspace policy.\n"
+        "project-code: long-horizon\n"
+    )
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff_v2",
+        trial_id="article_v2_substituted_project",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        policy_overrides={
+            "research_agent": PerfectFakePolicy(
+                (
+                    Action("browser_article_open", {"url": ARTICLE_URL}),
+                    Action("browser_article_read"),
+                    Action("browser_article_extract", {"heading": "Ownership"}),
+                    Action("browser_article_extract", {"heading": "Status"}),
+                    Action(
+                        "browser_article_extract",
+                        {"heading": "Project Code"},
+                    ),
+                    Action(
+                        "create_file",
+                        {"path": note_path, "content": substituted_note},
+                    ),
+                    Action("finish"),
+                )
+            ),
+            "operator_agent": EarlyStopFakePolicy(),
+        },
+    )
+
+    _step_until_agent_history(runtime, "research_agent", 7, max_steps=12)
+    finish_event = runtime.states["research_agent"].history[-1]
+    assert finish_event.observation.error_code == "completion_requirements_unmet"
+    unmet = {
+        item["requirement_id"]: item
+        for item in finish_event.observation.metadata[
+            "unmet_requirement_contracts"
+        ]
+    }
+    assert unmet["research_note_written"]["missing_content_fields"] == [
+        "Project Code"
+    ]
+
+
+def test_article_file_handoff_v2_rejects_note_from_wrong_observation(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/article_v2_wrong_observation"
+    note_path = f"{output_dir}/research_note.txt"
+    wrong_note = (
+        "owner: Historical owner records are distractors for this task.\n"
+        "status: Version v3.2 is approved under the workspace policy.\n"
+        "project-code: AR-204\n"
+    )
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="article_file_handoff_v2",
+        trial_id="article_v2_wrong_observation",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        policy_overrides={
+            "research_agent": PerfectFakePolicy(
+                (
+                    Action("browser_article_open", {"url": ARTICLE_URL}),
+                    Action("browser_article_read"),
+                    Action("browser_article_extract", {"heading": "History"}),
+                    Action("browser_article_extract", {"heading": "Status"}),
+                    Action(
+                        "browser_article_extract",
+                        {"heading": "Project Code"},
+                    ),
+                    Action(
+                        "create_file",
+                        {"path": note_path, "content": wrong_note},
+                    ),
+                    Action("finish"),
+                )
+            ),
+            "operator_agent": EarlyStopFakePolicy(),
+        },
+    )
+
+    _step_until_agent_history(runtime, "research_agent", 7, max_steps=12)
+    finish_event = runtime.states["research_agent"].history[-1]
+    assert finish_event.observation.error_code == "completion_requirements_unmet"
+    unmet = {
+        item["requirement_id"]: item
+        for item in finish_event.observation.metadata[
+            "unmet_requirement_contracts"
+        ]
+    }
+    assert unmet["research_note_written"]["missing_observation_fields"] == [
+        "Ownership"
     ]
 
 

@@ -69,9 +69,9 @@ OFFICE_RECOVERY_V2_RECORD = {
 ARTICLE_V2_PROJECT_CODE = "AR-204"
 ARTICLE_V2_OWNER_VALUE = "The assigned owner is office worker."
 ARTICLE_V2_NOTE_CONTENT = (
-    "Owner evidence: The assigned owner is office worker.\n"
-    "Status: approved\n"
-    "Project code: AR-204\n"
+    "owner: The assigned owner is office worker.\n"
+    "status: Version v3.2 is approved under the workspace policy.\n"
+    "project-code: AR-204\n"
 )
 OFFICE_RECOVERY_V2_NOTE_CONTENT = "Recovered missing input for approval review.\n"
 DEFAULT_METRICS = (
@@ -724,9 +724,9 @@ def _scenario_profiles(
                 role="V2 article evidence reader and handoff author",
                 goal=(
                     "Open the exact fixture article, read it, extract Ownership and "
-                    "Status, write research_note.txt with grounded owner/status/"
-                    "project-code evidence, publish review_owner exactly from the "
-                    "Ownership evidence, then finish."
+                    "Status and Project Code, write research_note.txt with grounded "
+                    "owner/status/project-code evidence, publish review_owner "
+                    "exactly from the Ownership evidence, then finish."
                 ),
                 allowed_tools=(
                     "browser_article_open",
@@ -766,11 +766,31 @@ def _scenario_profiles(
                         "parameters": {"heading": "Status"},
                     },
                     {
+                        "id": "project_code_extracted",
+                        "kind": "tool_succeeded",
+                        "tool_name": "browser_article_extract",
+                        "parameters": {"heading": "Project Code"},
+                    },
+                    {
                         "id": "research_note_written",
-                        "kind": "file_written",
+                        "kind": "file_written_from_observations",
                         "path": note_path,
                         "resource_id": "research_note_txt",
                         "related_resource_ids": ["research_note_txt"],
+                        "required_observations": [
+                            {
+                                "tool_name": "browser_article_extract",
+                                "field": "Ownership",
+                            },
+                            {
+                                "tool_name": "browser_article_extract",
+                                "field": "Status",
+                            },
+                            {
+                                "tool_name": "browser_article_extract",
+                                "field": "Project Code",
+                            },
+                        ],
                     },
                     {
                         "id": "review_owner_published",
@@ -790,7 +810,7 @@ def _scenario_profiles(
                         "Overview",
                         "Ownership",
                         "Status",
-                        "Project",
+                        "Project Code",
                     ],
                     "recommended_start_url": ARTICLE_URL,
                     "allowed_file_roots": [trial_output_dir],
@@ -812,7 +832,11 @@ def _scenario_profiles(
                     "command_parameters": {
                         "browser_article_open": {"url": [ARTICLE_URL]},
                         "browser_article_extract": {
-                            "heading": ["Ownership", "Status"],
+                            "heading": [
+                                "Ownership",
+                                "Status",
+                                "Project Code",
+                            ],
                         },
                         "create_file": {"path": [note_path]},
                         "shared_publish_fact": {"key": ["review_owner"]},
@@ -833,6 +857,11 @@ def _scenario_profiles(
                             "requirement_id": "status_extracted",
                             "action_name": "browser_article_extract",
                             "parameters": {"heading": "Status"},
+                        },
+                        {
+                            "requirement_id": "project_code_extracted",
+                            "action_name": "browser_article_extract",
+                            "parameters": {"heading": "Project Code"},
                         },
                         {
                             "requirement_id": "research_note_written",
@@ -2473,6 +2502,7 @@ def _scenario_fake_policies(
             Action("browser_article_read"),
             Action("browser_article_extract", {"heading": "Ownership"}),
             Action("browser_article_extract", {"heading": "Status"}),
+            Action("browser_article_extract", {"heading": "Project Code"}),
             Action(
                 "create_file",
                 {
@@ -2492,9 +2522,9 @@ def _scenario_fake_policies(
         )
         if policy_variant == "abbreviated_publication":
             research_steps = (
-                Action("browser_article_open", {"url": ARTICLE_URL}),
-                Action("browser_article_read"),
-                Action("browser_article_extract", {"heading": "Ownership"}),
+            Action("browser_article_open", {"url": ARTICLE_URL}),
+            Action("browser_article_read"),
+            Action("browser_article_extract", {"heading": "Ownership"}),
                 Action(
                     "shared_publish_fact",
                     {
@@ -2506,9 +2536,9 @@ def _scenario_fake_policies(
             )
         elif policy_variant == "historical_owner_substitution":
             research_steps = (
-                Action("browser_article_open", {"url": ARTICLE_URL}),
-                Action("browser_article_read"),
-                Action("browser_article_extract", {"heading": "Ownership"}),
+            Action("browser_article_open", {"url": ARTICLE_URL}),
+            Action("browser_article_read"),
+            Action("browser_article_extract", {"heading": "Ownership"}),
                 Action(
                     "shared_publish_fact",
                     {
@@ -2550,6 +2580,10 @@ def _scenario_fake_policies(
             "research_agent": PerfectFakePolicy(research_steps),
             "operator_agent": PerfectFakePolicy(
                 (
+                    Action(
+                        "wait_for_dependency",
+                        {"dependency_id": "research_note"},
+                    ),
                     Action(
                         "wait_for_dependency",
                         {"dependency_id": "research_note"},
@@ -4356,8 +4390,8 @@ def _article_catalog() -> dict[str, tuple[dict[str, str], ...]]:
                 "text": "Version v3.2 is approved under the workspace policy.",
             },
             {
-                "heading": "Project",
-                "text": "Project code AR-204 is in the approved packet.",
+                "heading": "Project Code",
+                "text": "AR-204",
             },
             {
                 "heading": "History",
