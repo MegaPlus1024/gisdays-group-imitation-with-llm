@@ -1,0 +1,48 @@
+{
+    "schema_version":  "canonical_multi_agent_long_horizon_config_v1",
+    "experiment_id":  "behavioral_benchmark_v2_qwen3_6_27b_q5_k_m_full_challenger",
+    "scenario_ids":  [
+                         "article_file_handoff_v2",
+                         "office_shared_fact_recovery_v2",
+                         "role_boundary_exact_handoff",
+                         "malformed_action_recovery",
+                         "conflicting_grounded_facts",
+                         "dependency_progress_and_finish_guard",
+                         "long_horizon_multi_fact_retention"
+                     ],
+    "trials_per_scenario":  5,
+    "max_turns_per_trial":  40,
+    "scheduler":  "round_robin",
+    "fixture_only":  false,
+    "model_execution":  true,
+    "model_profile":  {
+                          "model_id":  "qwen3_6_27b_q5_k_m",
+                          "base_url":  "http://127.0.0.1:8085/v1",
+                          "disable_thinking":  true,
+                          "no_think_prefix":  "/no_think",
+                          "response_max_tokens":  512,
+                          "temperature":  0.0,
+                          "timeout_seconds":  120.0
+                      },
+    "agents":  {
+                   "source":  "canonical_scenario_definitions",
+                   "minimum_agents":  2
+               },
+    "output_dir":  "artifacts/challenger_qwen3_6_27b_q5_k_m/full_cohort_35",
+    "metrics":  [
+                    "turns",
+                    "model_calls",
+                    "valid_actions",
+                    "invalid_actions",
+                    "successful_tools",
+                    "failed_tools",
+                    "recovery_successes",
+                    "repeated_actions",
+                    "role_violations",
+                    "scheduler_fairness"
+                ],
+    "failure_policy":  {
+                           "fail_fast":  false,
+                           "skip_existing":  false
+                       }
+}
