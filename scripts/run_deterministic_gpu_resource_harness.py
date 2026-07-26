@@ -5,7 +5,9 @@ import csv
 import hashlib
 import json
 import platform
+import re
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -145,6 +147,185 @@ def write_json(path: Path, payload: Any) -> None:
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def validate_model_file(
+    path: Path,
+    *,
+    expected_bytes: int | None = None,
+    expected_sha256: str | None = None,
+) -> dict[str, Any]:
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    actual_bytes = path.stat().st_size
+    normalized_expected_sha256: str | None = None
+    if expected_sha256 is not None:
+        normalized_expected_sha256 = expected_sha256.strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", normalized_expected_sha256):
+            raise ValueError("Expected SHA-256 must be 64 lowercase/uppercase hex characters")
+    actual_sha256 = sha256_file(path) if expected_sha256 else None
+    if expected_bytes is not None and actual_bytes != expected_bytes:
+        raise ValueError(
+            f"Model byte size mismatch: expected {expected_bytes}, got {actual_bytes}"
+        )
+    if normalized_expected_sha256 is not None:
+        if actual_sha256 != normalized_expected_sha256:
+            raise ValueError(
+                "Model SHA-256 mismatch: "
+                f"expected {normalized_expected_sha256}, got {actual_sha256}"
+            )
+    return {
+        "path": str(path),
+        "bytes": actual_bytes,
+        "sha256": actual_sha256,
+        "expected_bytes": expected_bytes,
+        "expected_sha256": normalized_expected_sha256,
+    }
+
+
+def port_is_free(host: str, port: int) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=0.5):
+            return False
+    except OSError:
+        return True
+
+
+def validate_local_host(host: str) -> str:
+    normalized = host.strip().lower()
+    if normalized not in {"127.0.0.1", "localhost"}:
+        raise ValueError("This harness only supports localhost/127.0.0.1 hosts")
+    return normalized
+
+
+def find_llama_server_processes() -> list[dict[str, Any]]:
+    try:
+        import psutil
+    except Exception:
+        return []
+    matches: list[dict[str, Any]] = []
+    for process in psutil.process_iter(["pid", "name", "cmdline"]):
+        try:
+            name = str(process.info.get("name") or "")
+            cmdline = [
+                str(part) for part in (process.info.get("cmdline") or [])
+            ]
+        except Exception:
+            continue
+        executable = Path(cmdline[0]).name if cmdline else ""
+        if "llama-server" in name.lower() or "llama-server" in executable.lower():
+            matches.append(
+                {
+                    "pid": process.info.get("pid"),
+                    "name": name,
+                    "cmdline": cmdline,
+                }
+            )
+    return matches
+
+
+def build_server_args(
+    *,
+    server_path: Path,
+    model_path: Path,
+    model_id: str,
+    host: str,
+    port: int,
+    ctx_size: int,
+    gpu_layers: str,
+    parallel: int,
+    jinja: bool = False,
+    reasoning: str | None = None,
+) -> list[str]:
+    server_args = [
+        str(server_path),
+        "--model",
+        str(model_path),
+        "--alias",
+        model_id,
+        "--host",
+        host,
+        "--port",
+        str(port),
+        "--ctx-size",
+        str(ctx_size),
+        "--n-gpu-layers",
+        str(gpu_layers),
+        "--parallel",
+        str(parallel),
+    ]
+    if jinja:
+        server_args.append("--jinja")
+    if reasoning:
+        server_args.extend(["--reasoning", reasoning])
+    return server_args
+
+
+def parse_startup_log_evidence(text: str, *, expected_alias: str) -> dict[str, Any]:
+    def search(pattern: str) -> re.Match[str] | None:
+        return re.search(pattern, text, re.IGNORECASE)
+
+    evidence: dict[str, Any] = {
+        "expected_alias": expected_alias,
+        "alias_present": expected_alias in text,
+        "backend_vulkan1_present": bool(search(r"Vulkan1\s*:")),
+        "gpu_name": None,
+        "offloaded_layers": None,
+        "vulkan1_model_buffer_mib": None,
+        "vulkan1_kv_buffer_mib": None,
+        "vulkan1_compute_buffer_mib": None,
+        "oom_or_failed_allocation_present": bool(
+            search(r"\bOOM\b|out of memory|failed allocation|allocation failed|alloc failed")
+        ),
+        "reasoning_disabled": bool(search(r"thinking\s*=\s*0")),
+        "context_size": None,
+    }
+    gpu = search(r"Vulkan1\s*:\s*([^\r\n(]+)")
+    if gpu:
+        evidence["gpu_name"] = gpu.group(1).strip()
+    for field, pattern, cast in [
+        ("offloaded_layers", r"offloaded\s+(\d+/\d+)\s+layers\s+to GPU", str),
+        ("vulkan1_model_buffer_mib", r"Vulkan1 model buffer size\s*=\s*([0-9.]+)\s*MiB", float),
+        ("vulkan1_kv_buffer_mib", r"Vulkan1 KV buffer size\s*=\s*([0-9.]+)\s*MiB", float),
+        ("vulkan1_compute_buffer_mib", r"Vulkan1 compute buffer size\s*=\s*([0-9.]+)\s*MiB", float),
+        ("context_size", r"n_ctx\s*=\s*(\d+)", int),
+    ]:
+        match = search(pattern)
+        if match:
+            evidence[field] = cast(match.group(1))
+    return evidence
+
+
+def validate_startup_log_evidence(
+    evidence: dict[str, Any],
+    *,
+    expected_offloaded_layers: str | None = None,
+    require_alias: bool = False,
+    expected_context_size: int | None = None,
+    require_reasoning_off: bool = False,
+) -> list[str]:
+    failures: list[str] = []
+    if not evidence.get("backend_vulkan1_present"):
+        failures.append("startup_log_missing_vulkan1_backend")
+    if require_alias and not evidence.get("alias_present"):
+        failures.append("startup_log_missing_expected_alias")
+    if expected_offloaded_layers and evidence.get("offloaded_layers") != expected_offloaded_layers:
+        failures.append("startup_log_offloaded_layers_mismatch")
+    if expected_context_size is not None and evidence.get("context_size") != expected_context_size:
+        failures.append("startup_log_context_size_mismatch")
+    if require_reasoning_off and evidence.get("reasoning_disabled") is not True:
+        failures.append("startup_log_reasoning_not_disabled")
+    if evidence.get("oom_or_failed_allocation_present"):
+        failures.append("startup_log_contains_oom_or_failed_allocation")
+    return failures
 
 
 def private_memory_mb(process: Any) -> float | None:
@@ -647,6 +828,21 @@ def write_resource_csv(samples: list[dict[str, Any]], path: Path) -> None:
         writer.writerows(rows)
 
 
+def output_file_hashes(out_dir: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for path in sorted(item for item in out_dir.iterdir() if item.is_file()):
+        if path.name == "evidence_manifest.json":
+            continue
+        rows.append(
+            {
+                "file": path.name,
+                "bytes": path.stat().st_size,
+                "sha256": sha256_file(path),
+            }
+        )
+    return rows
+
+
 def extract_assistant_content(payload: dict[str, Any]) -> str:
     try:
         content = payload["choices"][0]["message"]["content"]
@@ -766,6 +962,36 @@ def wait_for_models(
         time.sleep(0.25)
     raise TimeoutError(
         f"llama-server readiness timeout after {timeout_seconds}s: {last_error}"
+    )
+
+
+def wait_for_health(
+    *,
+    client: Any,
+    health_url: str,
+    process: subprocess.Popen[Any],
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout_seconds
+    last_error: str | None = None
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise RuntimeError(
+                f"llama-server exited during health polling with code {process.returncode}"
+            )
+        try:
+            response = client.get(health_url)
+            if 200 <= response.status_code < 300:
+                return {
+                    "status_code": response.status_code,
+                    "body_preview": response.text[:200],
+                }
+            last_error = f"HTTP {response.status_code}: {response.text[:200]}"
+        except Exception as exc:
+            last_error = str(exc) or exc.__class__.__name__
+        time.sleep(0.25)
+    raise TimeoutError(
+        f"llama-server health timeout after {timeout_seconds}s: {last_error}"
     )
 
 
@@ -939,6 +1165,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ctx-size", type=int, default=12288)
     parser.add_argument("--gpu-layers", default="999")
     parser.add_argument("--parallel", type=int, default=1)
+    parser.add_argument("--jinja", action="store_true")
+    parser.add_argument("--reasoning", choices=("off", "none", "on", "auto"))
+    parser.add_argument("--expected-model-bytes", type=int)
+    parser.add_argument("--expected-model-sha256")
+    parser.add_argument("--expected-offloaded-layers")
+    parser.add_argument("--require-startup-alias", action="store_true")
     parser.add_argument("--sample-interval-seconds", type=float, default=0.5)
     parser.add_argument("--baseline-seconds", type=float, default=3.0)
     parser.add_argument("--loaded-idle-seconds", type=float, default=5.0)
@@ -966,6 +1198,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.port <= 0:
         raise ValueError("--port must be positive")
+    args.host = validate_local_host(args.host)
     if args.parallel != 1:
         raise ValueError("This harness requires --parallel 1")
     if str(args.gpu_layers).strip().lower() in {
@@ -992,10 +1225,23 @@ def main(argv: list[str] | None = None) -> int:
     model_path = Path(args.model_path).resolve()
     server_path = Path(args.server_path).resolve()
     out_dir = Path(args.out_dir).resolve()
-    if not model_path.is_file():
-        raise FileNotFoundError(model_path)
+    model_file_validation = validate_model_file(
+        model_path,
+        expected_bytes=args.expected_model_bytes,
+        expected_sha256=args.expected_model_sha256,
+    )
     if not server_path.is_file():
         raise FileNotFoundError(server_path)
+    if not port_is_free(args.host, args.port):
+        raise RuntimeError(
+            f"Port is not free before harness startup: {args.host}:{args.port}"
+        )
+    running_servers = find_llama_server_processes()
+    if running_servers:
+        pids = [item.get("pid") for item in running_servers]
+        raise RuntimeError(
+            f"llama-server process already running before harness startup: {pids}"
+        )
     prepare_output_dir(out_dir, args.force)
 
     corpus = build_corpus()
@@ -1007,25 +1253,21 @@ def main(argv: list[str] | None = None) -> int:
     stderr_path = out_dir / "server_stderr.log"
 
     base_url = f"http://{args.host}:{args.port}"
+    health_url = f"{base_url}/health"
     models_url = f"{base_url}/v1/models"
     chat_endpoint = f"{base_url}/v1/chat/completions"
-    server_args = [
-        str(server_path),
-        "--model",
-        str(model_path),
-        "--alias",
-        args.model_id,
-        "--host",
-        args.host,
-        "--port",
-        str(args.port),
-        "--ctx-size",
-        str(args.ctx_size),
-        "--n-gpu-layers",
-        str(args.gpu_layers),
-        "--parallel",
-        str(args.parallel),
-    ]
+    server_args = build_server_args(
+        server_path=server_path,
+        model_path=model_path,
+        model_id=args.model_id,
+        host=args.host,
+        port=args.port,
+        ctx_size=args.ctx_size,
+        gpu_layers=str(args.gpu_layers),
+        parallel=args.parallel,
+        jinja=args.jinja,
+        reasoning=args.reasoning,
+    )
     manifest = {
         "schema_version": "deterministic_gpu_resource_harness_v1",
         "created_at": now_utc_iso(),
@@ -1039,12 +1281,17 @@ def main(argv: list[str] | None = None) -> int:
         or None,
         "model_id": args.model_id,
         "model_path": str(model_path),
+        "model_file_validation": model_file_validation,
         "server_path": str(server_path),
         "server_args": server_args[1:],
         "base_url": base_url,
+        "health_url": health_url,
         "ctx_size": args.ctx_size,
         "gpu_layers": str(args.gpu_layers),
         "parallel": args.parallel,
+        "jinja": args.jinja,
+        "reasoning": args.reasoning,
+        "expected_offloaded_layers": args.expected_offloaded_layers,
         "sample_interval_seconds": args.sample_interval_seconds,
         "baseline_seconds": args.baseline_seconds,
         "loaded_idle_seconds": args.loaded_idle_seconds,
@@ -1091,6 +1338,7 @@ def main(argv: list[str] | None = None) -> int:
     stderr_handle = stderr_path.open("w", encoding="utf-8")
     request_records: list[dict[str, Any]] = []
     models_payload: dict[str, Any] | None = None
+    health_payload: dict[str, Any] | None = None
     smoke_record: dict[str, Any] | None = None
     idle_stabilization: dict[str, Any] | None = None
     shutdown_result: dict[str, Any] | None = None
@@ -1118,6 +1366,13 @@ def main(argv: list[str] | None = None) -> int:
             text=True,
         )
         sampler.set_server_pid(process.pid)
+        health_payload = wait_for_health(
+            client=client,
+            health_url=health_url,
+            process=process,
+            timeout_seconds=args.timeout_seconds,
+        )
+        write_json(out_dir / "health_response.json", health_payload)
         models_payload = wait_for_models(
             client=client,
             models_url=models_url,
@@ -1324,6 +1579,26 @@ def main(argv: list[str] | None = None) -> int:
         "process_stopped"
     ):
         validation_failures.append("server_process_not_stopped")
+    if not port_is_free(args.host, args.port):
+        validation_failures.append("server_port_not_released")
+    remaining_servers = find_llama_server_processes()
+    if remaining_servers:
+        validation_failures.append("llama_server_process_still_running")
+    startup_log_evidence = parse_startup_log_evidence(
+        stderr_path.read_text(encoding="utf-8", errors="replace")
+        if stderr_path.exists()
+        else "",
+        expected_alias=args.model_id,
+    )
+    validation_failures.extend(
+        validate_startup_log_evidence(
+            startup_log_evidence,
+            expected_offloaded_layers=args.expected_offloaded_layers,
+            require_alias=args.require_startup_alias,
+            expected_context_size=args.ctx_size,
+            require_reasoning_off=args.reasoning == "off",
+        )
+    )
     status = (
         "succeeded"
         if fatal_error is None
@@ -1346,6 +1621,12 @@ def main(argv: list[str] | None = None) -> int:
             else (process.returncode if process is not None else None)
         ),
         "shutdown": shutdown_result,
+        "post_shutdown": {
+            "port_released": port_is_free(args.host, args.port),
+            "remaining_llama_server_processes": remaining_servers,
+        },
+        "startup_log_evidence": startup_log_evidence,
+        "health_response": health_payload,
         "idle_stabilization": idle_stabilization,
         "models_response_model_ids": (
             model_ids_from_response(models_payload)
@@ -1372,6 +1653,25 @@ def main(argv: list[str] | None = None) -> int:
     }
     write_json(out_dir / "benchmark_summary.json", benchmark_summary)
 
+    optional_replay_flags = ""
+    if args.jinja:
+        optional_replay_flags += "  --jinja `\n"
+    if args.reasoning:
+        optional_replay_flags += f"  --reasoning {args.reasoning} `\n"
+    if args.expected_model_bytes is not None:
+        optional_replay_flags += (
+            f"  --expected-model-bytes {args.expected_model_bytes} `\n"
+        )
+    if args.expected_model_sha256:
+        optional_replay_flags += (
+            f"  --expected-model-sha256 {args.expected_model_sha256} `\n"
+        )
+    if args.expected_offloaded_layers:
+        optional_replay_flags += (
+            f"  --expected-offloaded-layers {args.expected_offloaded_layers} `\n"
+        )
+    if args.require_startup_alias:
+        optional_replay_flags += "  --require-startup-alias `\n"
     replay = f"""# Replay
 
 ```powershell
@@ -1383,6 +1683,7 @@ def main(argv: list[str] | None = None) -> int:
   --ctx-size {args.ctx_size} `
   --gpu-layers {args.gpu_layers} `
   --parallel 1 `
+{optional_replay_flags}\
   --idle-stabilization-timeout-seconds {args.idle_stabilization_timeout_seconds} `
   --idle-stable-samples {args.idle_stable_samples} `
   --idle-max-gpu-utilization-percent {args.idle_max_gpu_utilization_percent} `
@@ -1391,6 +1692,23 @@ def main(argv: list[str] | None = None) -> int:
 ```
 """
     (out_dir / "replay_commands.md").write_text(replay, encoding="utf-8")
+    evidence_manifest = {
+        "schema_version": "deterministic_gpu_resource_harness_evidence_manifest_v1",
+        "created_at": now_utc_iso(),
+        "model_id": args.model_id,
+        "status": status,
+        "benchmark_summary_file": "benchmark_summary.json",
+        "resource_summary_file": "resource_summary.json",
+        "raw_samples_file": "resource_samples.jsonl",
+        "server_stdout_log": "server_stdout.log",
+        "server_stderr_log": "server_stderr.log",
+        "server_command_file": "server_command.json",
+        "model_file_validation": model_file_validation,
+        "server_startup_validation": startup_log_evidence,
+        "post_shutdown": benchmark_summary["post_shutdown"],
+        "files": output_file_hashes(out_dir),
+    }
+    write_json(out_dir / "evidence_manifest.json", evidence_manifest)
     print(json.dumps(benchmark_summary, ensure_ascii=False, sort_keys=True))
     return 0 if status == "succeeded" else 1
 

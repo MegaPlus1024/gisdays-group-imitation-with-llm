@@ -7,13 +7,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from run_deterministic_gpu_resource_harness import (
     build_corpus,
+    build_server_args,
     PhaseSampler,
     build_resource_summary,
     evaluate_gpu_offload_evidence,
     evaluate_idle_stability,
     flatten_sample,
+    parse_startup_log_evidence,
     percentile,
     request_record_summary,
+    validate_model_file,
+    validate_local_host,
+    validate_startup_log_evidence,
+    wait_for_health,
+    write_json,
+    output_file_hashes,
 )
 
 
@@ -30,6 +38,248 @@ def test_build_corpus_is_deterministic_and_ordered() -> None:
     assert [item["payload_words"] for item in first] == [448, 1856, 7424]
     assert [item["max_tokens"] for item in first] == [64, 128, 128]
     assert len({item["messages_sha256"] for item in first}) == 3
+
+
+def test_qwen_challenger_server_args_are_generic_and_lifecycle_owned() -> None:
+    args = build_server_args(
+        server_path=Path("llama-server.exe"),
+        model_path=Path("models/gguf/qwen3_6_27b_q5_k_m/Qwen3.6-27B-Q5_K_M.gguf"),
+        model_id="qwen3_6_27b_q5_k_m",
+        host="127.0.0.1",
+        port=8085,
+        ctx_size=12288,
+        gpu_layers="999",
+        parallel=1,
+        jinja=True,
+        reasoning="off",
+    )
+
+    assert args == [
+        "llama-server.exe",
+        "--model",
+        "models\\gguf\\qwen3_6_27b_q5_k_m\\Qwen3.6-27B-Q5_K_M.gguf",
+        "--alias",
+        "qwen3_6_27b_q5_k_m",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8085",
+        "--ctx-size",
+        "12288",
+        "--n-gpu-layers",
+        "999",
+        "--parallel",
+        "1",
+        "--jinja",
+        "--reasoning",
+        "off",
+    ]
+
+
+def test_validate_local_host_rejects_non_local_hosts() -> None:
+    assert validate_local_host("127.0.0.1") == "127.0.0.1"
+    assert validate_local_host("LOCALHOST") == "localhost"
+
+    try:
+        validate_local_host("0.0.0.0")
+    except ValueError as exc:
+        assert "localhost/127.0.0.1" in str(exc)
+    else:
+        raise AssertionError("expected non-local host to be rejected")
+
+
+def test_default_server_args_preserve_previous_profile_shape() -> None:
+    args = build_server_args(
+        server_path=Path("llama-server.exe"),
+        model_path=Path("models/gguf/third_model.gguf"),
+        model_id="third_model",
+        host="127.0.0.1",
+        port=8082,
+        ctx_size=12288,
+        gpu_layers="999",
+        parallel=1,
+    )
+
+    assert "--jinja" not in args
+    assert "--reasoning" not in args
+    assert args == [
+        "llama-server.exe",
+        "--model",
+        "models\\gguf\\third_model.gguf",
+        "--alias",
+        "third_model",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8082",
+        "--ctx-size",
+        "12288",
+        "--n-gpu-layers",
+        "999",
+        "--parallel",
+        "1",
+    ]
+
+
+def test_model_file_validation_checks_size_and_hash(tmp_path: Path) -> None:
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"abc")
+
+    validated = validate_model_file(
+        model,
+        expected_bytes=3,
+        expected_sha256="ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    )
+
+    assert validated["bytes"] == 3
+    assert (
+        validated["sha256"]
+        == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    )
+
+
+def test_model_file_validation_rejects_size_sha_and_malformed_sha(tmp_path: Path) -> None:
+    model = tmp_path / "model.gguf"
+    model.write_bytes(b"abc")
+
+    try:
+        validate_model_file(model, expected_bytes=4)
+    except ValueError as exc:
+        assert "byte size mismatch" in str(exc)
+    else:
+        raise AssertionError("expected byte mismatch to be rejected")
+
+    try:
+        validate_model_file(model, expected_sha256="not-a-sha")
+    except ValueError as exc:
+        assert "64 lowercase/uppercase hex" in str(exc)
+    else:
+        raise AssertionError("expected malformed SHA to be rejected")
+
+    try:
+        validate_model_file(
+            model,
+            expected_sha256="0" * 64,
+        )
+    except ValueError as exc:
+        assert "SHA-256 mismatch" in str(exc)
+    else:
+        raise AssertionError("expected SHA mismatch to be rejected")
+
+
+def test_startup_log_evidence_detects_qwen_gpu_offload_without_running_server() -> None:
+    log = """
+0 I   - Vulkan1 : NVIDIA RTX PRO 4000 Blackwell (28886 MiB, 28118 MiB free)
+0 I load_tensors: offloaded 65/65 layers to GPU
+0 I load_tensors:      Vulkan1 model buffer size = 17761.91 MiB
+0 I llama_context: n_ctx         = 12288
+0 I llama_kv_cache:    Vulkan1 KV buffer size =   768.00 MiB
+0 I sched_reserve:    Vulkan1 compute buffer size =   649.02 MiB
+0 I srv          init: init: chat template, thinking = 0
+qwen3_6_27b_q5_k_m
+"""
+
+    evidence = parse_startup_log_evidence(
+        log,
+        expected_alias="qwen3_6_27b_q5_k_m",
+    )
+    failures = validate_startup_log_evidence(
+        evidence,
+        expected_offloaded_layers="65/65",
+        require_alias=True,
+        expected_context_size=12288,
+        require_reasoning_off=True,
+    )
+
+    assert failures == []
+    assert evidence["backend_vulkan1_present"] is True
+    assert evidence["gpu_name"] == "NVIDIA RTX PRO 4000 Blackwell"
+    assert evidence["offloaded_layers"] == "65/65"
+    assert evidence["vulkan1_model_buffer_mib"] == 17761.91
+    assert evidence["vulkan1_kv_buffer_mib"] == 768.0
+    assert evidence["vulkan1_compute_buffer_mib"] == 649.02
+    assert evidence["context_size"] == 12288
+    assert evidence["reasoning_disabled"] is True
+
+
+def test_startup_log_evidence_rejects_oom_or_wrong_offload() -> None:
+    evidence = parse_startup_log_evidence(
+        "Vulkan1 : NVIDIA RTX PRO 4000 Blackwell\n"
+        "offloaded 64/65 layers to GPU\n"
+        "failed allocation",
+        expected_alias="qwen3_6_27b_q5_k_m",
+    )
+
+    failures = validate_startup_log_evidence(
+        evidence,
+        expected_offloaded_layers="65/65",
+    )
+
+    assert "startup_log_offloaded_layers_mismatch" in failures
+    assert "startup_log_contains_oom_or_failed_allocation" in failures
+
+
+def test_startup_log_evidence_rejects_missing_offload_context_or_reasoning() -> None:
+    evidence = parse_startup_log_evidence(
+        "Vulkan1 : NVIDIA RTX PRO 4000 Blackwell\n"
+        "n_ctx = 8192\n"
+        "srv init: chat template, thinking = 1\n",
+        expected_alias="qwen3_6_27b_q5_k_m",
+    )
+
+    failures = validate_startup_log_evidence(
+        evidence,
+        expected_offloaded_layers="65/65",
+        expected_context_size=12288,
+        require_reasoning_off=True,
+    )
+
+    assert "startup_log_offloaded_layers_mismatch" in failures
+    assert "startup_log_context_size_mismatch" in failures
+    assert "startup_log_reasoning_not_disabled" in failures
+
+
+def test_output_file_hashes_excludes_manifest_itself(tmp_path: Path) -> None:
+    write_json(tmp_path / "benchmark_summary.json", {"status": "succeeded"})
+    write_json(tmp_path / "evidence_manifest.json", {"self": True})
+
+    rows = output_file_hashes(tmp_path)
+
+    assert [row["file"] for row in rows] == ["benchmark_summary.json"]
+    assert rows[0]["bytes"] > 0
+    assert len(rows[0]["sha256"]) == 64
+
+
+def test_wait_for_health_requires_success_status() -> None:
+    class FakeResponse:
+        def __init__(self, status_code: int, text: str) -> None:
+            self.status_code = status_code
+            self.text = text
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def get(self, _url: str) -> FakeResponse:
+            self.calls += 1
+            if self.calls == 1:
+                return FakeResponse(404, "not ready")
+            return FakeResponse(200, "ok")
+
+    class FakeProcess:
+        returncode = None
+
+        def poll(self) -> None:
+            return None
+
+    result = wait_for_health(
+        client=FakeClient(),
+        health_url="http://127.0.0.1:8085/health",
+        process=FakeProcess(),
+        timeout_seconds=1.0,
+    )
+
+    assert result == {"status_code": 200, "body_preview": "ok"}
 
 
 def test_percentile_interpolates() -> None:
