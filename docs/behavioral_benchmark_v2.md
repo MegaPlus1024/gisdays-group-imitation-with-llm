@@ -1,11 +1,16 @@
 # Behavioral Benchmark v2 Specification
 
-**Status:** Draft for implementation  
-**Target repository:** `local-llm-agent-lab`  
-**Behavioral baseline:** `90ec753`  
-**Runtime baseline with dependency-wait fix:** `fd5623e`  
-**Resource harness baseline:** `1f8bd00`  
-**Purpose:** evaluate whether a local model can act as a reliable multi-role agent policy under a fixed deterministic orchestrator.
+The frozen 105-trial cohort has completed. Its evidence-backed outcome is
+recorded in the
+[Behavioral Benchmark v2 final comparative report](status/behavioral_benchmark_v2_final_report.md).
+
+* **Status:** Frozen specification; 105-trial qualification cohort complete
+* **Target repository:** `local-llm-agent-lab`
+* **Behavioral baseline:** `90ec753`
+* **Runtime baseline with dependency-wait fix:** `fd5623e`
+* **Resource harness baseline:** `1f8bd00`
+* **Frozen cohort baseline:** `5826c8c`
+* **Purpose:** evaluate whether a local model can act as a reliable multi-role agent policy under a fixed deterministic orchestrator.
 
 ## 1. Scope
 
@@ -873,12 +878,21 @@ Ready for frozen runs only when:
 - pilot traces show no runtime deadlock;
 - one-server lifecycle is verified.
 
-# 17. Immediate next task
+# 17. Post-cohort status
 
-Implement registry and tests for:
+The frozen qualification cohort is complete:
 
 ```text
-V2-03 role_boundary_exact_handoff
+3 models
+7 scenarios
+5 trials per scenario
+105 real-model trials
+90 successful trials
+0 models passed the mandatory correctness gate
 ```
 
-This is the best first target because it exercises role allowlists, grounding, exact values, file handoff, guarded finish, and final publication without requiring new dependency-state machinery.
+All three models passed the six non-retention scenarios at `5/5` and failed
+`long_horizon_multi_fact_retention` at `0/5`. Existing trials should remain
+frozen evidence; any new models, prompts, sampling settings, context sizes, or
+turn limits define a new experimental condition rather than a rerun of this
+cohort.

@@ -137,7 +137,14 @@ Historical evaluation commands retain the stable aliases:
 Local model calls are never the default. The library policy accepts only
 localhost endpoints and requires explicit opt-in.
 The long-horizon CLI additionally requires `--allow-model-execution`; omitting
-it selects fake policies. No canonical local-model group result is claimed.
+it selects fake policies.
+
+The frozen Behavioral Benchmark v2 cohort on commit `5826c8c` evaluated
+`fifth_model`, `third_model`, and `fourth_model` across 105 real-model trials.
+Each model completed 30/35 trials and passed six of seven scenarios, but all
+three scored 0/5 on `long_horizon_multi_fact_retention`; therefore none passed
+the mandatory correctness gate. See the
+[final comparative report](docs/status/behavioral_benchmark_v2_final_report.md).
 
 ## Tools
 
