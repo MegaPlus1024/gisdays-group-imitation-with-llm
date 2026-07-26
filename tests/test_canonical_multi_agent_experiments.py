@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 import shutil
 import subprocess
@@ -30,12 +31,15 @@ from src.agent.canonical_multi_agent_experiments import (
     ARTICLE_URL,
     CONFIG_SCHEMA_VERSION,
     EXPERIMENT_SUMMARY_SCHEMA_VERSION,
+    LongHorizonExperimentConfig,
     SUPPORTED_SCENARIOS,
     TRACE_SCHEMA_VERSION,
     TRIAL_SUMMARY_SCHEMA_VERSION,
     _bounded_value,
+    _experiment_summary,
     _retention_metrics,
     _run_runtime_with_trace,
+    _trace_capability_metrics,
     _trial_metrics,
     build_long_horizon_trial_runtime,
     load_long_horizon_experiment_config,
@@ -731,6 +735,15 @@ def test_fixture_records_do_not_activate_retention_metrics() -> None:
     assert metrics["retention_contract_satisfied"] is True
 
 
+def test_trace_capability_metrics_have_no_scenario_specific_logic() -> None:
+    source = inspect.getsource(_trace_capability_metrics)
+
+    assert "office_shared_fact_recovery_v2" not in source
+    assert "long_horizon_multi_fact_retention" not in source
+    assert "conflicting_grounded_facts" not in source
+    assert "_model" not in source
+
+
 def test_office_shared_fact_recovery_v2_recovery_after_early_read_succeeds(
     artifact_output_dir: str,
 ) -> None:
@@ -789,6 +802,68 @@ def test_office_shared_fact_recovery_v2_recovery_after_early_read_succeeds(
         event["tool_error_code"] == "file_not_found"
         for event in verifier_reads
     )
+    assert trial_metrics["recoverable_failed_tool_actions"] == 1
+    assert trial_metrics["exact_value_validations"] == 1
+
+
+def test_office_shared_fact_recovery_v2_pilot_shaped_trace_counts_survive_empty_retention(
+    artifact_output_dir: str,
+) -> None:
+    output_dir = f"{artifact_output_dir}/office_v2_pilot_shaped_counts"
+    missing_path = f"{output_dir}/missing_input.txt"
+    recovery_path = "tests/fixtures/canonical_multi_agent/recovery_note.txt"
+    runtime = build_long_horizon_trial_runtime(
+        scenario_id="office_shared_fact_recovery_v2",
+        trial_id="office_v2_pilot_shaped_counts",
+        trial_output_dir=output_dir,
+        project_root=PROJECT_ROOT,
+        policy_overrides={
+            "verification_agent": PerfectFakePolicy(
+                (
+                    Action("read_file", {"path": missing_path}),
+                    Action("read_file", {"path": recovery_path}),
+                    Action("read_file", {"path": missing_path}),
+                    Action("read_file", {"path": recovery_path}),
+                    Action("shared_read_fact", {"key": "review_owner"}),
+                    Action("shared_read_fact", {"key": "approval_phrase"}),
+                    Action(
+                        "validate_exact_value",
+                        {
+                            "key": "review_owner",
+                            "expected": "Morgan Lee",
+                        },
+                    ),
+                    Action(
+                        "validate_exact_value",
+                        {
+                            "key": "approval_phrase",
+                            "expected": "Approved for internal release.",
+                        },
+                    ),
+                    Action(
+                        "validate_exact_value",
+                        {
+                            "key": "approval_phrase",
+                            "expected": "Approved for internal release.",
+                        },
+                    ),
+                    Action("finish"),
+                )
+            )
+        },
+    )
+    started_at = time.perf_counter()
+    trace = _run_runtime_with_trace(runtime, started_at=started_at)
+    metrics = _trial_metrics(runtime, trace, started_at=started_at)
+
+    assert runtime.status == "succeeded"
+    assert metrics["task_completed"] is True
+    assert metrics["retention_contract_present"] is False
+    assert metrics["retention_contract_satisfied"] is True
+    assert metrics["recoverable_failed_tool_actions"] == 2
+    assert metrics["exact_value_validations"] == 3
+    assert metrics["required_recoveries_completed"] == 1
+    assert metrics["required_recoveries_total"] == 1
 
 
 def test_office_shared_fact_recovery_v2_perfect_policy_succeeds(
@@ -862,6 +937,19 @@ def test_office_shared_fact_recovery_v2_perfect_policy_succeeds(
     assert metric_summary["status"] == "succeeded"
     assert metric_summary["error_code"] is None
     assert metric_summary["trial_metrics"]["task_completed"] is True
+    assert (
+        metric_summary["trial_metrics"]["retention_contract_present"]
+        is False
+    )
+    assert (
+        metric_summary["trial_metrics"]["retention_contract_satisfied"]
+        is True
+    )
+    assert (
+        metric_summary["trial_metrics"]["recoverable_failed_tool_actions"]
+        >= 1
+    )
+    assert metric_summary["trial_metrics"]["exact_value_validations"] >= 1
     verification_metrics = metric_summary["agent_metrics"]["verification_agent"]
     assert verification_metrics["required_recoveries_total"] == 1
     assert verification_metrics["required_recoveries_completed"] == 1
@@ -2907,6 +2995,58 @@ def test_experiment_aggregates_trials_scenarios_and_metrics(
     assert summary["fixture_only"] is True
 
 
+def test_experiment_summary_aggregates_non_retention_trace_counters() -> None:
+    config = LongHorizonExperimentConfig(
+        experiment_id="pytest_metric_aggregation",
+        scenario_ids=("office_shared_fact_recovery_v2",),
+        trials_per_scenario=1,
+        max_turns_per_trial=24,
+        scheduler="round_robin",
+        fixture_only=True,
+        model_execution=False,
+        model_profile={"model_id": "fake_policy"},
+        agents={
+            "source": "canonical_scenario_definitions",
+            "minimum_agents": 2,
+        },
+        output_dir="artifacts/canonical_multi_agent_long_horizon/pytest_metric_aggregation",
+        metrics=(),
+        failure_policy={},
+    )
+    trial = {
+        "status": "succeeded",
+        "scenario_id": "office_shared_fact_recovery_v2",
+        "model_id": "fake_policy",
+        "agent_metrics": {},
+        "trial_metrics": {
+            "total_turns": 10,
+            "wall_time_ms": 1.0,
+            "inter_role_handoffs": 4,
+            "recoverable_failed_tool_actions": 2,
+            "exact_value_validations": 3,
+            "conflict_resolution_steps": 1,
+            "post_completion_drift_events": 0,
+        },
+        "model_execution": False,
+    }
+
+    summary = _experiment_summary(
+        config,
+        (trial,),
+        selected_models=("fake_policy",),
+        started_at=time.perf_counter(),
+        dry_run=True,
+        stopped_early=False,
+    )
+
+    assert summary["status"] == "succeeded"
+    assert summary["inter_role_handoffs"] == 4
+    assert summary["recoverable_failed_tool_actions"] == 2
+    assert summary["exact_value_validations"] == 3
+    assert summary["conflict_resolution_steps"] == 1
+    assert summary["post_completion_drift_events"] == 0
+
+
 def test_failure_path_always_writes_trial_summary_and_trace(
     artifact_output_dir: str,
 ) -> None:
@@ -3450,6 +3590,9 @@ def test_conflicting_grounded_facts_perfect_policy_succeeds(
     assert metrics["grounded_fact_success_rate"] == 1.0
     assert metrics["wrong_authority_selections"] == 0
     assert metrics["ungrounded_publish_attempts"] == 0
+    assert metrics["retention_contract_present"] is False
+    assert metrics["retention_contract_satisfied"] is True
+    assert metrics["conflict_resolution_steps"] >= 1
 
 
 def test_conflicting_sources_are_explicitly_represented_in_state(

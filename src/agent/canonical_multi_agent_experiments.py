@@ -4875,6 +4875,8 @@ def _inter_role_handoff_count(
 def _retention_metrics(
     runtime: AutonomousMultiAgentRuntime,
     trace: Sequence[Mapping[str, Any]],
+    *,
+    trace_metrics: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     contract = runtime.shared_environment.retention_contract
     if not contract:
@@ -4885,17 +4887,18 @@ def _retention_metrics(
             "retained_fact_total": 0,
             "required_files_retained": 0,
             "required_files_total": 0,
-            "inter_role_handoffs": 0,
-            "recoverable_failed_tool_actions": 0,
-            "exact_value_validations": 0,
-            "conflict_resolution_steps": 0,
             "retention_checkpoint_count": 0,
             "state_regression_events": 0,
             "fact_substitution_events": 0,
             "completed_requirement_lost_events": 0,
             "long_horizon_max_turns_events": 0,
-            "post_completion_drift_events": 0,
         }
+
+    trace_metrics = (
+        trace_metrics
+        if trace_metrics is not None
+        else _trace_capability_metrics(runtime, trace)
+    )
 
     expected_facts = dict(contract.get("expected_facts", {}))
     required_files = {
@@ -5016,20 +5019,14 @@ def _retention_metrics(
     required_files_retained = sum(
         path in final_file_set for path in required_files
     )
-    inter_role_handoffs = _inter_role_handoff_count(runtime, trace)
-    recoverable_failures = sum(
-        event.get("tool_error_code") == "file_not_found"
-        for event in trace
+    inter_role_handoffs = int(trace_metrics.get("inter_role_handoffs", 0))
+    recoverable_failures = int(
+        trace_metrics.get("recoverable_failed_tool_actions", 0)
     )
-    exact_validations = sum(
-        event.get("action_name") == "validate_exact_value"
-        and event.get("tool_status") == "succeeded"
-        for event in trace
-    )
-    conflict_steps = sum(
-        event.get("action_name") == "validate_fact_authority"
-        and event.get("tool_status") == "succeeded"
-        for event in trace
+    exact_validations = int(trace_metrics.get("exact_value_validations", 0))
+    conflict_steps = int(trace_metrics.get("conflict_resolution_steps", 0))
+    post_completion_drift_events = int(
+        trace_metrics.get("post_completion_drift_events", 0)
     )
     checkpoints = sum(
         event.get("action_name") == "retention_validate_snapshot"
@@ -5041,6 +5038,9 @@ def _retention_metrics(
     max_turns_events = int(
         runtime.stop_reason == "max_turns_total"
         or len(trace) > maximum_turns
+    )
+    combined_post_completion_drift_events = (
+        post_completion_drift_events + drift_events
     )
 
     satisfied = (
@@ -5063,7 +5063,7 @@ def _retention_metrics(
         and substitutions == 0
         and lost_requirements == 0
         and max_turns_events == 0
-        and drift_events == 0
+        and combined_post_completion_drift_events == 0
     )
     return {
         "retention_contract_present": True,
@@ -5072,17 +5072,41 @@ def _retention_metrics(
         "retained_fact_total": len(expected_facts),
         "required_files_retained": required_files_retained,
         "required_files_total": len(required_files),
-        "inter_role_handoffs": inter_role_handoffs,
-        "recoverable_failed_tool_actions": recoverable_failures,
-        "exact_value_validations": exact_validations,
-        "conflict_resolution_steps": conflict_steps,
         "retention_checkpoint_count": checkpoints,
         "state_regression_events": state_regressions,
         "fact_substitution_events": substitutions,
         "completed_requirement_lost_events": lost_requirements,
         "long_horizon_max_turns_events": max_turns_events,
-        "post_completion_drift_events": drift_events,
+        "post_completion_drift_events": combined_post_completion_drift_events,
     }
+
+
+def _trace_capability_metrics(
+    runtime: AutonomousMultiAgentRuntime,
+    trace: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "inter_role_handoffs": _inter_role_handoff_count(runtime, trace),
+        "recoverable_failed_tool_actions": sum(
+            event.get("tool_error_code") == "file_not_found"
+            for event in trace
+        ),
+        "exact_value_validations": sum(
+            event.get("action_name") == "validate_exact_value"
+            and event.get("tool_status") == "succeeded"
+            for event in trace
+        ),
+        "conflict_resolution_steps": sum(
+            event.get("action_name") == "validate_fact_authority"
+            and event.get("tool_status") == "succeeded"
+            for event in trace
+        ),
+        "post_completion_drift_events": sum(
+            event.get("tool_error_code") == "post_completion_drift"
+            for event in trace
+        ),
+    }
+
 
 def _progress_aware_dependency_waits(
     trace: Sequence[Mapping[str, Any]],
@@ -5328,7 +5352,12 @@ def _trial_metrics(
         for event in action_events
     )
     finish_guard = _finish_guard_metrics(trace)
-    retention = _retention_metrics(runtime, trace)
+    trace_capabilities = _trace_capability_metrics(runtime, trace)
+    retention = _retention_metrics(
+        runtime,
+        trace,
+        trace_metrics=trace_capabilities,
+    )
     task_completed = (
         runtime.status == "succeeded"
         and bool(
@@ -5409,6 +5438,7 @@ def _trial_metrics(
             for event in trace
         ),
         **finish_guard,
+        **trace_capabilities,
         **retention,
         **grounding,
         "recovery_success_rate": _rate(generic_recovery_successes, generic_recovery_attempts),
