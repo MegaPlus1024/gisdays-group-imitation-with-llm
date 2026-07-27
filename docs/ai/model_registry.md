@@ -1,84 +1,51 @@
-# Local Model Registry
+# Реестр локальных моделей
 
-## Purpose
+## Назначение
 
-Track reproducible metadata for every local GGUF model used by smoke tests, baselines, and comparisons.
+Документ связывает технические идентификаторы экспериментов с полными
+названиями и локальными GGUF-файлами. Основной машиночитаемый источник:
+`configs/evaluation_models.json`.
 
-## Rules
+GGUF-файлы не добавляются в Git. В репозитории сохраняются только метаданные,
+пути и известные alias.
 
-- GGUF files are not committed to git.
-- Model metadata is committed.
-- Alias names like `first_model.gguf` are allowed only if mapped to actual model identity.
-- Do not make subjective quality claims without experiment data.
-- Every smoke/baseline/comparison must reference a model record.
+## Текущие записи
 
-## Model records
+| Идентификатор | Полное название | Локальный путь | Endpoint |
+| --- | --- | --- | --- |
+| `first_model` | IBM Granite 3.3 8B Instruct Q4_K_M | `models/gguf/first_model.gguf` | `http://127.0.0.1:8081/v1` |
+| `second_model` | Qwen2.5-3B-Instruct Q4_K_M | `models/gguf/second_model.gguf` | `http://127.0.0.1:8080/v1` |
+| `third_model` | Qwen3-14B Q5_K_M | `models/gguf/third_model.gguf` | `http://127.0.0.1:8082/v1` |
+| `fourth_model` | Mistral Small 3.2 24B Instruct Q4_K_M | `models/gguf/fourth_model.gguf` | `http://127.0.0.1:8083/v1` |
+| `fifth_model` | Qwen3-30B-A3B-Instruct-2507 Q4_K_M | `models/gguf/fifth_model.gguf` | `http://127.0.0.1:8084/v1` |
+| `sixth_model` | Qwen3.6-27B Q5_K_M | `models/gguf/sixth_model/Qwen3.6-27B-Q5_K_M.gguf` | `http://127.0.0.1:8085/v1` |
 
-### Record A: first_model.gguf
+## Исторические alias
 
-- registry_id: `first_model`
-- local_alias: `first_model.gguf`
-- actual_filename: `qwen2.5-1.5b-instruct-q4_k_m.gguf`
-- local_path: `models/gguf/first_model.gguf`
-- format: `GGUF`
-- size_class: `1.5B`
-- quantization: `Q4_K_M`
-- source_url: `https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF`
-- source_note: `Fill manually from the download page if known.`
-- role: `first local smoke test and first runtime baseline`
-- used_in:
-- `experiments/smoke/local_llama_server_smoke_v1/`
-- `experiments/baselines/local_runtime_baseline_v1/`
-- notes:
-- `successfully completed first smoke test`
-- `completed first runtime baseline`
+| Старый идентификатор | Текущий идентификатор |
+| --- | --- |
+| `qwen2_5_3b_instruct_q4_k_m` | `second_model` |
+| `qwen3_6_27b_q5_k_m` | `sixth_model` |
 
-### Record B: second_model.gguf
+Alias нужны для чтения старых результатов. Новые команды используют текущие
+идентификаторы.
 
-- registry_id: `second_model`
-- legacy_alias: `qwen2_5_3b_instruct_q4_k_m`
-- local_alias: `second_model.gguf`
-- actual_filename: `second_model.gguf`
-- upstream_model_name: `qwen2.5-3b-instruct-q4_k_m.gguf`
-- local_path: `models/gguf/second_model.gguf`
-- format: `GGUF`
-- size_class: `3B`
-- quantization: `Q4_K_M`
-- source_url: `https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF`
-- source_note: `Fill manually from the download page if known.`
-- role: `second model smoke test and second runtime baseline`
-- used_in:
-- `experiments/smoke/second_model_smoke_v1/`
-- `experiments/baselines/second_model_runtime_baseline_v1/`
-- `experiments/comparisons/two_model_runtime_comparison_v1/`
-- reason_for_selection:
-- `The first model proved the runtime pipeline. This 3B Q4_K_M model tests whether a larger local instruct model remains practical while potentially improving instruction-following.`
-- notes:
-- `second_model is the current user-facing model_id used by configs/evaluation_models.json`
-- `qwen2_5_3b_instruct_q4_k_m may still appear in historical artifacts and is supported as an alias`
-- `Do not claim quality improvement until numeric and semantic validation data exist.`
+## Известное происхождение файлов
 
-## How to add a new model
+- Для Qwen2.5-1.5B и Qwen2.5-3B в ранних документах сохранены ссылки
+  `https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF` и
+  `https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF`.
+- Для Qwen3.6-27B закреплённый источник, версия, размер и SHA-256 приведены в
+  `docs/reproducibility.md`.
+- Для остальных локальных GGUF точные публичные revision и SHA-256 не
+  подтверждены. Документ их не выдумывает.
 
-1. Add a new record with `registry_id`, filename/path, format, and known metadata.
-2. Leave unknown fields as `TODO` or `null`.
-3. Update `configs/models.local.example.json`.
-4. Reference the model record in smoke/baseline/comparison docs before running experiments.
+## Добавление модели
 
-## How this registry relates to smoke tests, baselines, and comparisons
-
-- Smoke tests confirm runtime path viability for one model record.
-- Baselines measure repeated runtime behavior for one model record.
-- Comparisons consume baseline summaries and must reference both model records.
-
-## Known limitations
-
-- Unknown source details must be filled manually.
-- Alias-based local workflows can hide true model identity unless mapping is maintained.
-- Runtime metrics alone do not prove semantic action correctness.
-
-## Source of truth
-
-For current experiment runs, `configs/evaluation_models.json` is the source of truth for `model_id`, `model_name`, `gguf_path`, `base_url`, timeout and runtime metadata.
-
-Detailed publication mapping is also documented in `docs/ai/model_file_mapping.md`.
+1. Добавить запись в `configs/evaluation_models.json`.
+2. Указать относительный путь внутри `models/gguf/`.
+3. Добавить отображаемое название в `configs/model_display_names.json`, если
+   модель участвует в пользовательских таблицах.
+4. Добавить alias только при наличии старых результатов с другим
+   идентификатором.
+5. Проверить запись командой `scripts/check_evaluation_model.py`.

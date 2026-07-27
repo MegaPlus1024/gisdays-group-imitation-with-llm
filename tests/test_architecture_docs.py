@@ -10,16 +10,15 @@ def test_readme_contains_project_name() -> None:
     assert "local-llm-agent-lab" in text
 
 
-def test_readme_contains_canonical_data_flow_keywords() -> None:
+def test_readme_describes_the_execution_environment_in_russian() -> None:
     text = Path("README.md").read_text(encoding="utf-8").lower()
     for phrase in [
-        "config",
-        "orchestrator",
-        "agent state",
-        "local llm",
-        "next action",
-        "script runner",
-        "history log",
+        "среда выполнения",
+        "одно действие в формате json",
+        "права текущей роли",
+        "общих фактов",
+        "источника и полномочий",
+        "условия завершения",
     ]:
         assert phrase in text
 
@@ -66,8 +65,63 @@ def test_data_flow_mermaid_contains_required_nodes() -> None:
         assert phrase in text
 
 
-def test_readme_does_not_claim_full_loop_or_execution_implemented() -> None:
+def test_readme_explains_the_bounded_autonomy_scope() -> None:
     text = Path("README.md").read_text(encoding="utf-8").lower()
-    assert "full autonomous agent loop" in text
-    assert "not implemented" in text
-    assert "action execution" in text
+    assert "полностью автономный цикл" in text
+    assert "не реализован" in text
+    assert "задачи, роли и доступные инструменты задаются сценарием заранее" in text
+
+
+def test_readme_uses_full_model_names_in_the_main_results_table() -> None:
+    text = Path("README.md").read_text(encoding="utf-8")
+    results = text.split("## Основной результат", 1)[1].split("\n## ", 1)[0]
+
+    for display_name in [
+        "Qwen3-14B Q5_K_M",
+        "Mistral Small 3.2 24B Instruct Q4_K_M",
+        "Qwen3-30B-A3B-Instruct-2507 Q4_K_M",
+        "Qwen3.6-27B Q5_K_M",
+    ]:
+        assert display_name in results
+    for internal_id in [
+        "third_model",
+        "fourth_model",
+        "fifth_model",
+        "sixth_model",
+        "qwen3_6_27b_q5_k_m",
+    ]:
+        assert internal_id not in results
+
+
+def test_readme_explains_tools_scope_and_operational_limits() -> None:
+    text = " ".join(Path("README.md").read_text(encoding="utf-8").lower().split())
+
+    for phrase in [
+        "чтения и создания файлов",
+        "публикации и чтения общих фактов",
+        "ожидания зависимостей",
+        "восстановления после ожидаемых ошибок",
+        "длительную непрерывную работу",
+        "нагрузку от нескольких пользователей",
+        "непредусмотренных входных данных",
+        "docs/reproducibility.md",
+    ]:
+        assert phrase in text
+
+
+def test_readme_does_not_require_legacy_english_sentences() -> None:
+    text = Path("README.md").read_text(encoding="utf-8")
+
+    for phrase in [
+        "normal user activity",
+        "local LLM agents",
+        "safety is not the final objective",
+        "action execution",
+        "Full autonomous agent loop",
+        "fixture-based benchmark",
+        "production readiness",
+        "Канонический runtime",
+        "Методика benchmark",
+        "evidence report",
+    ]:
+        assert phrase not in text

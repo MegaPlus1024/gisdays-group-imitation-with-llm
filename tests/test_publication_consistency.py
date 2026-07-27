@@ -17,6 +17,10 @@ def test_evaluation_models_use_canonical_gguf_paths() -> None:
     assert models["second_model"]["model_name"] == "second_model.gguf"
     assert models["second_model"]["gguf_path"] == "models/gguf/second_model.gguf"
     assert "qwen2_5_3b_instruct_q4_k_m" in models["second_model"].get("aliases", [])
+    assert models["sixth_model"]["gguf_path"] == (
+        "models/gguf/sixth_model/Qwen3.6-27B-Q5_K_M.gguf"
+    )
+    assert "qwen3_6_27b_q5_k_m" in models["sixth_model"].get("aliases", [])
 
 
 def test_readme_mentions_second_model_local_path() -> None:

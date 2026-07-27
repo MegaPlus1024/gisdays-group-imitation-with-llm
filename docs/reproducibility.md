@@ -17,8 +17,8 @@
   [официальных releases llama.cpp](https://github.com/ggml-org/llama.cpp/releases);
 - `curl.exe`, входящий в современные версии Windows.
 
-`pyproject.toml` допускает Python 3.11+, но подтверждённый benchmark и resource
-measurement выполнялись на Python 3.12.
+`pyproject.toml` допускает Python 3.11+, но подтверждённые испытания и
+измерение ресурсов выполнялись на Python 3.12.
 
 ### Аппаратные ресурсы
 
@@ -34,7 +34,7 @@ Qwen3.6-27B Q5_K_M при context 12288 занимала около 19.4 GiB VRA
 nvidia-smi
 ```
 
-Рекомендуется не менее 30 GB свободного места для GGUF и generated artifacts.
+Рекомендуется не менее 30 GB свободного места для GGUF и создаваемых файлов.
 
 ## 2. Клонирование
 
@@ -84,7 +84,7 @@ py -3.12 -m venv .venv
 ```
 
 Дополнительные `requirements-browser.txt` и `requirements-office.txt` не нужны
-для основного многоагентного benchmark.
+для основного многоагентного набора испытаний.
 
 ## 4. Основная модель
 
@@ -98,7 +98,7 @@ py -3.12 -m venv .venv
 | Filename | `Qwen3.6-27B-Q5_K_M.gguf` |
 | Размер | `19509790944` bytes |
 | SHA-256 | `cfecab168156269f25d5ffe9e13cf2a401ca2f43a9693fa00bcd1625316ccbde` |
-| Локальный путь | `models\gguf\qwen3_6_27b_q5_k_m\Qwen3.6-27B-Q5_K_M.gguf` |
+| Локальный путь | `models\gguf\sixth_model\Qwen3.6-27B-Q5_K_M.gguf` |
 
 ### Автоматическая загрузка
 
@@ -108,7 +108,7 @@ py -3.12 -m venv .venv
 
 Скрипт:
 
-- использует закреплённый Hugging Face revision;
+- использует закреплённую версию файла на Hugging Face;
 - вызывает `curl.exe`;
 - продолжает partial download через `--continue-at -`;
 - не скачивает повторно уже проверенный файл;
@@ -138,16 +138,16 @@ py -3.12 -m venv .venv
 Скрипт выводит предупреждение. Для воспроизводимого результата этот режим не
 используйте.
 
-### Ручная загрузка с закреплённой revision
+### Ручная загрузка с закреплённой версией
 
 Если вспомогательный скрипт недоступен, выполните эквивалентную загрузку
-вручную. URL содержит ту же закреплённую revision, а `--continue-at -`
+вручную. URL содержит ту же закреплённую версию, а `--continue-at -`
 сохраняет возможность продолжить partial download:
 
 ```powershell
 $revision = "eff7310b099938f3cd9f794b97493201d7c4b11d"
 $file = "Qwen3.6-27B-Q5_K_M.gguf"
-$destination = "models\gguf\qwen3_6_27b_q5_k_m\$file"
+$destination = "models\gguf\sixth_model\$file"
 $url = "https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/$revision/$file?download=true"
 New-Item -ItemType Directory -Path (Split-Path $destination) -Force | Out-Null
 curl.exe --location --fail --retry 3 --continue-at - --output $destination $url
@@ -157,7 +157,7 @@ curl.exe --location --fail --retry 3 --continue-at - --output $destination $url
 
 Последние две команды должны вернуть `19509790944` bytes и
 `CFECAB168156269F25D5FFE9E13CF2A401CA2F43A9693FA00BCD1625316CCBDE`.
-Не запускайте benchmark с файлом, который не прошёл обе проверки.
+Не запускайте испытания с файлом, который не прошёл обе проверки.
 
 ### Исторические модели
 
@@ -166,7 +166,7 @@ curl.exe --location --fail --retry 3 --continue-at - --output $destination $url
 минимальный запуск требует только Qwen3.6-27B Q5_K_M.
 
 В tracked metadata сохранены семейства, quantization и локальные aliases, но
-не полный набор revision, bytes и SHA-256 для каждого старого GGUF. Поэтому
+не полный набор версий, размеров и SHA-256 для каждого старого GGUF. Поэтому
 инструкция не публикует непроверенные download URL.
 
 ## 5. Тесты без модели
@@ -177,7 +177,7 @@ curl.exe --location --fail --retry 3 --continue-at - --output $destination $url
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-Канонический runtime можно проверить отдельно:
+Основную среду выполнения можно проверить отдельно:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest `
@@ -215,8 +215,8 @@ executable.
 
 ```powershell
 llama-server.exe `
-  --model models\gguf\qwen3_6_27b_q5_k_m\Qwen3.6-27B-Q5_K_M.gguf `
-  --alias qwen3_6_27b_q5_k_m `
+  --model models\gguf\sixth_model\Qwen3.6-27B-Q5_K_M.gguf `
+  --alias sixth_model `
   --host 127.0.0.1 `
   --port 8085 `
   --ctx-size 12288 `
@@ -226,7 +226,7 @@ llama-server.exe `
   --reasoning off
 ```
 
-Проверить readiness из второго окна:
+Проверить готовность из второго окна:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8085/health
@@ -234,13 +234,13 @@ Invoke-RestMethod http://127.0.0.1:8085/v1/models
 ```
 
 В `/v1/models` должен присутствовать alias
-`qwen3_6_27b_q5_k_m`.
+`sixth_model`.
 
 Проверить OpenAI-compatible protocol одним коротким локальным запросом:
 
 ```powershell
 $body = @{
-  model = "qwen3_6_27b_q5_k_m"
+  model = "sixth_model"
   messages = @(
     @{ role = "user"; content = "/no_think Return exactly OK." }
   )
@@ -255,19 +255,19 @@ $response = Invoke-RestMethod `
 $response.choices[0].message.content
 ```
 
-Этот smoke проверяет только localhost protocol и alias. Он не входит в
-benchmark и не заменяет полный запуск.
+Этот короткий запрос проверяет только локальный протокол и имя модели. Он не
+входит в набор испытаний и не заменяет полный запуск.
 
-## 7. Полный benchmark
+## 7. Полный набор испытаний
 
 Запускайте из корня репозитория во втором окне PowerShell:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\run_autonomous_multi_agent_runtime.py `
-  --config configs\behavioral_benchmark_v2_qwen3_6_27b_q5_k_m_full.json `
-  --models qwen3_6_27b_q5_k_m `
+  --config configs\behavioral_benchmark_v2_sixth_model_full.json `
+  --models sixth_model `
   --allow-model-execution `
-  --output-dir artifacts\reproduction\qwen3_6_27b_q5_k_m_full
+  --output-dir artifacts\reproduction\sixth_model_full
 ```
 
 Параметр `--allow-model-execution` является обязательным opt-in. Endpoint
@@ -291,7 +291,7 @@ benchmark и не заменяет полный запуск.
 Прочитать experiment summary:
 
 ```powershell
-$summaryPath = "artifacts\reproduction\qwen3_6_27b_q5_k_m_full\experiment_summary.json"
+$summaryPath = "artifacts\reproduction\sixth_model_full\experiment_summary.json"
 $summary = Get-Content -LiteralPath $summaryPath -Raw | ConvertFrom-Json
 $summary | Select-Object status,trials_total,trials_succeeded,trials_failed,trial_pass_rate
 ```
@@ -314,14 +314,14 @@ $summary.per_scenario_pass_rate
 
 Каждый из семи показателей должен быть `1.0`.
 
-Ключевые safety-поля:
+Ключевые служебные поля безопасности:
 
 ```powershell
 $summary | Select-Object `
   model_execution,external_network,real_browser_execution,playwright_execution
 ```
 
-Для model-backed fixture run ожидаются:
+Для запуска с моделью на подготовленных данных ожидаются:
 
 ```text
 model_execution        = true
@@ -331,12 +331,13 @@ playwright_execution   = false
 ```
 
 Каждый trial directory содержит `trial_summary.json` и `group_trace.jsonl`.
-Trace позволяет проверить Actions, observations, tool results и completion
-requirements по ходам.
+Журнал позволяет проверить предложенные действия, наблюдения, результаты
+инструментов и выполненные требования по ходам.
 
 ## 9. Измерение ресурсов
 
-Resource harness сам запускает и останавливает ровно один `llama-server`.
+Стенд измерения ресурсов сам запускает и останавливает ровно один
+`llama-server`.
 Перед запуском остановите сервер из предыдущего раздела. Порт 8085 должен быть
 свободен.
 
@@ -344,8 +345,8 @@ Resource harness сам запускает и останавливает ров�
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\run_deterministic_gpu_resource_harness.py `
-  --model-id qwen3_6_27b_q5_k_m `
-  --model-path models\gguf\qwen3_6_27b_q5_k_m\Qwen3.6-27B-Q5_K_M.gguf `
+  --model-id sixth_model `
+  --model-path models\gguf\sixth_model\Qwen3.6-27B-Q5_K_M.gguf `
   --server-path "C:\path\to\llama-server.exe" `
   --host 127.0.0.1 `
   --port 8085 `
@@ -359,11 +360,12 @@ Resource harness сам запускает и останавливает ров�
   --expected-model-sha256 cfecab168156269f25d5ffe9e13cf2a401ca2f43a9693fa00bcd1625316ccbde `
   --expected-offloaded-layers 65/65 `
   --require-startup-alias `
-  --out-dir artifacts\descriptive_gpu_resource_profiles\qwen_reproduction
+  --out-dir artifacts\descriptive_gpu_resource_profiles\sixth_model_reproduction
 ```
 
-Harness проверяет model file, отсутствие другого `llama-server`, свободный
-порт, baseline GPU memory, `/health`, `/v1/models`, alias и startup log.
+Стенд проверяет файл модели, отсутствие другого `llama-server`, свободный
+порт, исходное потребление памяти GPU, `/health`, `/v1/models`, имя модели и
+журнал запуска.
 
 Он записывает:
 
@@ -390,9 +392,10 @@ process stopped = true
 port released = true
 ```
 
-Resource workload синтетический и не заменяет поведенческий benchmark.
+Синтетическая нагрузка для измерения ресурсов не заменяет проверку поведения
+моделей.
 
-## 10. Проверка сохранённого evidence
+## 10. Проверка сохранённых подтверждающих данных
 
 Основные tracked документы:
 
@@ -405,7 +408,7 @@ docs/status/behavioral_benchmark_v2_post_hoc_challenger_archive.json
 docs/status/behavioral_benchmark_v2_post_hoc_challenger_evidence.sha256
 ```
 
-Итоговый generated archive хранится вне Git:
+Итоговый созданный архив хранится вне Git:
 
 ```text
 behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_final_20260727T063525Z.tar.gz
@@ -429,7 +432,7 @@ $archive = "..\behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_final_2026072
 tar -tzf $archive
 ```
 
-## 11. Очистка generated files
+## 11. Очистка созданных файлов
 
 Сначала только dry-run:
 
@@ -438,7 +441,7 @@ tar -tzf $archive
   -FinalArchivePath "..\behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_final_20260727T063525Z.tar.gz"
 ```
 
-Фактическое удаление разрешённых generated roots:
+Фактическое удаление разрешённых каталогов:
 
 ```powershell
 .\scripts\cleanup_generated_files.ps1 `
@@ -452,8 +455,11 @@ points. Он не удаляет GGUF, archives, source, configs, tests, docs и
 ## 12. Ограничения воспроизведения
 
 - Значения latency и ресурсов зависят от GPU, driver и сборки llama.cpp.
-- Поведенческий результат относится к fixture-only задачам.
-- В benchmark нет внешнего интернета, реального браузера или Playwright.
-- Round-robin не является параллельным model inference.
-- Один успешный набор не доказывает production capacity или security.
-- Для точной архивной сверки нужен отдельно предоставленный evidence archive.
+- Поведенческий результат относится к задачам с локально подготовленными
+  данными.
+- Испытания не используют открытый интернет, реальный браузер или Playwright.
+- Поочерёдные ходы не являются параллельным выводом нескольких моделей.
+- Один успешный набор не подтверждает эксплуатационную производительность или
+  безопасность.
+- Для точной архивной сверки нужен отдельно предоставленный архив
+  подтверждающих данных.

@@ -1,46 +1,30 @@
-# Model File Mapping
+# Соответствие моделей и локальных файлов
 
-## Purpose
+Этот технический справочник показывает, какой GGUF-файл ожидается для каждого
+идентификатора. Источник путей:
+`configs/evaluation_models.json`.
 
-This document records the publication-safe mapping between stable experiment `model_id` values, logical model names, and local GGUF file paths.
+| Идентификатор | Имя модели для `llama-server` | Локальный путь |
+| --- | --- | --- |
+| `first_model` | `first_model` | `models/gguf/first_model.gguf` |
+| `second_model` | `second_model` | `models/gguf/second_model.gguf` |
+| `third_model` | `third_model` | `models/gguf/third_model.gguf` |
+| `fourth_model` | `fourth_model` | `models/gguf/fourth_model.gguf` |
+| `fifth_model` | `fifth_model` | `models/gguf/fifth_model.gguf` |
+| `sixth_model` | `sixth_model` | `models/gguf/sixth_model/Qwen3.6-27B-Q5_K_M.gguf` |
 
-The source of truth for actual experiment runtime paths is:
+Старые результаты могут содержать `qwen2_5_3b_instruct_q4_k_m` и
+`qwen3_6_27b_q5_k_m`. Реестр разрешает их соответственно в `second_model` и
+`sixth_model`. Содержимое старых файлов не переписывается.
 
-`configs/evaluation_models.json`
+GGUF-файлы не добавляются в Git. Новый пользователь размещает их локально или
+использует `scripts/download_required_model.ps1` для Qwen3.6-27B Q5_K_M.
 
-Research-facing upstream names, parameter sizes, quantization, and source/origin notes are consolidated in:
-
-`docs/ai/model_research_metadata.md`
-
-## Canonical Mapping
-
-| model_id | logical/model_name | local gguf_path used by project | notes |
-|---|---|---|---|
-| `first_model` | `first_model.gguf` | `models/gguf/first_model.gguf` | Local alias for `qwen2.5-1.5b-instruct-q4_k_m.gguf`. |
-| `second_model` | `second_model.gguf` | `models/gguf/second_model.gguf` | Current user-facing id for the second local model slot. Upstream/source name: `qwen2.5-3b-instruct-q4_k_m.gguf`. |
-
-## Important Notes
-
-- GGUF model files are not committed to Git.
-- A new user must place local model files manually under `models/gguf/` or edit `configs/evaluation_models.json`.
-- `second_model` is the current user-facing model id for the second model.
-- `qwen2.5-3b-instruct-q4_k_m.gguf` may appear only as an upstream/source filename in metadata.
-- `qwen2_5_3b_instruct_q4_k_m` may appear in historical experiment artifacts; it is supported as a legacy alias.
-- The required local file path for the second model in the current repository configuration is `models/gguf/second_model.gguf`.
-- Do not rename local model files in documentation unless `configs/evaluation_models.json` is updated too.
-
-## Preflight Commands
+Проверка записи:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\check_evaluation_model.py `
   --models-config configs\evaluation_models.json `
-  --model-id first_model `
-  --json
-```
-
-```powershell
-.\.venv\Scripts\python.exe scripts\check_evaluation_model.py `
-  --models-config configs\evaluation_models.json `
-  --model-id second_model `
+  --model-id sixth_model `
   --json
 ```

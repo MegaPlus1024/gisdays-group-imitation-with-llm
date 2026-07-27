@@ -132,6 +132,35 @@
         "Suggested local benchmark endpoint port is 8084.",
         "Replaces the earlier slow Gemma-based fifth-model benchmark slot for final-presentation comparisons."
       ]
+    },
+    {
+      "model_id": "sixth_model",
+      "aliases": [
+        "qwen3_6_27b_q5_k_m"
+      ],
+      "display_name": "Qwen3.6-27B Q5_K_M",
+      "role": "post-hoc Behavioral Benchmark v2 challenger",
+      "model_name": "Qwen3.6-27B-Q5_K_M.gguf",
+      "api_model": "sixth_model",
+      "upstream_model_name": "Qwen3.6-27B-Q5_K_M.gguf",
+      "gguf_path": "models/gguf/sixth_model/Qwen3.6-27B-Q5_K_M.gguf",
+      "quantization": "Q5_K_M",
+      "parameter_size": "27B",
+      "runtime": "llama.cpp / llama-server",
+      "base_url": "http://127.0.0.1:8085/v1",
+      "api_style": "openai_compatible",
+      "expected_cpu_only": false,
+      "ctx_size": 12288,
+      "timeout_seconds": 120.0,
+      "temperature": 0.0,
+      "max_tokens": 512,
+      "enabled": true,
+      "notes": [
+        "Active identifier for the Qwen3.6-27B Q5_K_M post-hoc challenger.",
+        "Historical artifacts may retain the alias qwen3_6_27b_q5_k_m.",
+        "The pinned download metadata is documented in docs/reproducibility.md.",
+        "The local GGUF file must not be committed."
+      ]
     }
   ]
 }

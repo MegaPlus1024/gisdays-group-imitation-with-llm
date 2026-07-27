@@ -26,7 +26,7 @@ Get-Help .\scripts\download_required_model.ps1 -Detailed
 #>
 [CmdletBinding()]
 param(
-  [string]$Destination = "models\gguf\qwen3_6_27b_q5_k_m\Qwen3.6-27B-Q5_K_M.gguf",
+  [string]$Destination = "models\gguf\sixth_model\Qwen3.6-27B-Q5_K_M.gguf",
   [switch]$ForceDownload,
   [switch]$SkipHashCheck
 )
@@ -38,6 +38,8 @@ $ExpectedBytes = [Int64]19509790944
 $ExpectedSha256 = "cfecab168156269f25d5ffe9e13cf2a401ca2f43a9693fa00bcd1625316ccbde"
 $DownloadUrl = "https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/eff7310b099938f3cd9f794b97493201d7c4b11d/Qwen3.6-27B-Q5_K_M.gguf?download=true"
 $RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+$DefaultDestination = "models\gguf\sixth_model\Qwen3.6-27B-Q5_K_M.gguf"
+$LegacyDestination = "models\gguf\qwen3_6_27b_q5_k_m\Qwen3.6-27B-Q5_K_M.gguf"
 
 function Resolve-DestinationPath {
   param([Parameter(Mandatory = $true)][string]$Value)
@@ -85,12 +87,36 @@ function Write-VerifiedState {
 }
 
 $DestinationPath = Resolve-DestinationPath -Value $Destination
+$DefaultDestinationPath = Resolve-DestinationPath -Value $DefaultDestination
+$LegacyDestinationPath = Resolve-DestinationPath -Value $LegacyDestination
 $DestinationDirectory = Split-Path -Parent $DestinationPath
-$Existing = Get-ModelState -Path $DestinationPath
 
 if ($SkipHashCheck) {
   Write-Warning "-SkipHashCheck disables the model integrity check. Use only when you accept that risk."
 }
+
+if ($DestinationPath -eq $DefaultDestinationPath -and
+    -not (Test-Path -LiteralPath $DestinationPath) -and
+    (Test-Path -LiteralPath $LegacyDestinationPath -PathType Leaf)) {
+  $LegacyItem = Get-Item -LiteralPath $LegacyDestinationPath
+  if ([Int64]$LegacyItem.Length -eq $ExpectedBytes) {
+    Write-Host "Verifying the model at the legacy path before migration."
+    $LegacySha256 = (Get-FileHash -LiteralPath $LegacyDestinationPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($LegacySha256 -eq $ExpectedSha256) {
+      New-Item -ItemType Directory -Path $DestinationDirectory -Force | Out-Null
+      Move-Item -LiteralPath $LegacyDestinationPath -Destination $DestinationPath
+      Write-Host "Moved the verified model from the legacy path to models\gguf\sixth_model."
+    }
+    else {
+      Write-Warning "The legacy model has the wrong SHA-256 and was preserved. A verified copy will be downloaded to the new path."
+    }
+  }
+  else {
+    Write-Warning "The legacy model has the wrong size and was preserved. A verified copy will be downloaded to the new path."
+  }
+}
+
+$Existing = Get-ModelState -Path $DestinationPath
 
 if ($null -ne $Existing) {
   if ($Existing.Bytes -eq $ExpectedBytes) {

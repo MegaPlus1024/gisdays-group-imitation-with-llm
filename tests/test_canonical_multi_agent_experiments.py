@@ -60,7 +60,7 @@ CONFIG_PATH = (
 )
 V2_CONFIG_PATH = PROJECT_ROOT / "configs" / "behavioral_benchmark_v2.example.json"
 V2_CHALLENGER_CONFIG_PATH = (
-    PROJECT_ROOT / "configs" / "behavioral_benchmark_v2_qwen3_6_27b_q5_k_m.json"
+    PROJECT_ROOT / "configs" / "behavioral_benchmark_v2_sixth_model.json"
 )
 
 
@@ -237,9 +237,9 @@ def test_explicit_localhost_model_profile_base_url_is_accepted(
     base_url: str,
 ) -> None:
     settings = _resolved_model_settings(
-        "qwen3_6_27b_q5_k_m",
+        "sixth_model",
         {
-            "model_id": "qwen3_6_27b_q5_k_m",
+            "model_id": "sixth_model",
             "base_url": base_url,
             "disable_thinking": True,
             "no_think_prefix": "/no_think",
@@ -250,8 +250,8 @@ def test_explicit_localhost_model_profile_base_url_is_accepted(
         project_root=PROJECT_ROOT,
     )
 
-    assert settings["model_id"] == "qwen3_6_27b_q5_k_m"
-    assert settings["api_model"] == "qwen3_6_27b_q5_k_m"
+    assert settings["model_id"] == "sixth_model"
+    assert settings["api_model"] == "sixth_model"
     assert settings["base_url"] == base_url
     assert settings["disable_thinking"] is True
     assert settings["no_think_prefix"] == "/no_think"
@@ -288,8 +288,8 @@ def test_explicit_model_profile_base_url_rejects_unsafe_urls(
 ) -> None:
     with pytest.raises(ValueError):
         _resolved_model_settings(
-            "qwen3_6_27b_q5_k_m",
-            {"model_id": "qwen3_6_27b_q5_k_m", "base_url": base_url},
+            "sixth_model",
+            {"model_id": "sixth_model", "base_url": base_url},
             project_root=PROJECT_ROOT,
         )
 
@@ -297,13 +297,13 @@ def test_explicit_model_profile_base_url_rejects_unsafe_urls(
 def test_challenger_behavioral_benchmark_v2_config_loads_and_resolves() -> None:
     config = load_long_horizon_experiment_config(V2_CHALLENGER_CONFIG_PATH)
     settings = _resolved_model_settings(
-        "qwen3_6_27b_q5_k_m",
+        "sixth_model",
         config.model_profile,
         project_root=PROJECT_ROOT,
     )
 
     assert config.experiment_id == (
-        "behavioral_benchmark_v2_qwen3_6_27b_q5_k_m_challenger"
+        "behavioral_benchmark_v2_sixth_model_challenger"
     )
     assert config.scenario_ids == ("long_horizon_multi_fact_retention",)
     assert config.trials_per_scenario == 1
@@ -312,10 +312,10 @@ def test_challenger_behavioral_benchmark_v2_config_loads_and_resolves() -> None:
     assert config.fixture_only is False
     assert config.model_execution is True
     assert config.output_dir == (
-        "artifacts/challenger_qwen3_6_27b_q5_k_m/v207_pilot_01"
+        "artifacts/challenger_sixth_model/v207_pilot_01"
     )
-    assert settings["model_id"] == "qwen3_6_27b_q5_k_m"
-    assert settings["api_model"] == "qwen3_6_27b_q5_k_m"
+    assert settings["model_id"] == "sixth_model"
+    assert settings["api_model"] == "sixth_model"
     assert settings["base_url"] == "http://127.0.0.1:8085/v1"
 
 
@@ -338,7 +338,7 @@ def test_challenger_config_dry_run_does_not_call_model_endpoint(
     )
 
     assert summary["status"] == "succeeded"
-    assert summary["model_ids"] == ["qwen3_6_27b_q5_k_m"]
+    assert summary["model_ids"] == ["sixth_model"]
     assert summary["model_execution"] is False
     assert summary["real_browser_execution"] is False
     assert summary["playwright_execution"] is False

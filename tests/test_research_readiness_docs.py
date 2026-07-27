@@ -48,7 +48,7 @@ def test_readme_links_research_model_metadata() -> None:
     assert "docs/ai/bounded_stress_candidate_pairs_v1.md" in readme
 
 
-def test_evaluation_model_registry_has_current_models_and_legacy_alias() -> None:
+def test_evaluation_model_registry_has_current_models_and_legacy_aliases() -> None:
     payload = json.loads(_read("configs/evaluation_models.json"))
     models = {item["model_id"]: item for item in payload["models"]}
 
@@ -57,22 +57,28 @@ def test_evaluation_model_registry_has_current_models_and_legacy_alias() -> None
     assert models["first_model"]["upstream_model_name"] == "granite-3.3-8b-instruct-q4_k_m.gguf"
     assert models["second_model"]["upstream_model_name"] == "qwen2.5-3b-instruct-q4_k_m.gguf"
     assert "qwen2_5_3b_instruct_q4_k_m" in models["second_model"].get("aliases", [])
+    assert models["sixth_model"]["display_name"] == "Qwen3.6-27B Q5_K_M"
+    assert models["sixth_model"]["api_model"] == "sixth_model"
+    assert "qwen3_6_27b_q5_k_m" in models["sixth_model"].get("aliases", [])
 
 
 def test_model_research_metadata_contains_required_table_fields() -> None:
     text = _read("docs/ai/model_research_metadata.md")
 
     for required in [
-        "project model_id",
-        "local GGUF file",
-        "llama-server model_name",
-        "upstream/full model name",
-        "parameter size",
-        "quantization",
+        "Идентификатор проекта",
+        "Локальный GGUF",
+        "Полное название",
+        "Размер",
+        "Квантование",
         "first_model",
         "second_model",
-        "qwen2.5-1.5b-instruct-q4_k_m.gguf",
-        "qwen2.5-3b-instruct-q4_k_m.gguf",
+        "IBM Granite 3.3 8B Instruct Q4_K_M",
+        "Qwen2.5-3B-Instruct Q4_K_M",
+        "Qwen3-14B Q5_K_M",
+        "Mistral Small 3.2 24B Instruct Q4_K_M",
+        "Qwen3-30B-A3B-Instruct-2507 Q4_K_M",
+        "Qwen3.6-27B Q5_K_M",
     ]:
         assert required in text
 

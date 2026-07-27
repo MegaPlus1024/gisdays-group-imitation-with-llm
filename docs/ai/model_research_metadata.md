@@ -1,39 +1,41 @@
-# Model Research Metadata
+# Сведения о моделях
 
-## Purpose
+Документ отделяет короткие технические идентификаторы от полных названий,
+которые используются в отчётах.
 
-This document separates clean project-local command ids from research metadata. Normal commands should use `first_model` and `second_model`; long upstream names are recorded here for reporting and reproducibility.
+Источники:
 
-Source files inspected:
+- `configs/evaluation_models.json`;
+- `configs/model_display_names.json`;
+- `docs/ai/model_registry.md`;
+- `docs/ai/model_file_mapping.md`;
+- сохранённые отчёты об испытаниях.
 
-- `configs/evaluation_models.json`
-- `configs/models.local.example.json`
-- `docs/ai/model_registry.md`
-- `docs/ai/model_file_mapping.md`
-- `models/gguf/MODELS.md`
-- `reports/experiments/final_evaluation_report.md`
-- historical experiment artifacts under `experiments/`
+## Таблица моделей
 
-## Current Model Table
+| Идентификатор проекта | Локальный GGUF | Полное название | Размер | Квантование | Назначение |
+| --- | --- | --- | ---: | --- | --- |
+| `first_model` | `models/gguf/first_model.gguf` | IBM Granite 3.3 8B Instruct Q4_K_M | 8B | Q4_K_M | малая или средняя база сравнения не из семейства Qwen |
+| `second_model` | `models/gguf/second_model.gguf` | Qwen2.5-3B-Instruct Q4_K_M | 3B | Q4_K_M | малая база сравнения Qwen |
+| `third_model` | `models/gguf/third_model.gguf` | Qwen3-14B Q5_K_M | 14B | Q5_K_M | историческая сильная модель планирования |
+| `fourth_model` | `models/gguf/fourth_model.gguf` | Mistral Small 3.2 24B Instruct Q4_K_M | 24B | Q4_K_M | сильная модель сравнения не из семейства Qwen |
+| `fifth_model` | `models/gguf/fifth_model.gguf` | Qwen3-30B-A3B-Instruct-2507 Q4_K_M | 30B-A3B | Q4_K_M | эффективная MoE-модель сравнения |
+| `sixth_model` | `models/gguf/sixth_model/Qwen3.6-27B-Q5_K_M.gguf` | Qwen3.6-27B Q5_K_M | 27B | Q5_K_M | дополнительная модель, прошедшая полный набор испытаний |
 
-| project model_id | local GGUF file | llama-server model_name | upstream/full model name | parameter size | quantization | role in experiments | notes |
-| ---------------- | --------------- | ----------------------- | ------------------------ | -------------- | ------------ | ------------------- | ----- |
-| `first_model` | `models/gguf/first_model.gguf` | `first_model.gguf` | `qwen2.5-1.5b-instruct-q4_k_m.gguf` | `1.5B` | `Q4_K_M` | First local smoke/baseline model and executor candidate in two-scenario repeated trials. | Upstream filename and Hugging Face Qwen source URL are recorded in `docs/ai/model_registry.md`; exact local download/checksum are not recorded. |
-| `second_model` | `models/gguf/second_model.gguf` | `second_model.gguf` | `qwen2.5-3b-instruct-q4_k_m.gguf` | `3B` | `Q4_K_M` | Second executor candidate in smoke/baseline, two-model comparison, repeated trials, cross-scenario analysis, and final reports. | Legacy id `qwen2_5_3b_instruct_q4_k_m` is supported as an alias and remains in historical artifacts. |
+## Правило отображения
 
-## Source/Origin Evidence
+- В командах и ключах JSON используются идентификаторы проекта.
+- В пользовательских таблицах и выводах используются полные названия.
+- Старая сводка может содержать исторический alias. Реестр преобразует его при
+  чтении, но исходный файл не изменяется.
 
-- `first_model`: `docs/ai/model_registry.md` records source URL `https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF`.
-- `second_model`: `docs/ai/model_registry.md` records source URL `https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF`.
-- Neither model has a committed GGUF checksum or exact download timestamp.
+## Подтверждённые alias
 
-## Naming Rule
+| Историческое имя | Текущее имя |
+| --- | --- |
+| `qwen2_5_3b_instruct_q4_k_m` | `second_model` |
+| `qwen3_6_27b_q5_k_m` | `sixth_model` |
 
-- Use project ids in commands: `first_model`, `second_model`.
-- Use `model_name` for the local OpenAI-compatible runtime name.
-- Use upstream/full names only in research metadata, reports, and provenance notes.
-
-## TODO
-
-- Record GGUF checksums outside Git or in a non-secret manifest before final archival.
-- Record exact source revision/download timestamp if available.
+Для Qwen3.6-27B Q5_K_M точные источник, версия, размер и SHA-256 указаны в
+`docs/reproducibility.md`. Для остальных моделей документ не делает
+неподтверждённых заявлений о поставщике GGUF или контрольной сумме.

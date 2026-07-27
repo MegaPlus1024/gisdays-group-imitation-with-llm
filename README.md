@@ -1,69 +1,95 @@
 # Local LLM Agent Lab
 
-`local-llm-agent-lab` — локальный исследовательский runtime.
+`local-llm-agent-lab` — исследовательская система для совместной работы
+локальных языковых моделей.
 
-Локальная система для запуска нескольких специализированных LLM-агентов в
-детерминированных рабочих процессах с проверяемыми инструментами, общей
-средой, границами ролей и автоматическим benchmark.
+Проект представляет собой локальную систему, в которой несколько агентов на
+базе языковых моделей совместно выполняют одну задачу. Каждому агенту назначена
+роль, собственная история диалога и ограниченный набор инструментов. Файлы,
+общие факты, зависимости и результаты действий хранятся в единой среде
+выполнения.
 
-Проект исследует normal user activity: группа local LLM agents получает роли,
-resources и constraints, выбирает по одному действию за ход и сохраняет
-раздельную history. Roles, resources, constraints, scripts and history
-являются частью проверяемого контракта. Безопасность задаёт границы
-эксперимента, но safety is not the final objective: основная проверка состоит
-в корректном завершении полезной совместной задачи.
+Система проверяет, способны ли локальные модели согласованно работать с
+документами и структурированными данными: извлекать сведения, передавать
+результаты между ролями, исправлять ошибки, дожидаться необходимых данных и
+завершать задачу только после выполнения всех требований.
 
-Это исследовательский прототип, а не готовая производственная система.
+Каждое действие проходит автоматическую проверку. Среда выполнения
+контролирует права роли, параметры инструмента, происхождение фактов, точность
+значений и условия завершения. Все шаги сохраняются в журнале, поэтому
+результат можно проверить после запуска.
 
 ## Возможности
 
-- несколько агентов с разными ролями и разрешениями;
-- отдельные `agent state` и `history log` для каждого агента;
-- общие файлы, факты и состояние ресурсов;
-- зависимости и ожидание результатов других ролей;
-- allowlist инструментов и проверка параметров до выполнения;
-- восстановление после ошибочного действия;
+- несколько агентов с разными ролями и отдельной историей;
+- работа с локальными статьями, файлами и структурированными данными;
+- передача файлов и точных значений между ролями;
+- публикация и чтение общих фактов;
+- ожидание результатов других агентов;
+- проверка прав роли до выполнения инструмента;
 - проверка источника, полномочий и точного значения факта;
-- защита от повторов и преждевременного завершения;
-- один JSON `next action` на ход;
-- JSONL trace, сводки испытаний и evidence manifests;
-- детерминированное измерение ресурсов локальной модели.
+- восстановление после ожидаемых ошибок;
+- защита от повторяющихся действий и преждевременного завершения;
+- один предлагаемый шаг в формате JSON на каждом ходу;
+- журналы JSONL, сводки испытаний и проверяемые контрольные суммы.
 
-Канонический поток данных:
+## Как выполняется задача
 
-```text
-config -> orchestrator -> agent state -> local LLM policy
-       -> next action -> script runner -> observation -> history log
-```
+На каждом ходу модель предлагает одно действие в формате JSON. Среда
+выполнения проверяет название инструмента, его параметры, права текущей роли и
+условия сценария. После проверки действие выполняется, а результат передаётся
+агенту на следующем ходу.
 
-Модель выбирает действие, runtime проверяет его, а action execution выполняется
-только зарегистрированным инструментом. Full autonomous agent loop is not implemented;
-внешняя сеть, произвольные команды и свободный доступ к файлам не входят в
-канонический контур.
+В системе реализованы инструменты для:
+
+- чтения и создания файлов;
+- передачи файлов между ролями;
+- публикации и чтения общих фактов;
+- проверки точных значений;
+- проверки источника и полномочий;
+- ожидания зависимостей;
+- восстановления после ожидаемых ошибок;
+- чтения заранее подготовленных статей;
+- проверки выполнения требований;
+- завершения задачи.
+
+Полностью автономный цикл, в котором агенты самостоятельно создают новые цели,
+меняют состав команды и произвольно расширяют план работы, не реализован.
+Задачи, роли и доступные инструменты задаются сценарием заранее.
 
 ## Основной результат
 
-| Модель | Пройдено | Длительный сценарий | Итог |
+| Модель | Успешные запуски | Длительный сценарий | Результат |
 | --- | ---: | ---: | --- |
-| `third_model` | 30/35 | 0/5 | обязательный критерий не пройден |
-| `fourth_model` | 30/35 | 0/5 | обязательный критерий не пройден |
-| `fifth_model` | 30/35 | 0/5 | обязательный критерий не пройден |
-| Qwen3.6-27B Q5_K_M | 35/35 | 5/5 | все критерии пройдены |
+| Qwen3-14B Q5_K_M | 30 из 35 | 0 из 5 | Не выполнен обязательный критерий длительного сценария |
+| Mistral Small 3.2 24B Instruct Q4_K_M | 30 из 35 | 0 из 5 | Не выполнен обязательный критерий длительного сценария |
+| Qwen3-30B-A3B-Instruct-2507 Q4_K_M | 30 из 35 | 0 из 5 | Не выполнен обязательный критерий длительного сценария |
+| Qwen3.6-27B Q5_K_M | 35 из 35 | 5 из 5 | Выполнены все критерии |
 
-Исходное сравнение трёх моделей остаётся отдельным зафиксированным результатом.
-Qwen3.6-27B Q5_K_M была проверена дополнительным полным запуском с теми же
-семью сценариями, пятью повторами и теми же критериями. Результат показывает
-поведение моделей только в этом fixture-based benchmark и не доказывает
-production readiness.
+Исходное сравнение первых трёх моделей остаётся отдельным зафиксированным
+результатом. Qwen3.6-27B Q5_K_M прошла дополнительный полный запуск с теми же
+семью сценариями, пятью повторами и теми же критериями оценки.
+
+Набор испытаний подтверждает, что модель способна корректно выполнять заданные
+многоагентные сценарии в контролируемой среде. Он проверяет работу с ролями,
+файлами, общими фактами, зависимостями, ошибками и условиями завершения.
+
+Для промышленного внедрения дополнительно требуется проверить
+длительную непрерывную работу, нагрузку от нескольких пользователей,
+отказоустойчивость, мониторинг, обновление и откат версий, защиту реальных
+данных, стоимость эксплуатации и поведение на непредусмотренных входных данных.
+Поэтому полученный результат является важной проверкой функциональной
+корректности, но не заменяет полный комплекс эксплуатационных испытаний.
+
+Ограничение не означает низкого качества набора испытаний. Он предназначен для
+проверки корректности поведения агентов, а не для измерения всех свойств
+готовой промышленной системы.
 
 ## Быстрый запуск
 
-Требуются Windows 10/11, PowerShell 5.1+, Git, Python 3.12 и `llama-server`
-из [llama.cpp](https://github.com/ggml-org/llama.cpp/releases). Проект объявляет
-совместимость с Python 3.11+, а подтверждённые запуски выполнялись на Python
-3.12.
-
-Клонирование и окружение:
+Требуются Windows 10/11, PowerShell 5.1+, Git, Python 3.11+ и
+`llama-server` из [llama.cpp](https://github.com/ggml-org/llama.cpp/releases).
+Подтверждённые итоговые запуски выполнялись на Python 3.12.
 
 ```powershell
 git clone https://github.com/MegaPlus1024/gisdays-group-imitation-with-llm.git
@@ -73,15 +99,21 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-Скачать и проверить основную модель:
+Скачать и проверить Qwen3.6-27B Q5_K_M:
 
 ```powershell
 .\scripts\download_required_model.ps1
 ```
 
-Скрипт загружает закреплённый файл Qwen3.6-27B Q5_K_M, поддерживает resume и
-проверяет размер и SHA-256. GGUF остаётся в
-`models/gguf/qwen3_6_27b_q5_k_m/` и не добавляется в Git.
+Скрипт использует закреплённую версию файла, поддерживает продолжение загрузки
+и проверяет размер и SHA-256. Новый путь модели:
+
+```text
+models/gguf/sixth_model/Qwen3.6-27B-Q5_K_M.gguf
+```
+
+Если проверенная модель уже лежит в старом каталоге, скрипт перенесёт её и не
+будет загружать повторно.
 
 Запустить тесты без модели:
 
@@ -89,35 +121,10 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-Запустить сервер в отдельном окне PowerShell:
+Команды запуска сервера и полного набора испытаний приведены в
+[инструкции по воспроизведению](docs/reproducibility.md).
 
-```powershell
-llama-server.exe `
-  --model models\gguf\qwen3_6_27b_q5_k_m\Qwen3.6-27B-Q5_K_M.gguf `
-  --alias qwen3_6_27b_q5_k_m `
-  --host 127.0.0.1 `
-  --port 8085 `
-  --ctx-size 12288 `
-  --n-gpu-layers 999 `
-  --parallel 1 `
-  --jinja `
-  --reasoning off
-```
-
-Запустить полный benchmark из второго окна:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\run_autonomous_multi_agent_runtime.py `
-  --config configs\behavioral_benchmark_v2_qwen3_6_27b_q5_k_m_full.json `
-  --models qwen3_6_27b_q5_k_m `
-  --allow-model-execution `
-  --output-dir artifacts\reproduction\qwen3_6_27b_q5_k_m_full
-```
-
-Вызовы модели требуют явного `--allow-model-execution`. Без этого параметра
-runtime не отправляет HTTP-запросы модели.
-
-Безопасная демонстрация с fake policy:
+Безопасная проверка со встроенными детерминированными ответами:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\run_autonomous_multi_agent_runtime.py `
@@ -126,66 +133,83 @@ runtime не отправляет HTTP-запросы модели.
   --dry-run
 ```
 
-## Архитектура
+## Основная среда выполнения
 
-Основные компоненты:
+Ключевые компоненты:
 
-- `src/agent/autonomous_multi_agent_runtime.py` — состояния агентов, scheduler,
-  turn loop, guards, общая среда и registry инструментов;
+- `src/agent/autonomous_multi_agent_runtime.py` — состояния агентов,
+  очерёдность ходов, проверки и общая рабочая среда;
 - `src/agent/canonical_multi_agent_experiments.py` — семь сценариев,
-  повторные испытания, trace и сводные метрики;
-- `scripts/run_autonomous_multi_agent_runtime.py` — CLI для безопасного и
-  model-backed запуска;
-- `configs/behavioral_benchmark_v2_qwen3_6_27b_q5_k_m_full.json` — полный
-  воспроизводимый набор сценариев для основной модели;
-- `scripts/run_deterministic_gpu_resource_harness.py` — lifecycle-owned
-  измерение GPU/CPU/RAM и задержек;
-- `configs/evaluation_models.json` — исторические локальные aliases.
+  повторные испытания, журналы и сводные показатели;
+- `scripts/run_autonomous_multi_agent_runtime.py` — командный интерфейс;
+- `configs/behavioral_benchmark_v2_sixth_model_full.json` — полный набор
+  сценариев для Qwen3.6-27B Q5_K_M;
+- `scripts/run_deterministic_gpu_resource_harness.py` — измерение GPU, CPU,
+  памяти и задержек с управлением жизненным циклом сервера;
+- `configs/evaluation_models.json` — технический реестр локальных моделей;
+- `configs/model_display_names.json` — единые отображаемые названия моделей.
 
-Подробное описание канонического runtime:
-[docs/architecture/canonical_runtime.md](docs/architecture/canonical_runtime.md).
+Подробное техническое описание:
+[основная среда выполнения](docs/architecture/canonical_runtime.md).
 
-## Локальные модели
+## Технические идентификаторы моделей
 
-Минимальное воспроизведение итогового результата требует только
-Qwen3.6-27B Q5_K_M. Исторические `third_model`, `fourth_model` и `fifth_model`
-использовались как базовые варианты; их веса не распространяются в
-репозитории, а полностью закреплённые публичные checksum/revision для них не
-сохранены.
+В командах и JSON используются короткие идентификаторы. В пользовательских
+таблицах и выводах используются полные названия.
 
-Старые локальные aliases, включая `models/gguf/second_model.gguf`, нужны только
-для исторических экспериментов. В архивных командах встречаются
-`--model-id second_model` и `--model-ids first_model,second_model`; они не нужны
-для минимального запуска Qwen.
+| Внутренний идентификатор | Модель |
+| --- | --- |
+| `third_model` | Qwen3-14B Q5_K_M |
+| `fourth_model` | Mistral Small 3.2 24B Instruct Q4_K_M |
+| `fifth_model` | Qwen3-30B-A3B-Instruct-2507 Q4_K_M |
+| `sixth_model` | Qwen3.6-27B Q5_K_M |
+
+Старый идентификатор `qwen3_6_27b_q5_k_m` поддерживается только для чтения
+ранее созданных результатов. Новые команды и результаты используют
+`sixth_model`.
+
+Исторические команды для старых двухмодельных исследований сохранены в
+технической документации:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_evaluation.py --model-id second_model
+.\.venv\Scripts\python.exe scripts\run_evaluation.py --model-ids first_model,second_model
+```
+
+Для них ожидается путь `models/gguf/second_model.gguf`.
 
 ## Документация
 
 - [Краткий итоговый отчёт](docs/project_report.md)
-- [Воспроизведение из чистого clone](docs/reproducibility.md)
-- [Канонический runtime](docs/architecture/canonical_runtime.md)
-- [Методика benchmark](docs/behavioral_benchmark_v2.md)
-- [Подробный итоговый evidence report](docs/status/behavioral_benchmark_v2_post_hoc_challenger_final_report.md)
-- [Проверка публикационной безопасности](docs/security/publication_security_check.md)
+- [Воспроизведение из чистой копии репозитория](docs/reproducibility.md)
+- [Основная среда выполнения](docs/architecture/canonical_runtime.md)
+- [Методика испытаний](docs/behavioral_benchmark_v2.md)
+- [Подробный отчёт с подтверждающими данными](docs/status/behavioral_benchmark_v2_post_hoc_challenger_final_report.md)
+- [Проверка отсутствия чувствительных данных в публикуемых материалах](docs/security/publication_security_check.md)
+- [Сведения о моделях](docs/ai/model_research_metadata.md)
 
 Сохранённые исследовательские материалы:
 
-- [reports/experiments/final_evaluation_report.md](reports/experiments/final_evaluation_report.md)
-- [reports/experiments/final_multi_agent_research_report.md](reports/experiments/final_multi_agent_research_report.md)
-- [reports/experiments/manager_summary.md](reports/experiments/manager_summary.md)
-- [reports/experiments/project_usage_appendix.md](reports/experiments/project_usage_appendix.md)
-- [reports/experiments/final_evaluation_summary.json](reports/experiments/final_evaluation_summary.json)
-- [docs/ai/model_research_metadata.md](docs/ai/model_research_metadata.md)
-- [docs/ai/orchestrator_executor_runtime_capacity_v1.md](docs/ai/orchestrator_executor_runtime_capacity_v1.md)
-- [docs/ai/gpu_runtime_configuration_v1.md](docs/ai/gpu_runtime_configuration_v1.md)
-- [docs/ai/gpu_smoke_second_to_second_heavy_v1.md](docs/ai/gpu_smoke_second_to_second_heavy_v1.md)
-- [docs/ai/bounded_stress_candidate_pairs_v1.md](docs/ai/bounded_stress_candidate_pairs_v1.md)
+- [Итоговая оценка моделей](reports/experiments/final_evaluation_report.md)
+- [Итоговый многоагентный отчёт](reports/experiments/final_multi_agent_research_report.md)
+- [Краткая сводка для руководителя](reports/experiments/manager_summary.md)
+- [Приложение по использованию](reports/experiments/project_usage_appendix.md)
+- [Машиночитаемая итоговая сводка](reports/experiments/final_evaluation_summary.json)
+- [Оценка потребления памяти](docs/ai/orchestrator_executor_runtime_capacity_v1.md)
+- [Настройка GPU](docs/ai/gpu_runtime_configuration_v1.md)
+- [Проверка работы на GPU](docs/ai/gpu_smoke_second_to_second_heavy_v1.md)
+- [Ограниченные нагрузочные проверки](docs/ai/bounded_stress_candidate_pairs_v1.md)
 
-## Ограничения
+## Область применения и ограничения
 
-- инструменты работают с локальными fixtures и ограниченными путями;
-- round-robin означает логическое чередование, а не параллельный inference;
-- benchmark не обращается к открытому интернету;
-- resource profile измерен на одном GPU и в single-user режиме;
-- не измерены multi-user throughput и длительная нагрузка;
-- результаты не являются общей оценкой качества модели;
-- production capacity и production security не подтверждены.
+- сценарии используют локально подготовленные статьи и файлы;
+- порядок ходов задаётся последовательно и не означает параллельный вывод
+  нескольких моделей;
+- набор испытаний не работает с открытым интернетом и реальными
+  пользовательскими системами;
+- измерение ресурсов выполнено на одном GPU и для одного пользователя;
+- не измерены длительная непрерывная нагрузка и одновременная работа нескольких
+  пользователей;
+- результаты относятся к заданным сценариям и не являются общей оценкой
+  интеллектуальных возможностей моделей;
+- перед промышленным применением нужны отдельные эксплуатационные испытания.

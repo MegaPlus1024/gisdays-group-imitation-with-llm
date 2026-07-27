@@ -4,36 +4,39 @@ from pathlib import Path
 
 
 def _read(path: str) -> str:
-    return Path(path).read_text(encoding="utf-8").lower()
+    return " ".join(Path(path).read_text(encoding="utf-8").lower().split())
 
 
 def test_readme_exists() -> None:
     assert Path("README.md").exists()
 
 
-def test_readme_mentions_normal_user_activity() -> None:
+def test_readme_describes_coordinated_user_tasks() -> None:
     text = _read("README.md")
-    assert "normal user activity" in text or "normal user activity simulation" in text
+    assert "совместно выполняют одну задачу" in text
+    assert "согласованно работать" in text
+    assert "документами и структурированными данными" in text
 
 
-def test_readme_mentions_group_and_local_llm_agents() -> None:
+def test_readme_mentions_multiple_local_model_agents() -> None:
     text = _read("README.md")
-    assert "group" in text
-    assert "local llm agents" in text
+    assert "несколько агентов" in text
+    assert "языковых моделей" in text
 
 
-def test_readme_mentions_roles_resources_constraints_scripts_history() -> None:
+def test_readme_mentions_roles_tools_shared_state_and_history() -> None:
     text = _read("README.md")
-    assert "role" in text or "roles" in text
-    assert "resource" in text or "resources" in text
-    assert "constraint" in text or "constraints" in text
-    assert "script" in text or "scripts" in text
-    assert "history" in text
+    assert "роль" in text
+    assert "инструмент" in text
+    assert "единой среде" in text
+    assert "выполнения" in text
+    assert "история" in text
 
 
-def test_readme_not_safety_only_framing() -> None:
+def test_readme_frames_validation_as_support_for_useful_work() -> None:
     text = _read("README.md")
-    assert "not the final objective" in text or "not only safe" in text
+    assert "функциональной корректности" in text
+    assert "совместно" in text
 
 
 def test_objective_doc_exists() -> None:

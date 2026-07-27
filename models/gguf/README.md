@@ -1,19 +1,20 @@
-# GGUF Models
+# GGUF-модели
 
-GGUF model files go in this directory.
+Помещайте локальные GGUF-файлы в этот каталог. Они исключены из Git.
 
-Model files are not committed to git.
-
-Later, the exact model filename, source, quantization, and checksum should be logged for reproducibility.
-
-Placeholder expected model path:
+Для воспроизведения итогового результата нужен файл:
 
 ```text
-models/gguf/first_model.gguf
-models/gguf/second_model.gguf
+models/gguf/sixth_model/Qwen3.6-27B-Q5_K_M.gguf
 ```
 
-Canonical model mapping is documented in:
+Скрипт `scripts/download_required_model.ps1` загружает закреплённую версию,
+проверяет размер и SHA-256, а также переносит ранее проверенный файл со старого
+пути без повторной загрузки.
 
-- `configs/evaluation_models.json`
-- `docs/ai/model_file_mapping.md`
+Источники метаданных:
+
+- `configs/evaluation_models.json`;
+- `configs/model_display_names.json`;
+- `docs/ai/model_registry.md`;
+- `docs/ai/model_file_mapping.md`.

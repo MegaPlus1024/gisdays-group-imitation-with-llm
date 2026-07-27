@@ -46,8 +46,8 @@ def test_build_corpus_is_deterministic_and_ordered() -> None:
 def test_qwen_challenger_server_args_are_generic_and_lifecycle_owned() -> None:
     args = build_server_args(
         server_path=Path("llama-server.exe"),
-        model_path=Path("models/gguf/qwen3_6_27b_q5_k_m/Qwen3.6-27B-Q5_K_M.gguf"),
-        model_id="qwen3_6_27b_q5_k_m",
+        model_path=Path("models/gguf/sixth_model/Qwen3.6-27B-Q5_K_M.gguf"),
+        model_id="sixth_model",
         host="127.0.0.1",
         port=8085,
         ctx_size=12288,
@@ -61,9 +61,9 @@ def test_qwen_challenger_server_args_are_generic_and_lifecycle_owned() -> None:
     assert args == [
         "llama-server.exe",
         "--model",
-        "models\\gguf\\qwen3_6_27b_q5_k_m\\Qwen3.6-27B-Q5_K_M.gguf",
+        "models\\gguf\\sixth_model\\Qwen3.6-27B-Q5_K_M.gguf",
         "--alias",
-        "qwen3_6_27b_q5_k_m",
+        "sixth_model",
         "--host",
         "127.0.0.1",
         "--port",
@@ -95,8 +95,8 @@ def test_server_log_verbosity_is_optional_and_replayable(tmp_path: Path) -> None
     )
     verbose_args = build_server_args(
         server_path=Path("llama-server.exe"),
-        model_path=Path("models/gguf/qwen3_6_27b_q5_k_m/Qwen3.6-27B-Q5_K_M.gguf"),
-        model_id="qwen3_6_27b_q5_k_m",
+        model_path=Path("models/gguf/sixth_model/Qwen3.6-27B-Q5_K_M.gguf"),
+        model_id="sixth_model",
         host="127.0.0.1",
         port=8085,
         ctx_size=12288,
@@ -230,12 +230,12 @@ def test_startup_log_evidence_detects_qwen_gpu_offload_without_running_server() 
 0 I llama_kv_cache:    Vulkan1 KV buffer size =   768.00 MiB
 0 I sched_reserve:    Vulkan1 compute buffer size =   649.02 MiB
 0 I srv          init: init: chat template, thinking = 0
-qwen3_6_27b_q5_k_m
+sixth_model
 """
 
     evidence = parse_startup_log_evidence(
         log,
-        expected_alias="qwen3_6_27b_q5_k_m",
+        expected_alias="sixth_model",
     )
     failures = validate_startup_log_evidence(
         evidence,
@@ -267,7 +267,7 @@ Vulkan1 : NVIDIA RTX PRO 4000 Blackwell
 
     evidence = parse_startup_log_evidence(
         log,
-        expected_alias="qwen3_6_27b_q5_k_m",
+        expected_alias="sixth_model",
     )
 
     assert evidence["offloaded_layers"] == "65/65"
@@ -281,7 +281,7 @@ def test_non_verbose_log_still_fails_required_offload() -> None:
         "Vulkan1 : NVIDIA RTX PRO 4000 Blackwell\n"
         "llama_context: n_ctx = 12288\n"
         "srv init: chat template, thinking = 0\n",
-        expected_alias="qwen3_6_27b_q5_k_m",
+        expected_alias="sixth_model",
     )
 
     failures = validate_startup_log_evidence(
@@ -304,7 +304,7 @@ def test_startup_log_parser_reads_final_appended_logfile(tmp_path: Path) -> None
     )
     early = read_startup_log_evidence(
         stderr,
-        expected_alias="qwen3_6_27b_q5_k_m",
+        expected_alias="sixth_model",
     )
     assert early["offloaded_layers"] is None
 
@@ -316,7 +316,7 @@ def test_startup_log_parser_reads_final_appended_logfile(tmp_path: Path) -> None
 
     final = read_startup_log_evidence(
         stderr,
-        expected_alias="qwen3_6_27b_q5_k_m",
+        expected_alias="sixth_model",
     )
 
     assert final["offloaded_layers"] == "65/65"
@@ -328,7 +328,7 @@ def test_startup_log_evidence_rejects_oom_or_wrong_offload() -> None:
         "Vulkan1 : NVIDIA RTX PRO 4000 Blackwell\n"
         "offloaded 64/65 layers to GPU\n"
         "failed allocation",
-        expected_alias="qwen3_6_27b_q5_k_m",
+        expected_alias="sixth_model",
     )
 
     failures = validate_startup_log_evidence(
@@ -345,7 +345,7 @@ def test_startup_log_evidence_rejects_missing_offload_context_or_reasoning() -> 
         "Vulkan1 : NVIDIA RTX PRO 4000 Blackwell\n"
         "n_ctx = 8192\n"
         "srv init: chat template, thinking = 1\n",
-        expected_alias="qwen3_6_27b_q5_k_m",
+        expected_alias="sixth_model",
     )
 
     failures = validate_startup_log_evidence(

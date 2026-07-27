@@ -19,6 +19,7 @@ from src.agent.evaluation_models import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODELS_CONFIG = PROJECT_ROOT / "configs" / "evaluation_models.json"
+DISPLAY_NAMES_CONFIG = PROJECT_ROOT / "configs" / "model_display_names.json"
 
 
 def _first_model_payload(**overrides: object) -> dict[str, object]:
@@ -54,7 +55,9 @@ def test_evaluation_models_config_loads() -> None:
     assert "third_model" in ids
     assert "fourth_model" in ids
     assert "fifth_model" in ids
+    assert "sixth_model" in ids
     assert "qwen2_5_3b_instruct_q4_k_m" not in ids
+    assert "qwen3_6_27b_q5_k_m" not in ids
 
 
 def test_third_model_registry_entry_uses_relative_gguf_path() -> None:
@@ -104,6 +107,62 @@ def test_fourth_and_fifth_model_registry_entries_use_relative_gguf_paths() -> No
     assert fifth_model.upstream_model_name == "qwen3-30b-a3b-instruct-2507-q4_k_m.gguf"
     assert any("must not be committed" in note for note in fourth_model.notes)
     assert any("must not be committed" in note for note in fifth_model.notes)
+
+
+def test_sixth_model_registry_entry_and_legacy_alias() -> None:
+    config = load_evaluation_models_config(MODELS_CONFIG)
+    sixth_model = next(model for model in config.models if model.model_id == "sixth_model")
+    legacy = resolve_evaluation_model("qwen3_6_27b_q5_k_m", MODELS_CONFIG)
+
+    assert sixth_model.display_name == "Qwen3.6-27B Q5_K_M"
+    assert sixth_model.gguf_path == (
+        "models/gguf/sixth_model/Qwen3.6-27B-Q5_K_M.gguf"
+    )
+    assert not Path(sixth_model.gguf_path).is_absolute()
+    assert sixth_model.api_model == "sixth_model"
+    assert sixth_model.base_url == "http://127.0.0.1:8085/v1"
+    assert sixth_model.quantization == "Q5_K_M"
+    assert legacy.model_id == "sixth_model"
+
+
+def test_model_display_names_match_evaluation_registry() -> None:
+    display_payload = json.loads(DISPLAY_NAMES_CONFIG.read_text(encoding="utf-8"))
+    registry = load_evaluation_models_config(MODELS_CONFIG)
+    registry_names = {model.model_id: model.display_name for model in registry.models}
+
+    assert display_payload["schema_version"] == "model_display_names_v1"
+    assert display_payload["models"] == {
+        "third_model": {
+            "display_name": registry_names["third_model"],
+            "quantization": "Q5_K_M",
+        },
+        "fourth_model": {
+            "display_name": registry_names["fourth_model"],
+            "quantization": "Q4_K_M",
+        },
+        "fifth_model": {
+            "display_name": registry_names["fifth_model"],
+            "quantization": "Q4_K_M",
+        },
+        "sixth_model": {
+            "display_name": registry_names["sixth_model"],
+            "quantization": "Q5_K_M",
+        },
+    }
+
+
+def test_required_model_downloader_uses_new_path_and_verifies_legacy_before_move() -> None:
+    script = (PROJECT_ROOT / "scripts" / "download_required_model.ps1").read_text(
+        encoding="utf-8"
+    )
+
+    assert r"models\gguf\sixth_model\Qwen3.6-27B-Q5_K_M.gguf" in script
+    assert (
+        r"models\gguf\qwen3_6_27b_q5_k_m\Qwen3.6-27B-Q5_K_M.gguf"
+        in script
+    )
+    assert "Get-FileHash -LiteralPath $LegacyDestinationPath" in script
+    assert "Move-Item -LiteralPath $LegacyDestinationPath" in script
 
 
 def test_duplicate_model_id_rejected() -> None:
