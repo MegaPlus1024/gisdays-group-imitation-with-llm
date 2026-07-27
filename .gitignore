@@ -40,6 +40,10 @@ artifacts/autonomous_runtime_planner_summaries/
 artifacts/browser_planner_replay_suite_tests/
 artifacts/stepwise_article_benchmark/
 artifacts/canonical_multi_agent_long_horizon/
+artifacts/canonical_multi_agent_experiments/
+artifacts/behavioral_benchmark_v2/
+artifacts/challenger_qwen3_6_27b_q5_k_m/
+artifacts/descriptive_gpu_resource_profiles/
 
 # Local models
 models/gguf/*.gguf

@@ -1,60 +1,123 @@
 # Local LLM Agent Lab
 
-Repository name: `local-llm-agent-lab`.
+`local-llm-agent-lab` — локальный исследовательский runtime.
 
-Research prototype for role-constrained local agents that choose and execute
-one parameterized action at a time.
+Локальная система для запуска нескольких специализированных LLM-агентов в
+детерминированных рабочих процессах с проверяемыми инструментами, общей
+средой, границами ролей и автоматическим benchmark.
 
-The current canonical slice runs two deterministic agents in round-robin
-turns. They keep independent histories, share facts only through explicit
-operations, validate tool access before dispatch, observe structured failures,
-and can recover on a later turn.
+Проект исследует normal user activity: группа local LLM agents получает роли,
+resources и constraints, выбирает по одному действию за ход и сохраняет
+раздельную history. Roles, resources, constraints, scripts and history
+являются частью проверяемого контракта. Безопасность задаёт границы
+эксперимента, но safety is not the final objective: основная проверка состоит
+в корректном завершении полезной совместной задачи.
 
-The same runtime also has a canonical long-horizon experiment harness. Its
-safe default runs repeated fixture-only fake-policy trials for article/file
-handoff and office/shared-fact recovery. It records per-turn JSONL traces and
-per-trial/experiment metrics without launching a model or browser.
+Это исследовательский прототип, а не готовая производственная система.
 
-This repository is not production-ready.
+## Возможности
 
-The project studies normal user activity with groups of local LLM agents:
-roles receive bounded resources and constraints, choose a next action, invoke
-registered scripts, and retain an independent history log. Safety is
-not the final objective; it is a boundary around useful, measurable behavior.
+- несколько агентов с разными ролями и разрешениями;
+- отдельные `agent state` и `history log` для каждого агента;
+- общие файлы, факты и состояние ресурсов;
+- зависимости и ожидание результатов других ролей;
+- allowlist инструментов и проверка параметров до выполнения;
+- восстановление после ошибочного действия;
+- проверка источника, полномочий и точного значения факта;
+- защита от повторов и преждевременного завершения;
+- один JSON `next action` на ход;
+- JSONL trace, сводки испытаний и evidence manifests;
+- детерминированное измерение ресурсов локальной модели.
 
-## Quick Start
+Канонический поток данных:
 
-Requirements:
-
-- Windows PowerShell;
-- Python 3.11+;
-- repository-local `.venv`;
-- dependencies from `requirements.txt`.
-
-Run the safe no-model demonstration:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\run_autonomous_multi_agent_runtime.py `
-  --config configs\canonical_multi_agent.example.json
+```text
+config -> orchestrator -> agent state -> local LLM policy
+       -> next action -> script runner -> observation -> history log
 ```
 
-The compact JSON result should report:
+Модель выбирает действие, runtime проверяет его, а action execution выполняется
+только зарегистрированным инструментом. Full autonomous agent loop is not implemented;
+внешняя сеть, произвольные команды и свободный доступ к файлам не входят в
+канонический контур.
 
-- two completed agents;
-- eight alternating turns;
-- one missing-file failure and one recovery;
-- independent per-agent histories;
-- one shared fact publish/read;
-- no model, browser, Playwright, or external-network execution.
+## Основной результат
 
-Run tests:
+| Модель | Пройдено | Длительный сценарий | Итог |
+| --- | ---: | ---: | --- |
+| `third_model` | 30/35 | 0/5 | обязательный критерий не пройден |
+| `fourth_model` | 30/35 | 0/5 | обязательный критерий не пройден |
+| `fifth_model` | 30/35 | 0/5 | обязательный критерий не пройден |
+| Qwen3.6-27B Q5_K_M | 35/35 | 5/5 | все критерии пройдены |
+
+Исходное сравнение трёх моделей остаётся отдельным зафиксированным результатом.
+Qwen3.6-27B Q5_K_M была проверена дополнительным полным запуском с теми же
+семью сценариями, пятью повторами и теми же критериями. Результат показывает
+поведение моделей только в этом fixture-based benchmark и не доказывает
+production readiness.
+
+## Быстрый запуск
+
+Требуются Windows 10/11, PowerShell 5.1+, Git, Python 3.12 и `llama-server`
+из [llama.cpp](https://github.com/ggml-org/llama.cpp/releases). Проект объявляет
+совместимость с Python 3.11+, а подтверждённые запуски выполнялись на Python
+3.12.
+
+Клонирование и окружение:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests\test_autonomous_multi_agent_runtime.py
+git clone https://github.com/MegaPlus1024/gisdays-group-imitation-with-llm.git
+Set-Location gisdays-group-imitation-with-llm
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Скачать и проверить основную модель:
+
+```powershell
+.\scripts\download_required_model.ps1
+```
+
+Скрипт загружает закреплённый файл Qwen3.6-27B Q5_K_M, поддерживает resume и
+проверяет размер и SHA-256. GGUF остаётся в
+`models/gguf/qwen3_6_27b_q5_k_m/` и не добавляется в Git.
+
+Запустить тесты без модели:
+
+```powershell
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-Run one safe long-horizon fake trial per default scenario:
+Запустить сервер в отдельном окне PowerShell:
+
+```powershell
+llama-server.exe `
+  --model models\gguf\qwen3_6_27b_q5_k_m\Qwen3.6-27B-Q5_K_M.gguf `
+  --alias qwen3_6_27b_q5_k_m `
+  --host 127.0.0.1 `
+  --port 8085 `
+  --ctx-size 12288 `
+  --n-gpu-layers 999 `
+  --parallel 1 `
+  --jinja `
+  --reasoning off
+```
+
+Запустить полный benchmark из второго окна:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_autonomous_multi_agent_runtime.py `
+  --config configs\behavioral_benchmark_v2_qwen3_6_27b_q5_k_m_full.json `
+  --models qwen3_6_27b_q5_k_m `
+  --allow-model-execution `
+  --output-dir artifacts\reproduction\qwen3_6_27b_q5_k_m_full
+```
+
+Вызовы модели требуют явного `--allow-model-execution`. Без этого параметра
+runtime не отправляет HTTP-запросы модели.
+
+Безопасная демонстрация с fake policy:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\run_autonomous_multi_agent_runtime.py `
@@ -63,208 +126,66 @@ Run one safe long-horizon fake trial per default scenario:
   --dry-run
 ```
 
-Generated summaries and traces are written below the ignored
-`artifacts/canonical_multi_agent_long_horizon/` root.
+## Архитектура
 
-## Canonical Architecture
+Основные компоненты:
 
-Current entrypoints:
+- `src/agent/autonomous_multi_agent_runtime.py` — состояния агентов, scheduler,
+  turn loop, guards, общая среда и registry инструментов;
+- `src/agent/canonical_multi_agent_experiments.py` — семь сценариев,
+  повторные испытания, trace и сводные метрики;
+- `scripts/run_autonomous_multi_agent_runtime.py` — CLI для безопасного и
+  model-backed запуска;
+- `configs/behavioral_benchmark_v2_qwen3_6_27b_q5_k_m_full.json` — полный
+  воспроизводимый набор сценариев для основной модели;
+- `scripts/run_deterministic_gpu_resource_harness.py` — lifecycle-owned
+  измерение GPU/CPU/RAM и задержек;
+- `configs/evaluation_models.json` — исторические локальные aliases.
 
-- `src/agent/autonomous_multi_agent_runtime.py`
-- `src/agent/canonical_multi_agent_experiments.py`
-- `configs/canonical_multi_agent.example.json`
-- `configs/canonical_multi_agent_long_horizon.example.json`
-- `scripts/run_autonomous_multi_agent_runtime.py`
-- `tests/test_autonomous_multi_agent_runtime.py`
-- `tests/test_canonical_multi_agent_experiments.py`
+Подробное описание канонического runtime:
+[docs/architecture/canonical_runtime.md](docs/architecture/canonical_runtime.md).
 
-The policy contract is:
+## Локальные модели
 
-```text
-next_action(agent_state, observation, allowed_tools) -> one Action or stop
-```
+Минимальное воспроизведение итогового результата требует только
+Qwen3.6-27B Q5_K_M. Исторические `third_model`, `fourth_model` и `fifth_model`
+использовались как базовые варианты; их веса не распространяются в
+репозитории, а полностью закреплённые публичные checksum/revision для них не
+сохранены.
 
-Core layers:
+Старые локальные aliases, включая `models/gguf/second_model.gguf`, нужны только
+для исторических экспериментов. В архивных командах встречаются
+`--model-id second_model` и `--model-ids first_model,second_model`; они не нужны
+для минимального запуска Qwen.
 
-1. `AgentProfile`, `AgentState`, `Action`, `Observation`, `HistoryEvent`.
-2. `ToolSpec`, `ToolExecutionContext`, `ToolResult`, `ToolExecutor`,
-   `ToolRegistry`.
-3. Fixture article, file, office-file, constrained command, coordination, and
-   completion tools.
-4. Deterministic fake policies and an explicit-opt-in local
-   OpenAI-compatible policy.
-5. Bounded round-robin multi-agent scheduling and group metrics.
-6. A repeated long-horizon harness that consumes these same layers and writes
-   sanitized trial traces and aggregate metrics.
+## Документация
 
-The default registry adapts the existing `ScriptRegistry` and
-`ScriptExecutionBridge`; file/office/command backends are not reimplemented.
-`browser_click` is not part of the canonical tool surface.
+- [Краткий итоговый отчёт](docs/project_report.md)
+- [Воспроизведение из чистого clone](docs/reproducibility.md)
+- [Канонический runtime](docs/architecture/canonical_runtime.md)
+- [Методика benchmark](docs/behavioral_benchmark_v2.md)
+- [Подробный итоговый evidence report](docs/status/behavioral_benchmark_v2_post_hoc_challenger_final_report.md)
+- [Проверка публикационной безопасности](docs/security/publication_security_check.md)
 
-The canonical data flow is:
+Сохранённые исследовательские материалы:
 
-```text
-config -> orchestrator -> agent state -> local LLM or fake policy
-       -> next action -> script runner -> observation -> history log
-```
+- [reports/experiments/final_evaluation_report.md](reports/experiments/final_evaluation_report.md)
+- [reports/experiments/final_multi_agent_research_report.md](reports/experiments/final_multi_agent_research_report.md)
+- [reports/experiments/manager_summary.md](reports/experiments/manager_summary.md)
+- [reports/experiments/project_usage_appendix.md](reports/experiments/project_usage_appendix.md)
+- [reports/experiments/final_evaluation_summary.json](reports/experiments/final_evaluation_summary.json)
+- [docs/ai/model_research_metadata.md](docs/ai/model_research_metadata.md)
+- [docs/ai/orchestrator_executor_runtime_capacity_v1.md](docs/ai/orchestrator_executor_runtime_capacity_v1.md)
+- [docs/ai/gpu_runtime_configuration_v1.md](docs/ai/gpu_runtime_configuration_v1.md)
+- [docs/ai/gpu_smoke_second_to_second_heavy_v1.md](docs/ai/gpu_smoke_second_to_second_heavy_v1.md)
+- [docs/ai/bounded_stress_candidate_pairs_v1.md](docs/ai/bounded_stress_candidate_pairs_v1.md)
 
-See [Canonical Runtime](docs/architecture/canonical_runtime.md) for the full
-contract and boundaries.
+## Ограничения
 
-## Models
-
-`configs/evaluation_models.json` is the canonical alias registry:
-
-| Alias | Current role |
-| --- | --- |
-| `first_model` | IBM Granite 3.3 8B Instruct Q4_K_M, small/medium non-Qwen baseline |
-| `second_model` | Qwen2.5-3B-Instruct Q4_K_M, weak Qwen baseline |
-| `third_model` | Qwen3-14B Q5_K_M, strong historical Qwen planner |
-| `fourth_model` | Mistral Small 3.2 24B Instruct Q4_K_M, strong non-Qwen challenger |
-| `fifth_model` | Qwen3-30B-A3B-Instruct-2507 Q4_K_M, efficient MoE challenger |
-
-GGUF files are operator-provided local files under `models/gguf/` and are
-ignored. The canonical fake run does not need them.
-For example, `second_model` resolves to `models/gguf/second_model.gguf`.
-
-Historical evaluation commands retain the stable aliases:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\run_evaluation.py --model-id second_model
-.\.venv\Scripts\python.exe scripts\run_evaluation.py --model-ids first_model,second_model
-```
-
-Local model calls are never the default. The library policy accepts only
-localhost endpoints and requires explicit opt-in.
-The long-horizon CLI additionally requires `--allow-model-execution`; omitting
-it selects fake policies.
-
-The frozen Behavioral Benchmark v2 cohort on commit `5826c8c` evaluated
-`fifth_model`, `third_model`, and `fourth_model` across 105 real-model trials.
-Each model completed 30/35 trials and passed six of seven scenarios, but all
-three scored 0/5 on `long_horizon_multi_fact_retention`; therefore none passed
-the mandatory correctness gate. See the
-[final comparative report](docs/status/behavioral_benchmark_v2_final_report.md).
-
-## Tools
-
-The canonical registry contains:
-
-- fixture article open/read/scroll/find/extract;
-- bounded relative file actions;
-- bounded office document-file actions;
-- constrained simple commands;
-- explicit shared fact publish/read;
-- agent completion.
-
-Role allowlists are checked before tool dispatch. Existing script-registry
-parameter and path policies remain in force.
-
-Real browser, Playwright, mail, git automation, and external web access are
-outside this canonical slice.
-
-## Evidence and Benchmarks
-
-The repository preserves several research generations:
-
-- early single-agent and orchestrator/executor experiments;
-- deterministic autonomous browser fixtures;
-- guarded local-model browser loops;
-- guarded Playwright replay;
-- Phase 13E/14 complete-workflow planner variance and multi-model benchmarks;
-- Phase 15 stepwise fixture article benchmark.
-
-These are evidence/benchmark paths, not competing current architectures.
-Historical browser modules use
-`src/agent/legacy_autonomous_multi_agent_runtime.py`.
-
-Important interpretation:
-
-- Phase 14 compares one-shot complete-workflow JSON under frozen fixture
-  protocols.
-- Phase 15 evaluates repeated observation/action behavior for one article
-  agent.
-- The canonical runtime proves a deterministic two-agent stepwise integration.
-- The long-horizon fake evidence proves 16-turn article/file handoff and
-  10-turn office/shared-fact recovery through that same integration.
-- No local-model two-agent canonical run or true parallel execution is claimed.
-- Historical CPU/RAM/latency probes are bounded evidence, not production
-  sizing.
-
-The full autonomous agent loop is not implemented as an unrestricted or
-production system. Action execution exists only through the bounded,
-allowlisted runtime and historical guarded experiments described here.
-
-## Project Map
-
-```text
-configs/
-  canonical_multi_agent.example.json
-  canonical_multi_agent_long_horizon.example.json
-  evaluation_models.json
-  script_registry.example.json
-docs/
-  architecture/canonical_runtime.md
-  operator/README.md
-  status/current_architecture_audit.md
-  status/final_project_completion_report.md
-src/agent/
-  autonomous_multi_agent_runtime.py
-  canonical_multi_agent_experiments.py
-  legacy_autonomous_multi_agent_runtime.py
-  script_registry.py
-  script_execution_bridge.py
-  scripts/
-scripts/
-  run_autonomous_multi_agent_runtime.py
-tests/
-  test_autonomous_multi_agent_runtime.py
-  test_canonical_multi_agent_experiments.py
-```
-
-Generated outputs belong under ignored `artifacts/` paths. Local models,
-generated packets, model outputs, and summaries must not be committed.
-
-## Status
-
-The factual architecture/TZ matrix and cleanup manifest are in
-[Current Architecture Audit](docs/status/current_architecture_audit.md).
-
-The short project-level evidence summary remains in
-[Final Project Completion Report](docs/status/final_project_completion_report.md).
-Phase-specific status files are retained as historical evidence.
-
-Selected retained reports and research references:
-
-- `reports/experiments/final_evaluation_report.md`
-- `reports/experiments/final_multi_agent_research_report.md`
-- `reports/experiments/manager_summary.md`
-- `reports/experiments/project_usage_appendix.md`
-- `reports/experiments/final_evaluation_summary.json`
-- `docs/security/publication_security_check.md`
-- `docs/ai/model_research_metadata.md`
-- `docs/ai/orchestrator_executor_runtime_capacity_v1.md`
-- `docs/ai/gpu_runtime_configuration_v1.md`
-- `docs/ai/gpu_smoke_second_to_second_heavy_v1.md`
-- `docs/ai/bounded_stress_candidate_pairs_v1.md`
-
-Current limitations:
-
-- fixture/local-tool research prototype;
-- no production security evaluation;
-- no real browser in the canonical runtime;
-- no external websites or general web browsing;
-- deterministic interleaving, not true parallelism;
-- no stable concurrency-2 result;
-- no production resource recommendation.
-
-## Development Checks
-
-```powershell
-.\.venv\Scripts\python.exe -m compileall -q src scripts
-.\.venv\Scripts\python.exe -m pytest
-git diff --check
-git status --short
-```
-
-Do not use global Python for repository verification.
+- инструменты работают с локальными fixtures и ограниченными путями;
+- round-robin означает логическое чередование, а не параллельный inference;
+- benchmark не обращается к открытому интернету;
+- resource profile измерен на одном GPU и в single-user режиме;
+- не измерены multi-user throughput и длительная нагрузка;
+- результаты не являются общей оценкой качества модели;
+- production capacity и production security не подтверждены.
