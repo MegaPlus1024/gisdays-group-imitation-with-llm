@@ -359,59 +359,106 @@ def test_bounded_stress_doc_records_failed_result_and_profiles() -> None:
         assert required in text
 
 
-def test_reproduction_steps_check_python_before_downloading_gguf() -> None:
+def test_reproduction_has_one_ordered_clean_clone_path() -> None:
     text = _read("docs/reproducibility.md")
     ordered_headings = [
-        "## 1. Требования",
-        "## 2. Клонирование",
-        "## 3. Python-окружение",
-        "## 4. Проверка установки и тесты без модели",
-        "## 5. Сухой запуск среды выполнения",
-        "## 6. Скачивание основной модели",
-        "## 7. Установка и поиск `llama-server`",
-        "## 8. Запуск сервера и ожидание готовности",
-        "## 9. Проверка формата действий",
-        "## 10. Полный набор испытаний",
-        "## 11. Проверка результатов",
-        "## 12. Измерение ресурсов",
-        "## 13. Проверка отдельно предоставленного архива",
-        "## 14. Дополнительная очистка",
-        "## 15. Ограничения воспроизведения",
+        "## 1. Проверить требования",
+        "## 2. Клонировать репозиторий",
+        "## 3. Проверить актуальный коммит",
+        "## 4. Создать `.venv`",
+        "## 5. Установить и проверить Python-зависимости",
+        "## 6. Запустить полный `pytest` без модели",
+        "## 7. Выполнить сухой запуск с `sixth_model`",
+        "## 8. Найти существующую копию GGUF",
+        "## 9. Загрузить модель при отсутствии проверенной копии",
+        "## 10. Проверить размер, SHA-256 и Git ignore",
+        "## 11. Найти реальный путь к `llama-server.exe`",
+        "## 12. Запустить ручной сервер",
+        "## 13. Дождаться HTTP 200 от `/health`",
+        "## 14. Проверить псевдоним `sixth_model`",
+        "## 15. Проверить точный JSON-контракт",
+        "## 16. Выполнить полный поведенческий запуск",
+        "## 17. Проверить результат `35/35`",
+        "## 18. Остановить ручной сервер",
+        "## 19. Проверить освобождение порта 8085",
+        "## 20. Запустить ресурсный стенд",
+        "## 21. Проверить ресурсный результат",
+        "## 22. Выполнить необязательную очистку",
+        "## 23. Учесть ограничения воспроизведения",
     ]
 
     positions = [text.index(heading) for heading in ordered_headings]
     assert positions == sorted(positions)
-    assert text.index("## 4. Проверка установки") < text.index(
-        "## 6. Скачивание основной модели"
-    )
+    assert text.count("\n## ") == len(ordered_headings)
+    for marker in [
+        "**Цель.**",
+        "**Ожидаемый результат.**",
+        "**Проверка.**",
+        "**Диагностика.**",
+        "**Переход дальше.**",
+    ]:
+        assert text.count(marker) == len(ordered_headings)
 
 
-def test_reproduction_python_setup_stops_after_failed_pip_install() -> None:
+def test_reproduction_creates_venv_before_using_its_python() -> None:
     text = _read("docs/reproducibility.md")
+    creation = "py -3.12 -m venv .venv"
+    venv_python = r".\.venv\Scripts\python.exe"
+
+    assert text.index(creation) < text.index(venv_python)
     section = _section(
         text,
-        "## 3. Python-окружение",
-        "## 4. Проверка установки и тесты без модели",
+        "## 4. Создать `.venv`",
+        "## 5. Установить и проверить Python-зависимости",
+    )
+    normalized = " ".join(section.split())
+    assert "До выполнения команды создания этого файла не существует" in normalized
+    assert "команду установки зависимостей нельзя запускать раньше" in normalized
+
+
+def test_reproduction_uses_direct_venv_python_and_documents_vscode() -> None:
+    text = _read("docs/reproducibility.md")
+    setup = _section(
+        text,
+        "## 4. Создать `.venv`",
+        "## 6. Запустить полный `pytest` без модели",
     )
 
     for required in [
-        "if ($LASTEXITCODE -ne 0)",
-        "Установка зависимостей не завершена.",
-        r".\.venv\Scripts\python.exe -m pip check",
+        "Активация окружения не требуется",
+        "автоматически отправить команду активации",
         "Operation cancelled by user",
-        "Start-Process",
-        "-RedirectStandardOutput",
-        "-RedirectStandardError",
+        "не доказывает, что пользователь нажал `Ctrl+C`",
+        '"python-envs.terminal.autoActivationType": "off"',
+        '"python.terminal.activateEnvironment": false',
+        '"python.terminal.activateEnvInCurrentTerminal": false',
+        "закрыть текущий встроенный терминал VS Code",
+        r".\.venv\Scripts\python.exe -m pip check",
+        r".\.venv\Scripts\python.exe --version",
+        r".\.venv\Scripts\python.exe -m pytest --version",
+        'throw "Dependency installation failed."',
     ]:
-        assert required in section
+        assert required in setup
 
 
-def test_reproduction_dry_run_uses_full_sixth_model_config() -> None:
+def test_reproduction_runs_all_model_free_checks_before_model_download() -> None:
+    text = _read("docs/reproducibility.md")
+
+    assert text.index("## 6. Запустить полный `pytest` без модели") < text.index(
+        "## 9. Загрузить модель"
+    )
+    assert text.index("## 7. Выполнить сухой запуск") < text.index(
+        "## 9. Загрузить модель"
+    )
+    assert "не требует GGUF, сети или работающего `llama-server`" in text
+
+
+def test_reproduction_dry_run_uses_only_full_sixth_model_config() -> None:
     text = _read("docs/reproducibility.md")
     section = _section(
         text,
-        "## 5. Сухой запуск среды выполнения",
-        "## 6. Скачивание основной модели",
+        "## 7. Выполнить сухой запуск с `sixth_model`",
+        "## 8. Найти существующую копию GGUF",
     )
     config = json.loads(
         _read("configs/behavioral_benchmark_v2_sixth_model_full.json")
@@ -421,19 +468,115 @@ def test_reproduction_dry_run_uses_full_sixth_model_config() -> None:
     assert "--models sixth_model" in section
     assert "--trials-per-scenario 1" in section
     assert "--dry-run" in section
-    assert "configs\\behavioral_benchmark_v2.example.json" not in section
+    assert "behavioral_benchmark_v2.example.json" not in section
     assert 'model_ids = ["sixth_model"]' in section
     assert "модель не загружается и запросы к ней не выполняются" in section
     assert config["model_profile"]["model_id"] == "sixth_model"
     assert len(config["scenario_ids"]) == 7
 
 
-def test_reproduction_waits_for_http_200_before_checking_models() -> None:
+def test_reproduction_searches_for_existing_model_before_download() -> None:
+    text = _read("docs/reproducibility.md")
+    search = _section(
+        text,
+        "## 8. Найти существующую копию GGUF",
+        "## 9. Загрузить модель при отсутствии проверенной копии",
+    )
+    verification = _section(
+        text,
+        "## 10. Проверить размер, SHA-256 и Git ignore",
+        "## 11. Найти реальный путь к `llama-server.exe`",
+    )
+
+    assert text.index("## 8. Найти существующую копию GGUF") < text.index(
+        "## 9. Загрузить модель"
+    )
+    for required in [
+        "$modelFilename =",
+        '"$env:USERPROFILE\\Documents"',
+        "-Recurse",
+        "FullName,Length",
+        "19509790944",
+        "cfecab168156269f25d5ffe9e13cf2a401ca2f43a9693fa00bcd1625316ccbde",
+    ]:
+        assert required in search
+    for required in [
+        "$sourceModel = Read-Host",
+        "Copy-Item",
+        "$targetItem",
+        "$targetHash",
+        "git check-ignore -v",
+        "правило `*.gguf`",
+    ]:
+        assert required in verification
+
+
+def test_reproduction_documents_rate_limit_resume_and_token_safety() -> None:
     text = _read("docs/reproducibility.md")
     section = _section(
         text,
-        "## 8. Запуск сервера и ожидание готовности",
-        "## 9. Проверка формата действий",
+        "## 9. Загрузить модель при отсутствии проверенной копии",
+        "## 10. Проверить размер, SHA-256 и Git ignore",
+    )
+
+    for required in [
+        "HTTP 429",
+        "временно ограничил частоту запросов",
+        "Это не означает\nповреждение модели",
+        "сохраняет неполный файл",
+        "повторно каждую секунду",
+        "ограничение может сохраняться дольше шести минут",
+        "$env:HF_TOKEN = Read-Host",
+        "Remove-Item Env:HF_TOKEN",
+        "не печатает токен",
+        "Повторное клонирование и пересоздание `.venv` не помогают",
+        "Start-Sleep -Seconds 360",
+    ]:
+        assert required in section
+    assert "Start-Sleep -Minutes" not in text
+    assert "huggingface_hub" in section
+
+
+def test_reproduction_finds_llama_server_on_path_then_winget() -> None:
+    text = _read("docs/reproducibility.md")
+    section = _section(
+        text,
+        "## 11. Найти реальный путь к `llama-server.exe`",
+        "## 12. Запустить ручной сервер",
+    )
+
+    assert "Get-Command `\n  llama-server.exe" in section
+    assert '$env:LOCALAPPDATA\\Microsoft\\WinGet\\Packages' in section
+    assert section.index("if ($serverCommand)") < section.index(
+        "Get-ChildItem `"
+    )
+    assert "else {" in section
+    assert 'throw "llama-server.exe was not found."' in section
+    assert "& $serverPath --version" in section
+
+
+def test_reproduction_separates_server_and_check_windows() -> None:
+    text = _read("docs/reproducibility.md")
+
+    assert "Окно PowerShell 1 — сервер" in text
+    assert "Окно PowerShell 2 — проверки и запуск набора" in text
+    server = _section(
+        text,
+        "## 12. Запустить ручной сервер",
+        "## 13. Дождаться HTTP 200 от `/health`",
+    )
+    assert "& $serverPath `" in server
+    assert "--alias sixth_model" in server
+    assert "--reasoning off" in server
+    assert r"C:\path\to\llama-server.exe" not in server
+
+
+def test_reproduction_waits_for_http_200_before_checking_models() -> None:
+    text = _read("docs/reproducibility.md")
+    health = _section(
+        text,
+        "## 13. Дождаться HTTP 200 от `/health`",
+        "## 14. Проверить псевдоним `sixth_model`",
     )
 
     for required in [
@@ -442,82 +585,205 @@ def test_reproduction_waits_for_http_200_before_checking_models() -> None:
         "(Get-Date).AddMinutes(10)",
         '$httpCode -eq "200"',
         '$httpCode -eq "503"',
+        "Start-Sleep -Seconds 5",
         'if ($httpCode -ne "200")',
-        "Сервер не стал готов за 10 минут.",
+        'throw "The server did not become ready within 10 minutes."',
     ]:
-        assert required in section
-    assert section.index('if ($httpCode -ne "200")') < section.index(
-        "$models = Invoke-RestMethod"
+        assert required in health
+    assert text.index('if ($httpCode -ne "200")') < text.index(
+        "$modelsResponse = Invoke-RestMethod"
     )
+
+
+def test_reproduction_asserts_sixth_model_alias_after_health() -> None:
+    text = _read("docs/reproducibility.md")
+    section = _section(
+        text,
+        "## 14. Проверить псевдоним `sixth_model`",
+        "## 15. Проверить точный JSON-контракт",
+    )
+
+    assert "/v1/models" in section
     assert '$modelIds -notcontains "sixth_model"' in section
-    assert "Не завершайте неизвестные процессы автоматически." in section
+    assert "Returned models:" in section
+    assert text.index("## 13. Дождаться HTTP 200") < text.index(
+        "## 14. Проверить псевдоним"
+    )
 
 
 def test_reproduction_checks_exact_json_action_before_full_run() -> None:
     text = _read("docs/reproducibility.md")
     section = _section(
         text,
-        "## 9. Проверка формата действий",
-        "## 10. Полный набор испытаний",
+        "## 15. Проверить точный JSON-контракт",
+        "## 16. Выполнить полный поведенческий запуск",
     )
 
     assert '{"action_name":"finish","parameters":{}}' in section
-    assert "$content.Trim() -ceq" in section
-    assert "--reasoning off" in section
+    assert "$content.Trim() -cne" in section
+    assert 'throw "The model did not return the expected JSON action."' in section
     assert "Return exactly OK" not in section
-    assert "Только после успешной проверки" in section
+    assert "Только после точного совпадения" in section
 
 
-def test_reproduction_uses_full_historical_model_names_in_prose() -> None:
+def test_reproduction_validates_behavioral_summary_after_run() -> None:
     text = _read("docs/reproducibility.md")
-    model_section = _section(
+    run = _section(
         text,
-        "## 6. Скачивание основной модели",
-        "## 7. Установка и поиск `llama-server`",
+        "## 16. Выполнить полный поведенческий запуск",
+        "## 17. Проверить результат `35/35`",
     )
-    prose = model_section.split("| Внутренний идентификатор", 1)[0]
+    result = _section(
+        text,
+        "## 17. Проверить результат `35/35`",
+        "## 18. Остановить ручной сервер",
+    )
+
+    assert "--allow-model-execution" in run
+    assert "artifacts\\reproduction\\sixth_model_full" in run
+    assert text.index("## 16. Выполнить полный") < text.index(
+        "$summary = Get-Content"
+    )
+    for required in [
+        "TrialsTotal = 35",
+        "TrialsSucceeded = 35",
+        "TrialsFailed = 0",
+        "PassRate = 1.0",
+        "ModelExecution = True",
+        "ExternalNetwork = False",
+        "BrowserExecution = False",
+        "PlaywrightExecution = False",
+        "$scenarioRates.Count -ne 7",
+        "`1,0`",
+    ]:
+        assert required in result
+
+
+def test_reproduction_requires_free_port_before_resource_harness() -> None:
+    text = _read("docs/reproducibility.md")
+    port = _section(
+        text,
+        "## 19. Проверить освобождение порта 8085",
+        "## 20. Запустить ресурсный стенд",
+    )
+    harness = _section(
+        text,
+        "## 20. Запустить ресурсный стенд",
+        "## 21. Проверить ресурсный результат",
+    )
+    normalized_port = " ".join(port.split())
+
+    for required in [
+        "Get-NetTCPConnection",
+        "-LocalPort 8085",
+        "Get-CimInstance",
+        "OwningProcess",
+    ]:
+        assert required in port
+    assert "не завершайте неизвестный процесс автоматически" in normalized_port
+    assert harness.index("Get-NetTCPConnection") < harness.index(
+        "run_deterministic_gpu_resource_harness.py"
+    )
+    assert "--server-path $serverPath" in harness
+    assert r"C:\path\to\llama-server.exe" not in harness
+    assert "стенд сам запускает\nсервер" in harness
+
+
+def test_reproduction_reads_resource_summary_only_after_harness() -> None:
+    text = _read("docs/reproducibility.md")
+    harness_heading = text.index("## 20. Запустить ресурсный стенд")
+    harness_command = text.index("run_deterministic_gpu_resource_harness.py")
+    summary_heading = text.index("## 21. Проверить ресурсный результат")
+    summary_read = text.index("$resourceSummary = Get-Content")
+
+    assert harness_heading < harness_command < summary_heading < summary_read
+    result = _section(
+        text,
+        "## 21. Проверить ресурсный результат",
+        "## 22. Выполнить необязательную очистку",
+    )
+    for required in [
+        "Requests = 30",
+        "Successful = 30",
+        "Failed = 0",
+        "GpuOffload = 65/65",
+        "GpuVerified = True",
+        "ProcessStopped = True",
+        "PortReleased = True",
+        "ValidationFailures = 0",
+        "server_return_code = 1",
+        "не\nопределяет успешность всего измерения",
+    ]:
+        assert required in result
+
+
+def test_reproduction_has_symptom_diagnostics_table() -> None:
+    text = _read("docs/reproducibility.md")
+    table = text.split("### Диагностика по симптомам", 1)[1]
+
+    for symptom in [
+        r".\.venv\Scripts\python.exe",
+        "Operation cancelled by user",
+        "HTTP 429",
+        "third_model",
+        "/health",
+        r"FileNotFoundError: C:\path\to\llama-server.exe",
+        "Порт 8085 занят",
+        "benchmark_summary.json",
+        "server_return_code = 1",
+        "1,0",
+    ]:
+        assert symptom in table
+
+
+def test_reproduction_powershell_throw_messages_are_ascii() -> None:
+    text = _read("docs/reproducibility.md")
+    throw_lines = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip().startswith('throw "')
+    ]
+
+    assert throw_lines
+    assert all(line.isascii() for line in throw_lines)
+    assert "Start-Sleep -Minutes" not in text
+
+
+def test_reproduction_keeps_historical_names_and_archive_evidence() -> None:
+    text = _read("docs/reproducibility.md")
 
     for display_name in [
         "Qwen3-14B Q5_K_M",
         "Mistral Small 3.2 24B Instruct Q4_K_M",
         "Qwen3-30B-A3B-Instruct-2507 Q4_K_M",
+        "Qwen3.6-27B Q5_K_M",
     ]:
-        assert display_name in prose
-    for internal_id in ["third_model", "fourth_model", "fifth_model"]:
-        assert internal_id not in prose
-
-
-def test_reproduction_marks_archive_as_separately_provided() -> None:
-    text = _read("docs/reproducibility.md")
-    section = _section(
-        text,
-        "## 13. Проверка отдельно предоставленного архива",
-        "## 14. Дополнительная очистка",
-    )
-
-    assert "не загружается при клонировании GitHub-репозитория" in section
-    assert "если архив был передан отдельно" in section
-    assert (
-        "behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_"
-        "final_20260727T063525Z.tar.gz"
-    ) in section
-
-
-def test_reproduction_cleanup_requires_verified_full_archive_path() -> None:
-    text = _read("docs/reproducibility.md")
-    section = _section(
-        text,
-        "## 14. Дополнительная очистка",
-        "## 15. Ограничения воспроизведения",
-    )
-
+        assert display_name in text
     for required in [
+        "не загружается при клонировании\nGitHub-репозитория",
+        "только если архив был передан\nотдельно",
+        "behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_"
+        "final_20260727T063525Z.tar.gz",
+        "960961",
+        "4025b5c8af79335d1cb5ef8c553ccf7f533b11a610872800a179d15a2cfefdb7",
+        "231 verified",
         "$finalArchive = Read-Host",
-        "-LiteralPath $finalArchive",
-        "-PathType Leaf",
         "-FinalArchivePath $finalArchive",
-        "Этот раздел необязателен.",
-        "Скрипт нельзя запускать с выдуманным или отсутствующим архивом.",
     ]:
-        assert required in section
-    assert r"..\behavioral_benchmark" not in section
+        assert required in text
+
+
+def test_reproduction_document_tests_are_static_and_offline() -> None:
+    source = _read("tests/test_research_readiness_docs.py")
+    module_setup = source.split(
+        "def test_reproduction_has_one_ordered_clean_clone_path",
+        1,
+    )[0]
+
+    for forbidden in [
+        "import subprocess",
+        "import httpx",
+        "import requests",
+        "import socket",
+    ]:
+        assert forbidden not in module_setup
