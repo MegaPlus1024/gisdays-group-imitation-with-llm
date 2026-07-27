@@ -7,6 +7,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from run_deterministic_gpu_resource_harness import (
     build_corpus,
+    build_optional_replay_flags,
+    build_server_command_payload,
     build_server_args,
     PhaseSampler,
     build_resource_summary,
@@ -15,6 +17,7 @@ from run_deterministic_gpu_resource_harness import (
     flatten_sample,
     parse_startup_log_evidence,
     percentile,
+    read_startup_log_evidence,
     request_record_summary,
     validate_model_file,
     validate_local_host,
@@ -52,6 +55,7 @@ def test_qwen_challenger_server_args_are_generic_and_lifecycle_owned() -> None:
         parallel=1,
         jinja=True,
         reasoning="off",
+        server_log_verbosity=4,
     )
 
     assert args == [
@@ -73,7 +77,57 @@ def test_qwen_challenger_server_args_are_generic_and_lifecycle_owned() -> None:
         "--jinja",
         "--reasoning",
         "off",
+        "-lv",
+        "4",
     ]
+
+
+def test_server_log_verbosity_is_optional_and_replayable(tmp_path: Path) -> None:
+    default_args = build_server_args(
+        server_path=Path("llama-server.exe"),
+        model_path=Path("models/gguf/fourth_model.gguf"),
+        model_id="fourth_model",
+        host="127.0.0.1",
+        port=8084,
+        ctx_size=12288,
+        gpu_layers="999",
+        parallel=1,
+    )
+    verbose_args = build_server_args(
+        server_path=Path("llama-server.exe"),
+        model_path=Path("models/gguf/qwen3_6_27b_q5_k_m/Qwen3.6-27B-Q5_K_M.gguf"),
+        model_id="qwen3_6_27b_q5_k_m",
+        host="127.0.0.1",
+        port=8085,
+        ctx_size=12288,
+        gpu_layers="999",
+        parallel=1,
+        server_log_verbosity=4,
+    )
+
+    assert "-lv" not in default_args
+    assert "4" not in default_args
+    assert verbose_args[-2:] == ["-lv", "4"]
+
+    server_command = build_server_command_payload(verbose_args)
+    assert server_command["argv"][-2:] == ["-lv", "4"]
+    write_json(tmp_path / "server_command.json", server_command)
+    saved = (tmp_path / "server_command.json").read_text(encoding="utf-8")
+    assert '"-lv"' in saved
+    assert '"4"' in saved
+
+    replay_flags = build_optional_replay_flags(
+        jinja=True,
+        reasoning="off",
+        server_log_verbosity=4,
+        expected_model_bytes=19509790944,
+        expected_model_sha256="c" * 64,
+        expected_offloaded_layers="65/65",
+        require_startup_alias=False,
+    )
+    assert "--server-log-verbosity 4" in replay_flags
+    assert "--jinja" in replay_flags
+    assert "--reasoning off" in replay_flags
 
 
 def test_validate_local_host_rejects_non_local_hosts() -> None:
@@ -200,6 +254,73 @@ qwen3_6_27b_q5_k_m
     assert evidence["vulkan1_compute_buffer_mib"] == 649.02
     assert evidence["context_size"] == 12288
     assert evidence["reasoning_disabled"] is True
+
+
+def test_verbose_vulkan_startup_fixture_extracts_offload_and_buffers() -> None:
+    log = """
+load_tensors: offloaded 65/65 layers to GPU
+load_tensors: Vulkan1 model buffer size = 17761.91 MiB
+llama_kv_cache: Vulkan1 KV buffer size = 768.00 MiB
+sched_reserve: Vulkan1 compute buffer size = 649.02 MiB
+Vulkan1 : NVIDIA RTX PRO 4000 Blackwell
+"""
+
+    evidence = parse_startup_log_evidence(
+        log,
+        expected_alias="qwen3_6_27b_q5_k_m",
+    )
+
+    assert evidence["offloaded_layers"] == "65/65"
+    assert evidence["vulkan1_model_buffer_mib"] == 17761.91
+    assert evidence["vulkan1_kv_buffer_mib"] == 768.0
+    assert evidence["vulkan1_compute_buffer_mib"] == 649.02
+
+
+def test_non_verbose_log_still_fails_required_offload() -> None:
+    evidence = parse_startup_log_evidence(
+        "Vulkan1 : NVIDIA RTX PRO 4000 Blackwell\n"
+        "llama_context: n_ctx = 12288\n"
+        "srv init: chat template, thinking = 0\n",
+        expected_alias="qwen3_6_27b_q5_k_m",
+    )
+
+    failures = validate_startup_log_evidence(
+        evidence,
+        expected_offloaded_layers="65/65",
+        expected_context_size=12288,
+        require_reasoning_off=True,
+    )
+
+    assert evidence["offloaded_layers"] is None
+    assert evidence["vulkan1_model_buffer_mib"] is None
+    assert "startup_log_offloaded_layers_mismatch" in failures
+
+
+def test_startup_log_parser_reads_final_appended_logfile(tmp_path: Path) -> None:
+    stderr = tmp_path / "server_stderr.log"
+    stderr.write_text(
+        "Vulkan1 : NVIDIA RTX PRO 4000 Blackwell\n",
+        encoding="utf-8",
+    )
+    early = read_startup_log_evidence(
+        stderr,
+        expected_alias="qwen3_6_27b_q5_k_m",
+    )
+    assert early["offloaded_layers"] is None
+
+    with stderr.open("a", encoding="utf-8") as handle:
+        handle.write("load_tensors: offloaded 65/65 layers to GPU\n")
+        handle.write("load_tensors: Vulkan1 model buffer size = 17761.91 MiB\n")
+        handle.write("llama_kv_cache: Vulkan1 KV buffer size = 768.00 MiB\n")
+        handle.write("sched_reserve: Vulkan1 compute buffer size = 649.02 MiB\n")
+
+    final = read_startup_log_evidence(
+        stderr,
+        expected_alias="qwen3_6_27b_q5_k_m",
+    )
+
+    assert final["offloaded_layers"] == "65/65"
+    assert final["vulkan1_compute_buffer_mib"] == 649.02
 
 
 def test_startup_log_evidence_rejects_oom_or_wrong_offload() -> None:

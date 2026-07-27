@@ -244,7 +244,10 @@ def build_server_args(
     parallel: int,
     jinja: bool = False,
     reasoning: str | None = None,
+    server_log_verbosity: int | None = None,
 ) -> list[str]:
+    if server_log_verbosity is not None and server_log_verbosity < 0:
+        raise ValueError("server_log_verbosity must be non-negative")
     server_args = [
         str(server_path),
         "--model",
@@ -266,7 +269,13 @@ def build_server_args(
         server_args.append("--jinja")
     if reasoning:
         server_args.extend(["--reasoning", reasoning])
+    if server_log_verbosity is not None:
+        server_args.extend(["-lv", str(server_log_verbosity)])
     return server_args
+
+
+def build_server_command_payload(server_args: list[str]) -> dict[str, Any]:
+    return {"argv": list(server_args)}
 
 
 def parse_startup_log_evidence(text: str, *, expected_alias: str) -> dict[str, Any]:
@@ -304,6 +313,19 @@ def parse_startup_log_evidence(text: str, *, expected_alias: str) -> dict[str, A
     return evidence
 
 
+def read_startup_log_evidence(
+    stderr_path: Path,
+    *,
+    expected_alias: str,
+) -> dict[str, Any]:
+    text = (
+        stderr_path.read_text(encoding="utf-8", errors="replace")
+        if stderr_path.exists()
+        else ""
+    )
+    return parse_startup_log_evidence(text, expected_alias=expected_alias)
+
+
 def validate_startup_log_evidence(
     evidence: dict[str, Any],
     *,
@@ -326,6 +348,42 @@ def validate_startup_log_evidence(
     if evidence.get("oom_or_failed_allocation_present"):
         failures.append("startup_log_contains_oom_or_failed_allocation")
     return failures
+
+
+def build_optional_replay_flags(
+    *,
+    jinja: bool,
+    reasoning: str | None,
+    expected_model_bytes: int | None,
+    expected_model_sha256: str | None,
+    expected_offloaded_layers: str | None,
+    require_startup_alias: bool,
+    server_log_verbosity: int | None,
+) -> str:
+    optional_replay_flags = ""
+    if jinja:
+        optional_replay_flags += "  --jinja `\n"
+    if reasoning:
+        optional_replay_flags += f"  --reasoning {reasoning} `\n"
+    if server_log_verbosity is not None:
+        optional_replay_flags += (
+            f"  --server-log-verbosity {server_log_verbosity} `\n"
+        )
+    if expected_model_bytes is not None:
+        optional_replay_flags += (
+            f"  --expected-model-bytes {expected_model_bytes} `\n"
+        )
+    if expected_model_sha256:
+        optional_replay_flags += (
+            f"  --expected-model-sha256 {expected_model_sha256} `\n"
+        )
+    if expected_offloaded_layers:
+        optional_replay_flags += (
+            f"  --expected-offloaded-layers {expected_offloaded_layers} `\n"
+        )
+    if require_startup_alias:
+        optional_replay_flags += "  --require-startup-alias `\n"
+    return optional_replay_flags
 
 
 def private_memory_mb(process: Any) -> float | None:
@@ -1167,6 +1225,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--parallel", type=int, default=1)
     parser.add_argument("--jinja", action="store_true")
     parser.add_argument("--reasoning", choices=("off", "none", "on", "auto"))
+    parser.add_argument("--server-log-verbosity", type=int)
     parser.add_argument("--expected-model-bytes", type=int)
     parser.add_argument("--expected-model-sha256")
     parser.add_argument("--expected-offloaded-layers")
@@ -1267,6 +1326,7 @@ def main(argv: list[str] | None = None) -> int:
         parallel=args.parallel,
         jinja=args.jinja,
         reasoning=args.reasoning,
+        server_log_verbosity=args.server_log_verbosity,
     )
     manifest = {
         "schema_version": "deterministic_gpu_resource_harness_v1",
@@ -1291,6 +1351,7 @@ def main(argv: list[str] | None = None) -> int:
         "parallel": args.parallel,
         "jinja": args.jinja,
         "reasoning": args.reasoning,
+        "server_log_verbosity": args.server_log_verbosity,
         "expected_offloaded_layers": args.expected_offloaded_layers,
         "sample_interval_seconds": args.sample_interval_seconds,
         "baseline_seconds": args.baseline_seconds,
@@ -1330,7 +1391,7 @@ def main(argv: list[str] | None = None) -> int:
         ],
     }
     write_json(out_dir / "manifest.json", manifest)
-    write_json(out_dir / "server_command.json", {"argv": server_args})
+    write_json(out_dir / "server_command.json", build_server_command_payload(server_args))
 
     sampler = PhaseSampler(interval_seconds=args.sample_interval_seconds)
     process: subprocess.Popen[Any] | None = None
@@ -1584,10 +1645,8 @@ def main(argv: list[str] | None = None) -> int:
     remaining_servers = find_llama_server_processes()
     if remaining_servers:
         validation_failures.append("llama_server_process_still_running")
-    startup_log_evidence = parse_startup_log_evidence(
-        stderr_path.read_text(encoding="utf-8", errors="replace")
-        if stderr_path.exists()
-        else "",
+    startup_log_evidence = read_startup_log_evidence(
+        stderr_path,
         expected_alias=args.model_id,
     )
     validation_failures.extend(
@@ -1653,25 +1712,15 @@ def main(argv: list[str] | None = None) -> int:
     }
     write_json(out_dir / "benchmark_summary.json", benchmark_summary)
 
-    optional_replay_flags = ""
-    if args.jinja:
-        optional_replay_flags += "  --jinja `\n"
-    if args.reasoning:
-        optional_replay_flags += f"  --reasoning {args.reasoning} `\n"
-    if args.expected_model_bytes is not None:
-        optional_replay_flags += (
-            f"  --expected-model-bytes {args.expected_model_bytes} `\n"
-        )
-    if args.expected_model_sha256:
-        optional_replay_flags += (
-            f"  --expected-model-sha256 {args.expected_model_sha256} `\n"
-        )
-    if args.expected_offloaded_layers:
-        optional_replay_flags += (
-            f"  --expected-offloaded-layers {args.expected_offloaded_layers} `\n"
-        )
-    if args.require_startup_alias:
-        optional_replay_flags += "  --require-startup-alias `\n"
+    optional_replay_flags = build_optional_replay_flags(
+        jinja=args.jinja,
+        reasoning=args.reasoning,
+        expected_model_bytes=args.expected_model_bytes,
+        expected_model_sha256=args.expected_model_sha256,
+        expected_offloaded_layers=args.expected_offloaded_layers,
+        require_startup_alias=args.require_startup_alias,
+        server_log_verbosity=args.server_log_verbosity,
+    )
     replay = f"""# Replay
 
 ```powershell
