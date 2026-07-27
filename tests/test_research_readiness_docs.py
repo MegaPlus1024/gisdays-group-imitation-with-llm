@@ -11,6 +11,10 @@ def _read(relative_path: str) -> str:
     return (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
 
 
+def _section(text: str, heading: str, next_heading: str) -> str:
+    return text.split(heading, 1)[1].split(next_heading, 1)[0]
+
+
 def test_research_readiness_docs_exist() -> None:
     for relative_path in [
         "docs/ai/model_research_metadata.md",
@@ -353,3 +357,167 @@ def test_bounded_stress_doc_records_failed_result_and_profiles() -> None:
         "not proven truly strict",
     ]:
         assert required in text
+
+
+def test_reproduction_steps_check_python_before_downloading_gguf() -> None:
+    text = _read("docs/reproducibility.md")
+    ordered_headings = [
+        "## 1. Требования",
+        "## 2. Клонирование",
+        "## 3. Python-окружение",
+        "## 4. Проверка установки и тесты без модели",
+        "## 5. Сухой запуск среды выполнения",
+        "## 6. Скачивание основной модели",
+        "## 7. Установка и поиск `llama-server`",
+        "## 8. Запуск сервера и ожидание готовности",
+        "## 9. Проверка формата действий",
+        "## 10. Полный набор испытаний",
+        "## 11. Проверка результатов",
+        "## 12. Измерение ресурсов",
+        "## 13. Проверка отдельно предоставленного архива",
+        "## 14. Дополнительная очистка",
+        "## 15. Ограничения воспроизведения",
+    ]
+
+    positions = [text.index(heading) for heading in ordered_headings]
+    assert positions == sorted(positions)
+    assert text.index("## 4. Проверка установки") < text.index(
+        "## 6. Скачивание основной модели"
+    )
+
+
+def test_reproduction_python_setup_stops_after_failed_pip_install() -> None:
+    text = _read("docs/reproducibility.md")
+    section = _section(
+        text,
+        "## 3. Python-окружение",
+        "## 4. Проверка установки и тесты без модели",
+    )
+
+    for required in [
+        "if ($LASTEXITCODE -ne 0)",
+        "Установка зависимостей не завершена.",
+        r".\.venv\Scripts\python.exe -m pip check",
+        "Operation cancelled by user",
+        "Start-Process",
+        "-RedirectStandardOutput",
+        "-RedirectStandardError",
+    ]:
+        assert required in section
+
+
+def test_reproduction_dry_run_uses_full_sixth_model_config() -> None:
+    text = _read("docs/reproducibility.md")
+    section = _section(
+        text,
+        "## 5. Сухой запуск среды выполнения",
+        "## 6. Скачивание основной модели",
+    )
+    config = json.loads(
+        _read("configs/behavioral_benchmark_v2_sixth_model_full.json")
+    )
+
+    assert "configs\\behavioral_benchmark_v2_sixth_model_full.json" in section
+    assert "--models sixth_model" in section
+    assert "--trials-per-scenario 1" in section
+    assert "--dry-run" in section
+    assert "configs\\behavioral_benchmark_v2.example.json" not in section
+    assert 'model_ids = ["sixth_model"]' in section
+    assert "модель не загружается и запросы к ней не выполняются" in section
+    assert config["model_profile"]["model_id"] == "sixth_model"
+    assert len(config["scenario_ids"]) == 7
+
+
+def test_reproduction_waits_for_http_200_before_checking_models() -> None:
+    text = _read("docs/reproducibility.md")
+    section = _section(
+        text,
+        "## 8. Запуск сервера и ожидание готовности",
+        "## 9. Проверка формата действий",
+    )
+
+    for required in [
+        "HTTP 503",
+        "Loading model",
+        "(Get-Date).AddMinutes(10)",
+        '$httpCode -eq "200"',
+        '$httpCode -eq "503"',
+        'if ($httpCode -ne "200")',
+        "Сервер не стал готов за 10 минут.",
+    ]:
+        assert required in section
+    assert section.index('if ($httpCode -ne "200")') < section.index(
+        "$models = Invoke-RestMethod"
+    )
+    assert '$modelIds -notcontains "sixth_model"' in section
+    assert "Не завершайте неизвестные процессы автоматически." in section
+
+
+def test_reproduction_checks_exact_json_action_before_full_run() -> None:
+    text = _read("docs/reproducibility.md")
+    section = _section(
+        text,
+        "## 9. Проверка формата действий",
+        "## 10. Полный набор испытаний",
+    )
+
+    assert '{"action_name":"finish","parameters":{}}' in section
+    assert "$content.Trim() -ceq" in section
+    assert "--reasoning off" in section
+    assert "Return exactly OK" not in section
+    assert "Только после успешной проверки" in section
+
+
+def test_reproduction_uses_full_historical_model_names_in_prose() -> None:
+    text = _read("docs/reproducibility.md")
+    model_section = _section(
+        text,
+        "## 6. Скачивание основной модели",
+        "## 7. Установка и поиск `llama-server`",
+    )
+    prose = model_section.split("| Внутренний идентификатор", 1)[0]
+
+    for display_name in [
+        "Qwen3-14B Q5_K_M",
+        "Mistral Small 3.2 24B Instruct Q4_K_M",
+        "Qwen3-30B-A3B-Instruct-2507 Q4_K_M",
+    ]:
+        assert display_name in prose
+    for internal_id in ["third_model", "fourth_model", "fifth_model"]:
+        assert internal_id not in prose
+
+
+def test_reproduction_marks_archive_as_separately_provided() -> None:
+    text = _read("docs/reproducibility.md")
+    section = _section(
+        text,
+        "## 13. Проверка отдельно предоставленного архива",
+        "## 14. Дополнительная очистка",
+    )
+
+    assert "не загружается при клонировании GitHub-репозитория" in section
+    assert "если архив был передан отдельно" in section
+    assert (
+        "behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_"
+        "final_20260727T063525Z.tar.gz"
+    ) in section
+
+
+def test_reproduction_cleanup_requires_verified_full_archive_path() -> None:
+    text = _read("docs/reproducibility.md")
+    section = _section(
+        text,
+        "## 14. Дополнительная очистка",
+        "## 15. Ограничения воспроизведения",
+    )
+
+    for required in [
+        "$finalArchive = Read-Host",
+        "-LiteralPath $finalArchive",
+        "-PathType Leaf",
+        "-FinalArchivePath $finalArchive",
+        "Этот раздел необязателен.",
+        "Скрипт нельзя запускать с выдуманным или отсутствующим архивом.",
+    ]:
+        assert required in section
+    assert r"..\behavioral_benchmark" not in section

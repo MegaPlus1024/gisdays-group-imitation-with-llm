@@ -1,8 +1,8 @@
 # Воспроизведение проекта
 
-Инструкция начинается с чистого clone и воспроизводит основной подтверждённый
-результат с Qwen3.6-27B Q5_K_M. Исторические локальные модели для минимального
-запуска не требуются.
+Эта инструкция начинается с чистой копии Git-репозитория и воспроизводит
+основной подтверждённый результат с Qwen3.6-27B Q5_K_M. Репозиторий и
+Python-зависимости можно проверить до загрузки GGUF размером 19,5 ГБ.
 
 ## 1. Требования
 
@@ -12,9 +12,9 @@
 - PowerShell 5.1 или новее;
 - Git;
 - Python 3.12;
-- актуальный NVIDIA driver;
+- актуальный драйвер NVIDIA;
 - `llama-server.exe` из
-  [официальных releases llama.cpp](https://github.com/ggml-org/llama.cpp/releases);
+  [официальных выпусков llama.cpp](https://github.com/ggml-org/llama.cpp/releases);
 - `curl.exe`, входящий в современные версии Windows.
 
 `pyproject.toml` допускает Python 3.11+, но подтверждённые испытания и
@@ -22,13 +22,14 @@
 
 ### Аппаратные ресурсы
 
-Нужен NVIDIA GPU с достаточным объёмом VRAM для выбранной конфигурации.
-Qwen3.6-27B Q5_K_M при context 12288 занимала около 19.4 GiB VRAM на
-проверенной машине.
+Нужен графический процессор NVIDIA с достаточным объёмом видеопамяти для
+выбранной конфигурации. Qwen3.6-27B Q5_K_M при размере контекста 12288 занимала
+около 19,4 GiB видеопамяти на проверенной машине.
 
-Это не означает, что 24 GB является универсальным минимумом: потребление
-зависит от llama.cpp, backend, context, KV cache и offload. Перед запуском
-проверьте доступную память:
+Это не означает, что 24 GB является универсальным минимумом. Потребление
+зависит от версии `llama.cpp`, способа вычислений, размера контекста, кеша
+ключей и значений (KV) и переноса слоёв на GPU. Перед запуском проверьте
+доступную память:
 
 ```powershell
 nvidia-smi
@@ -43,10 +44,10 @@ git clone https://github.com/MegaPlus1024/gisdays-group-imitation-with-llm.git
 Set-Location gisdays-group-imitation-with-llm
 ```
 
-Если репозиторий недоступен публично, Git запросит GitHub-доступ к
+Если репозиторий недоступен публично, Git запросит доступ к
 `MegaPlus1024/gisdays-group-imitation-with-llm`.
 
-Проверить remote:
+Проверьте адрес удалённого репозитория:
 
 ```powershell
 git remote -v
@@ -60,13 +61,35 @@ https://github.com/MegaPlus1024/gisdays-group-imitation-with-llm.git
 
 ## 3. Python-окружение
 
-Создать repository-local virtual environment:
+Создайте виртуальное окружение в каталоге репозитория и установите основные
+зависимости:
 
 ```powershell
 py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+.\.venv\Scripts\python.exe `
+  -m pip install `
+  --upgrade pip
+
+.\.venv\Scripts\python.exe `
+  -m pip install `
+  -r requirements.txt
+
+if ($LASTEXITCODE -ne 0) {
+  throw "Установка зависимостей не завершена."
+}
+
+.\.venv\Scripts\python.exe -m pip check
+
+.\.venv\Scripts\python.exe `
+  -m pytest `
+  --version
 ```
+
+Не переходите к следующим шагам, если `pip install` завершился с ошибкой.
+Повторный запуск `pip install -r requirements.txt` продолжит установку;
+пересоздавать `.venv` обычно не требуется. Активировать виртуальное окружение
+необязательно, потому что все команды напрямую вызывают его Python.
 
 Основные зависимости:
 
@@ -76,102 +99,74 @@ py -3.12 -m venv .venv
 - `psutil`;
 - `rich`.
 
-Проверить interpreter:
-
-```powershell
-.\.venv\Scripts\python.exe --version
-.\.venv\Scripts\python.exe -m pytest --version
-```
-
 Дополнительные `requirements-browser.txt` и `requirements-office.txt` не нужны
 для основного многоагентного набора испытаний.
 
-## 4. Основная модель
+### Если pip сообщает `Operation cancelled by user`
 
-### Закреплённые данные
-
-| Поле | Значение |
-| --- | --- |
-| Модель | Qwen3.6-27B Q5_K_M |
-| Репозиторий | `unsloth/Qwen3.6-27B-GGUF` |
-| Revision | `eff7310b099938f3cd9f794b97493201d7c4b11d` |
-| Filename | `Qwen3.6-27B-Q5_K_M.gguf` |
-| Размер | `19509790944` bytes |
-| SHA-256 | `cfecab168156269f25d5ffe9e13cf2a401ca2f43a9693fa00bcd1625316ccbde` |
-| Локальный путь | `models\gguf\sixth_model\Qwen3.6-27B-Q5_K_M.gguf` |
-
-### Автоматическая загрузка
+Это сообщение означает, что процесс получил внешнее прерывание. Оно само по
+себе не доказывает, каким способом процесс был остановлен. Повторите основную
+команду установки:
 
 ```powershell
-.\scripts\download_required_model.ps1
+.\.venv\Scripts\python.exe `
+  -m pip install `
+  -r requirements.txt
 ```
 
-Скрипт:
-
-- использует закреплённую версию файла на Hugging Face;
-- вызывает `curl.exe`;
-- продолжает partial download через `--continue-at -`;
-- не скачивает повторно уже проверенный файл;
-- проверяет размер и SHA-256;
-- сохраняет GGUF только в ignored local directory.
-
-Указать другой путь:
+Если прерывание повторяется, диагностический запуск можно выполнить отдельным
+процессом с журналами во временном каталоге:
 
 ```powershell
-.\scripts\download_required_model.ps1 `
-  -Destination "D:\models\Qwen3.6-27B-Q5_K_M.gguf"
+$pythonPath = (
+  Resolve-Path `
+    ".\.venv\Scripts\python.exe"
+).Path
+
+$pipStdout = Join-Path `
+  $env:TEMP `
+  "gisdays-pip-stdout.log"
+
+$pipStderr = Join-Path `
+  $env:TEMP `
+  "gisdays-pip-stderr.log"
+
+$pipProcess = Start-Process `
+  -FilePath $pythonPath `
+  -ArgumentList @(
+    "-m",
+    "pip",
+    "install",
+    "-r",
+    "requirements.txt"
+  ) `
+  -Wait `
+  -PassThru `
+  -NoNewWindow `
+  -RedirectStandardOutput $pipStdout `
+  -RedirectStandardError $pipStderr
+
+if ($pipProcess.ExitCode -ne 0) {
+  throw (
+    "Установка завершилась с кодом " +
+    $pipProcess.ExitCode +
+    ". Проверьте журналы в $env:TEMP."
+  )
+}
 ```
 
-Если partial file повреждён или имеет неверный размер, скрипт сохраняет его.
-Явное удаление и повторная загрузка:
+Этот вариант предназначен только для диагностики. Основным способом остаётся
+прямой вызов Python из `.venv`.
+
+## 4. Проверка установки и тесты без модели
+
+Сначала проверьте версию Python:
 
 ```powershell
-.\scripts\download_required_model.ps1 -ForceDownload
+.\.venv\Scripts\python.exe --version
 ```
 
-Небезопасный режим без проверки SHA-256 доступен только явно:
-
-```powershell
-.\scripts\download_required_model.ps1 -SkipHashCheck
-```
-
-Скрипт выводит предупреждение. Для воспроизводимого результата этот режим не
-используйте.
-
-### Ручная загрузка с закреплённой версией
-
-Если вспомогательный скрипт недоступен, выполните эквивалентную загрузку
-вручную. URL содержит ту же закреплённую версию, а `--continue-at -`
-сохраняет возможность продолжить partial download:
-
-```powershell
-$revision = "eff7310b099938f3cd9f794b97493201d7c4b11d"
-$file = "Qwen3.6-27B-Q5_K_M.gguf"
-$destination = "models\gguf\sixth_model\$file"
-$url = "https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/$revision/$file?download=true"
-New-Item -ItemType Directory -Path (Split-Path $destination) -Force | Out-Null
-curl.exe --location --fail --retry 3 --continue-at - --output $destination $url
-(Get-Item -LiteralPath $destination).Length
-(Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash
-```
-
-Последние две команды должны вернуть `19509790944` bytes и
-`CFECAB168156269F25D5FFE9E13CF2A401CA2F43A9693FA00BCD1625316CCBDE`.
-Не запускайте испытания с файлом, который не прошёл обе проверки.
-
-### Исторические модели
-
-`third_model`, `fourth_model` и `fifth_model` использовались как исторические
-базовые варианты. Их веса не распространяются в репозитории, а проверяемый
-минимальный запуск требует только Qwen3.6-27B Q5_K_M.
-
-В tracked metadata сохранены семейства, quantization и локальные aliases, но
-не полный набор версий, размеров и SHA-256 для каждого старого GGUF. Поэтому
-инструкция не публикует непроверенные download URL.
-
-## 5. Тесты без модели
-
-Полный набор тестов:
+Затем запустите полный набор тестов:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest
@@ -186,39 +181,198 @@ curl.exe --location --fail --retry 3 --continue-at - --output $destination $url
 ```
 
 Полный `pytest` не требует GGUF-моделей или запущенного `llama-server`.
-Настоящий запуск модели начинается только после скачивания Qwen3.6-27B.
-Тесты, зависящие от необязательных браузерных библиотек, могут быть пропущены:
-их отсутствие может увеличить число `skipped`, но не должно приводить к `failed`.
+Настоящий запуск модели начинается только после загрузки Qwen3.6-27B.
+Тесты, зависящие от необязательных браузерных библиотек, могут быть пропущены.
+Их отсутствие может увеличить число `skipped`, но не должно приводить к
+`failed`.
 
-Безопасный dry-run одного повтора каждого сценария:
+## 5. Сухой запуск среды выполнения
+
+Сухой запуск проверяет все семь сценариев с одним повтором:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\run_autonomous_multi_agent_runtime.py `
-  --config configs\behavioral_benchmark_v2.example.json `
+.\.venv\Scripts\python.exe `
+  scripts\run_autonomous_multi_agent_runtime.py `
+  --config `
+    configs\behavioral_benchmark_v2_sixth_model_full.json `
+  --models sixth_model `
   --trials-per-scenario 1 `
   --dry-run `
-  --output-dir artifacts\reproduction\dry_run
+  --output-dir `
+    artifacts\reproduction\dry_run
 ```
 
-В summary должны быть:
+В `artifacts\reproduction\dry_run\experiment_summary.json` ожидаются:
 
 ```text
+status = succeeded
 model_execution = false
+model_ids = ["sixth_model"]
+trials_total = 7
+trials_succeeded = 7
+trials_failed = 0
 external_network = false
 real_browser_execution = false
 playwright_execution = false
 ```
 
-## 6. Запуск локального сервера
+При сухом запуске модель не загружается и запросы к ней не выполняются.
+Идентификатор `sixth_model` используется для проверки конфигурации и структуры
+выходных данных.
 
-Добавьте каталог с `llama-server.exe` в `PATH` либо укажите полный путь к
-executable.
+## 6. Скачивание основной модели
 
-В отдельном окне PowerShell:
+### Закреплённые данные
+
+| Поле | Значение |
+| --- | --- |
+| Модель | Qwen3.6-27B Q5_K_M |
+| Репозиторий | `unsloth/Qwen3.6-27B-GGUF` |
+| Версия | `eff7310b099938f3cd9f794b97493201d7c4b11d` |
+| Имя файла | `Qwen3.6-27B-Q5_K_M.gguf` |
+| Размер | `19509790944` байт |
+| SHA-256 | `cfecab168156269f25d5ffe9e13cf2a401ca2f43a9693fa00bcd1625316ccbde` |
+| Локальный путь | `models\gguf\sixth_model\Qwen3.6-27B-Q5_K_M.gguf` |
+
+### Автоматическая загрузка
 
 ```powershell
-llama-server.exe `
-  --model models\gguf\sixth_model\Qwen3.6-27B-Q5_K_M.gguf `
+.\scripts\download_required_model.ps1
+```
+
+Скрипт:
+
+- использует закреплённую версию файла на Hugging Face;
+- вызывает `curl.exe`;
+- продолжает частичную загрузку с помощью `--continue-at -`;
+- не загружает повторно уже проверенный файл;
+- проверяет размер и SHA-256;
+- сохраняет GGUF только в локальном каталоге, исключённом из Git.
+
+Чтобы указать другой путь:
+
+```powershell
+.\scripts\download_required_model.ps1 `
+  -Destination "D:\models\Qwen3.6-27B-Q5_K_M.gguf"
+```
+
+Если частично загруженный файл повреждён или имеет неверный размер, скрипт
+сохраняет его. Для явного удаления и повторной загрузки:
+
+```powershell
+.\scripts\download_required_model.ps1 -ForceDownload
+```
+
+Режим без проверки SHA-256 доступен только при явном указании:
+
+```powershell
+.\scripts\download_required_model.ps1 -SkipHashCheck
+```
+
+Скрипт выводит предупреждение. Для воспроизводимого результата этот режим не
+используйте.
+
+### Ручная загрузка с закреплённой версией
+
+Если вспомогательный скрипт недоступен, выполните эквивалентную загрузку
+вручную:
+
+```powershell
+$revision = "eff7310b099938f3cd9f794b97493201d7c4b11d"
+$file = "Qwen3.6-27B-Q5_K_M.gguf"
+$destination = "models\gguf\sixth_model\$file"
+$url = "https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/$revision/$file?download=true"
+
+New-Item `
+  -ItemType Directory `
+  -Path (Split-Path $destination) `
+  -Force |
+Out-Null
+
+curl.exe `
+  --location `
+  --fail `
+  --retry 3 `
+  --continue-at - `
+  --output $destination `
+  $url
+
+(Get-Item -LiteralPath $destination).Length
+
+(Get-FileHash `
+  -LiteralPath $destination `
+  -Algorithm SHA256
+).Hash
+```
+
+Последние две команды должны вернуть `19509790944` байт и
+`CFECAB168156269F25D5FFE9E13CF2A401CA2F43A9693FA00BCD1625316CCBDE`.
+Не запускайте испытания с файлом, который не прошёл обе проверки.
+
+### Исторические модели
+
+В предыдущем сравнении использовались Qwen3-14B Q5_K_M,
+Mistral Small 3.2 24B Instruct Q4_K_M и
+Qwen3-30B-A3B-Instruct-2507 Q4_K_M. Их веса не распространяются в
+репозитории. Для основного воспроизведения нужна только Qwen3.6-27B Q5_K_M.
+
+| Внутренний идентификатор | Полное название |
+| --- | --- |
+| `third_model` | Qwen3-14B Q5_K_M |
+| `fourth_model` | Mistral Small 3.2 24B Instruct Q4_K_M |
+| `fifth_model` | Qwen3-30B-A3B-Instruct-2507 Q4_K_M |
+| `sixth_model` | Qwen3.6-27B Q5_K_M |
+
+В метаданных, отслеживаемых Git, сохранены семейства, квантование и локальные
+псевдонимы, но не полный набор версий, размеров и SHA-256 для каждого старого
+GGUF. Поэтому инструкция не публикует непроверенные адреса загрузки.
+
+## 7. Установка и поиск `llama-server`
+
+Загрузите подходящую сборку из
+[официальных выпусков llama.cpp](https://github.com/ggml-org/llama.cpp/releases)
+или установите её с помощью WinGet.
+
+В окне PowerShell, где будет запущен сервер, сначала найдите исполняемый файл:
+
+```powershell
+try {
+  $serverPath = (
+    Get-Command `
+      llama-server.exe `
+      -ErrorAction Stop
+  ).Source
+} catch {
+  $serverPath = (
+    Get-ChildItem `
+      "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" `
+      -Recurse `
+      -File `
+      -Filter "llama-server.exe" `
+      -ErrorAction SilentlyContinue |
+    Select-Object -First 1
+  ).FullName
+}
+
+if (-not $serverPath) {
+  throw "llama-server.exe не найден."
+}
+
+$serverPath
+```
+
+Если файл не находится ни через `PATH`, ни в каталоге WinGet, установите
+`llama.cpp` и повторите поиск. Не подставляйте выдуманный путь.
+
+## 8. Запуск сервера и ожидание готовности
+
+Сервер запускается в отдельном окне PowerShell. В этом окне сначала выполните
+поиск из предыдущего раздела, затем запустите:
+
+```powershell
+& $serverPath `
+  --model `
+    "models\gguf\sixth_model\Qwen3.6-27B-Q5_K_M.gguf" `
   --alias sixth_model `
   --host 127.0.0.1 `
   --port 8085 `
@@ -229,74 +383,237 @@ llama-server.exe `
   --reasoning off
 ```
 
-Проверить готовность из второго окна:
+Загрузка модели может занять некоторое время. Пока она продолжается,
+`/health` штатно возвращает HTTP 503 с текстом `Loading model`. Это не означает
+ошибку модели. Полный набор испытаний нельзя запускать до ответа HTTP 200.
+
+Во втором окне PowerShell дождитесь готовности с ограничением в 10 минут:
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:8085/health
-Invoke-RestMethod http://127.0.0.1:8085/v1/models
+$healthUrl = "http://127.0.0.1:8085/health"
+$deadline = (Get-Date).AddMinutes(10)
+$healthFile = Join-Path $env:TEMP "llama-health.json"
+
+do {
+  $httpCode = curl.exe `
+    --silent `
+    --output $healthFile `
+    --write-out "%{http_code}" `
+    $healthUrl
+
+  $responseBody = if (
+    Test-Path -LiteralPath $healthFile
+  ) {
+    Get-Content `
+      -LiteralPath $healthFile `
+      -Raw
+  } else {
+    ""
+  }
+
+  if ($httpCode -eq "200") {
+    Write-Host "Модель загружена, сервер готов."
+    break
+  }
+
+  if ($httpCode -eq "503") {
+    Write-Host "Модель загружается..."
+    Start-Sleep -Seconds 5
+    continue
+  }
+
+  throw (
+    "Неожиданный ответ сервера: HTTP " +
+    $httpCode +
+    " " +
+    $responseBody
+  )
+} while ((Get-Date) -lt $deadline)
+
+if ($httpCode -ne "200") {
+  throw "Сервер не стал готов за 10 минут."
+}
 ```
 
-В `/v1/models` должен присутствовать alias
-`sixth_model`.
-
-Проверить OpenAI-compatible protocol одним коротким локальным запросом:
+Только после успешного HTTP 200 запросите список моделей:
 
 ```powershell
+$models = Invoke-RestMethod `
+  http://127.0.0.1:8085/v1/models
+
+$models |
+  ConvertTo-Json `
+    -Depth 10
+
+$modelIds = @(
+  $models.data |
+    ForEach-Object {
+      [string]$_.id
+    }
+)
+
+if ($modelIds -notcontains "sixth_model") {
+  throw "В /v1/models отсутствует sixth_model."
+}
+```
+
+### Если HTTP 503 сохраняется слишком долго
+
+Не завершайте неизвестные процессы автоматически. Сначала определите процесс,
+который слушает порт 8085:
+
+```powershell
+$listener = Get-NetTCPConnection `
+  -LocalPort 8085 `
+  -State Listen `
+  -ErrorAction Stop
+
+Get-CimInstance `
+  Win32_Process `
+  -Filter "ProcessId = $($listener.OwningProcess)" |
+Select-Object `
+  ProcessId,Name,CommandLine |
+Format-List
+```
+
+Проверьте загрузку GPU:
+
+```powershell
+nvidia-smi
+```
+
+В окне сервера проверьте наличие сообщений:
+
+```text
+out of memory
+failed to allocate
+failed to load model
+```
+
+Время загрузки зависит от накопителя, памяти, видеокарты и сборки
+`llama.cpp`, поэтому универсального ожидаемого времени нет.
+
+## 9. Проверка формата действий
+
+После готовности сервера проверьте основной контракт проекта: модель должна
+вернуть одно действие как необрамлённый объект JSON. Запуск сервера с
+`--reasoning off` нужен, чтобы рассуждения не добавлялись к ответу.
+
+```powershell
+$baseUrl = "http://127.0.0.1:8085"
+
 $body = @{
   model = "sixth_model"
   messages = @(
-    @{ role = "user"; content = "/no_think Return exactly OK." }
+    @{
+      role = "system"
+      content = (
+        "Return exactly one raw JSON object. " +
+        "Do not use Markdown or prose. " +
+        "Use exactly the top-level keys " +
+        "action_name and parameters."
+      )
+    }
+    @{
+      role = "user"
+      content = (
+        "Return exactly: " +
+        '{"action_name":"finish","parameters":{}}'
+      )
+    }
   )
-  max_tokens = 8
-  temperature = 0.0
-} | ConvertTo-Json -Depth 4
+  temperature = 0
+  seed = 0
+  max_tokens = 256
+  stream = $false
+} |
+  ConvertTo-Json `
+    -Depth 10
+
 $response = Invoke-RestMethod `
+  -Uri "$baseUrl/v1/chat/completions" `
   -Method Post `
-  -Uri "http://127.0.0.1:8085/v1/chat/completions" `
   -ContentType "application/json" `
-  -Body $body
-$response.choices[0].message.content
+  -Body $body `
+  -TimeoutSec 180
+
+$content = [string](
+  $response.choices[0].message.content
+)
+
+$content
+
+$content.Trim() -ceq `
+  '{"action_name":"finish","parameters":{}}'
 ```
 
-Этот короткий запрос проверяет только локальный протокол и имя модели. Он не
-входит в набор испытаний и не заменяет полный запуск.
+Ожидается:
 
-## 7. Полный набор испытаний
+```text
+{"action_name":"finish","parameters":{}}
+True
+```
 
-Запускайте из корня репозитория во втором окне PowerShell:
+Только после успешной проверки HTTP 200, наличия `sixth_model` и точного
+JSON-действия запускайте полный набор испытаний.
+
+## 10. Полный набор испытаний
+
+Файл `configs/behavioral_benchmark_v2_sixth_model_full.json` содержит семь
+сценариев для Qwen3.6-27B Q5_K_M. Запускайте команду из корня репозитория во
+втором окне PowerShell:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\run_autonomous_multi_agent_runtime.py `
-  --config configs\behavioral_benchmark_v2_sixth_model_full.json `
+.\.venv\Scripts\python.exe `
+  scripts\run_autonomous_multi_agent_runtime.py `
+  --config `
+    configs\behavioral_benchmark_v2_sixth_model_full.json `
   --models sixth_model `
   --allow-model-execution `
-  --output-dir artifacts\reproduction\sixth_model_full
+  --output-dir `
+    artifacts\reproduction\sixth_model_full
 ```
 
-Параметр `--allow-model-execution` является обязательным opt-in. Endpoint
-ограничен `127.0.0.1`/`localhost`; внешний model URL config loader не принимает.
+Параметр `--allow-model-execution` является обязательным явным разрешением.
+Допустимы только адреса `127.0.0.1` и `localhost`; загрузчик конфигурации не
+принимает внешний адрес модели.
 
 Конфигурация задаёт:
 
 - семь сценариев;
 - пять повторов каждого сценария;
 - максимум 40 ходов;
-- round-robin scheduler;
-- temperature `0.0`;
-- response limit `512`;
-- `/no_think`;
-- timeout `120` секунд.
+- циклическую очерёдность агентов;
+- `temperature` со значением `0.0`;
+- ограничение ответа в 512 токенов;
+- префикс `/no_think`;
+- время ожидания ответа 120 секунд.
 
-После завершения остановите вручную запущенный сервер в его окне с `Ctrl+C`.
+После завершения остановите вручную запущенный сервер в его окне с помощью
+`Ctrl+C`.
 
-## 8. Проверка результатов
+## 11. Проверка результатов
 
-Прочитать experiment summary:
+Прочитайте общую сводку:
 
 ```powershell
-$summaryPath = "artifacts\reproduction\sixth_model_full\experiment_summary.json"
-$summary = Get-Content -LiteralPath $summaryPath -Raw | ConvertFrom-Json
-$summary | Select-Object status,trials_total,trials_succeeded,trials_failed,trial_pass_rate
+$summaryPath = (
+  "artifacts\reproduction\sixth_model_full\" +
+  "experiment_summary.json"
+)
+
+$summary = Get-Content `
+  -LiteralPath $summaryPath `
+  -Raw |
+ConvertFrom-Json
+
+$summary |
+  Select-Object `
+    status,
+    trials_total,
+    trials_succeeded,
+    trials_failed,
+    trial_pass_rate
 ```
 
 Для совпадения с подтверждённым результатом ожидаются:
@@ -309,7 +626,7 @@ trials_failed     = 0
 trial_pass_rate   = 1.0
 ```
 
-Проверить все сценарии:
+Проверьте все сценарии:
 
 ```powershell
 $summary.per_scenario_pass_rate
@@ -317,11 +634,15 @@ $summary.per_scenario_pass_rate
 
 Каждый из семи показателей должен быть `1.0`.
 
-Ключевые служебные поля безопасности:
+Проверьте служебные поля безопасности:
 
 ```powershell
-$summary | Select-Object `
-  model_execution,external_network,real_browser_execution,playwright_execution
+$summary |
+  Select-Object `
+    model_execution,
+    external_network,
+    real_browser_execution,
+    playwright_execution
 ```
 
 Для запуска с моделью на подготовленных данных ожидаются:
@@ -333,24 +654,26 @@ real_browser_execution = false
 playwright_execution   = false
 ```
 
-Каждый trial directory содержит `trial_summary.json` и `group_trace.jsonl`.
+Каталог каждого повтора содержит `trial_summary.json` и `group_trace.jsonl`.
 Журнал позволяет проверить предложенные действия, наблюдения, результаты
-инструментов и выполненные требования по ходам.
+инструментов и выполнение требований по ходам.
 
-## 9. Измерение ресурсов
+## 12. Измерение ресурсов
 
 Стенд измерения ресурсов сам запускает и останавливает ровно один
-`llama-server`.
-Перед запуском остановите сервер из предыдущего раздела. Порт 8085 должен быть
-свободен.
+`llama-server`. Перед запуском остановите сервер из предыдущего раздела.
+Порт 8085 должен быть свободен.
 
-Укажите реальный путь к `llama-server.exe` и новый output directory:
+Укажите фактический путь к `llama-server.exe` и новый каталог результатов:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\run_deterministic_gpu_resource_harness.py `
+.\.venv\Scripts\python.exe `
+  scripts\run_deterministic_gpu_resource_harness.py `
   --model-id sixth_model `
-  --model-path models\gguf\sixth_model\Qwen3.6-27B-Q5_K_M.gguf `
-  --server-path "C:\path\to\llama-server.exe" `
+  --model-path `
+    models\gguf\sixth_model\Qwen3.6-27B-Q5_K_M.gguf `
+  --server-path `
+    "C:\path\to\llama-server.exe" `
   --host 127.0.0.1 `
   --port 8085 `
   --ctx-size 12288 `
@@ -360,10 +683,12 @@ playwright_execution   = false
   --reasoning off `
   --server-log-verbosity 4 `
   --expected-model-bytes 19509790944 `
-  --expected-model-sha256 cfecab168156269f25d5ffe9e13cf2a401ca2f43a9693fa00bcd1625316ccbde `
+  --expected-model-sha256 `
+    cfecab168156269f25d5ffe9e13cf2a401ca2f43a9693fa00bcd1625316ccbde `
   --expected-offloaded-layers 65/65 `
   --require-startup-alias `
-  --out-dir artifacts\descriptive_gpu_resource_profiles\sixth_model_reproduction
+  --out-dir `
+    artifacts\descriptive_gpu_resource_profiles\sixth_model_reproduction
 ```
 
 Стенд проверяет файл модели, отсутствие другого `llama-server`, свободный
@@ -398,20 +723,13 @@ port released = true
 Синтетическая нагрузка для измерения ресурсов не заменяет проверку поведения
 моделей.
 
-## 10. Проверка сохранённых подтверждающих данных
+## 13. Проверка отдельно предоставленного архива
 
-Основные tracked документы:
+Этот архив не загружается при клонировании GitHub-репозитория. Раздел
+применяется только в том случае, если архив был передан отдельно.
 
-```text
-docs/status/behavioral_benchmark_v2_final_report.md
-docs/status/behavioral_benchmark_v2_descriptive_gpu_resource_profile.md
-docs/status/behavioral_benchmark_v2_post_hoc_challenger_final_report.md
-docs/status/behavioral_benchmark_v2_post_hoc_challenger_final_summary.json
-docs/status/behavioral_benchmark_v2_post_hoc_challenger_archive.json
-docs/status/behavioral_benchmark_v2_post_hoc_challenger_evidence.sha256
-```
-
-Итоговый созданный архив хранится вне Git:
+Техническое имя оставлено без изменения, поскольку оно связано с ранее
+зафиксированными контрольными суммами:
 
 ```text
 behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_final_20260727T063525Z.tar.gz
@@ -426,38 +744,90 @@ files    = 231 verified
 mismatch = 0
 ```
 
-Если архив предоставлен отдельно, проверить его:
+Если архив предоставлен отдельно, запросите его полный путь:
 
 ```powershell
-$archive = "..\behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_final_20260727T063525Z.tar.gz"
+$archive = Read-Host `
+  "Введите полный путь к отдельно полученному архиву"
+
+if (-not (
+  Test-Path `
+    -LiteralPath $archive `
+    -PathType Leaf
+)) {
+  throw "Архив не найден: $archive"
+}
+
 (Get-Item -LiteralPath $archive).Length
-(Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
+
+(Get-FileHash `
+  -LiteralPath $archive `
+  -Algorithm SHA256
+).Hash
+
 tar -tzf $archive
 ```
 
-## 11. Очистка созданных файлов
+Основные документы с подтверждающими данными уже отслеживаются Git:
 
-Сначала только dry-run:
-
-```powershell
-.\scripts\cleanup_generated_files.ps1 `
-  -FinalArchivePath "..\behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_final_20260727T063525Z.tar.gz"
+```text
+docs/status/behavioral_benchmark_v2_final_report.md
+docs/status/behavioral_benchmark_v2_descriptive_gpu_resource_profile.md
+docs/status/behavioral_benchmark_v2_post_hoc_challenger_final_report.md
+docs/status/behavioral_benchmark_v2_post_hoc_challenger_final_summary.json
+docs/status/behavioral_benchmark_v2_post_hoc_challenger_archive.json
+docs/status/behavioral_benchmark_v2_post_hoc_challenger_evidence.sha256
 ```
 
-Фактическое удаление разрешённых каталогов:
+## 14. Дополнительная очистка
+
+Этот раздел необязателен. Он предназначен для очистки после повторного
+формирования проверочных данных. Обычному пользователю после тестов или нового
+запуска не требуется очистка с проверкой итогового архива.
+
+Скрипт нельзя запускать с выдуманным или отсутствующим архивом. Запросите
+полный путь к отдельно полученному файлу и проверьте его:
+
+```powershell
+$finalArchive = Read-Host `
+  "Введите полный путь к отдельно полученному архиву"
+
+if (-not (
+  Test-Path `
+    -LiteralPath $finalArchive `
+    -PathType Leaf
+)) {
+  throw "Архив не найден: $finalArchive"
+}
+```
+
+Сначала выполните только предварительную проверку:
 
 ```powershell
 .\scripts\cleanup_generated_files.ps1 `
-  -FinalArchivePath "..\behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_final_20260727T063525Z.tar.gz" `
+  -FinalArchivePath $finalArchive
+```
+
+После проверки вывода разрешите удаление:
+
+```powershell
+.\scripts\cleanup_generated_files.ps1 `
+  -FinalArchivePath $finalArchive `
   -Apply
 ```
 
-Скрипт проверяет SHA-256 архива, archive member list, tracked-файлы и reparse
-points. Он не удаляет GGUF, archives, source, configs, tests, docs или `.venv`.
+Скрипт проверяет SHA-256 архива, список файлов внутри архива, отслеживаемые Git
+файлы и точки повторной обработки файловой системы. Он не удаляет GGUF,
+архивы, исходный код, конфигурации, тесты, документацию или `.venv`.
 
-## 12. Ограничения воспроизведения
+Для удаления обычного нового каталога результатов достаточно вручную указать
+созданный вами каталог после проверки его содержимого. Не применяйте архивную
+очистку к произвольному пути.
 
-- Значения latency и ресурсов зависят от GPU, driver и сборки llama.cpp.
+## 15. Ограничения воспроизведения
+
+- Задержка и потребление ресурсов зависят от GPU, драйвера и сборки
+  `llama.cpp`.
 - Поведенческий результат относится к задачам с локально подготовленными
   данными.
 - Испытания не используют открытый интернет, реальный браузер или Playwright.
