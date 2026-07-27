@@ -1,0 +1,478 @@
+{
+  "accepted_resource_results": {
+    "manifest_sha256": "02DF54CD500BDA6D5F65EEF751437066894FEF88B6EC1C1B7CF9B99C63CCFBFB",
+    "offloaded_layers": "65/65",
+    "path": "artifacts/descriptive_gpu_resource_profiles/qwen3_6_27b_q5_k_m_20260727T051740Z",
+    "post_shutdown": {
+      "port_released": true,
+      "remaining_llama_server_processes": []
+    },
+    "requests": "30/30 measured requests",
+    "samples": {
+      "csv": 313,
+      "jsonl": 313
+    },
+    "shutdown": {
+      "forced_kill": false,
+      "initiated_by_harness": true,
+      "method": "terminate",
+      "process_stopped": true,
+      "return_code": 1
+    },
+    "status": "succeeded"
+  },
+  "archive": {
+    "absolute_location": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_final_20260727T063525Z.tar.gz",
+    "archive_filename": "behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_final_20260727T063525Z.tar.gz",
+    "archive_self_reference_note": "Archive contains the pre-archive-hash copies of final report, summary, and SHA manifest. The tracked docs were regenerated afterward with archive metadata and final SHA entries.",
+    "archive_verification": {
+      "archive_member_count": 256,
+      "embedded_hash_checks": [
+        {
+          "entries": 16,
+          "manifest": "artifacts/descriptive_gpu_resource_profiles/qwen3_6_27b_q5_k_m_20260727T051740Z/evidence_manifest.json",
+          "matches": 16,
+          "mismatches": 0,
+          "missing": 0
+        },
+        {
+          "entries": 16,
+          "manifest": "artifacts/descriptive_gpu_resource_profiles/qwen3_6_27b_q5_k_m_20260726T222420Z/evidence_manifest.json",
+          "matches": 16,
+          "mismatches": 0,
+          "missing": 0
+        },
+        {
+          "entries": 53,
+          "manifest": "artifacts/descriptive_gpu_resource_profiles/post_hoc_challenger_comparison_verified/comparison_evidence_manifest.json",
+          "matches": 53,
+          "mismatches": 0,
+          "missing": 0
+        },
+        {
+          "entries": 53,
+          "manifest": "artifacts/descriptive_gpu_resource_profiles/frozen_resource_evidence_recovery/recovery_evidence_manifest.json",
+          "matches": 53,
+          "mismatches": 0,
+          "missing": 0
+        },
+        {
+          "entries": 74,
+          "manifest": "artifacts/challenger_qwen3_6_27b_q5_k_m/full_cohort_35/full_cohort_evidence_manifest.json",
+          "matches": 74,
+          "mismatches": 0,
+          "missing": 0
+        },
+        {
+          "entries": 19,
+          "manifest": "docs/status/behavioral_benchmark_v2_post_hoc_challenger_evidence.sha256",
+          "matches": 19,
+          "mismatches": 0,
+          "missing": 0
+        }
+      ],
+      "embedded_model_source": {
+        "bytes": 1113,
+        "match": true,
+        "sha256": "0e7b5e6444fa6cca13d984ef39c0b417c3604edf7fdedc32aacdafb894c8ce41"
+      },
+      "json_jsonl_csv_validation": {
+        "csv": 7,
+        "errors": [],
+        "json": 92,
+        "jsonl": 50
+      },
+      "mismatch_count": 0,
+      "required_roots": {
+        "artifacts/challenger_qwen3_6_27b_q5_k_m/full_cohort_35": true,
+        "artifacts/challenger_qwen3_6_27b_q5_k_m/model_source.json": true,
+        "artifacts/challenger_qwen3_6_27b_q5_k_m/provenance_repair": true,
+        "artifacts/descriptive_gpu_resource_profiles/frozen_resource_evidence_recovery": true,
+        "artifacts/descriptive_gpu_resource_profiles/post_hoc_challenger_comparison_verified": true,
+        "artifacts/descriptive_gpu_resource_profiles/qwen3_6_27b_q5_k_m_20260726T222420Z": true,
+        "artifacts/descriptive_gpu_resource_profiles/qwen3_6_27b_q5_k_m_20260727T051740Z": true,
+        "artifacts/descriptive_gpu_resource_profiles/recovered_frozen_profiles_20260727T054643Z": true,
+        "docs/status/behavioral_benchmark_v2_post_hoc_challenger_evidence.sha256": true,
+        "docs/status/behavioral_benchmark_v2_post_hoc_challenger_final_report.md": true,
+        "docs/status/behavioral_benchmark_v2_post_hoc_challenger_final_summary.json": true,
+        "external_archives/behavioral_benchmark_v2_descriptive_gpu_resource_244dd51.tar.gz": true
+      },
+      "temporary_extraction_deleted": true,
+      "verification_status": "succeeded",
+      "verified_file_count": 231
+    },
+    "bytes": 960961,
+    "created_at_utc": "2026-07-27T06:35:25.471566+00:00",
+    "excluded_categories": [
+      "GGUF model files",
+      "virtual environment",
+      ".git",
+      "caches",
+      "unrelated artifacts",
+      "old provisional rejected comparison directory"
+    ],
+    "included_evidence_roots": [
+      "artifacts/challenger_qwen3_6_27b_q5_k_m/model_source.json",
+      "artifacts/challenger_qwen3_6_27b_q5_k_m/provenance_repair",
+      "artifacts/challenger_qwen3_6_27b_q5_k_m/full_cohort_35",
+      "artifacts/descriptive_gpu_resource_profiles/qwen3_6_27b_q5_k_m_20260727T051740Z",
+      "artifacts/descriptive_gpu_resource_profiles/qwen3_6_27b_q5_k_m_20260726T222420Z",
+      "artifacts/descriptive_gpu_resource_profiles/post_hoc_challenger_comparison_verified",
+      "artifacts/descriptive_gpu_resource_profiles/frozen_resource_evidence_recovery",
+      "artifacts/descriptive_gpu_resource_profiles/recovered_frozen_profiles_20260727T054643Z",
+      "external_archives/behavioral_benchmark_v2_descriptive_gpu_resource_244dd51.tar.gz",
+      "docs/status/behavioral_benchmark_v2_post_hoc_challenger_final_report.md",
+      "docs/status/behavioral_benchmark_v2_post_hoc_challenger_final_summary.json",
+      "docs/status/behavioral_benchmark_v2_post_hoc_challenger_evidence.sha256"
+    ],
+    "mismatch_count": 0,
+    "rejected_closeout_attempt_preserved": {
+      "classification": "rejected closeout attempt",
+      "path": "../behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_final_20260727T061838Z.tar.gz",
+      "sha256": "8831C8B1F982A37CD1765F0C819959D8FE2522DA09F3094C64B3643999428F13"
+    },
+    "relative_location": "../behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_final_20260727T063525Z.tar.gz",
+    "schema_version": "behavioral_benchmark_v2_post_hoc_challenger_archive_v2",
+    "sha256": "4025B5C8AF79335D1CB5EF8C553CCF7F533B11A610872800A179D15A2CFEFDB7",
+    "source_commits_tags": {
+      "current_head": "407e9a8beee29e8838f4fba08f553702924a69ad",
+      "frozen_behavioral_commit": "c66720057b7c728284ef500b5d131284258e9a40",
+      "frozen_behavioral_tag": "behavioral-benchmark-v2-final",
+      "frozen_resource_commit": "244dd5179a565544ad91bee174a41c7a3ee34ef6",
+      "frozen_resource_tag": "behavioral-benchmark-v2-resource-profile-final"
+    },
+    "verification_status": "succeeded",
+    "verified_file_count": 231
+  },
+  "behavioral_manifest_verification": {
+    "entries": 74,
+    "failed_entries": [],
+    "matches": 74,
+    "mismatches": 0,
+    "missing": 0
+  },
+  "behavioral_results": {
+    "frozen_cohort": {
+      "fifth_model": {
+        "gate": "fail",
+        "score": "30/35",
+        "v2_07": "0/5"
+      },
+      "fourth_model": {
+        "gate": "fail",
+        "score": "30/35",
+        "v2_07": "0/5"
+      },
+      "third_model": {
+        "gate": "fail",
+        "score": "30/35",
+        "v2_07": "0/5"
+      },
+      "winner": null
+    },
+    "post_hoc_challenger": {
+      "all_scenarios": "5/5",
+      "audit": "APPROVE",
+      "classification": "post-hoc challenger; not a frozen cohort member",
+      "gate": "pass",
+      "score": "35/35",
+      "v2_07": "5/5"
+    }
+  },
+  "caveats": [
+    "The challenger is post-hoc and is not a frozen cohort member.",
+    "The frozen cohort winner remains none.",
+    "No production readiness, concurrency capacity, multi-user throughput, sustained thermal stability, or general model quality outside this benchmark is claimed.",
+    "Behavioral correctness is prioritized over descriptive resource metrics."
+  ],
+  "challenger_behavioral_commit": "1fa6db5dc5a2258100f7b9af838cdbe707391f58",
+  "comparison_results": {
+    "audit": "APPROVE",
+    "manifest_sha256": "F11DD434A72A369717438CCF234A6BCDF5640FA288B8CCA4CA702586B658B482",
+    "methodology": "comparable with documented provenance caveats",
+    "path": "artifacts/descriptive_gpu_resource_profiles/post_hoc_challenger_comparison_verified",
+    "request_discrepancies": 0,
+    "resource_discrepancies": 0
+  },
+  "correctness_first_ranking": [
+    {
+      "basis": "35/35, V2-07 5/5, gate pass",
+      "model_id": "qwen3_6_27b_q5_k_m",
+      "rank": 1
+    },
+    {
+      "basis": "30/35, V2-07 0/5, gate fail; frozen winner remains none",
+      "model_id": "third_model/fourth_model/fifth_model",
+      "rank": 2
+    }
+  ],
+  "current_head_at_closeout": "407e9a8beee29e8838f4fba08f553702924a69ad",
+  "evidence_hashes": {
+    "challenger_behavioral_manifest_sha256": "3AD85003A3A1E42717DE73BB8B19356E474D7E049E6931EA73342B9488C5D106",
+    "challenger_resource_manifest_sha256": "02DF54CD500BDA6D5F65EEF751437066894FEF88B6EC1C1B7CF9B99C63CCFBFB",
+    "comparison_manifest_sha256": "F11DD434A72A369717438CCF234A6BCDF5640FA288B8CCA4CA702586B658B482",
+    "extended_model_source_sha256": "4f5a6b52d41fc0bc17d6ee4ae2e2e52ce1cb3dfa68df1690873a3af009fee747",
+    "final_evidence_sha_entry_count": 21,
+    "model_source_sha256": "0e7b5e6444fa6cca13d984ef39c0b417c3604edf7fdedc32aacdafb894c8ce41",
+    "original_frozen_archive_sha256": "F4D7D2C1EB9BA36AFF417C449CEA972CDF45C2167F65E765B7AA1F8B457B87E5",
+    "recovery_manifest_sha256": "6C0B19EA06B7E193E00045EF766D1DE55F686C8B1D336CD1C29ACF3369BC2266"
+  },
+  "failed_diagnostic_resource_run": {
+    "classification": "failed diagnostic resource run; not used as accepted profile",
+    "path": "artifacts/descriptive_gpu_resource_profiles/qwen3_6_27b_q5_k_m_20260726T222420Z",
+    "status": "failed",
+    "validation_failures": [
+      "startup_log_offloaded_layers_mismatch"
+    ]
+  },
+  "final_status": "APPROVE",
+  "frozen_behavioral_commit": "c66720057b7c728284ef500b5d131284258e9a40",
+  "frozen_behavioral_tag": "behavioral-benchmark-v2-final",
+  "frozen_resource_commit": "244dd5179a565544ad91bee174a41c7a3ee34ef6",
+  "frozen_resource_tag": "behavioral-benchmark-v2-resource-profile-final",
+  "frozen_v2_modified": false,
+  "generated_at_utc": "2026-07-27T06:35:25.487513+00:00",
+  "historical_frozen_hashes": {
+    "entries": 47,
+    "matches": 47,
+    "mismatches": 0,
+    "missing": 0
+  },
+  "model_identity": {
+    "base_model": "Qwen/Qwen3.6-27B",
+    "extended_provenance_path": "artifacts/challenger_qwen3_6_27b_q5_k_m/provenance_repair/model_source_resource_extended.json",
+    "extended_provenance_sha256": "4f5a6b52d41fc0bc17d6ee4ae2e2e52ce1cb3dfa68df1690873a3af009fee747",
+    "gguf_bytes": 19509790944,
+    "gguf_sha256": "cfecab168156269f25d5ffe9e13cf2a401ca2f43a9693fa00bcd1625316ccbde",
+    "model_id": "qwen3_6_27b_q5_k_m",
+    "model_source_bytes": 1113,
+    "model_source_sha256": "0e7b5e6444fa6cca13d984ef39c0b417c3604edf7fdedc32aacdafb894c8ce41",
+    "quant_filename": "Qwen3.6-27B-Q5_K_M.gguf",
+    "quant_repository": "unsloth/Qwen3.6-27B-GGUF"
+  },
+  "rejected_closeout_attempt": {
+    "classification": "rejected closeout attempt preserved unchanged",
+    "path": "../behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_final_20260727T061838Z.tar.gz",
+    "sha256": "8831C8B1F982A37CD1765F0C819959D8FE2522DA09F3094C64B3643999428F13"
+  },
+  "resource_harness_commit": "407e9a8beee29e8838f4fba08f553702924a69ad",
+  "resource_only_rankings": {
+    "fastest_long_mean_ms": [
+      {
+        "model_id": "fifth_model",
+        "value": 2560.00041
+      },
+      {
+        "model_id": "third_model",
+        "value": 6866.13385
+      },
+      {
+        "model_id": "fourth_model",
+        "value": 9709.95565
+      },
+      {
+        "model_id": "qwen3_6_27b_q5_k_m",
+        "value": 13250.38517
+      }
+    ],
+    "fastest_medium_mean_ms": [
+      {
+        "model_id": "fifth_model",
+        "value": 1253.5328
+      },
+      {
+        "model_id": "third_model",
+        "value": 3526.90929
+      },
+      {
+        "model_id": "fourth_model",
+        "value": 5007.96573
+      },
+      {
+        "model_id": "qwen3_6_27b_q5_k_m",
+        "value": 7031.09694
+      }
+    ],
+    "fastest_short_mean_ms": [
+      {
+        "model_id": "fifth_model",
+        "value": 537.96228
+      },
+      {
+        "model_id": "third_model",
+        "value": 1497.6617
+      },
+      {
+        "model_id": "fourth_model",
+        "value": 2071.05339
+      },
+      {
+        "model_id": "qwen3_6_27b_q5_k_m",
+        "value": 2970.01976
+      }
+    ],
+    "highest_long_output_tokens_per_second": [
+      {
+        "model_id": "fifth_model",
+        "value": 131.929336
+      },
+      {
+        "model_id": "third_model",
+        "value": 44.477291
+      },
+      {
+        "model_id": "fourth_model",
+        "value": 33.477189
+      },
+      {
+        "model_id": "qwen3_6_27b_q5_k_m",
+        "value": 25.126642
+      }
+    ],
+    "highest_medium_output_tokens_per_second": [
+      {
+        "model_id": "fifth_model",
+        "value": 155.742
+      },
+      {
+        "model_id": "third_model",
+        "value": 49.519713
+      },
+      {
+        "model_id": "fourth_model",
+        "value": 36.030757
+      },
+      {
+        "model_id": "qwen3_6_27b_q5_k_m",
+        "value": 26.010809
+      }
+    ],
+    "highest_short_output_tokens_per_second": [
+      {
+        "model_id": "fifth_model",
+        "value": 163.649628
+      },
+      {
+        "model_id": "third_model",
+        "value": 51.45499
+      },
+      {
+        "model_id": "fourth_model",
+        "value": 37.947764
+      },
+      {
+        "model_id": "qwen3_6_27b_q5_k_m",
+        "value": 27.002657
+      }
+    ],
+    "highest_vram_headroom_mb": [
+      {
+        "model_id": "third_model",
+        "value": 12651.0
+      },
+      {
+        "model_id": "fourth_model",
+        "value": 8887.0
+      },
+      {
+        "model_id": "fifth_model",
+        "value": 5097.0
+      },
+      {
+        "model_id": "qwen3_6_27b_q5_k_m",
+        "value": 5057.0
+      }
+    ],
+    "lowest_loaded_idle_private_delta_mb": [
+      {
+        "model_id": "third_model",
+        "value": 12096.285156
+      },
+      {
+        "model_id": "fourth_model",
+        "value": 15856.449219
+      },
+      {
+        "model_id": "fifth_model",
+        "value": 19452.554688
+      },
+      {
+        "model_id": "qwen3_6_27b_q5_k_m",
+        "value": 20257.445312
+      }
+    ],
+    "lowest_loaded_idle_rss_delta_mb": [
+      {
+        "model_id": "third_model",
+        "value": 9702.808594
+      },
+      {
+        "model_id": "fourth_model",
+        "value": 13500.390625
+      },
+      {
+        "model_id": "fifth_model",
+        "value": 17777.511719
+      },
+      {
+        "model_id": "qwen3_6_27b_q5_k_m",
+        "value": 18003.28125
+      }
+    ],
+    "lowest_peak_power_w": [
+      {
+        "model_id": "fifth_model",
+        "value": 147.61
+      },
+      {
+        "model_id": "third_model",
+        "value": 147.93
+      },
+      {
+        "model_id": "qwen3_6_27b_q5_k_m",
+        "value": 148.43
+      },
+      {
+        "model_id": "fourth_model",
+        "value": 148.75
+      }
+    ],
+    "lowest_peak_temperature_c": [
+      {
+        "model_id": "fifth_model",
+        "value": 78.0
+      },
+      {
+        "model_id": "third_model",
+        "value": 87.0
+      },
+      {
+        "model_id": "fourth_model",
+        "value": 87.0
+      },
+      {
+        "model_id": "qwen3_6_27b_q5_k_m",
+        "value": 87.0
+      }
+    ],
+    "lowest_peak_vram_mb": [
+      {
+        "model_id": "third_model",
+        "value": 11816.0
+      },
+      {
+        "model_id": "fourth_model",
+        "value": 15580.0
+      },
+      {
+        "model_id": "fifth_model",
+        "value": 19370.0
+      },
+      {
+        "model_id": "qwen3_6_27b_q5_k_m",
+        "value": 19410.0
+      }
+    ]
+  },
+  "schema_version": "behavioral_benchmark_v2_post_hoc_challenger_final_summary_v2"
+}

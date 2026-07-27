@@ -1,0 +1,123 @@
+{
+  "absolute_location": "C:\\Users\\m\\Documents\\local-llm-test-gisdays\\behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_final_20260727T063525Z.tar.gz",
+  "archive_filename": "behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_final_20260727T063525Z.tar.gz",
+  "archive_self_reference_note": "Archive contains the pre-archive-hash copies of final report, summary, and SHA manifest. The tracked docs were regenerated afterward with archive metadata and final SHA entries.",
+  "archive_verification": {
+    "archive_member_count": 256,
+    "embedded_hash_checks": [
+      {
+        "entries": 16,
+        "manifest": "artifacts/descriptive_gpu_resource_profiles/qwen3_6_27b_q5_k_m_20260727T051740Z/evidence_manifest.json",
+        "matches": 16,
+        "mismatches": 0,
+        "missing": 0
+      },
+      {
+        "entries": 16,
+        "manifest": "artifacts/descriptive_gpu_resource_profiles/qwen3_6_27b_q5_k_m_20260726T222420Z/evidence_manifest.json",
+        "matches": 16,
+        "mismatches": 0,
+        "missing": 0
+      },
+      {
+        "entries": 53,
+        "manifest": "artifacts/descriptive_gpu_resource_profiles/post_hoc_challenger_comparison_verified/comparison_evidence_manifest.json",
+        "matches": 53,
+        "mismatches": 0,
+        "missing": 0
+      },
+      {
+        "entries": 53,
+        "manifest": "artifacts/descriptive_gpu_resource_profiles/frozen_resource_evidence_recovery/recovery_evidence_manifest.json",
+        "matches": 53,
+        "mismatches": 0,
+        "missing": 0
+      },
+      {
+        "entries": 74,
+        "manifest": "artifacts/challenger_qwen3_6_27b_q5_k_m/full_cohort_35/full_cohort_evidence_manifest.json",
+        "matches": 74,
+        "mismatches": 0,
+        "missing": 0
+      },
+      {
+        "entries": 19,
+        "manifest": "docs/status/behavioral_benchmark_v2_post_hoc_challenger_evidence.sha256",
+        "matches": 19,
+        "mismatches": 0,
+        "missing": 0
+      }
+    ],
+    "embedded_model_source": {
+      "bytes": 1113,
+      "match": true,
+      "sha256": "0e7b5e6444fa6cca13d984ef39c0b417c3604edf7fdedc32aacdafb894c8ce41"
+    },
+    "json_jsonl_csv_validation": {
+      "csv": 7,
+      "errors": [],
+      "json": 92,
+      "jsonl": 50
+    },
+    "mismatch_count": 0,
+    "required_roots": {
+      "artifacts/challenger_qwen3_6_27b_q5_k_m/full_cohort_35": true,
+      "artifacts/challenger_qwen3_6_27b_q5_k_m/model_source.json": true,
+      "artifacts/challenger_qwen3_6_27b_q5_k_m/provenance_repair": true,
+      "artifacts/descriptive_gpu_resource_profiles/frozen_resource_evidence_recovery": true,
+      "artifacts/descriptive_gpu_resource_profiles/post_hoc_challenger_comparison_verified": true,
+      "artifacts/descriptive_gpu_resource_profiles/qwen3_6_27b_q5_k_m_20260726T222420Z": true,
+      "artifacts/descriptive_gpu_resource_profiles/qwen3_6_27b_q5_k_m_20260727T051740Z": true,
+      "artifacts/descriptive_gpu_resource_profiles/recovered_frozen_profiles_20260727T054643Z": true,
+      "docs/status/behavioral_benchmark_v2_post_hoc_challenger_evidence.sha256": true,
+      "docs/status/behavioral_benchmark_v2_post_hoc_challenger_final_report.md": true,
+      "docs/status/behavioral_benchmark_v2_post_hoc_challenger_final_summary.json": true,
+      "external_archives/behavioral_benchmark_v2_descriptive_gpu_resource_244dd51.tar.gz": true
+    },
+    "temporary_extraction_deleted": true,
+    "verification_status": "succeeded",
+    "verified_file_count": 231
+  },
+  "bytes": 960961,
+  "created_at_utc": "2026-07-27T06:35:25.471566+00:00",
+  "excluded_categories": [
+    "GGUF model files",
+    "virtual environment",
+    ".git",
+    "caches",
+    "unrelated artifacts",
+    "old provisional rejected comparison directory"
+  ],
+  "included_evidence_roots": [
+    "artifacts/challenger_qwen3_6_27b_q5_k_m/model_source.json",
+    "artifacts/challenger_qwen3_6_27b_q5_k_m/provenance_repair",
+    "artifacts/challenger_qwen3_6_27b_q5_k_m/full_cohort_35",
+    "artifacts/descriptive_gpu_resource_profiles/qwen3_6_27b_q5_k_m_20260727T051740Z",
+    "artifacts/descriptive_gpu_resource_profiles/qwen3_6_27b_q5_k_m_20260726T222420Z",
+    "artifacts/descriptive_gpu_resource_profiles/post_hoc_challenger_comparison_verified",
+    "artifacts/descriptive_gpu_resource_profiles/frozen_resource_evidence_recovery",
+    "artifacts/descriptive_gpu_resource_profiles/recovered_frozen_profiles_20260727T054643Z",
+    "external_archives/behavioral_benchmark_v2_descriptive_gpu_resource_244dd51.tar.gz",
+    "docs/status/behavioral_benchmark_v2_post_hoc_challenger_final_report.md",
+    "docs/status/behavioral_benchmark_v2_post_hoc_challenger_final_summary.json",
+    "docs/status/behavioral_benchmark_v2_post_hoc_challenger_evidence.sha256"
+  ],
+  "mismatch_count": 0,
+  "rejected_closeout_attempt_preserved": {
+    "classification": "rejected closeout attempt",
+    "path": "../behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_final_20260727T061838Z.tar.gz",
+    "sha256": "8831C8B1F982A37CD1765F0C819959D8FE2522DA09F3094C64B3643999428F13"
+  },
+  "relative_location": "../behavioral_benchmark_v2_post_hoc_qwen3_6_27b_q5_k_m_final_20260727T063525Z.tar.gz",
+  "schema_version": "behavioral_benchmark_v2_post_hoc_challenger_archive_v2",
+  "sha256": "4025B5C8AF79335D1CB5EF8C553CCF7F533B11A610872800A179D15A2CFEFDB7",
+  "source_commits_tags": {
+    "current_head": "407e9a8beee29e8838f4fba08f553702924a69ad",
+    "frozen_behavioral_commit": "c66720057b7c728284ef500b5d131284258e9a40",
+    "frozen_behavioral_tag": "behavioral-benchmark-v2-final",
+    "frozen_resource_commit": "244dd5179a565544ad91bee174a41c7a3ee34ef6",
+    "frozen_resource_tag": "behavioral-benchmark-v2-resource-profile-final"
+  },
+  "verification_status": "succeeded",
+  "verified_file_count": 231
+}
