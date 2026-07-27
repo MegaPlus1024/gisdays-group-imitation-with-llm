@@ -1,7 +1,7 @@
 {
   "schema_version": "autonomous_browser_plan_playwright_replay_operator_config_v1",
   "replay_backend": "fixture",
-  "replay_plan_path": "artifacts/autonomous_runtime_summaries/model_plan_playwright_replay_packet/playwright_replay_plan.json",
+  "replay_plan_path": "tests/fixtures/autonomous_browser_plan_playwright_replay/operator/replay_plan.json",
   "output_dir": "artifacts/autonomous_runtime_summaries/model_plan_playwright_replay_operator",
   "allowed_hosts": [
     "local.intranet",

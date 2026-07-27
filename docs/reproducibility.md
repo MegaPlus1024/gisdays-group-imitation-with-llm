@@ -185,7 +185,10 @@ curl.exe --location --fail --retry 3 --continue-at - --output $destination $url
   tests\test_canonical_multi_agent_experiments.py
 ```
 
-Тесты не требуют запуска `llama-server`.
+Полный `pytest` не требует GGUF-моделей или запущенного `llama-server`.
+Настоящий запуск модели начинается только после скачивания Qwen3.6-27B.
+Тесты, зависящие от необязательных браузерных библиотек, могут быть пропущены:
+их отсутствие может увеличить число `skipped`, но не должно приводить к `failed`.
 
 Безопасный dry-run одного повтора каждого сценария:
 

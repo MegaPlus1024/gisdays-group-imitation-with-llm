@@ -1,0 +1,21 @@
+Captured planner output for the clean-clone replay suite.
+
+```json
+{
+  "schema_version": "autonomous_browser_plan_v1",
+  "plan_id": "clean_clone_suite_trial_03_v1",
+  "goal": "Search the local fixture-backed index.",
+  "scenario_id": "browser_intranet_policy_research",
+  "max_actions": 1,
+  "actions": [
+    {
+      "step_id": "search_policy",
+      "action_name": "browser_search",
+      "parameters": {
+        "query": "fixture-backed result"
+      },
+      "expected_text": "fixture-backed result"
+    }
+  ]
+}
+```

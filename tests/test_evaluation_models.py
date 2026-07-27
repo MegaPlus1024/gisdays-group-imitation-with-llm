@@ -46,6 +46,20 @@ def _first_model_payload(**overrides: object) -> dict[str, object]:
     return payload
 
 
+def _write_models_config(tmp_path: Path, model_payload: dict[str, object]) -> Path:
+    config_path = tmp_path / "evaluation_models.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "evaluation_models_v1",
+                "models": [model_payload],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return config_path
+
+
 def test_evaluation_models_config_loads() -> None:
     config = load_evaluation_models_config(MODELS_CONFIG)
     ids = EvaluationModelRegistry(config).model_ids()
@@ -237,6 +251,17 @@ def test_missing_gguf_path_warning_and_require_file_failure() -> None:
 
 
 def test_fake_run_agent_scenario_uses_model_id_metadata_in_manifest(tmp_path: Path) -> None:
+    missing_model_path = tmp_path / "missing_first_model.gguf"
+    models_config = _write_models_config(
+        tmp_path,
+        _first_model_payload(
+            model_id="first_model",
+            display_name="IBM Granite 3.3 8B Instruct Q4_K_M",
+            role="small/medium non-Qwen baseline",
+            model_name="first_model.gguf",
+            gguf_path=str(missing_model_path),
+        ),
+    )
     out_dir = tmp_path / "fake_model_registry_run"
     completed = subprocess.run(
         [
@@ -247,7 +272,7 @@ def test_fake_run_agent_scenario_uses_model_id_metadata_in_manifest(tmp_path: Pa
             "--model-id",
             "first_model",
             "--models-config",
-            "configs/evaluation_models.json",
+            str(models_config),
             "--out-dir",
             str(out_dir),
             "--max-steps",
@@ -264,8 +289,9 @@ def test_fake_run_agent_scenario_uses_model_id_metadata_in_manifest(tmp_path: Pa
     manifest = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["model"]["model_id"] == "first_model"
     assert manifest["model"]["model_name"] == "first_model.gguf"
-    assert manifest["model"]["gguf_path"] == "models/gguf/first_model.gguf"
-    assert manifest["model"]["preflight_status"] == "pass"
+    assert manifest["model"]["gguf_path"] == str(missing_model_path)
+    assert manifest["model"]["preflight_status"] == "warn"
+    assert [warning["code"] for warning in manifest["model"]["preflight_warnings"]] == ["model_file_missing"]
 
 
 def test_fake_run_agent_scenario_records_legacy_alias_resolution(tmp_path: Path) -> None:
@@ -342,13 +368,57 @@ def test_local_mode_missing_model_file_fails_before_http_call(tmp_path: Path) ->
     assert not out_dir.exists()
 
 
-def test_check_evaluation_model_json_works_offline() -> None:
+def test_check_evaluation_model_json_passes_with_temporary_model_file(tmp_path: Path) -> None:
+    relative_model_path = Path("models") / "gguf" / "test_model.gguf"
+    model_path = tmp_path / relative_model_path
+    model_path.parent.mkdir(parents=True)
+    model_path.write_bytes(b"clean-clone model fixture")
+    models_config = _write_models_config(
+        tmp_path,
+        _first_model_payload(
+            model_id="test_model",
+            model_name="test_model.gguf",
+            gguf_path=relative_model_path.as_posix(),
+        ),
+    )
+
     completed = subprocess.run(
         [
             sys.executable,
             "scripts/check_evaluation_model.py",
             "--models-config",
-            "configs/evaluation_models.json",
+            str(models_config),
+            "--project-root",
+            str(tmp_path),
+            "--model-id",
+            "test_model",
+            "--require-model-file",
+            "--json",
+        ],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    payload = json.loads(completed.stdout)
+    assert payload["model"]["model_id"] == "test_model"
+    assert payload["preflight"]["status"] == "pass"
+    assert payload["preflight"]["warnings"] == []
+    assert payload["preflight"]["metadata"]["model_file_exists"] is True
+    assert payload["preflight"]["can_attempt_local_run"] is True
+
+
+def test_check_evaluation_model_json_works_offline(tmp_path: Path) -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/check_evaluation_model.py",
+            "--models-config",
+            str(MODELS_CONFIG),
+            "--project-root",
+            str(tmp_path),
             "--model-id",
             "first_model",
             "--json",
@@ -362,7 +432,10 @@ def test_check_evaluation_model_json_works_offline() -> None:
     assert completed.returncode == 0, completed.stderr
     payload = json.loads(completed.stdout)
     assert payload["model"]["model_id"] == "first_model"
-    assert payload["preflight"]["status"] == "pass"
+    assert payload["preflight"]["status"] == "warn"
+    assert [warning["code"] for warning in payload["preflight"]["warnings"]] == ["model_file_missing"]
+    assert payload["preflight"]["metadata"]["model_file_exists"] is False
+    assert payload["preflight"]["can_attempt_local_run"] is False
 
 
 def test_start_llama_server_help_works() -> None:

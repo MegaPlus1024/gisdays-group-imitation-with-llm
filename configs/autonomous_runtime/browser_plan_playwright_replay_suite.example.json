@@ -2,9 +2,9 @@
   "schema_version": "autonomous_browser_plan_playwright_replay_suite_config_v1",
   "suite_id": "browser_plan_playwright_replay_suite_v1",
   "captured_outputs": [
-    "artifacts/autonomous_runtime_summaries/local_planner_repeated_trials_packet/trial_01/raw_planner_output.txt",
-    "artifacts/autonomous_runtime_summaries/local_planner_repeated_trials_packet/trial_02/raw_planner_output.txt",
-    "artifacts/autonomous_runtime_summaries/local_planner_repeated_trials_packet/trial_03/raw_planner_output.txt"
+    "tests/fixtures/autonomous_browser_plan_playwright_replay/suite/captured_output_01.txt",
+    "tests/fixtures/autonomous_browser_plan_playwright_replay/suite/captured_output_02.txt",
+    "tests/fixtures/autonomous_browser_plan_playwright_replay/suite/captured_output_03.txt"
   ],
   "output_dir": "artifacts/autonomous_runtime_summaries/model_plan_playwright_replay_suite",
   "replay_backend": "fixture",

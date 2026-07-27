@@ -1,0 +1,21 @@
+Captured planner output for the clean-clone replay suite.
+
+```json
+{
+  "schema_version": "autonomous_browser_plan_v1",
+  "plan_id": "clean_clone_suite_trial_01_v1",
+  "goal": "Open the local intranet fixture.",
+  "scenario_id": "browser_intranet_policy_research",
+  "max_actions": 1,
+  "actions": [
+    {
+      "step_id": "open_home",
+      "action_name": "browser_open_url",
+      "parameters": {
+        "url": "https://local.intranet/"
+      },
+      "expected_text": "Office Intranet"
+    }
+  ]
+}
+```

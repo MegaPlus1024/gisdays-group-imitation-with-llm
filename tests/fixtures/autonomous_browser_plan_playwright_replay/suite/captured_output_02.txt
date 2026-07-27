@@ -1,0 +1,21 @@
+Captured planner output for the clean-clone replay suite.
+
+```json
+{
+  "schema_version": "autonomous_browser_plan_v1",
+  "plan_id": "clean_clone_suite_trial_02_v1",
+  "goal": "Open the local policy fixture.",
+  "scenario_id": "browser_intranet_policy_research",
+  "max_actions": 1,
+  "actions": [
+    {
+      "step_id": "open_policy",
+      "action_name": "browser_open_url",
+      "parameters": {
+        "url": "https://docs.local/docs/policy"
+      },
+      "expected_text": "Allowed activity"
+    }
+  ]
+}
+```

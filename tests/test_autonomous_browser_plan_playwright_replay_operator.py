@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import builtins
 import json
+import shutil
 import subprocess
 import sys
-import shutil
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from src.agent.autonomous_browser_plan_validation import validate_autonomous_browser_plan
 from src.agent.autonomous_browser_plan_playwright_replay_operator import (
     CONFIG_SCHEMA_VERSION,
     REQUIRED_ALLOW_FLAG,
@@ -25,6 +26,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_CONFIG_PATH = PROJECT_ROOT / "configs" / "autonomous_runtime" / "browser_plan_playwright_replay_operator.example.json"
 PLAN_SOURCE_PATH = PROJECT_ROOT / "configs" / "autonomous_runtime" / "browser_plan.example.json"
 DEFAULT_REPLAY_PLAN_PATH = "artifacts/autonomous_runtime_summaries/model_plan_playwright_replay_packet/playwright_replay_plan.json"
+EXAMPLE_REPLAY_PLAN_PATH = "tests/fixtures/autonomous_browser_plan_playwright_replay/operator/replay_plan.json"
+REPLAY_FIXTURE_ROOT = PROJECT_ROOT / "tests" / "fixtures" / "autonomous_browser_plan_playwright_replay"
 DEFAULT_OUTPUT_DIR = "artifacts/autonomous_runtime_summaries/model_plan_playwright_replay_operator_tests"
 EXAMPLE_OUTPUT_DIR = "artifacts/autonomous_runtime_summaries/model_plan_playwright_replay_operator"
 SCRIPT_PATH = PROJECT_ROOT / "scripts" / "run_autonomous_browser_plan_playwright_replay_operator.py"
@@ -32,6 +35,17 @@ SCRIPT_PATH = PROJECT_ROOT / "scripts" / "run_autonomous_browser_plan_playwright
 
 def _base_plan() -> dict[str, Any]:
     return json.loads(PLAN_SOURCE_PATH.read_text(encoding="utf-8"))
+
+
+def _resolve_repo_fixture(relative_path: str) -> Path:
+    path = Path(relative_path)
+    assert not path.is_absolute()
+    assert "artifacts" not in path.parts
+    resolved = (PROJECT_ROOT / path).resolve()
+    assert resolved.is_relative_to(PROJECT_ROOT.resolve())
+    assert resolved.is_relative_to(REPLAY_FIXTURE_ROOT.resolve())
+    assert resolved.is_file()
+    return resolved
 
 
 def _write_replay_plan(repo_root: Path, plan: dict[str, Any], *, relative_path: str = DEFAULT_REPLAY_PLAN_PATH) -> Path:
@@ -250,13 +264,17 @@ def test_example_config_loads_with_relative_paths() -> None:
 
     assert config.schema_version == CONFIG_SCHEMA_VERSION
     assert config.replay_backend == "fixture"
-    assert config.replay_plan_path == DEFAULT_REPLAY_PLAN_PATH
+    assert config.replay_plan_path == EXAMPLE_REPLAY_PLAN_PATH
     assert config.output_dir == EXAMPLE_OUTPUT_DIR
     assert config.fixture_scope == "local_only"
     assert config.headless is True
     assert config.timeout_ms == 30_000
     assert config.allowed_hosts == ("local.intranet", "local-intranet.test", "docs.local", "portal.local")
     assert all(not Path(path).is_absolute() for path in (config.replay_plan_path, config.output_dir))
+    replay_plan_path = _resolve_repo_fixture(config.replay_plan_path)
+    replay_plan = json.loads(replay_plan_path.read_text(encoding="utf-8"))
+    assert isinstance(replay_plan, dict)
+    assert validate_autonomous_browser_plan(replay_plan)["status"] == "accepted"
 
 
 def test_default_run_refuses_without_guards(tmp_path: Path) -> None:
@@ -876,7 +894,7 @@ def test_cli_refusal_smoke_uses_repo_local_paths() -> None:
     assert payload["no_runtime_execution"] is True
     assert payload["real_browser_execution"] is False
     assert payload["replay_backend"] == "fixture"
-    assert payload["replay_plan_path"] == DEFAULT_REPLAY_PLAN_PATH
+    assert payload["replay_plan_path"] == EXAMPLE_REPLAY_PLAN_PATH
     assert payload["output_files"][0].startswith(EXAMPLE_OUTPUT_DIR)
 
 

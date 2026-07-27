@@ -9,6 +9,8 @@ from typing import Any
 
 import pytest
 
+from src.agent.autonomous_browser_plan_validation import validate_autonomous_browser_plan
+from src.agent.autonomous_browser_planner_output_ingestion import extract_autonomous_browser_plan_candidate
 from src.agent.autonomous_browser_plan_playwright_replay_operator import REQUIRED_CONFIRM_VALUE
 from src.agent.autonomous_browser_plan_playwright_replay_suite import (
     CONFIG_SCHEMA_VERSION,
@@ -23,6 +25,12 @@ PLAN_PATH = PROJECT_ROOT / "configs" / "autonomous_runtime" / "browser_plan.exam
 CLI_PATH = PROJECT_ROOT / "scripts" / "run_autonomous_browser_plan_playwright_replay_suite.py"
 EXAMPLE_CONFIG_PATH = PROJECT_ROOT / "configs" / "autonomous_runtime" / "browser_plan_playwright_replay_suite.example.json"
 PHASE11_EXAMPLE_CONFIG_PATH = PROJECT_ROOT / "configs" / "autonomous_runtime" / "browser_phase11_playwright_replay_suite.example.json"
+REPLAY_FIXTURE_ROOT = PROJECT_ROOT / "tests" / "fixtures" / "autonomous_browser_plan_playwright_replay"
+EXAMPLE_CAPTURED_OUTPUTS = (
+    "tests/fixtures/autonomous_browser_plan_playwright_replay/suite/captured_output_01.txt",
+    "tests/fixtures/autonomous_browser_plan_playwright_replay/suite/captured_output_02.txt",
+    "tests/fixtures/autonomous_browser_plan_playwright_replay/suite/captured_output_03.txt",
+)
 
 
 def _base_plan() -> dict[str, Any]:
@@ -68,6 +76,17 @@ def _phase11_plan() -> dict[str, Any]:
     }
 
 
+def _resolve_repo_fixture(relative_path: str) -> Path:
+    path = Path(relative_path)
+    assert not path.is_absolute()
+    assert "artifacts" not in path.parts
+    resolved = (PROJECT_ROOT / path).resolve()
+    assert resolved.is_relative_to(PROJECT_ROOT.resolve())
+    assert resolved.is_relative_to(REPLAY_FIXTURE_ROOT.resolve())
+    assert resolved.is_file()
+    return resolved
+
+
 def _write_captured_output(repo_root: Path, relative_path: str, text: str) -> Path:
     path = repo_root / relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -106,16 +125,19 @@ def test_example_config_loads_with_relative_paths() -> None:
     assert config.suite_id == "browser_plan_playwright_replay_suite_v1"
     assert config.replay_backend == "fixture"
     assert config.output_dir == "artifacts/autonomous_runtime_summaries/model_plan_playwright_replay_suite"
-    assert config.captured_outputs == (
-        "artifacts/autonomous_runtime_summaries/local_planner_repeated_trials_packet/trial_01/raw_planner_output.txt",
-        "artifacts/autonomous_runtime_summaries/local_planner_repeated_trials_packet/trial_02/raw_planner_output.txt",
-        "artifacts/autonomous_runtime_summaries/local_planner_repeated_trials_packet/trial_03/raw_planner_output.txt",
-    )
+    assert config.captured_outputs == EXAMPLE_CAPTURED_OUTPUTS
     assert config.fixture_scope == "local_only"
     assert config.headless is True
     assert config.timeout_ms == 30_000
     assert config.expected_min_succeeded == 3
     assert config.expected_max_failed == 0
+    for captured_output in config.captured_outputs:
+        fixture_path = _resolve_repo_fixture(captured_output)
+        extraction = extract_autonomous_browser_plan_candidate(fixture_path.read_text(encoding="utf-8"))
+        assert extraction["status"] == "accepted"
+        candidate_plan = extraction["candidate_plan"]
+        assert isinstance(candidate_plan, dict)
+        assert validate_autonomous_browser_plan(candidate_plan)["status"] == "accepted"
 
 
 def test_phase11_example_config_loads_with_relative_paths() -> None:
